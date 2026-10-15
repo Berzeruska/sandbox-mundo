@@ -9,6 +9,14 @@ export interface Noise3D {
   (x: number, y: number, z: number): number;
 }
 
+/** Os 16 gradientes do Perlin "melhorado" (x, y, z), na ordem do hash & 15. */
+const GRAD = new Float64Array([
+  1, 1, 0, -1, 1, 0, 1, -1, 0, -1, -1, 0,
+  1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, -1,
+  0, 1, 1, 0, -1, 1, 0, 1, -1, 0, -1, -1,
+  1, 1, 0, 0, -1, 1, -1, 1, 0, 0, -1, -1,
+]);
+
 export function createNoise3D(rng: Rng): Noise3D {
   const p = new Uint8Array(256);
   for (let i = 0; i < 256; i++) p[i] = i;
@@ -23,11 +31,10 @@ export function createNoise3D(rng: Rng): Noise3D {
 
   const fade = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10);
   const lerp = (a: number, b: number, t: number): number => a + t * (b - a);
+  // Gradiente por tabela, sem desvios: rápido e com os mesmos valores do Perlin "melhorado".
   const grad = (hash: number, x: number, y: number, z: number): number => {
-    const h = hash & 15;
-    const u = h < 8 ? x : y;
-    const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
-    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+    const g = (hash & 15) * 3;
+    return (GRAD[g] as number) * x + (GRAD[g + 1] as number) * y + (GRAD[g + 2] as number) * z;
   };
 
   return (x, y, z) => {

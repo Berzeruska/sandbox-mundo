@@ -7,6 +7,9 @@ export interface HudCallbacks {
   onTool(tool: Tool): void;
   onBrushSize(size: number): void;
   onSpeed(speed: Speed): void;
+  onNewWorld(): void;
+  onNorthUp(): void;
+  onDebug(): void;
 }
 
 function button(icon: string, label: string, onClick: () => void): HTMLButtonElement {
@@ -87,7 +90,17 @@ export class Hud {
       time.append(b);
     }
 
-    this.root.append(time, tools);
+    const corner = document.createElement('div');
+    corner.className = 'hud-bar hud-corner';
+    const worldBtn = button('🌍', 'Mundo', () => cb.onNewWorld());
+    const northBtn = button('🧭', 'Norte', () => cb.onNorthUp());
+    const debugBtn = button('🐞', 'Dados', () => cb.onDebug());
+    worldBtn.title = 'Novo mundo';
+    northBtn.title = 'Norte para cima';
+    debugBtn.title = 'Painel de depuração';
+    corner.append(worldBtn, northBtn, debugBtn);
+
+    this.root.append(time, corner, tools);
     parent.append(this.root);
   }
 

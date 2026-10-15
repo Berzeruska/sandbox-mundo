@@ -1,4 +1,4 @@
-import { App } from './app';
+import { App, setSeedInUrl } from './app';
 import { GAME_NAME } from './core/version';
 
 const root = document.querySelector<HTMLDivElement>('#app');
@@ -14,7 +14,9 @@ document.title = GAME_NAME;
 requestAnimationFrame(() =>
   setTimeout(() => {
     try {
-      const app = new App(root, 'pangeia');
+      const seed = new URLSearchParams(window.location.search).get('seed')?.trim() || 'pangeia';
+      const app = new App(root, seed);
+      setSeedInUrl(seed);
       loading.remove();
       app.start();
       if (import.meta.env.DEV) (window as unknown as { game: App }).game = app;

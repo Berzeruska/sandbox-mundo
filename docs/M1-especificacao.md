@@ -52,7 +52,7 @@ tempo. Fluido no celular.
   Data do mundo (ano), pausa e velocidades 1×, 2×, 5×, 20×, máximo. No M1 o tempo só avança o
   calendário; a estrutura de tick fixo já fica pronta para o M2.
 
-- [ ] **T10 — Interface mínima e painel de depuração**
+- [x] **T10 — Interface mínima e painel de depuração**
   Botões grandes para toque. Painel com fps, ms por quadro, número de células, semente.
   Botão "novo mundo" com campo de semente.
 

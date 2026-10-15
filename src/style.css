@@ -187,3 +187,110 @@ body {
     flex: 1;
   }
 }
+
+.hud-corner {
+  top: calc(10px + env(safe-area-inset-top));
+  right: 10px;
+  flex-direction: column;
+}
+
+.panel {
+  position: absolute;
+  pointer-events: auto;
+  background: rgba(10, 14, 28, 0.92);
+  border-radius: 14px;
+  padding: 12px;
+  box-sizing: border-box;
+  backdrop-filter: blur(6px);
+}
+
+.panel.hidden {
+  display: none;
+}
+
+.debug-panel {
+  left: 10px;
+  top: calc(80px + env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.debug-panel pre {
+  margin: 0;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.world-panel {
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -30%);
+  width: min(360px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.panel-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.panel-input {
+  font: inherit;
+  font-size: 16px; /* 16px evita o zoom automático do iPhone ao focar */
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.panel-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.panel-btn {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.panel-btn.primary {
+  background: #2f6fd6;
+  font-weight: 600;
+}
+
+.loading {
+  background: rgba(2, 3, 10, 0.75);
+  z-index: 10;
+}
+
+.loading[hidden] {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .debug-panel {
+    top: calc(118px + env(safe-area-inset-top));
+  }
+}

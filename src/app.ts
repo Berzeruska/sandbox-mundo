@@ -8,6 +8,8 @@ import { dirtyRects } from './render/dirty';
 import { GlobeRenderer } from './render/globe-renderer';
 import { Overlay } from './render/overlay';
 import { Hud } from './ui/hud';
+import { DebugPanel, NewWorldDialog } from './ui/panels';
+import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
 import { createWorld } from './world/create';
 import { CubeSphere, type Vec3 } from './world/cubesphere';
 import type { WorldState } from './world/state';
@@ -31,6 +33,13 @@ export class App {
   readonly hud: Hud;
   readonly clock = new Clock();
   private lastRunningSpeed: Speed = 1;
+  readonly debug: DebugPanel;
+  readonly worldDialog: NewWorldDialog;
+  private loadingEl: HTMLDivElement;
+  private generationMs = 0;
+  /** Giro contínuo para medir fps (redesenha todo quadro). */
+  private stressSpin = false;
+  private stats = { frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0 };
   world: WorldState;
   colors: Uint8Array;
   mode: InputMode = 'move';
@@ -53,7 +62,9 @@ export class App {
     root.append(canvas, overlayCanvas);
 
     this.grid = new CubeSphere(DEFAULT_N);
+    const t0 = performance.now();
     this.world = this.generate(seedText);
+    this.generationMs = performance.now() - t0;
     this.colors = new Uint8Array(this.world.cellCount * 4);
     buildColors(this.world, this.colors);
     this.renderer = new GlobeRenderer(canvas, this.world.params.n, this.colors);
@@ -89,9 +100,29 @@ export class App {
           this.requestDraw();
         },
         onSpeed: (speed) => this.setSpeed(speed),
+        onNewWorld: () => this.worldDialog.toggle(this.world.params.seedText),
+        onNorthUp: () => {
+          this.camera.stopSpin();
+          this.camera.northUp();
+          this.requestDraw();
+        },
+        onDebug: () => {
+          this.debug.toggle();
+          this.updateDebug();
+        },
       },
       this.brushSize,
     );
+    this.debug = new DebugPanel(this.hud.root, () => {
+      this.stressSpin = !this.stressSpin;
+      this.debug.setSpinning(this.stressSpin);
+    });
+    this.worldDialog = new NewWorldDialog(this.hud.root, (text) => this.newWorld(text));
+    this.loadingEl = document.createElement('div');
+    this.loadingEl.className = 'loading';
+    this.loadingEl.hidden = true;
+    root.append(this.loadingEl);
+
     this.hud.setTool(this.tool);
     this.hud.setMode(this.mode);
     this.hud.setSpeed(this.clock.speed);
@@ -106,6 +137,31 @@ export class App {
     window.addEventListener('keyup', (e) => {
       if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) e.preventDefault();
     });
+  }
+
+  /** Gera outro planeta com a semente dada (mantém a grade, zera o calendário). */
+  newWorld(seedText: string): void {
+    this.loadingEl.textContent = 'Gerando mundo…';
+    this.loadingEl.hidden = false;
+    // Deixa a mensagem aparecer antes do trabalho pesado.
+    requestAnimationFrame(() =>
+      setTimeout(() => {
+        const t0 = performance.now();
+        this.world = this.generate(seedText);
+        this.generationMs = performance.now() - t0;
+        buildColors(this.world, this.colors);
+        this.renderer.setWorld(this.world.params.n, this.colors);
+        this.camera.stopSpin();
+        this.camera.zoom = 1;
+        this.camera.lookAt(landCenter(this.world));
+        this.clock.tick = 0;
+        this.hud.setDate(formatDate(this.clock));
+        setSeedInUrl(seedText);
+        this.loadingEl.hidden = true;
+        this.updateDebug();
+        this.requestDraw();
+      }, 30),
+    );
   }
 
   setSpeed(speed: Speed): void {
@@ -160,6 +216,7 @@ export class App {
 
   /** Um quadro: ajusta tamanho, avança animações e pincel, e desenha se algo mudou. */
   frame(time: number): void {
+    const workStart = performance.now();
     const dt = this.lastTime ? Math.min(0.1, (time - this.lastTime) / 1000) : 0;
     this.lastTime = time;
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
@@ -177,11 +234,49 @@ export class App {
       this.paintApplied = true;
     }
 
+    if (this.stressSpin) {
+      const r = quatFromAxisAngle([0, 1, 0], dt * 0.6);
+      this.camera.setOrientation(quatNormalize(quatMultiply(this.camera.orientation, r)));
+      this.needsDraw = true;
+    }
+
     if (this.needsDraw) {
       this.renderer.draw(this.camera);
       this.drawOverlay();
       this.needsDraw = false;
     }
+    this.measure(time, performance.now() - workStart);
+  }
+
+  private measure(time: number, workMs: number): void {
+    const st = this.stats;
+    st.frames++;
+    st.workMs += workMs;
+    if (!st.since) st.since = time;
+    const elapsed = time - st.since;
+    if (elapsed >= 500) {
+      st.fps = (st.frames * 1000) / elapsed;
+      st.frameMs = st.workMs / st.frames;
+      st.frames = 0;
+      st.workMs = 0;
+      st.since = time;
+      this.updateDebug();
+    }
+  }
+
+  private updateDebug(): void {
+    if (!this.debug.visible) return;
+    this.debug.update({
+      fps: this.stats.fps,
+      frameMs: this.stats.frameMs,
+      cells: this.world.cellCount,
+      n: this.world.params.n,
+      seedText: this.world.params.seedText,
+      seed: this.world.params.seed,
+      generationMs: this.generationMs,
+      zoom: this.camera.zoom,
+      cellPixels: this.camera.cellPixels(),
+    });
   }
 
   private drawOverlay(): void {
@@ -198,6 +293,13 @@ export class App {
     };
     requestAnimationFrame(loop);
   }
+}
+
+/** Guarda a semente na URL: o link compartilhado abre o mesmo mundo. */
+export function setSeedInUrl(seedText: string): void {
+  const url = new URL(window.location.href);
+  url.searchParams.set('seed', seedText);
+  window.history.replaceState(null, '', url);
 }
 
 /** Direção média da terra firme: onde a câmera começa olhando. */

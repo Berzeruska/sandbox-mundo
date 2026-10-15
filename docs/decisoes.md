@@ -53,3 +53,10 @@ Formato: data — decisão — motivo — alternativa descartada.
   Velocidades 2×, 5×, 20× multiplicam os passos; "máximo" roda quantos passos couberem em 8 ms por
   quadro (teto de 600). Motivo: resultado da simulação não depende do fps do aparelho.
   Escala provisória: reavaliar no M2, quando a geologia começar a usar os passos.
+
+- **2026-10-14 — Ruído com tabela de gradientes e tabela do vento sob demanda.**
+  Motivo: a abertura do jogo caiu de ~2,6 s para ~0,7 s no notebook (o celular é ~3× mais lento).
+  Os mundos gerados continuam idênticos para a mesma semente (conferido byte a byte).
+
+- **2026-10-14 — Semente na URL (`?seed=...`).**
+  Motivo: um link reproduz exatamente o mesmo mundo, o que ajuda a relatar bugs.
