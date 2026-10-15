@@ -19,3 +19,6 @@ Roda no navegador do celular e do notebook. Instalável como app (PWA).
 npm install
 npm run dev -- --host
 ```
+
+## Jogar
+https://berzeruska.github.io/sandbox-mundo/

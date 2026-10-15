@@ -10,7 +10,7 @@ Marco atual: **Marco 0 → Marco 1**
 ## Marco 0 — Fundação do repositório
 - [x] Projeto Vite + TypeScript estrito + Vitest + ESLint configurados
 - [x] `npm run check` (tipos + lint + testes) funcionando
-- [ ] Repositório no GitHub criado e com o primeiro push
+- [x] Repositório no GitHub criado e com o primeiro push
 - [x] GitHub Actions: `check` em todo push; deploy de `main` no GitHub Pages
 - [ ] Página publicada abrindo no celular (tela preta com "Sandbox Mundo" basta)
 - [x] `CHANGELOG.md`, `docs/bugs.md` criados
