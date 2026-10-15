@@ -43,6 +43,13 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 9. **Dúvida de design é do usuário.** Se a especificação não decide algo que muda a experiência de
    jogo, pergunte em uma frase com opções. Se for detalhe técnico, decida, registre e siga.
 10. **Nunca diga que está pronto sem ter rodado.** "Deve funcionar" não é relato.
+11. **Quando parar para o usuário testar** (regra do usuário, 2026-10-15): tarefas sem mudança que
+    ele veja ou sinta no jogo (infraestrutura, refatoração, testes, documentação) seguem direto para
+    a próxima, sem parar para aprovação, mas sempre com commit e relato. Pare e peça teste só quando
+    houver algo visível ou sentido no jogo, ou uma decisão de design. Ao parar, publique a prévia do
+    branch (`/previa/<branch>/`) e passe o link.
+12. **Nenhum teste depende do relógio real** (regra do usuário): lógica com tempo vira função pura
+    com tempos sintéticos. Medições de desempenho não são testes de aprovação.
 
 ## Git e GitHub
 - Branch `main` sempre jogável. Trabalho de cada marco em `marco-N` (ex.: `marco-1`).
