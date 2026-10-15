@@ -34,7 +34,11 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
    Mesma semente = mesmo mundo. Nunca use `Math.random()` na simulação.
 5. **Simulação separada da renderização.** A simulação nunca toca no DOM, no canvas ou no WebGL.
    A renderização só lê o estado.
-6. **Orçamento de celular.** Meta: 60 fps no notebook e no mínimo 30 fps num celular intermediário.
+6. **Orçamento de celular.** Aparelho-alvo: **Infinix Hot 50i** (Helio G81, só 2 núcleos fortes A75
+   + 6 A55, GPU Mali-G52 MP2, tela 720p 120 Hz). Otimize pensando nele; não há opção de qualidade:
+   o jogo inteiro tem que rodar bem nele. Metas no aparelho: pausado ≥ 85 fps, tempo rodando
+   ≥ 60, placas em deriva ≥ 30 (nunca abaixo de 20), geração ≤ 3 s; notebook 60 fps. Estime com CPU
+   desacelerada 6× antes de pedir medição; o relatório "Medir desempenho" do aparelho é a verdade.
    Se uma mudança derrubar isso, conserte antes de seguir.
 7. **Sem dependência nova sem justificativa.** Antes de instalar um pacote, diga qual, por que e o
    tamanho aproximado. Registre em `docs/decisoes.md`.

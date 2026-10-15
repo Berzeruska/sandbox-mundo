@@ -69,6 +69,15 @@ docs/
 ```
 
 ## Orçamento de desempenho
-- Notebook: 60 fps. Celular intermediário: ≥ 30 fps.
+- **Aparelho-alvo (2026-10-15): Infinix Hot 50i** — MediaTek Helio G81 (só 2 núcleos fortes
+  Cortex-A75 a 2,0 GHz + 6 Cortex-A55), GPU **Mali-G52 MP2**, tela 720p a 120 Hz. Tudo é otimizado
+  pensando nele. Consequências: o worker e a thread principal disputam os 2 núcleos fortes (o worker
+  só trabalha quando há o que fazer); a GPU tem pouca banda e pouco cálculo por pixel (shader leve,
+  sem trabalho repetido por quadro).
+- **Sem opção de qualidade** (decisão do usuário): o jogo inteiro tem que rodar bem no aparelho-alvo.
+- Metas no aparelho-alvo: pausado ≥ 85 fps; tempo rodando ≥ 60 fps; placas em deriva ≥ 30 fps,
+  nunca abaixo de 20; geração de mundo ≤ 3 s. Notebook: 60 fps.
+- Estimativa antes de pedir medição ao usuário: navegador com CPU desacelerada 6× (emulação).
+  O relatório do botão "Medir desempenho" (painel Dados), rodado no aparelho, é a verdade.
 - Um painel de depuração (fps, ms por tick, células) acessível por botão, desde o Marco 1.
 - Se o orçamento estourar, reduzir resolução antes de cortar mecânica.

@@ -180,6 +180,26 @@ mundos evoluem.
   tamanhos variados, com penínsulas, golfos e mares internos, fronteiras irregulares, nenhum com mais
   de ~40% da terra. Feito: 5 sementes fixas passam em 1 e 2 min (imagens em `docs/img/m2-formas-*`).
 
+### Desempenho no aparelho-alvo (pedido do usuário em 2026-10-15; T6 congelada até terminar)
+
+Aparelho: Infinix Hot 50i (Helio G81, Mali-G52 MP2, 720p 120 Hz). Medição do usuário antes:
+pausado 91 fps; tempo rodando com placas paradas ~48; placas se afastando 27–39 (pior 10);
+colisões pior 5; geração 4.000 ms no painel (6–7 s percebidos). Metas: pausado ≥ 85; tempo
+rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opção de qualidade.
+
+- [x] **D1 — Botão "Medir desempenho"** (painel Dados): roda sozinho, em ~55 s, pausado parado,
+  pausado girando, tempo 20× com placas paradas, tempo 20× com placas 100% e geração de mundo.
+  Relatório em texto com botão de copiar: fps médio, mínimo (pior janela de 1 s), pior quadro e
+  quadros acima de 50 ms por cenário; trabalho da tela por quadro; worker (passos/s, ms por passo,
+  ocupação, recomposições divididas em placas/clima/cores/envio); geração por etapa; GPU detectada.
+- [ ] **D2 — Tempo rodando sem placas ≥ 60 fps:** o worker trabalha só o necessário e não manda
+  atualização à tela sem mudança.
+- [ ] **D3 — Placas com tamanho e identidade fixos:** continentes que colidem se soldam e erguem
+  cordilheira; fragmento pequeno gruda na placa maior; nada de pedaços colidindo para sempre
+  (achar a causa da oscilação).
+- [ ] **D4 — Shader de deriva mais leve para a Mali-G52.**
+- [ ] **D5 — Geração ≤ 3 s no aparelho.**
+
 - [ ] **T6 — Recursos minerais e petróleo** (`src/world/resources.ts`)
   Depósitos de ferro, cobre, ouro, nióbio, petróleo, carvão (e outros) gerados pela geologia real:
   cobre (e ouro) em arcos de subducção; ferro (e ouro) em crátons antigos; petróleo e carvão em bacias

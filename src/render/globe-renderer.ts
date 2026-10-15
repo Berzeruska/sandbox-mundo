@@ -60,6 +60,15 @@ export class GlobeRenderer {
    * o driver da GPU recusar o completo ou se a GPU perder o contexto com ele.
    */
   motionSupported = true;
+  /** Nome da GPU informado pelo navegador (para o relatório de desempenho). */
+  gpuName(): string {
+    const gl = this.gl;
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    const vendor = ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR);
+    return `${String(name)} (${String(vendor)})`;
+  }
+
   /** Por que o desenho está simplificado (vazio = completo). Aparece no painel Dados. */
   fallbackReason = '';
   private contextLosses = 0;

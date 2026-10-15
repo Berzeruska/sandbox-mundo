@@ -10,6 +10,7 @@ import { Crust } from '../world/plates';
 import { NEAR_BOUNDARY_CELLS, packPlateCell } from '../render/plate-motion';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
+import { emptyWork, type WorkCounters } from '../ui/benchmark';
 import { makePatches, transferables, type FromWorker, type ToWorker } from './protocol';
 
 export type Post = (msg: FromWorker, transfer: ArrayBuffer[]) => void;
@@ -50,6 +51,8 @@ export class SimulationCore {
   plateRate = DEFAULT_PLATE_RATE;
   /** Tempo da última recomposição com clima e cores (ms), para o painel Dados. */
   private geologyMs = 0;
+  /** Contadores acumulados de trabalho (para o "Medir desempenho"). */
+  readonly work: WorkCounters = emptyWork();
   private grid: CubeSphere | null = null;
   private lastPostedTick = -1;
   private ticksWindow = { since: 0, ticks: 0, rate: 0 };
@@ -167,18 +170,29 @@ export class SimulationCore {
     const world = this.world;
     const tectonics = this.tectonics;
     if (!world || !tectonics) return;
+    const w = this.work;
+    const t1 = this.now();
+    w.plates += t1 - t0;
     computeWaterDistance(world);
     updateClimate(world);
+    const t2 = this.now();
+    w.climate += t2 - t1;
     buildColors(world, this.colors, undefined, this.layers);
+    const t3 = this.now();
+    w.colors += t3 - t2;
     const n = world.params.n;
     const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
-    this.geologyMs = this.now() - t0;
     this.send({
       type: 'recomposed',
       patches: makePatches(this.colors, n, faces),
       plateCells: packPlates(world),
       angles: Array.from(tectonics.angle),
     });
+    const t4 = this.now();
+    w.send += t4 - t3;
+    w.recompositions++;
+    this.geologyMs = t4 - t0;
+    w.worstGeology = Math.max(w.worstGeology, this.geologyMs);
   }
 
   /** Liga/desliga camadas: repinta o mundo todo e manda as 6 faces como remendos. */
@@ -206,6 +220,7 @@ export class SimulationCore {
 
   /** Avança o relógio pelo tempo real `dt` (segundos). Chamado pelo laço do worker. */
   advance(dt: number): void {
+    const start = this.now();
     // Cada passo move as placas; a recomposição acontece no passo exato em que elas andaram o
     // bastante (contado em passos, não em tempo real: o resultado não depende do aparelho).
     const ran = this.clock.advance(
@@ -222,6 +237,8 @@ export class SimulationCore {
     const t = this.now();
     if (!w.since) w.since = t;
     w.ticks += ran;
+    this.work.ticks += ran;
+    this.work.ms += t - start;
     if (t - w.since >= 500) {
       w.rate = (w.ticks * 1000) / (t - w.since);
       w.ticks = 0;
@@ -234,15 +251,16 @@ export class SimulationCore {
   private postClock(force: boolean): void {
     if (!force && this.clock.tick === this.lastPostedTick) return;
     this.lastPostedTick = this.clock.tick;
+    this.work.clockMessages++;
     this.send({
       type: 'clock',
       tick: this.clock.tick,
       speed: this.clock.speed,
       ticksPerSecond: this.ticksWindow.rate,
       geologyMs: this.geologyMs,
-      recompositions: this.tectonics?.recompositions ?? 0,
       memoryMb: this.memoryBytes() / 1e6,
       angles: this.tectonics ? Array.from(this.tectonics.angle) : [],
+      work: { ...this.work },
     });
   }
 }

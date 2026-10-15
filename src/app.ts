@@ -17,6 +17,7 @@ import { Hud } from './ui/hud';
 import { activeBrush, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
+import { emptyWork, FrameRecorder, formatReport, workDelta, type GenerationResult, type ScenarioResult, type WorkCounters } from './ui/benchmark';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
@@ -90,6 +91,14 @@ export class App {
     frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0, brushMs: 0, ticksPerSecond: 0,
     minGap: Infinity, maxGap: 0, lastMinGap: 0, lastMaxGap: 0, prevTime: 0, geologyMs: 0, recompositions: 0, memoryMb: 0,
   };
+  /** "Medir desempenho": quadros do cenário em andamento, recomposições recebidas e o mundo novo. */
+  private bench: {
+    recorder: FrameRecorder | null;
+    receive: number[];
+    onWorld: ((receiveMs: number) => void) | null;
+  } | null = null;
+  /** Últimos contadores de trabalho do worker (chegam com o relógio). */
+  private work: WorkCounters = emptyWork();
   /** Momento do pedido de mundo novo, para medir o tempo total até o globo aparecer. */
   private worldRequestedAt = 0;
   private worldTotalMs = 0;
@@ -161,10 +170,14 @@ export class App {
       this.brushSize,
       Math.round(DEFAULT_PLATE_RATE * 100),
     );
-    this.debug = new DebugPanel(this.hud.root, () => {
-      this.stressSpin = !this.stressSpin;
-      this.debug.setSpinning(this.stressSpin);
-    });
+    this.debug = new DebugPanel(
+      this.hud.root,
+      () => {
+        this.stressSpin = !this.stressSpin;
+        this.debug.setSpinning(this.stressSpin);
+      },
+      () => void this.runBenchmark(),
+    );
     this.worldDialog = new NewWorldDialog(this.hud.root, (text) => this.newWorld(text));
     this.errorScreen = new ErrorScreen(root, () => void retry());
     // Erros não tratados em qualquer parte da tela também aparecem (em vez de travar em silêncio).
@@ -201,8 +214,9 @@ export class App {
         this.showProgress(stage, fraction);
       },
       onPatch: (patches, brushMs) => this.onPatch(patches, brushMs),
-      onClock: (tick, speed, ticksPerSecond, geologyMs, recompositions, memoryMb, angles) => {
+      onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work) => {
         this.stats.memoryMb = memoryMb;
+        this.work = work;
         if (angles.length) {
           this.motion.received = angles;
           this.motion.receivedTick = tick;
@@ -211,7 +225,7 @@ export class App {
         this.clock.tick = tick;
         this.stats.ticksPerSecond = ticksPerSecond;
         this.stats.geologyMs = geologyMs;
-        this.stats.recompositions = recompositions;
+        this.stats.recompositions = work.recompositions;
         if (speed !== this.clock.speed) {
           this.clock.speed = speed;
           this.hud.setSpeed(speed);
@@ -262,7 +276,8 @@ export class App {
   }
 
   private onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array): void {
-    this.worldTotalMs = performance.now() - this.worldRequestedAt;
+    const receiveStart = performance.now();
+    this.worldTotalMs = receiveStart - this.worldRequestedAt;
     this.lastGenerationSignal = performance.now();
     this.info = info;
     this.colors = colors;
@@ -290,11 +305,18 @@ export class App {
     this.loadingEl.hidden = true;
     this.updateDebug();
     this.requestDraw();
+    const bench = this.bench;
+    const done = bench?.onWorld;
+    if (bench && done) {
+      bench.onWorld = null;
+      done(performance.now() - receiveStart);
+    }
   }
 
   /** As placas andaram: textura nova composta nos ângulos `angles`; o desenho suave continua dali. */
   private onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[]): void {
     if (!this.info || !this.renderer) return;
+    const receiveStart = performance.now();
     for (const p of patches) applyPatch(this.colors, this.info.n, p);
     // A composição atual vira a anterior e as duas se misturam por FADE_MS (sem salto na troca).
     this.renderer.recomposed(plateCells);
@@ -302,6 +324,7 @@ export class App {
     this.motion.baseAngles = angles;
     this.motion.fadeStart = performance.now();
     this.requestDraw();
+    this.bench?.receive.push(performance.now() - receiveStart);
   }
 
   /**
@@ -433,7 +456,9 @@ export class App {
       this.drawOverlay();
       this.needsDraw = false;
     }
-    this.measure(time, performance.now() - workStart);
+    const workMs = performance.now() - workStart;
+    this.bench?.recorder?.frame(time, workMs);
+    this.measure(time, workMs);
   }
 
   private measure(time: number, workMs: number): void {
@@ -465,7 +490,7 @@ export class App {
   }
 
   private updateDebug(): void {
-    if (!this.debug.visible || !this.info) return;
+    if (!this.debug.visible || !this.info || this.bench) return;
     const renderer = this.renderer;
     this.debug.update({
       fps: this.stats.fps,
@@ -489,6 +514,103 @@ export class App {
       drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
       version: __BUILD_ID__,
     });
+  }
+
+  /**
+   * "Medir desempenho" (~60 s): roda sozinho os cenários e mostra o relatório para copiar.
+   * Globo sempre do mesmo jeito (terra no centro, zoom 1) para comparar uma medição com a outra.
+   */
+  async runBenchmark(): Promise<void> {
+    if (this.bench || !this.info || !this.renderer) return;
+    const seedText = this.info.seedText;
+    const before = { speed: this.clock.speed, plateRate: this.plateRate, spin: this.stressSpin };
+    const bench: NonNullable<App['bench']> = { recorder: null, receive: [], onWorld: null };
+    this.bench = bench;
+    this.hud.closeMenu();
+    const startedAt = performance.now();
+    const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    const status = (step: number, name: string) =>
+      this.debug.setBenchmarkRunning(`Medindo ${step}/5: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`);
+    const scenarios: ScenarioResult[] = [];
+    // Um cenário: prepara, espera assentar, mede `ms` e guarda quadros + trabalho do worker.
+    const scenario = async (step: number, name: string, ms: number, setup: () => void): Promise<void> => {
+      status(step, name);
+      setup();
+      await wait(1000);
+      const recorder = new FrameRecorder();
+      bench.recorder = recorder;
+      bench.receive = [];
+      const work0 = { ...this.work };
+      const timer = setInterval(() => status(step, name), 1000);
+      await wait(ms);
+      clearInterval(timer);
+      const frames = recorder.summary();
+      bench.recorder = null;
+      const r = bench.receive;
+      scenarios.push({
+        name,
+        frames,
+        work: workDelta(work0, this.work),
+        receiveAvgMs: r.length ? r.reduce((a, b) => a + b, 0) / r.length : 0,
+        receiveMaxMs: r.length ? Math.max(...r) : 0,
+      });
+    };
+    const spin = (on: boolean) => {
+      this.stressSpin = on;
+      this.debug.setSpinning(on);
+    };
+    let gen: GenerationResult;
+    try {
+      this.camera.stopSpin();
+      this.camera.zoom = 1;
+      this.camera.lookAt(this.info.landCenter);
+      await scenario(1, 'pausado, parado', 6000, () => {
+        spin(false);
+        this.setSpeed(0);
+        this.requestDraw();
+      });
+      await scenario(2, 'pausado, girando', 8000, () => spin(true));
+      await scenario(3, 'tempo 20×, placas paradas', 12_000, () => {
+        spin(false);
+        this.sim.setPlateRate(0);
+        this.setSpeed(20);
+      });
+      await scenario(4, 'tempo 20×, placas 100%', 20_000, () => this.sim.setPlateRate(1));
+      // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
+      status(5, 'geração de mundo');
+      this.setSpeed(0);
+      this.sim.setPlateRate(before.plateRate);
+      await wait(500);
+      const receiveMs = await new Promise<number>((resolve) => {
+        bench.onWorld = resolve;
+        this.newWorld(seedText);
+      });
+      const info = this.info as WorldInfo;
+      gen = { totalMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs, receiveMs };
+    } finally {
+      spin(before.spin);
+      this.sim.setPlateRate(before.plateRate);
+      this.setSpeed(before.speed);
+      this.bench = null;
+      this.debug.setBenchmarkRunning(null);
+    }
+    const renderer = this.renderer;
+    const canvas = this.canvas;
+    const report = formatReport(
+      {
+        version: __BUILD_ID__,
+        date: new Date().toLocaleString('pt-BR'),
+        gpu: renderer?.gpuName() ?? '—',
+        drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
+        cores: navigator.hardwareConcurrency || 0,
+        screen: `tela ${screen.width}×${screen.height} @${(window.devicePixelRatio || 1).toFixed(2)} · desenho ${canvas.width}×${canvas.height} · ~${this.stats.lastMinGap > 0 ? Math.round(1000 / this.stats.lastMinGap) : 0} Hz`,
+        userAgent: navigator.userAgent,
+      },
+      scenarios,
+      gen,
+    );
+    this.debug.showReport(report);
+    this.updateDebug();
   }
 
   private drawOverlay(): void {

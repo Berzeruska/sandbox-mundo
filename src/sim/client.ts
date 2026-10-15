@@ -2,6 +2,7 @@ import type { Speed } from '../core/time';
 import type { Tool } from '../input/tools';
 import type { Layers } from '../render/colors';
 import type { Vec3 } from '../world/cubesphere';
+import type { WorkCounters } from '../ui/benchmark';
 import type { CellQuery, FromWorker, Patch, ToWorker, WorldInfo } from './protocol';
 
 export interface SimEvents {
@@ -13,7 +14,7 @@ export interface SimEvents {
   onError(message: string, versionMismatch?: boolean): void;
   /** Qualquer mensagem do worker (para o vigia de "sem resposta"). */
   onAlive?(): void;
-  onClock(tick: number, speed: Speed, ticksPerSecond: number, geologyMs: number, recompositions: number, memoryMb: number, angles: number[]): void;
+  onClock(tick: number, speed: Speed, ticksPerSecond: number, geologyMs: number, memoryMb: number, angles: number[], work: WorkCounters): void;
 }
 
 /**
@@ -119,7 +120,7 @@ export class SimClient {
         }
         break;
       case 'clock':
-        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.recompositions, msg.memoryMb, msg.angles);
+        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.memoryMb, msg.angles, msg.work);
         break;
       case 'query':
         this.queries.get(msg.id)?.(msg.cell);

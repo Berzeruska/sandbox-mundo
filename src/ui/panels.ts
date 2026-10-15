@@ -34,18 +34,71 @@ export class DebugPanel {
   readonly root: HTMLDivElement;
   private body: HTMLPreElement;
   private spinBtn: HTMLButtonElement;
+  private benchBtn: HTMLButtonElement;
+  private benchStatus: HTMLDivElement;
+  private report: HTMLTextAreaElement;
+  private copyBtn: HTMLButtonElement;
 
-  constructor(parent: HTMLElement, onToggleSpin: () => void) {
+  constructor(parent: HTMLElement, onToggleSpin: () => void, onBenchmark: () => void) {
     this.root = document.createElement('div');
     this.root.className = 'panel debug-panel hidden';
     this.body = document.createElement('pre');
+    const row = document.createElement('div');
+    row.className = 'panel-row';
     this.spinBtn = document.createElement('button');
     this.spinBtn.type = 'button';
     this.spinBtn.className = 'panel-btn';
     this.spinBtn.addEventListener('click', onToggleSpin);
     this.setSpinning(false);
-    this.root.append(this.body, this.spinBtn);
+    this.benchBtn = document.createElement('button');
+    this.benchBtn.type = 'button';
+    this.benchBtn.className = 'panel-btn primary';
+    this.benchBtn.textContent = 'Medir desempenho';
+    this.benchBtn.addEventListener('click', onBenchmark);
+    row.append(this.benchBtn, this.spinBtn);
+    this.benchStatus = document.createElement('div');
+    this.benchStatus.className = 'bench-status';
+    this.benchStatus.hidden = true;
+    this.report = document.createElement('textarea');
+    this.report.className = 'bench-report';
+    this.report.readOnly = true;
+    this.report.hidden = true;
+    this.copyBtn = document.createElement('button');
+    this.copyBtn.type = 'button';
+    this.copyBtn.className = 'panel-btn';
+    this.copyBtn.textContent = 'Copiar relatório';
+    this.copyBtn.hidden = true;
+    this.copyBtn.addEventListener('click', () => void this.copy());
+    this.root.append(this.body, row, this.benchStatus, this.report, this.copyBtn);
     parent.append(this.root);
+  }
+
+  /** Durante a medição: só a linha de andamento (o resto do painel não se atualiza nem pesa). */
+  setBenchmarkRunning(status: string | null): void {
+    const running = status !== null;
+    this.benchBtn.disabled = running;
+    this.root.classList.toggle('benchmarking', running);
+    this.benchStatus.hidden = !running;
+    if (running) this.benchStatus.textContent = status;
+  }
+
+  showReport(text: string): void {
+    this.report.value = text;
+    this.report.hidden = false;
+    this.copyBtn.hidden = false;
+    this.copyBtn.textContent = 'Copiar relatório';
+  }
+
+  private async copy(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.report.value);
+    } catch {
+      // Sem permissão de área de transferência (http na rede local): seleciona e copia à moda antiga.
+      this.report.focus();
+      this.report.select();
+      document.execCommand('copy');
+    }
+    this.copyBtn.textContent = 'Copiado ✓';
   }
 
   get visible(): boolean {

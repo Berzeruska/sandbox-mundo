@@ -125,7 +125,7 @@ describe('placas no worker', () => {
     expect(recomposed.angles.some((a) => a > 0)).toBe(true);
     // O relógio manda os ângulos atuais para o desenho suave.
     expect(lastOf(inbox, 'clock')!.angles.length).toBe(core.world!.plates.length);
-    expect(lastOf(inbox, 'clock')!.recompositions).toBe(core.tectonics!.recompositions);
+    expect(lastOf(inbox, 'clock')!.work.recompositions).toBe(core.tectonics!.recompositions);
   });
 
   it('controle em 0 congela a geologia mesmo com o tempo correndo', () => {

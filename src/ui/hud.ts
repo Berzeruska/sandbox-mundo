@@ -120,6 +120,11 @@ export class Hud {
     this.render();
   }
 
+  /** Fecha o menu (o "Medir desempenho" mede o globo sem o menu por cima). */
+  closeMenu(): void {
+    if (this.state.open) this.apply(closeMenu(this.state));
+  }
+
   setDate(text: string): void {
     if (text === this.lastDate) return;
     this.lastDate = text;

@@ -4,6 +4,7 @@ import type { Layers } from '../render/colors';
 import { packRect } from '../render/dirty';
 import type { DirtyRect } from '../render/globe-renderer';
 import type { Vec3 } from '../world/cubesphere';
+import type { WorkCounters } from '../ui/benchmark';
 
 /**
  * Mensagens entre a thread principal (câmera, entrada, interface, desenho) e o Web Worker da
@@ -55,7 +56,7 @@ export type FromWorker =
   | { type: 'recomposed'; patches: Patch[]; plateCells: Uint8Array; angles: number[] }
   | { type: 'progress'; stage: string; fraction: number }
   | { type: 'patch'; patches: Patch[]; brushMs: number }
-  | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number; geologyMs: number; recompositions: number; memoryMb: number; angles: number[] }
+  | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number; geologyMs: number; memoryMb: number; angles: number[]; work: WorkCounters }
   | { type: 'query'; id: number; cell: CellQuery };
 
 /** Empacota os retângulos alterados (cada um no seu próprio buffer, para transferir). */
