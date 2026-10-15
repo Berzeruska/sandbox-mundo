@@ -35,7 +35,8 @@ Pedidos do usuário após testar a v1.0 no celular.
 - [x] **T14 — Pincéis com queda suave:** Elevar/Rebaixar fortes no centro e zero na borda, sem platô
 
 **Aceite:** sem visual de "prisma" perto dos cantos do cubo; morro pintado tem forma de morro.
-Fecha com PR para `main` e tag `v1.1`.
+Fecha com PR para `main` e tag `v1.1`. **Publicado em 2026-10-15 (`v1.1`)**; validação no celular
+pendente com o usuário.
 
 ## Marco 2 — Geologia viva
 Placas tectônicas, deriva continental com velocidade controlada pelo jogador (inclusive zero),
