@@ -47,7 +47,7 @@ export type FromWorker =
   | { type: 'world'; info: WorldInfo; colors: Uint8Array }
   | { type: 'progress'; stage: string; fraction: number }
   | { type: 'patch'; patches: Patch[]; brushMs: number }
-  | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number; geologyMs: number; recompositions: number }
+  | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number; geologyMs: number; recompositions: number; memoryMb: number }
   | { type: 'query'; id: number; cell: CellQuery };
 
 /** Empacota os retângulos alterados (cada um no seu próprio buffer, para transferir). */

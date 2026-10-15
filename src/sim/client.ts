@@ -8,7 +8,7 @@ export interface SimEvents {
   onWorld(info: WorldInfo, colors: Uint8Array): void;
   onProgress(stage: string, fraction: number): void;
   onPatch(patches: Patch[], brushMs: number): void;
-  onClock(tick: number, speed: Speed, ticksPerSecond: number, geologyMs: number, recompositions: number): void;
+  onClock(tick: number, speed: Speed, ticksPerSecond: number, geologyMs: number, recompositions: number, memoryMb: number): void;
 }
 
 /**
@@ -90,7 +90,7 @@ export class SimClient {
         }
         break;
       case 'clock':
-        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.recompositions);
+        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.recompositions, msg.memoryMb);
         break;
       case 'query':
         this.queries.get(msg.id)?.(msg.cell);

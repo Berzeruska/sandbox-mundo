@@ -130,18 +130,35 @@ describe('placas no worker', () => {
     core.handle({ type: 'speed', speed: 20 });
     const before = Float32Array.from(core.world!.elevation);
     for (let i = 0; i < 200; i++) core.advance(0.25);
-    expect(core.tectonics!.recompositions).toBe(0);
+    expect(core.tectonics?.recompositions ?? 0).toBe(0);
     expect(core.world!.elevation).toEqual(before);
   });
 
-  it('pincelada fica gravada na placa (sobrevive à recomposição)', () => {
+  it.each([
+    ['antes de a tectônica existir', false],
+    ['depois de a tectônica existir', true],
+  ])('pincelada fica gravada na placa %s (sobrevive à recomposição)', (_label, startFirst) => {
     const { core } = makeCore();
     core.handle({ type: 'newWorld', seedText: 'grava', n: 32 });
+    if (startFirst) core.advance(1 / 12); // um passo: monta a tectônica
     const p = latLonToPoint(0.1, 0.2);
     core.handle({ type: 'brush', tool: Tool.Raise, point: p, radius: 3, dt: 2 });
+    core.advance(1 / 12);
     const w = core.world!;
     const max0 = Math.max(...w.elevation);
     core.tectonics!.recompose();
     expect(Math.max(...w.elevation)).toBe(max0);
+  });
+
+  it('a tectônica só é montada no primeiro passo, e não com o controle em 0', () => {
+    const { core } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'preguica', n: 32 });
+    expect(core.tectonics).toBeNull();
+    core.handle({ type: 'plateRate', rate: 0 });
+    core.advance(1);
+    expect(core.tectonics).toBeNull();
+    core.handle({ type: 'plateRate', rate: 0.5 });
+    core.advance(1 / 12);
+    expect(core.tectonics).not.toBeNull();
   });
 });

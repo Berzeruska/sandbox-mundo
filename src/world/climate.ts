@@ -194,6 +194,11 @@ export function upwindTable(grid: CubeSphere): Int32Array {
   return table;
 }
 
+/** Bytes das tabelas guardadas para esta grade (vento e marcas de região), para o painel Dados. */
+export function climateCacheBytes(grid: CubeSphere): number {
+  return (upwindTables.get(grid)?.byteLength ?? 0) + (regionMarks.get(grid)?.marks.byteLength ?? 0);
+}
+
 function computeUpwindRow(grid: CubeSphere, table: Int32Array, i: number): void {
   const { positions } = grid;
   const x = positions[i * 3] as number;

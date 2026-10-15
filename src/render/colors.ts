@@ -60,6 +60,11 @@ const SHADE_SLOPE = 400;
 /** Pesos fixos do sombreado por grade: 4 por célula (um por vizinho). */
 const shadeWeights = new WeakMap<CubeSphere, Float32Array>();
 
+/** Bytes da tabela de sombreado guardada para esta grade, para o painel Dados. */
+export function colorCacheBytes(grid: CubeSphere): number {
+  return shadeWeights.get(grid)?.byteLength ?? 0;
+}
+
 /**
  * Para cada célula e vizinho: quanto 1 metro de subida rumo àquele vizinho conta como "subir em
  * direção à luz" (noroeste), em metros por célula. Só depende da geometria da grade, então é

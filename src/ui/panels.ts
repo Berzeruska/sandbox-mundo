@@ -23,6 +23,8 @@ export interface DebugStats {
   /** Última recomposição das placas, com clima e cores (ms), e quantas já houve. */
   geologyMs: number;
   recompositions: number;
+  /** Memória aproximada do worker (MB). */
+  memoryMb: number;
 }
 
 export class DebugPanel {
@@ -67,6 +69,7 @@ export class DebugPanel {
       `zoom         ${s.zoom.toFixed(2)}× · célula ${s.cellPixels.toFixed(1)} px`,
       `worker       ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms`,
       `placas       ${s.recompositions} recomposições · última ${s.geologyMs.toFixed(0)} ms`,
+      `memória      ~${s.memoryMb.toFixed(0)} MB no worker`,
     ].join('\n');
   }
 }

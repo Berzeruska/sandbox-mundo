@@ -1,9 +1,9 @@
 import { seedFrom } from '../core/rng';
 import { Clock } from '../core/time';
 import { applyBrush } from '../input/tools';
-import { buildColors, NO_LAYERS, type Layers } from '../render/colors';
+import { buildColors, colorCacheBytes, NO_LAYERS, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
-import { computeWaterDistance, updateClimate } from '../world/climate';
+import { climateCacheBytes, computeWaterDistance, updateClimate } from '../world/climate';
 import { createWorld, WORLD_STAGES } from '../world/create';
 import { DEFAULT_PLATE_RATE, Tectonics } from '../world/tectonics';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
@@ -99,12 +99,17 @@ export class SimulationCore {
       }
       this.send({ type: 'progress', stage: name, fraction: overallProgress(name, fraction) });
     };
+    // Solta o mundo antigo antes de gerar o novo: no celular, ter os dois na memória ao mesmo
+    // tempo força o coletor de lixo e deixa a geração bem mais lenta.
+    this.world = null;
+    this.tectonics = null;
+    this.colors = new Uint8Array(0);
     stage('grade');
     if (!this.grid || this.grid.n !== n) this.grid = new CubeSphere(n);
     const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3 }, this.grid, stage);
     stage('cores');
     this.world = world;
-    this.tectonics = new Tectonics(world);
+    // A tectônica é montada no primeiro passo do relógio (depois que o globo já apareceu).
     this.colors = new Uint8Array(world.cellCount * 4);
     buildColors(world, this.colors, undefined, this.layers);
     stagesMs[current] = this.now() - mark;
@@ -176,6 +181,12 @@ export class SimulationCore {
     });
   }
 
+  /** Memória aproximada do worker (bytes): mundo, grade, tectônica e cores. */
+  memoryBytes(): number {
+    const caches = this.grid ? climateCacheBytes(this.grid) + colorCacheBytes(this.grid) : 0;
+    return typedBytes(this.world) + typedBytes(this.grid) + caches + (this.tectonics?.bytes ?? 0) + this.colors.byteLength;
+  }
+
   /** Avança o relógio pelo tempo real `dt` (segundos). Chamado pelo laço do worker. */
   advance(dt: number): void {
     // Cada passo move as placas; a recomposição acontece no passo exato em que elas andaram o
@@ -183,8 +194,10 @@ export class SimulationCore {
     const ran = this.clock.advance(
       dt,
       () => {
+        if (!this.world || this.plateRate <= 0) return;
+        this.tectonics ??= new Tectonics(this.world);
         const t0 = this.now();
-        if (this.tectonics?.step(this.plateRate)) this.afterRecompose(t0);
+        if (this.tectonics.step(this.plateRate)) this.afterRecompose(t0);
       },
       this.now,
     );
@@ -211,8 +224,17 @@ export class SimulationCore {
       ticksPerSecond: this.ticksWindow.rate,
       geologyMs: this.geologyMs,
       recompositions: this.tectonics?.recompositions ?? 0,
+      memoryMb: this.memoryBytes() / 1e6,
     });
   }
+}
+
+/** Bytes dos arrays tipados de um objeto (só os campos próprios, um nível). */
+function typedBytes(obj: object | null | undefined): number {
+  if (!obj) return 0;
+  let total = 0;
+  for (const v of Object.values(obj)) if (ArrayBuffer.isView(v)) total += v.byteLength;
+  return total;
 }
 
 /** Direção média da terra firme: onde a câmera começa olhando. */

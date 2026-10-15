@@ -52,8 +52,14 @@ export class Tectonics {
   private sAlive: Uint8Array;
   private count = 0;
   private dead = 0;
-  /** lookup[placa * células + célula do referencial] → amostra (ou -1). */
-  private lookup: Int32Array;
+  /**
+   * Índice placa+célula do referencial → amostra. As primeiras `células` amostras são a crosta
+   * inicial e valem por identidade (amostra i = célula i, na placa inicial dela), então só as
+   * amostras criadas depois (dorsais, cicatrizes) entram neste mapa. Antes era um índice denso de
+   * placas × células (~22 MB), que pesava demais na memória do celular.
+   */
+  private extra = new Map<number, number>();
+  private initialPlate: Uint8Array;
   /** Amostra que compôs cada célula do mundo na última recomposição (ou -1). */
   readonly cellSample: Int32Array;
 
@@ -76,14 +82,14 @@ export class Tectonics {
       this.center0[k * 3 + 1] = p.center[1];
       this.center0[k * 3 + 2] = p.center[2];
     });
-    const cap = Math.ceil(n * 1.5);
+    const cap = Math.ceil(n * 1.25);
     this.sPlate = new Uint8Array(cap);
     this.sRef = new Int32Array(cap);
     this.sElev = new Float32Array(cap);
     this.sCrust = new Uint8Array(cap);
     this.sBirth = new Int32Array(cap);
     this.sAlive = new Uint8Array(cap);
-    this.lookup = new Int32Array(plates * n).fill(-1);
+    this.initialPlate = Uint8Array.from(world.plate);
     this.cellSample = new Int32Array(n);
     // No início, o referencial de cada placa coincide com o mundo.
     for (let c = 0; c < n; c++) {
@@ -105,16 +111,31 @@ export class Tectonics {
     this.sCrust[i] = crust;
     this.sBirth[i] = birth;
     this.sAlive[i] = 1;
-    this.lookup[plate * this.world.cellCount + ref] = i;
+    if (i >= this.world.cellCount) this.extra.set(plate * this.world.cellCount + ref, i);
     return i;
+  }
+
+  /** Amostra viva da placa naquela célula do referencial dela, ou -1. */
+  private find(plate: number, ref: number): number {
+    if (this.initialPlate[ref] === plate && this.sAlive[ref]) return ref;
+    const i = this.extra.get(plate * this.world.cellCount + ref);
+    return i !== undefined && this.sAlive[i] ? i : -1;
+  }
+
+  /** Memória aproximada usada pela tectônica (bytes), para o painel Dados. */
+  get bytes(): number {
+    const perSample = 1 + 4 + 4 + 1 + 4 + 1;
+    return this.sPlate.length * perSample + this.cellSample.byteLength + this.initialPlate.byteLength + this.extra.size * 40;
   }
 
   private kill(i: number): void {
     if (!this.sAlive[i]) return;
     this.sAlive[i] = 0;
     this.dead++;
-    const key = (this.sPlate[i] as number) * this.world.cellCount + (this.sRef[i] as number);
-    if (this.lookup[key] === i) this.lookup[key] = -1;
+    if (i >= this.world.cellCount) {
+      const key = (this.sPlate[i] as number) * this.world.cellCount + (this.sRef[i] as number);
+      if (this.extra.get(key) === i) this.extra.delete(key);
+    }
   }
 
   private grow(): void {
@@ -132,15 +153,21 @@ export class Tectonics {
     this.sAlive = g(this.sAlive, (k) => new Uint8Array(k));
   }
 
-  /** Remove amostras mortas quando passam de 30% (refaz o índice). */
+  /**
+   * Remove amostras mortas criadas depois do início quando passam de 30% delas (refaz o mapa).
+   * As amostras iniciais ficam onde estão: valem por identidade.
+   */
   private compact(): void {
-    if (this.dead < this.count * 0.3) return;
     const n = this.world.cellCount;
-    let w = 0;
-    const remap = new Int32Array(this.count).fill(-1);
-    for (let i = 0; i < this.count; i++) {
+    const appended = this.count - n;
+    let deadAppended = 0;
+    for (let i = n; i < this.count; i++) if (!this.sAlive[i]) deadAppended++;
+    if (appended <= 0 || deadAppended < appended * 0.3) return;
+    let w = n;
+    const remap = new Int32Array(this.count - n).fill(-1);
+    for (let i = n; i < this.count; i++) {
       if (!this.sAlive[i]) continue;
-      remap[i] = w;
+      remap[i - n] = w;
       this.sPlate[w] = this.sPlate[i] as number;
       this.sRef[w] = this.sRef[i] as number;
       this.sElev[w] = this.sElev[i] as number;
@@ -149,13 +176,13 @@ export class Tectonics {
       this.sAlive[w] = 1;
       w++;
     }
+    this.dead -= deadAppended;
     this.count = w;
-    this.dead = 0;
-    this.lookup.fill(-1);
-    for (let i = 0; i < w; i++) this.lookup[(this.sPlate[i] as number) * n + (this.sRef[i] as number)] = i;
+    this.extra.clear();
+    for (let i = n; i < w; i++) this.extra.set((this.sPlate[i] as number) * n + (this.sRef[i] as number), i);
     for (let c = 0; c < n; c++) {
-      const s = this.cellSample[c] as number;
-      this.cellSample[c] = s >= 0 ? (remap[s] as number) : -1;
+      const s0 = this.cellSample[c] as number;
+      if (s0 >= n) this.cellSample[c] = remap[s0 - n] as number;
     }
   }
 
@@ -283,9 +310,7 @@ export class Tectonics {
     const q: Vec3 = [0, 0, 0];
     const pull = (p: number, c: number): number => {
       this.toPlate(p, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, cos, sin, q);
-      const ref = world.grid.pointToCell(q[0], q[1], q[2]);
-      const i = this.lookup[p * n + ref] as number;
-      return i >= 0 && this.sAlive[i] ? i : -1;
+      return this.find(p, world.grid.pointToCell(q[0], q[1], q[2]));
     };
     const refOf = (p: number, c: number): number => {
       this.toPlate(p, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, cos, sin, q);
@@ -368,8 +393,8 @@ export class Tectonics {
         const z = positions[c * 3 + 2] as number;
         const opening = other >= 0 && this.closing(owner, other, x, y, z) < 0;
         const ref = refOf(owner, c);
-        const existing = this.lookup[owner * n + ref] as number;
-        if (existing >= 0 && this.sAlive[existing]) {
+        const existing = this.find(owner, ref);
+        if (existing >= 0) {
           newSample[c] = existing;
           continue;
         }
