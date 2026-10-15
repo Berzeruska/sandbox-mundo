@@ -10,7 +10,7 @@ tempo. Fluido no celular.
 
 ## Tarefas (fazer em ordem; cada uma = um commit)
 
-- [ ] **T1 — Gerador com semente** (`src/core/rng.ts`)
+- [x] **T1 — Gerador com semente** (`src/core/rng.ts`)
   PRNG determinístico (ex.: mulberry32 ou sfc32). Testes: mesma semente → mesma sequência.
 
 - [ ] **T2 — Geometria cube-sphere** (`src/world/cubesphere.ts`)
