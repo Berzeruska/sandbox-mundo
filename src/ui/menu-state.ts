@@ -22,9 +22,10 @@ export const CATEGORIES: readonly { id: CategoryId; label: string; icon: string 
  * O que um item do menu faz:
  * - `speed`: muda a velocidade e deixa o seletor de velocidade na tela;
  * - `tool`: vira a ferramenta ativa (fica na tela);
- * - `action`: faz algo uma vez (novo mundo, painel de dados) sem trocar a ferramenta ativa.
+ * - `action`: faz algo uma vez (novo mundo, painel de dados) sem trocar a ferramenta ativa;
+ * - `toggle`: liga/desliga algo (camadas como "Ver placas") sem trocar a ferramenta ativa.
  */
-export type ItemKind = 'speed' | 'tool' | 'action';
+export type ItemKind = 'speed' | 'tool' | 'action' | 'toggle';
 
 export interface MenuItem {
   id: string;
@@ -63,7 +64,8 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'hurricane', category: 'desastres', label: 'Furacão', icon: '🌀', kind: 'tool', available: false },
   { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: false },
 
-  { id: 'plates', category: 'geologia', label: 'Placas', icon: '🧩', kind: 'tool', available: false },
+  { id: 'platesLayer', category: 'geologia', label: 'Ver placas', icon: '🧩', kind: 'toggle', available: true },
+  { id: 'plateSpeed', category: 'geologia', label: 'Velocidade', icon: '⏩', kind: 'tool', available: false },
 
   { id: 'temperature', category: 'clima', label: 'Temperatura', icon: '🌡️', kind: 'tool', available: false },
 
@@ -88,14 +90,17 @@ export interface MenuState {
   category: CategoryId;
   /** O que está na tela: o id de uma ferramenta, ou SPEED_CARD (seletor de velocidade). */
   active: string;
+  /** Interruptores ligados (ids de itens `toggle`). */
+  toggles: readonly string[];
 }
 
 export type MenuEffect =
   | { type: 'none' }
   | { type: 'speed'; speed: Speed }
-  | { type: 'action'; action: string };
+  | { type: 'action'; action: string }
+  | { type: 'toggle'; id: string; on: boolean };
 
-export const INITIAL_MENU: MenuState = { open: false, category: 'relevo', active: 'move' };
+export const INITIAL_MENU: MenuState = { open: false, category: 'relevo', active: 'move', toggles: [] };
 
 /** Categoria do que está ativo na tela (para abrir o menu "no lugar certo"). */
 export function categoryOfActive(state: MenuState): CategoryId {
@@ -130,7 +135,16 @@ export function selectItem(state: MenuState, id: string): { state: MenuState; ef
   if (item.kind === 'action') {
     return { state: { ...state, open: false }, effect: { type: 'action', action: item.id } };
   }
+  if (item.kind === 'toggle') {
+    const on = !state.toggles.includes(item.id);
+    const toggles = on ? [...state.toggles, item.id] : state.toggles.filter((t) => t !== item.id);
+    return { state: { ...state, open: false, toggles }, effect: { type: 'toggle', id: item.id, on } };
+  }
   return { state: { ...state, open: false, active: item.id }, effect: { type: 'none' } };
+}
+
+export function isOn(state: MenuState, id: string): boolean {
+  return state.toggles.includes(id);
 }
 
 /** Pincel da ferramenta ativa, ou null (mover, seletor de tempo...). */

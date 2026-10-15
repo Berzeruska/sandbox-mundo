@@ -195,3 +195,11 @@ Formato: data — decisão — motivo — alternativa descartada.
   JavaScript a manter o código otimizado entre mundos; mundos idênticos aos da v1.1 (byte a byte).
   Próximo passo, se precisar: gerar o terreno em vários workers ao mesmo tempo (mesmo resultado,
   2–4× mais rápido em celulares com vários núcleos).
+
+- **2026-10-15 — T3 do M2: placas tectônicas.**
+  Voronoi com pesos e deformação de uma oitava (duas oitavas custavam ~2× sem diferença que se veja);
+  distância de corda ao quadrado (sem `acos`) para escolher a placa. Placas continentais se afastam
+  do centro do supercontinente. Fronteiras uniformizadas por voto da vizinhança (células isoladas de
+  tipo diferente: ~5–10% → ~0,3%). Sorteio separado do terreno: relevo idêntico ao de antes.
+  Custo: ~140 ms no notebook em ritmo normal (o processador deste notebook às vezes cai ~2,8× de
+  velocidade com aquecimento: todas as etapas sobem juntas, inclusive as que não mudaram).

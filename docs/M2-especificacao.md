@@ -115,7 +115,7 @@ nunca trava, nem em velocidade máxima, nem no celular.
   (mesma semente).
   Verificação manual: pincel e novo mundo funcionam como na v1.1 e a tela não trava durante a geração.
 
-- [ ] **T3 — Placas** (`src/world/plates.ts`)
+- [x] **T3 — Placas** (`src/world/plates.ts`)
   Voronoi deformado, tipo de crosta, eixos e velocidades pela semente. Camada "Ver placas".
   Testes: toda célula tem placa; cada placa é contígua; número de placas dentro da faixa; a Pangeia
   cobre ≥ 3 placas; determinismo.

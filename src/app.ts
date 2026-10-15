@@ -101,6 +101,9 @@ export class App {
             this.updateDebug();
           }
         },
+        onToggle: (id, on) => {
+          if (id === 'platesLayer') this.sim.setLayers({ plates: on });
+        },
         onNorthUp: () => {
           this.camera.stopSpin();
           this.camera.northUp();

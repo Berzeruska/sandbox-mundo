@@ -1,5 +1,6 @@
 import type { Speed } from '../core/time';
 import type { Tool } from '../input/tools';
+import type { Layers } from '../render/colors';
 import { packRect } from '../render/dirty';
 import type { DirtyRect } from '../render/globe-renderer';
 import type { Vec3 } from '../world/cubesphere';
@@ -31,6 +32,7 @@ export type ToWorker =
   | { type: 'newWorld'; seedText: string; n: number }
   | { type: 'brush'; tool: Tool; point: Vec3; radius: number; dt: number }
   | { type: 'speed'; speed: Speed }
+  | { type: 'layers'; layers: Layers }
   | { type: 'query'; id: number; point: Vec3 };
 
 export interface CellQuery {

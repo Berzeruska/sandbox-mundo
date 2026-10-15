@@ -7,7 +7,24 @@ import type { WorldState } from '../world/state';
  * profundo. O canal alfa leva o código do bioma, que o shader usa para a textura de detalhe.
  * (Não há mais variação de brilho por célula: ela desenhava a grade na tela — ver T13.)
  */
-export function writeCellColor(world: WorldState, i: number, out: Uint8Array): void {
+/** Camadas opcionais desenhadas por cima dos biomas (escolhidas no menu). */
+export interface Layers {
+  plates: boolean;
+}
+
+export const NO_LAYERS: Layers = { plates: false };
+
+/** Cores das fronteiras de placa na camada "Ver placas", por tipo (`Boundary`). */
+export const BOUNDARY_COLORS: readonly (readonly [number, number, number])[] = [
+  [0, 0, 0], // sem fronteira (não usado)
+  [235, 64, 52], // convergente
+  [64, 150, 255], // divergente
+  [250, 205, 60], // transformante
+];
+/** Quanto a cor da placa tinge o bioma na camada "Ver placas". */
+const PLATE_TINT = 0.38;
+
+export function writeCellColor(world: WorldState, i: number, out: Uint8Array, layers: Layers = NO_LAYERS): void {
   const info = BIOME_INFO[world.biome[i] as number];
   if (!info) throw new Error(`Bioma inválido na célula ${i}`);
   const h = world.heightAboveSea(i);
@@ -15,10 +32,23 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array): v
   if (h <= 0 && !world.ice[i]) k = 1.12 - 0.42 * Math.min(1, -h / 5000);
   else k = (world.ice[i] ? 0.94 : 0.88) + 0.2 * Math.min(1, Math.max(0, h) / 6000);
   if (h > 0) k *= hillshade(world, i);
+  let r = Math.min(255, info.color[0] * k);
+  let g = Math.min(255, info.color[1] * k);
+  let b = Math.min(255, info.color[2] * k);
+  if (layers.plates) {
+    const kind = world.boundary[i] as number;
+    const tint = kind ? BOUNDARY_COLORS[kind] : world.plates[world.plate[i] as number]?.color;
+    const t = kind ? 1 : PLATE_TINT;
+    if (tint) {
+      r += (tint[0] - r) * t;
+      g += (tint[1] - g) * t;
+      b += (tint[2] - b) * t;
+    }
+  }
   const o = i * 4;
-  out[o] = Math.min(255, info.color[0] * k);
-  out[o + 1] = Math.min(255, info.color[1] * k);
-  out[o + 2] = Math.min(255, info.color[2] * k);
+  out[o] = r;
+  out[o + 1] = g;
+  out[o + 2] = b;
   out[o + 3] = world.biome[i] as number;
 }
 
@@ -86,7 +116,7 @@ export function hillshade(world: WorldState, i: number): number {
 }
 
 /** Preenche as cores do mundo todo (ou só das células listadas). */
-export function buildColors(world: WorldState, out: Uint8Array, cells?: readonly number[]): void {
-  if (cells) for (const c of cells) writeCellColor(world, c, out);
-  else for (let i = 0; i < world.cellCount; i++) writeCellColor(world, i, out);
+export function buildColors(world: WorldState, out: Uint8Array, cells?: readonly number[], layers: Layers = NO_LAYERS): void {
+  if (cells) for (const c of cells) writeCellColor(world, c, out, layers);
+  else for (let i = 0; i < world.cellCount; i++) writeCellColor(world, i, out, layers);
 }

@@ -1,7 +1,7 @@
 import { seedFrom } from '../core/rng';
 import { Clock } from '../core/time';
 import { applyBrush } from '../input/tools';
-import { buildColors } from '../render/colors';
+import { buildColors, NO_LAYERS, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
 import { createWorld, WORLD_STAGES } from '../world/create';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
@@ -13,7 +13,10 @@ export type Post = (msg: FromWorker, transfer: ArrayBuffer[]) => void;
 /** Etapas da geração vistas pelo jogador e o peso aproximado de cada uma no tempo total. */
 export const GENERATION_STAGES: readonly { name: string; weight: number }[] = [
   { name: 'grade', weight: 0.08 },
-  ...WORLD_STAGES.map((name) => ({ name, weight: name === 'terreno' ? 0.62 : name === 'clima' ? 0.2 : 0.02 })),
+  ...WORLD_STAGES.map((name) => ({
+    name,
+    weight: name === 'terreno' ? 0.52 : name === 'clima' ? 0.18 : name === 'placas' ? 0.12 : 0.02,
+  })),
   { name: 'cores', weight: 0.08 },
 ];
 
@@ -36,6 +39,8 @@ export class SimulationCore {
   world: WorldState | null = null;
   colors: Uint8Array = new Uint8Array(0);
   readonly clock = new Clock();
+  /** Camadas opcionais ligadas no menu (ex.: "Ver placas"). */
+  layers: Layers = NO_LAYERS;
   private grid: CubeSphere | null = null;
   private lastPostedTick = -1;
   private ticksWindow = { since: 0, ticks: 0, rate: 0 };
@@ -56,6 +61,9 @@ export class SimulationCore {
         break;
       case 'brush':
         this.brush(msg);
+        break;
+      case 'layers':
+        this.setLayers(msg.layers);
         break;
       case 'speed':
         this.clock.speed = msg.speed;
@@ -87,7 +95,7 @@ export class SimulationCore {
     stage('cores');
     this.world = world;
     this.colors = new Uint8Array(world.cellCount * 4);
-    buildColors(world, this.colors);
+    buildColors(world, this.colors, undefined, this.layers);
     stagesMs[current] = this.now() - mark;
     const generationMs = this.now() - t0;
     this.clock.tick = 0;
@@ -113,9 +121,21 @@ export class SimulationCore {
     if (!world) return;
     const t0 = this.now();
     const { region } = applyBrush(world, msg.tool, msg.point, msg.radius, msg.dt);
-    buildColors(world, this.colors, region);
+    buildColors(world, this.colors, region, this.layers);
     const patches = makePatches(this.colors, world.params.n, dirtyRects(world.grid, region));
     this.send({ type: 'patch', patches, brushMs: this.now() - t0 });
+  }
+
+  /** Liga/desliga camadas: repinta o mundo todo e manda as 6 faces como remendos. */
+  private setLayers(layers: Layers): void {
+    this.layers = layers;
+    const world = this.world;
+    if (!world) return;
+    const t0 = this.now();
+    buildColors(world, this.colors, undefined, layers);
+    const n = world.params.n;
+    const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
+    this.send({ type: 'patch', patches: makePatches(this.colors, n, faces), brushMs: this.now() - t0 });
   }
 
   private query(id: number, point: Vec3): void {

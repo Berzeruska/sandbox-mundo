@@ -31,10 +31,11 @@ describe('menu de ferramentas: conteúdo', () => {
     expect(itemsOf('tempo').map((i) => i.speed)).toEqual([0, 1, 2, 5, 20, 'max']);
   });
 
-  it('Desastres, Geologia e Clima ainda estão "em breve"; Mundo tem Novo mundo e Dados', () => {
-    for (const c of ['desastres', 'geologia', 'clima'] as const) {
+  it('Desastres e Clima ainda estão "em breve"; Geologia tem "Ver placas"; Mundo tem Novo mundo e Dados', () => {
+    for (const c of ['desastres', 'clima'] as const) {
       expect(itemsOf(c).every((i) => !i.available)).toBe(true);
     }
+    expect(itemsOf('geologia').map((i) => [i.label, i.available])).toEqual([['Ver placas', true], ['Velocidade', false]]);
     expect(itemsOf('mundo').map((i) => i.label)).toEqual(['Novo mundo', 'Dados']);
   });
 });
@@ -88,5 +89,17 @@ describe('menu de ferramentas: comportamento', () => {
     expect(toggleMenu(INITIAL_MENU).open).toBe(true);
     expect(toggleMenu(toggleMenu(INITIAL_MENU)).open).toBe(false);
     expect(closeMenu(openMenu(INITIAL_MENU)).open).toBe(false);
+  });
+});
+
+describe('interruptores (camadas)', () => {
+  it('"Ver placas" liga e desliga, fecha o menu e não troca a ferramenta ativa', () => {
+    const s0 = { ...INITIAL_MENU, active: 'raise', open: true, category: 'geologia' as const };
+    const a = selectItem(s0, 'platesLayer');
+    expect(a.effect).toEqual({ type: 'toggle', id: 'platesLayer', on: true });
+    expect(a.state).toMatchObject({ open: false, active: 'raise', toggles: ['platesLayer'] });
+    const b = selectItem({ ...a.state, open: true }, 'platesLayer');
+    expect(b.effect).toEqual({ type: 'toggle', id: 'platesLayer', on: false });
+    expect(b.state.toggles).toEqual([]);
   });
 });

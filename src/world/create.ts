@@ -1,10 +1,11 @@
 import { computeWaterDistance, updateClimate } from './climate';
 import type { CubeSphere } from './cubesphere';
 import { generateTerrain } from './generation';
+import { generatePlates } from './plates';
 import { WorldState, type WorldParams } from './state';
 
 /** Etapas da criação do mundo, na ordem (para medir tempo e mostrar progresso). */
-export const WORLD_STAGES = ['terreno', 'água', 'clima'] as const;
+export const WORLD_STAGES = ['terreno', 'placas', 'água', 'clima'] as const;
 export type WorldStage = (typeof WORLD_STAGES)[number];
 
 /**
@@ -20,6 +21,8 @@ export function createWorld(
   const world = new WorldState(params, grid);
   onStage?.('terreno', 0);
   generateTerrain(world, onStage && ((f) => onStage('terreno', f)));
+  onStage?.('placas', 0);
+  generatePlates(world);
   onStage?.('água', 0);
   computeWaterDistance(world);
   onStage?.('clima', 0);

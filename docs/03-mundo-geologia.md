@@ -64,6 +64,22 @@ Cada pincelada recalcula clima e bioma só da região afetada (mais uma borda).
   isso; a escala é regulada pelo controle de velocidade.
 - Cidades sobre terreno que muda: sofrem dano/terremoto, não "teletransportam". Regras no Marco 2.
 
+### Como está implementado (M2, T3: as placas nascem; o movimento vem na T4)
+- 8 a 14 placas por mundo (sorteio próprio, separado do terreno: a mesma semente continua gerando o
+  mesmo relevo).
+- Voronoi na esfera com pesos (placas de tamanhos variados) e deformação por ruído (fronteiras
+  curvas); depois cada placa fica com o seu maior pedaço contínuo (pedaços soltos vão para a vizinha).
+- 3 a 5 sementes caem na terra: a Pangeia fica repartida em pelo menos 3 placas.
+- Crosta continental onde é terra ou plataforma (acima de -500 m); oceânica no resto.
+- Cada placa tem velocidade angular ω (polo de Euler × velocidade relativa 0,3–1). Placas
+  continentais (≥ 30% de crosta continental) apontam para fora do centro do supercontinente, com
+  um desvio aleatório: quando o movimento chegar (T4), a Pangeia se abre.
+- Tipo de fronteira por célula, comparando o movimento das duas placas: aproximando = convergente,
+  afastando = divergente, deslizando de lado = transformante. Duas rodadas de "voto da vizinhança"
+  deixam cada trecho com um tipo só.
+- Camada "Ver placas" (menu Geologia): cada placa com um tom e as fronteiras em vermelho
+  (convergente), azul (divergente) e amarelo (transformante).
+
 ## Desastres (Marco 2)
 | Desastre   | Onde surge                         | Gatilho                     |
 |------------|------------------------------------|-----------------------------|

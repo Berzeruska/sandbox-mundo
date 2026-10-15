@@ -3,6 +3,7 @@ import { MAX_BRUSH, MIN_BRUSH } from '../input/tools';
 import {
   CATEGORIES,
   INITIAL_MENU,
+  isOn,
   itemById,
   itemsOf,
   openMenu,
@@ -22,6 +23,8 @@ export interface HudCallbacks {
   onNorthUp(): void;
   /** Ação do menu (ex.: 'newWorld', 'debug'). */
   onAction(action: string): void;
+  /** Interruptor do menu (ex.: 'platesLayer'). */
+  onToggle(id: string, on: boolean): void;
   /** A ferramenta ativa (ou o menu) mudou. */
   onMenuChange(state: MenuState): void;
 }
@@ -128,6 +131,7 @@ export class Hud {
     this.render();
     if (effect.type === 'speed') this.cb.onSpeed(effect.speed);
     if (effect.type === 'action') this.cb.onAction(effect.action);
+    if (effect.type === 'toggle') this.cb.onToggle(effect.id, effect.on);
     this.cb.onMenuChange(state);
   }
 
@@ -215,7 +219,11 @@ export class Hud {
     for (const item of itemsOf(this.state.category)) {
       const tile = btn('hud-tile', item.label, () => this.choose(item.id));
       const selected =
-        item.kind === 'speed' ? this.state.active === SPEED_CARD && item.speed === this.speed : item.id === this.state.active;
+        item.kind === 'speed'
+          ? this.state.active === SPEED_CARD && item.speed === this.speed
+          : item.kind === 'toggle'
+            ? isOn(this.state, item.id)
+            : item.id === this.state.active;
       tile.classList.toggle('on', selected);
       tile.classList.toggle('soon', !item.available);
       tile.disabled = !item.available;

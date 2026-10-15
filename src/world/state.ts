@@ -1,4 +1,5 @@
 import { CubeSphere } from './cubesphere';
+import type { Plate } from './plates';
 
 /** Gelo pintado/apagado pelo jogador vence o clima; `Auto` segue a temperatura. */
 export const IceMode = {
@@ -43,6 +44,13 @@ export class WorldState {
   /** Variação regional do clima gerada pela semente, em [-1, 1]: temperatura e chuva. */
   readonly tempNoise: Float32Array;
   readonly rainNoise: Float32Array;
+  /** Placa de cada célula (índice em `plates`). */
+  readonly plate: Uint8Array;
+  /** Tipo de crosta (`Crust` em plates.ts). */
+  readonly crust: Uint8Array;
+  /** Tipo de fronteira de placa (`Boundary` em plates.ts); 0 = interior da placa. */
+  readonly boundary: Uint8Array;
+  plates: Plate[] = [];
   /** Distância (em células) até a água mais próxima; 0 na água. Usada pela umidade. */
   readonly waterDistance: Uint16Array;
   seaLevel: number;
@@ -61,6 +69,9 @@ export class WorldState {
     this.iceMode = new Uint8Array(this.cellCount);
     this.tempNoise = new Float32Array(this.cellCount);
     this.rainNoise = new Float32Array(this.cellCount);
+    this.plate = new Uint8Array(this.cellCount);
+    this.crust = new Uint8Array(this.cellCount);
+    this.boundary = new Uint8Array(this.cellCount);
     this.waterDistance = new Uint16Array(this.cellCount);
   }
 

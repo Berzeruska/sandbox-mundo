@@ -1,5 +1,6 @@
 import type { Speed } from '../core/time';
 import type { Tool } from '../input/tools';
+import type { Layers } from '../render/colors';
 import type { Vec3 } from '../world/cubesphere';
 import type { CellQuery, FromWorker, Patch, ToWorker, WorldInfo } from './protocol';
 
@@ -34,6 +35,10 @@ export class SimClient {
   newWorld(seedText: string, n: number): void {
     this.pendingBrush = null;
     this.send({ type: 'newWorld', seedText, n });
+  }
+
+  setLayers(layers: Layers): void {
+    this.send({ type: 'layers', layers });
   }
 
   setSpeed(speed: Speed): void {
