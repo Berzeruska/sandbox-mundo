@@ -75,6 +75,8 @@ export class SimClient {
         break;
       case 'patch':
         this.events.onPatch(msg.patches, msg.brushMs);
+        // Só a resposta de uma pincelada libera a próxima (repintura de camada tem brushMs < 0).
+        if (msg.brushMs < 0) break;
         this.brushInFlight = false;
         if (this.pendingBrush) {
           const b = this.pendingBrush;

@@ -131,11 +131,11 @@ export class SimulationCore {
     this.layers = layers;
     const world = this.world;
     if (!world) return;
-    const t0 = this.now();
     buildColors(world, this.colors, undefined, layers);
     const n = world.params.n;
     const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
-    this.send({ type: 'patch', patches: makePatches(this.colors, n, faces), brushMs: this.now() - t0 });
+    // brushMs = -1: não é pincelada (não entra no tempo do pincel do painel Dados).
+    this.send({ type: 'patch', patches: makePatches(this.colors, n, faces), brushMs: -1 });
   }
 
   private query(id: number, point: Vec3): void {

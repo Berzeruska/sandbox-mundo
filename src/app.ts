@@ -191,7 +191,7 @@ export class App {
     if (!this.info || !this.renderer) return;
     for (const p of patches) applyPatch(this.colors, this.info.n, p);
     this.renderer.upload(patches);
-    this.stats.brushMs = brushMs;
+    if (brushMs >= 0) this.stats.brushMs = brushMs;
     this.requestDraw();
   }
 
