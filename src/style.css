@@ -36,3 +36,115 @@ body {
   padding: 1rem;
   text-align: center;
 }
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-size: 14px;
+}
+
+.hud-bar {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(10, 14, 28, 0.78);
+  border-radius: 14px;
+  pointer-events: auto;
+  backdrop-filter: blur(6px);
+}
+
+.hud-tools {
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: fit-content;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100vw - 20px);
+  box-sizing: border-box;
+}
+
+.hud-btn {
+  min-width: 52px;
+  min-height: 52px;
+  padding: 4px 6px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.hud-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.hud-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.hud-label {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.hud-mode.active {
+  background: #2f6fd6;
+}
+
+.hud-btn.selected {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.painting .hud-btn.selected {
+  border-color: #ffd34d;
+  background: rgba(255, 211, 77, 0.18);
+}
+
+.hud-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  min-height: 52px;
+}
+
+.hud-size input {
+  width: 110px;
+  accent-color: #ffd34d;
+}
+
+.hud-size-value {
+  min-width: 2ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 520px) {
+  .hud-btn {
+    min-width: 48px;
+    min-height: 48px;
+  }
+  .hud-size input {
+    width: 90px;
+  }
+}

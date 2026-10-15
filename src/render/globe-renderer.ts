@@ -81,7 +81,10 @@ export class GlobeRenderer {
     const gl = this.gl;
     const n = this.n;
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texture);
+    // Lê o retângulo direto do array completo: largura da linha e altura da "imagem" = N.
+    // (O WebGL2 recusa SKIP_ROWS sem IMAGE_HEIGHT em envios 3D.)
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, n);
+    gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, n);
     for (const r of rects) {
       gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, r.x0);
       gl.pixelStorei(gl.UNPACK_SKIP_ROWS, r.y0);
@@ -91,6 +94,7 @@ export class GlobeRenderer {
       );
     }
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
+    gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, 0);
     gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
     gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
   }

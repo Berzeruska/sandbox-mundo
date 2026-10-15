@@ -2,12 +2,16 @@ import { quatIdentity, quatMultiply, type Quat } from '../core/quat';
 import type { Camera } from '../render/camera';
 
 export type InputMode = 'move' | 'paint';
-export type PaintPhase = 'start' | 'move' | 'end';
+/** `cancel` = virou pinça: a pincelada é descartada se ainda não começou. */
+export type PaintPhase = 'start' | 'move' | 'end' | 'cancel';
 
 export interface InputHandlers {
   getMode(): InputMode;
   onCameraChange(): void;
   onPaint(sx: number, sy: number, phase: PaintPhase): void;
+  /** Mouse passando por cima sem apertar (null = saiu do canvas). */
+  onHover(sx: number, sy: number): void;
+  onLeave(): void;
 }
 
 interface PointerState {
@@ -52,6 +56,9 @@ export class PointerInput {
     canvas.addEventListener('pointercancel', this.onUp);
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    canvas.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'mouse') this.handlers.onLeave();
+    });
   }
 
   /** Avança animações (zoom do toque duplo). Retorna true se a câmera mudou. */
@@ -87,7 +94,7 @@ export class PointerInput {
       this.action = paints ? 'paint' : 'rotate';
       if (paints) this.handlers.onPaint(p.x, p.y, 'start');
     } else {
-      if (this.action === 'paint') this.handlers.onPaint(p.x, p.y, 'end');
+      if (this.action === 'paint') this.handlers.onPaint(p.x, p.y, 'cancel');
       this.action = 'pinch';
       this.pinch = this.measurePinch();
     }
@@ -95,8 +102,9 @@ export class PointerInput {
 
   private onMove = (e: PointerEvent): void => {
     const ptr = this.pointers.get(e.pointerId);
-    if (!ptr) return;
     const p = this.toCanvas(e);
+    if (e.pointerType === 'mouse') this.handlers.onHover(p.x, p.y);
+    if (!ptr) return;
     const prevX = ptr.x;
     const prevY = ptr.y;
     ptr.x = p.x;

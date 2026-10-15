@@ -43,7 +43,7 @@ tempo. Fluido no celular.
   Zoom do globo inteiro até o pedaço preencher a tela com pixels de célula visíveis.
   Giro com inércia leve. Funciona em cima dos polos.
 
-- [ ] **T8 — Pincéis de terreno e gelo** (`src/input/tools.ts`)
+- [x] **T8 — Pincéis de terreno e gelo** (`src/input/tools.ts`)
   Elevar, rebaixar, água, gelo, apagar gelo; tamanho do pincel. Modo pintar × modo mover
   (botão alternador, essencial no celular). Recalcular clima e bioma só na área afetada.
   Atualizar só a parte alterada da textura.

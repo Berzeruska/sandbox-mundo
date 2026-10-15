@@ -170,11 +170,16 @@ export class CubeSphere {
 
   /** Ponto (qualquer comprimento, não nulo) → índice da célula que o contém. */
   pointToCell(x: number, y: number, z: number): number {
-    const { face, a, b } = pointToFaceCoord(x, y, z);
+    // Versão sem alocação de pointToFaceCoord: é chamada milhões de vezes pelo clima.
+    const face = faceOfPoint(x, y, z);
+    const { n: fn, u, v } = FACES[face] as FaceFrame;
+    const dn = x * fn[0] + y * fn[1] + z * fn[2];
+    const a = Math.atan((x * u[0] + y * u[1] + z * u[2]) / dn) / QUARTER_PI;
+    const b = Math.atan((x * v[0] + y * v[1] + z * v[2]) / dn) / QUARTER_PI;
     const n = this.n;
     const gx = Math.min(n - 1, Math.max(0, Math.floor((a + 1) * 0.5 * n)));
     const gy = Math.min(n - 1, Math.max(0, Math.floor((b + 1) * 0.5 * n)));
-    return this.index(face, gx, gy);
+    return face * n * n + gy * n + gx;
   }
 
   neighbor(i: number, dir: number): number {

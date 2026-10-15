@@ -41,6 +41,17 @@ Cada bioma tem uma cor fixa de pixel definida em `src/world/biomes.ts` (paleta �
 Elevar terreno, rebaixar terreno, água, gelo, apagar gelo. Tamanho do pincel ajustável.
 Cada pincelada recalcula clima e bioma só da região afetada (mais uma borda).
 
+### Como está implementado (M1)
+- Elevar/rebaixar: ~2.200 m por segundo segurando, no centro do pincel, suavizando até a borda.
+- Água: afunda o terreno para 40 m abaixo do nível do mar (lago/mar raso).
+- Gelo/Derreter: marcam a célula como "gelo pintado" ou "gelo apagado", que vencem o clima
+  (apagar a calota polar não faz ela voltar sozinha).
+- Tamanho do pincel: raio de 1 a 30 células.
+- Borda recalculada: ~640 km (alcance da sombra de chuva). Um lago pintado deixa a região em volta
+  mais úmida, e uma serra pintada deixa o lado a favor do vento mais seco.
+- No celular, um dedo pinta e dois dedos dão zoom; a pintura espera 80 ms para não confundir o
+  começo de uma pinça com uma pincelada.
+
 ## Placas tectônicas (Marco 2)
 - O mundo é dividido em placas (polígonos na esfera), cada uma com eixo e velocidade de rotação.
 - **Velocidade controlada pelo jogador**, de zero ao máximo. Zero congela a geologia.
