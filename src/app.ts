@@ -9,6 +9,7 @@ import { GlobeRenderer } from './render/globe-renderer';
 import { Overlay } from './render/overlay';
 import { Hud } from './ui/hud';
 import { DebugPanel, NewWorldDialog } from './ui/panels';
+import { activeBrush, inputModeOf } from './ui/menu-state';
 import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
 import { createWorld } from './world/create';
 import { CubeSphere, type Vec3 } from './world/cubesphere';
@@ -89,26 +90,28 @@ export class App {
     this.hud = new Hud(
       root,
       {
-        onModeToggle: () => this.setMode(this.mode === 'move' ? 'paint' : 'move'),
-        onTool: (tool) => {
-          this.tool = tool;
-          this.hud.setTool(tool);
-          this.setMode('paint');
+        onMenuChange: (state) => {
+          const brush = activeBrush(state);
+          if (brush !== null) this.tool = brush;
+          this.setMode(inputModeOf(state));
         },
         onBrushSize: (size) => {
           this.brushSize = size;
           this.requestDraw();
         },
         onSpeed: (speed) => this.setSpeed(speed),
-        onNewWorld: () => this.worldDialog.toggle(this.world.params.seedText),
+        onTogglePause: () => this.togglePause(),
+        onAction: (action) => {
+          if (action === 'newWorld') this.worldDialog.show(this.world.params.seedText);
+          if (action === 'debug') {
+            this.debug.toggle();
+            this.updateDebug();
+          }
+        },
         onNorthUp: () => {
           this.camera.stopSpin();
           this.camera.northUp();
           this.requestDraw();
-        },
-        onDebug: () => {
-          this.debug.toggle();
-          this.updateDebug();
         },
       },
       this.brushSize,
@@ -123,8 +126,6 @@ export class App {
     this.loadingEl.hidden = true;
     root.append(this.loadingEl);
 
-    this.hud.setTool(this.tool);
-    this.hud.setMode(this.mode);
     this.hud.setSpeed(this.clock.speed);
     this.hud.setDate(formatDate(this.clock));
 
@@ -132,7 +133,7 @@ export class App {
     window.addEventListener('keydown', (e) => {
       if (e.code !== 'Space' || e.target instanceof HTMLInputElement) return;
       e.preventDefault();
-      if (!e.repeat) this.setSpeed(this.clock.speed === 0 ? this.lastRunningSpeed : 0);
+      if (!e.repeat) this.togglePause();
     });
     window.addEventListener('keyup', (e) => {
       if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) e.preventDefault();
@@ -164,6 +165,11 @@ export class App {
     );
   }
 
+  /** Pausa, ou retoma na última velocidade usada. */
+  togglePause(): void {
+    this.setSpeed(this.clock.speed === 0 ? this.lastRunningSpeed : 0);
+  }
+
   setSpeed(speed: Speed): void {
     if (speed !== 0) this.lastRunningSpeed = speed;
     this.clock.speed = speed;
@@ -180,7 +186,6 @@ export class App {
   setMode(mode: InputMode): void {
     this.mode = mode;
     this.painting = false;
-    this.hud.setMode(mode);
     this.requestDraw();
   }
 

@@ -91,7 +91,7 @@ nunca trava, nem em velocidade máxima, nem no celular.
 
 ## Tarefas (fazer em ordem; cada uma = um commit)
 
-- [ ] **T1 — Menu de ferramentas por categorias** (`src/ui/`)
+- [x] **T1 — Menu de ferramentas por categorias** (`src/ui/`)
   Um botão abre um menu por categorias e o jogador escolhe o que fica ativo:
   - **Tempo:** pausa e velocidades;
   - **Relevo:** mover, elevar, rebaixar, água, gelo, derreter, tamanho do pincel;
@@ -101,7 +101,8 @@ nunca trava, nem em velocidade máxima, nem no celular.
   Na tela fica só a ferramenta escolhida e um atalho de pausa sempre visível. Confortável no celular
   com uma mão; não pode cobrir o planeta mais do que a v1.1. **Esboço do layout aprovado pelo usuário
   antes de codar.** Ferramentas de tarefas futuras aparecem desativadas ("em breve") até a tarefa delas.
-  Esboço proposto: `docs/img/m2-t1-esboco-menu.png` (aguardando aprovação).
+  Esboço aprovado: `docs/img/m2-t1-esboco-menu.png`. Feito: menu fechado cobre 8,8% da tela do
+  celular (v1.1: 24,3%); aberto ~50%, só enquanto aberto.
   Testes: estado do menu (categoria aberta, ferramenta ativa, troca de categoria) em lógica pura.
   Verificação manual: celular com uma mão e notebook; área coberta medida e comparada à v1.1.
 

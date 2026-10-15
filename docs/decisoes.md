@@ -137,3 +137,17 @@ Formato: data — decisão — motivo — alternativa descartada.
   desenhava por software e ficava lento. Correção: a lógica virou função pura
   (`inertiaFromHistory` em `src/input/pointer.ts`) com teste determinístico de tempos sintéticos em
   `tests/input/pointer.test.ts`; a checagem dependente de relógio saiu do roteiro do navegador.
+
+- **2026-10-15 — Menu de ferramentas por categorias (M2, T1): layout aprovado pelo usuário.**
+  Esboço: `docs/img/m2-t1-esboco-menu.png`. Decisões junto com a aprovação:
+  - aba extra **"Mundo"** com Novo mundo e Dados (depuração); a **bússola fica no canto** da tela;
+  - **sem** opção de mão esquerda (botões à direita, zona do polegar direito);
+  - tocar no cartão da ferramenta ativa abre o menu **na categoria dela**.
+  **Lembrete:** o acabamento visual do menu (ícones próprios, animações, estilo) fica para o
+  **Marco 8 — Embelezamento**. Na T1 vale o layout e a usabilidade, não a beleza.
+
+- **2026-10-15 — T1 do M2 feita: menu por categorias (`src/ui/menu-state.ts` + `src/ui/hud.ts`).**
+  Área da tela coberta pela interface num celular 390×844: v1.1 = 24,3%; menu fechado = **8,8%**;
+  menu aberto ≈ 50%, só enquanto aberto. O botão ☰ e o cartão abrem o menu na categoria da
+  ferramenta ativa. Ferramentas de tarefas futuras ficam desativadas ("em breve"). A lógica do menu
+  é pura e testada; a barra de espaço (pausa) e Esc (fecha o menu) funcionam no notebook.
