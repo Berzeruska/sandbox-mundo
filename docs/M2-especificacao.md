@@ -2,8 +2,8 @@
 
 Pré-requisito: Marco 1 concluído (`v1.0`).
 Branch: `marco-2`.
-Estado: **rascunho aguardando aprovação do usuário.** Nada é codado antes das respostas da seção
-"Decisões de design para o usuário".
+Estado: **aprovada pelo usuário em 2026-10-15** (decisões no fim do documento). A T1 (menu) só é
+codada depois que o usuário aprovar o esboço do layout.
 
 ## Objetivo
 A Pangeia se parte em continentes que derivam com velocidade controlada pelo jogador (inclusive
@@ -12,12 +12,20 @@ desastres climáticos surgem onde a geologia e o clima indicam. Tudo roda num We
 nunca trava, nem em velocidade máxima, nem no celular.
 
 ## Como vai funcionar (visão de jogador)
-- Um controle **"Placas"** (0 a máximo) define a velocidade da deriva. Em 0 a geologia congela, mas
-  o clima e os desastres climáticos continuam.
+- Todas as ferramentas ficam num **menu por categorias** (Tempo, Relevo, Desastres, Geologia, Clima).
+  Na tela fica só a ferramenta escolhida e um botão de pausa sempre visível.
+- Um controle **"Placas"** (0 a máximo) define a velocidade da deriva. No máximo, com o tempo em 20×,
+  a Pangeia se parte em **~2 minutos reais**. Em 0 a geologia congela, mas o clima e os desastres
+  climáticos continuam.
+- Um controle de **frequência de desastres** (de "nenhum" a "muitos"), com padrão **"raro"** (um
+  desastre notável a cada ~1–2 minutos em 1×).
+- Um controle de **temperatura global** (deus), somado ao ciclo glacial automático e suave.
 - Uma camada **"Ver placas"** desenha as fronteiras coloridas por tipo: convergente (vermelho),
   divergente (azul) e transformante (amarelo).
-- Desastres aparecem no globo (ondas, cinzas, trilha de furacão, área queimada) e num aviso curto.
-  Tocar no aviso leva a câmera até o lugar.
+- Desastres aparecem no globo (ondas, cinzas, trilha de furacão, área queimada). Só os **grandes**
+  geram aviso na tela; a **lista completa** fica no painel. Tocar num aviso leva a câmera até o lugar.
+- **Vulcão muda o relevo para sempre** (pode criar ilha); os demais desastres deixam marcas
+  temporárias que se recuperam.
 - O jogador pode provocar qualquer desastre manualmente, com ferramentas novas na barra.
 - Pincéis do M1 continuam valendo. Uma montanha pintada viaja junto com a sua placa.
 
@@ -60,7 +68,8 @@ nunca trava, nem em velocidade máxima, nem no celular.
 ### Clima acompanhando a deriva
 - O clima é recalculado por inteiro no worker de tempos em tempos (~150 ms no notebook) e entre
   um recálculo e outro, só onde o terreno mudou.
-- Eras glaciais leves: um ciclo lento de temperatura global faz o gelo avançar e recuar.
+- Eras glaciais leves: um ciclo lento e automático de temperatura global faz o gelo avançar e recuar;
+  o controle de temperatura global do jogador soma a esse ciclo.
 
 ### Desastres (todo desastre tem probabilidade base, intensidade, área e duração)
 
@@ -82,68 +91,86 @@ nunca trava, nem em velocidade máxima, nem no celular.
 
 ## Tarefas (fazer em ordem; cada uma = um commit)
 
-- [ ] **T1 — Simulação no Web Worker** (`src/sim/worker.ts`, `src/sim/protocol.ts`)
+- [ ] **T1 — Menu de ferramentas por categorias** (`src/ui/`)
+  Um botão abre um menu por categorias e o jogador escolhe o que fica ativo:
+  - **Tempo:** pausa e velocidades;
+  - **Relevo:** mover, elevar, rebaixar, água, gelo, derreter, tamanho do pincel;
+  - **Desastres:** provocar cada desastre e frequência (as ferramentas chegam nas T7–T10);
+  - **Geologia:** velocidade das placas (chega na T4);
+  - **Clima:** temperatura global (chega na T6).
+  Na tela fica só a ferramenta escolhida e um atalho de pausa sempre visível. Confortável no celular
+  com uma mão; não pode cobrir o planeta mais do que a v1.1. **Esboço do layout aprovado pelo usuário
+  antes de codar.** Ferramentas de tarefas futuras aparecem desativadas ("em breve") até a tarefa delas.
+  Testes: estado do menu (categoria aberta, ferramenta ativa, troca de categoria) em lógica pura.
+  Verificação manual: celular com uma mão e notebook; área coberta medida e comparada à v1.1.
+
+- [ ] **T2 — Simulação no Web Worker** (`src/sim/worker.ts`, `src/sim/protocol.ts`)
   Mover o mundo, o relógio, a geração, o clima e os pincéis para o worker. A thread principal recebe
   os remendos de cor e manda comandos.
   Testes: codificar/decodificar mensagens; o mundo gerado no worker é idêntico ao da thread principal
   (mesma semente).
-  Verificação manual: pincel e novo mundo funcionam como no M1, e a tela não trava durante a geração.
+  Verificação manual: pincel e novo mundo funcionam como na v1.1 e a tela não trava durante a geração.
 
-- [ ] **T2 — Placas** (`src/world/plates.ts`)
+- [ ] **T3 — Placas** (`src/world/plates.ts`)
   Voronoi deformado, tipo de crosta, eixos e velocidades pela semente. Camada "Ver placas".
   Testes: toda célula tem placa; cada placa é contígua; número de placas dentro da faixa; a Pangeia
   cobre ≥ 3 placas; determinismo.
 
-- [ ] **T3 — Movimento e recomposição** (`src/world/tectonics.ts`)
-  Crosta no referencial da placa, recomposição global e controle de velocidade (0 congela).
+- [ ] **T4 — Movimento, recomposição e controle "Placas"** (`src/world/tectonics.ts`)
+  Crosta no referencial da placa, recomposição global, controle de velocidade em Geologia (0 congela).
+  Ritmo: no máximo, com o tempo em 20×, a Pangeia se parte em ~2 minutos reais.
   Testes: velocidade 0 não muda nada; uma placa sozinha gira sem deformar (forma preservada dentro
   de uma tolerância); área total de crosta conservada sem fronteiras ativas; determinismo.
 
-- [ ] **T4 — Fronteiras e relevo**
+- [ ] **T5 — Fronteiras e relevo**
   Classificação convergente/divergente/transformante; dorsais com profundidade pela idade;
   subducção com fossa; colisão erguendo montanhas; rifte continental; erosão leve.
   Testes: em cenários sintéticos de duas placas, montanha/fossa/dorsal aparecem onde devem; em
   10.000 passos a fração de terra fica entre 20% e 40% e nada vira NaN.
 
-- [ ] **T5 — Clima que acompanha a deriva e eras glaciais**
-  Recálculo periódico no worker e envio só do que mudou; ciclo glacial leve.
+- [ ] **T6 — Clima que acompanha a deriva, eras glaciais e temperatura global**
+  Recálculo periódico no worker e envio só do que mudou; ciclo glacial automático e suave; controle
+  de temperatura global em Clima, somado ao ciclo.
   Testes: o recálculo parcial bate com o total; a área de gelo cresce com a temperatura global
-  menor e recua com ela maior.
+  menor e recua com ela maior; ciclo e controle se somam.
 
-- [ ] **T6 — Terremotos e tsunamis** (`src/world/disasters/`)
+- [ ] **T7 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa
   temporariamente; desenho das ondas na camada sobreposta.
   Testes: terremotos só perto de fronteiras; tsunami só a partir de terremoto no mar e forte;
-  determinismo.
+  efeitos temporários se recuperam; determinismo.
 
-- [ ] **T7 — Vulcões e pontos quentes**
-  Arcos de subducção, dorsais (fraco), pontos quentes fixos; erupção ergue terreno e espalha cinzas.
+- [ ] **T8 — Vulcões e pontos quentes**
+  Arcos de subducção, dorsais (fraco), pontos quentes fixos; erupção ergue terreno **para sempre**
+  (pode criar ilha) e espalha cinzas temporárias.
   Testes: ponto quente sob placa em movimento forma uma cadeia de ilhas; erupções só em lugares
-  permitidos.
+  permitidos; relevo vulcânico persiste e as cinzas somem.
 
-- [ ] **T8 — Desastres climáticos**
+- [ ] **T9 — Desastres climáticos**
   Anomalias de chuva (seca, enchente), furacões com trajetória, incêndios; perturbação temporária
   com recuperação.
   Testes: furacão só nasce em oceano tropical quente e enfraquece em terra; incêndio só em floresta
   sob seca; frequências dentro da faixa esperada em 1.000 anos simulados.
 
-- [ ] **T9 — Ferramentas divinas e controles**
-  Controle "Placas" (0–máximo), camadas (placas, tensão), ferramentas para provocar cada desastre.
-  Verificação manual no celular e no notebook.
+- [ ] **T10 — Desastres na mão do jogador e frequência**
+  Em Desastres: ferramenta para provocar cada desastre e controle de frequência (nenhum → muitos),
+  padrão "raro". Camadas "Ver placas" e "Ver tensão".
+  Testes: frequência 0 não gera desastre natural; "raro" fica na faixa de ~1 notável a cada 1–2 min
+  em 1×; provocar manualmente funciona com qualquer frequência.
 
-- [ ] **T10 — Avisos de desastre**
-  Aviso curto quando algo grande acontece e lista dos recentes; tocar leva a câmera ao local.
+- [ ] **T11 — Avisos e lista de desastres**
+  Aviso curto só para desastres grandes; lista completa no painel; tocar leva a câmera ao local.
   (Não é a crônica permanente, que fica no M5.)
 
-- [ ] **T11 — Teste longo de estabilidade**
+- [ ] **T12 — Teste longo de estabilidade**
   Teste automático: partindo da Pangeia, em velocidade padrão, depois de X passos existem ≥ 3
   continentes grandes, a fração de terra está entre 20% e 40%, há montanhas, nenhum valor inválido,
   e os desastres aconteceram nas quantidades esperadas.
 
-- [ ] **T12 — Medição no celular e ajuste**
-  Placas no máximo + tempo no máximo: tela ≥ 30 fps no celular (≥ 60 no notebook), porque a
-  simulação está no worker. Medir também quantos passos por segundo o worker aguenta. Registrar em
-  `docs/decisoes.md`.
+- [ ] **T13 — Medição de desempenho e comparação com a linha de base**
+  Placas no máximo + tempo no máximo: tela ≥ 30 fps no celular (≥ 60 no notebook). Medir nas mesmas
+  condições da linha de base da v1.1 (`docs/decisoes.md`) e comparar. Medir também quantos passos por
+  segundo o worker aguenta. Registrar em `docs/decisoes.md`.
 
 ## Critérios de aceite do usuário
 1. Ligo as placas e acelero o tempo: a Pangeia se parte em continentes, e a tela não trava.
@@ -151,41 +178,19 @@ nunca trava, nem em velocidade máxima, nem no celular.
 3. Terremotos e vulcões aparecem nas fronteiras e nos pontos quentes; tsunamis saem de terremotos
    no mar; furacões nascem em mar tropical; secas, enchentes e incêndios fazem sentido com o clima.
 4. Placas em zero congelam a geologia.
-5. Consigo provocar qualquer desastre com as ferramentas.
-6. Tudo continua fluido no meu celular.
+5. Consigo provocar qualquer desastre e ajustar a frequência e a temperatura global.
+6. Escolho ferramentas por um menu confortável com uma mão, e a tela fica livre para o planeta.
+7. Tudo continua fluido no meu celular (comparado à linha de base da v1.1).
 
 ## Fora do M2 (não fazer agora)
 Vida (plantas, animais), humanos, cidades e dano a cidades (as regras de "cidade sobre terreno que
 muda" ficam para quando houver cidades, no M4), crônica permanente (M5), som, sprites novos.
 
-## Decisões de design para o usuário (responder antes de começar)
-
-1. **Ritmo da deriva.** Com o tempo em 1× (1 ano por segundo) a deriva real nunca seria vista: os
-   continentes andam ~5 cm por ano. Então o controle "Placas" acelera a geologia por conta própria.
-   No máximo, quanto tempo real a Pangeia deve levar para se partir com o tempo em 20×?
-   - (a) ~2 minutos: drama rápido, bom para experimentar. **Recomendo esta**, com o controle
-     permitindo ir bem mais devagar.
-   - (b) ~10 minutos: mais contemplativo.
-   - (c) ~30 minutos ou mais: quase realista, a deriva vira pano de fundo.
-
-2. **Frequência dos desastres** (em 1×):
-   - (a) raros: um desastre notável a cada ~1–2 minutos. **Recomendo**, porque sem vida ainda
-     eles servem mais de espetáculo;
-   - (b) frequentes: vários por minuto;
-   - (c) controle de frequência na interface (0 a muito), com padrão "raro".
-
-3. **Força dos desastres no terreno.** Erupções e terremotos devem mudar o relevo de forma
-   permanente (uma ilha nova fica) ou só deixar marcas temporárias?
-   **Recomendo:** vulcão muda o relevo de forma permanente; o resto é temporário e se recupera.
-
-4. **Eras glaciais.** Ciclo automático leve, com o gelo avançando e recuando?
-   - (a) sim, automático, bem suave. **Recomendo**;
-   - (b) sim, mas também com um controle "temperatura global" de deus;
-   - (c) não agora.
-
-5. **Avisos.** Mostrar só desastres grandes ou todos? **Recomendo** só os grandes, com a lista
-   completa no painel.
-
-6. **Ferramentas de desastre na barra.** As 7 de uma vez (terremoto, vulcão, tsunami, seca, enchente,
-   furacão, incêndio), ou num menu "Desastres" que abre as 7? **Recomendo** o menu, para a barra
-   não ficar apertada no celular.
+## Decisões de design do usuário (2026-10-15)
+1. **Ritmo da deriva:** ~2 minutos reais para a Pangeia se partir, com placas no máximo e tempo em 20×.
+2. **Desastres:** controle de frequência na tela, padrão "raro".
+3. **Marcas:** vulcão muda o relevo para sempre; os outros desastres se recuperam.
+4. **Eras glaciais:** automáticas e suaves, mais um controle de temperatura global.
+5. **Avisos:** só os desastres grandes; lista completa no painel.
+6. **Interface:** substituída pela T1 — menu de ferramentas por categorias (Tempo, Relevo, Desastres,
+   Geologia, Clima), com só a ferramenta escolhida e a pausa na tela; esboço aprovado antes de codar.

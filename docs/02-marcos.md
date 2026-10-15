@@ -3,7 +3,7 @@
 Cada marco termina jogável e testável no celular. Só se começa o próximo com o anterior aceito
 pelo usuário.
 
-Marco atual: **Marco 2** — especificação em `docs/M2-especificacao.md`, aguardando aprovação do usuário.
+Marco atual: **Marco 2** — especificação aprovada em 2026-10-15 (`docs/M2-especificacao.md`).
 Marco 0 aceito em 2026-10-14. Marco 1 aceito em 2026-10-15 (`v1.0`).
 
 ---
