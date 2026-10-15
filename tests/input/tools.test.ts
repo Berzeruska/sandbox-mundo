@@ -3,9 +3,9 @@ import { applyBrush, Tool } from '../../src/input/tools';
 import { Biome } from '../../src/world/biomes';
 import { computeWaterDistance, updateClimate } from '../../src/world/climate';
 import { createWorld } from '../../src/world/create';
-import { CubeSphere, latLonToPoint } from '../../src/world/cubesphere';
+import { CubeSphere, faceCoordToPoint, latLonToPoint } from '../../src/world/cubesphere';
 import { WorldState } from '../../src/world/state';
-import { dirtyRects } from '../../src/render/dirty';
+import { dirtyRects, packRect } from '../../src/render/dirty';
 
 const grid = new CubeSphere(64);
 const params = { seedText: 't', seed: 7, n: 64, seaLevel: 0, landFraction: 0.3 };
@@ -82,6 +82,65 @@ describe('pincéis', () => {
       expect(grid.xOf(c)).toBeLessThanOrEqual(r.x1);
       expect(grid.yOf(c)).toBeGreaterThanOrEqual(r.y0);
       expect(grid.yOf(c)).toBeLessThanOrEqual(r.y1);
+    }
+  });
+});
+
+describe('pincel atravessa faces (bug 2026-10-15)', () => {
+  const g = new CubeSphere(64);
+  const flat = () => {
+    const w = new WorldState({ ...params, n: 64 }, g);
+    w.elevation.fill(500);
+    computeWaterDistance(w);
+    updateClimate(w);
+    return w;
+  };
+  const cases: [string, [number, number, number]][] = [
+    ['borda entre faces 0 e 4', faceCoordToPoint(0, -1, 0)],
+    ['canto do cubo (faces 0, 2, 4)', faceCoordToPoint(0, -1, 1)],
+  ];
+  it.each(cases)('%s: afeta as faces vizinhas e forma um círculo na esfera', (_name, p) => {
+    const w = flat();
+    const before = Float32Array.from(w.elevation);
+    const radiusCells = 12;
+    applyBrush(w, Tool.Lower, p, radiusCells, 0.5);
+    const radius = radiusCells * g.cellAngle;
+    const faces = new Set<number>();
+    for (let i = 0; i < g.cellCount; i++) {
+      const dot = g.positions[i * 3]! * p[0] + g.positions[i * 3 + 1]! * p[1] + g.positions[i * 3 + 2]! * p[2];
+      const angle = Math.acos(Math.min(1, dot));
+      const changed = w.elevation[i] !== before[i];
+      // Todas as células dentro do raio mudam; nenhuma fora dele.
+      if (angle < radius * 0.999) expect(changed).toBe(true);
+      if (angle > radius * 1.001) expect(changed).toBe(false);
+      if (changed) faces.add(g.faceOf(i));
+    }
+    const expectedFaces = new Set([...g.cellsInCap(p[0], p[1], p[2], radius)].map((c) => g.faceOf(c)));
+    expect(faces).toEqual(expectedFaces);
+    expect(faces.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('o canto do cubo atinge as 3 faces que se encontram nele', () => {
+    const w = flat();
+    const before = Float32Array.from(w.elevation);
+    applyBrush(w, Tool.Lower, faceCoordToPoint(0, -1, 1), 12, 0.5);
+    const faces = new Set<number>();
+    for (let i = 0; i < g.cellCount; i++) if (w.elevation[i] !== before[i]) faces.add(g.faceOf(i));
+    expect([...faces].sort()).toEqual([0, 2, 4]);
+  });
+
+  it('packRect copia exatamente o retângulo da face', () => {
+    const n = 8;
+    const colors = Uint8Array.from({ length: 6 * n * n * 4 }, (_, k) => k % 251);
+    const r = { face: 3, x0: 2, y0: 5, x1: 6, y1: 7 };
+    const out = packRect(colors, n, r);
+    expect(out.length).toBe(5 * 3 * 4);
+    for (let y = r.y0; y <= r.y1; y++) {
+      for (let x = r.x0; x <= r.x1; x++) {
+        const src = ((r.face * n + y) * n + x) * 4;
+        const dst = ((y - r.y0) * 5 + (x - r.x0)) * 4;
+        expect([...out.subarray(dst, dst + 4)]).toEqual([...colors.subarray(src, src + 4)]);
+      }
     }
   });
 });

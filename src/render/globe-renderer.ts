@@ -1,5 +1,6 @@
 import { FRAGMENT_SHADER, VERTEX_SHADER } from './shaders';
 import type { Camera } from './camera';
+import { packRect } from './dirty';
 
 /** Retângulo alterado de uma face (em células). */
 export interface DirtyRect {
@@ -24,6 +25,8 @@ export class GlobeRenderer {
   private vao: WebGLVertexArrayObject | null = null;
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private rot = new Float32Array(9);
+  /** Bloco reaproveitado para os envios parciais. */
+  private packBuffer = new Uint8Array(0);
   private lost = false;
 
   constructor(canvas: HTMLCanvasElement, n: number, colors: Uint8Array) {
@@ -75,28 +78,24 @@ export class GlobeRenderer {
     gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, 0, this.n, this.n, 6, gl.RGBA, gl.UNSIGNED_BYTE, this.colors);
   }
 
-  /** Reenvia só os retângulos alterados (lendo direto do array de cores do mundo). */
+  /**
+   * Reenvia só os retângulos alterados. Cada retângulo é copiado para um bloco contínuo antes:
+   * pedir ao driver para "pular" linhas/colunas (UNPACK_SKIP_*) desenhava pedaços no lugar errado
+   * em alguns celulares (ver docs/bugs.md, 2026-10-15).
+   */
   upload(rects: readonly DirtyRect[]): void {
     if (this.lost || rects.length === 0) return;
     const gl = this.gl;
-    const n = this.n;
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texture);
-    // Lê o retângulo direto do array completo: largura da linha e altura da "imagem" = N.
-    // (O WebGL2 recusa SKIP_ROWS sem IMAGE_HEIGHT em envios 3D.)
-    gl.pixelStorei(gl.UNPACK_ROW_LENGTH, n);
-    gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, n);
     for (const r of rects) {
-      gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, r.x0);
-      gl.pixelStorei(gl.UNPACK_SKIP_ROWS, r.y0);
+      const size = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1) * 4;
+      if (this.packBuffer.length < size) this.packBuffer = new Uint8Array(size);
+      const data = packRect(this.colors, this.n, r, this.packBuffer);
       gl.texSubImage3D(
         gl.TEXTURE_2D_ARRAY, 0, r.x0, r.y0, r.face, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1, 1,
-        gl.RGBA, gl.UNSIGNED_BYTE, this.colors, r.face * n * n * 4,
+        gl.RGBA, gl.UNSIGNED_BYTE, data,
       );
     }
-    gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
-    gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, 0);
-    gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
-    gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
   }
 
   /** Ajusta o tamanho interno do canvas ao tamanho na tela. Retorna true se mudou. */

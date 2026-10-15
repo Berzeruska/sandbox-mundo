@@ -20,3 +20,20 @@ export function dirtyRects(grid: CubeSphere, cells: readonly number[]): DirtyRec
   }
   return [...rects.values()];
 }
+
+/**
+ * Copia o retângulo de uma face para um bloco contínuo (linha após linha), pronto para enviar à GPU
+ * sem parâmetros de "pular" (UNPACK_SKIP_*), que alguns drivers de celular tratam errado.
+ */
+export function packRect(colors: Uint8Array, n: number, r: DirtyRect, out?: Uint8Array): Uint8Array {
+  const w = r.x1 - r.x0 + 1;
+  const h = r.y1 - r.y0 + 1;
+  const size = w * h * 4;
+  const buf = out && out.length >= size ? out.subarray(0, size) : new Uint8Array(size);
+  const faceStart = r.face * n * n;
+  for (let row = 0; row < h; row++) {
+    const src = (faceStart + (r.y0 + row) * n + r.x0) * 4;
+    buf.set(colors.subarray(src, src + w * 4), row * w * 4);
+  }
+  return buf;
+}
