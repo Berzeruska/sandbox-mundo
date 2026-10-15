@@ -13,7 +13,7 @@ tempo. Fluido no celular.
 - [x] **T1 — Gerador com semente** (`src/core/rng.ts`)
   PRNG determinístico (ex.: mulberry32 ou sfc32). Testes: mesma semente → mesma sequência.
 
-- [ ] **T2 — Geometria cube-sphere** (`src/world/cubesphere.ts`)
+- [x] **T2 — Geometria cube-sphere** (`src/world/cubesphere.ts`)
   Conversão célula (face, x, y) ↔ ponto 3D na esfera ↔ latitude/longitude.
   Vizinhos de uma célula, inclusive atravessando bordas entre faces.
   Testes: ida e volta das conversões; toda célula tem exatamente 4 vizinhos ortogonais;
