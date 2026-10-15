@@ -16,11 +16,16 @@ import { applyPatch, type Patch, type WorldInfo } from './sim/protocol';
 import { Hud } from './ui/hud';
 import { activeBrush, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog } from './ui/panels';
+import { ErrorScreen } from './ui/error-screen';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
 const MAX_PIXEL_RATIO = 2;
 const DEFAULT_BRUSH = 6;
+/** Sem nenhuma notícia da geração por este tempo (ms), mostra erro em vez de esperar para sempre. */
+const GENERATION_WATCHDOG_MS = 20_000;
+/** Chave da recarga automática por versão diferente (evita recarregar em laço). */
+const VERSION_RELOAD_KEY = 'sandbox-mundo:recarga-por-versao';
 /** Duração da transição suave entre a composição anterior e a nova (ms). */
 const FADE_MS = 350;
 
@@ -73,6 +78,9 @@ export class App {
     fadeStart: 0,
   };
   private loadingEl: HTMLDivElement;
+  private errorScreen: ErrorScreen;
+  /** Último sinal de vida da geração (pedido, progresso ou mundo pronto), para o vigia. */
+  private lastGenerationSignal = 0;
   private loadingText: HTMLDivElement;
   private loadingFill: HTMLDivElement;
   private lastRunningSpeed: Speed = 1;
@@ -158,6 +166,10 @@ export class App {
       this.debug.setSpinning(this.stressSpin);
     });
     this.worldDialog = new NewWorldDialog(this.hud.root, (text) => this.newWorld(text));
+    this.errorScreen = new ErrorScreen(root, () => void retry());
+    // Erros não tratados em qualquer parte da tela também aparecem (em vez de travar em silêncio).
+    window.addEventListener('error', (e) => this.fail(`${e.message}${e.filename ? ` (${e.filename}:${e.lineno})` : ''}`));
+    window.addEventListener('unhandledrejection', (e) => this.fail(`Promessa rejeitada: ${String(e.reason)}`));
     this.loadingEl = document.createElement('div');
     this.loadingEl.className = 'loading';
     this.loadingText = document.createElement('div');
@@ -181,9 +193,13 @@ export class App {
     });
 
     this.sim = new SimClient({
+      onError: (message, versionMismatch) => this.fail(message, versionMismatch),
       onWorld: (info, colors, plateCells) => this.onWorld(info, colors, plateCells),
       onRecomposed: (patches, plateCells, angles) => this.onRecomposed(patches, plateCells, angles),
-      onProgress: (stage, fraction) => this.showProgress(stage, fraction),
+      onProgress: (stage, fraction) => {
+        this.lastGenerationSignal = performance.now();
+        this.showProgress(stage, fraction);
+      },
       onPatch: (patches, brushMs) => this.onPatch(patches, brushMs),
       onClock: (tick, speed, ticksPerSecond, geologyMs, recompositions, memoryMb, angles) => {
         this.stats.memoryMb = memoryMb;
@@ -211,7 +227,31 @@ export class App {
     this.showProgress('', 0);
     this.loadingEl.hidden = false;
     this.worldRequestedAt = performance.now();
+    this.lastGenerationSignal = this.worldRequestedAt;
     this.sim.newWorld(seedText, DEFAULT_N);
+  }
+
+  /**
+   * Algo deu errado: mostra o texto e "tentar de novo" em vez de travar. Versão diferente entre tela
+   * e worker (cache antigo) recarrega sozinha uma vez, limpando o cache.
+   */
+  fail(message: string, versionMismatch = false): void {
+    console.error(message);
+    if (versionMismatch) {
+      let recent: boolean;
+      try {
+        recent = Date.now() - Number(sessionStorage.getItem(VERSION_RELOAD_KEY) ?? 0) < 60_000;
+        if (!recent) sessionStorage.setItem(VERSION_RELOAD_KEY, String(Date.now()));
+      } catch {
+        recent = true; // sem sessionStorage: não arrisca recarregar em laço
+      }
+      if (!recent) {
+        void retry();
+        return;
+      }
+    }
+    this.loadingEl.hidden = true;
+    this.errorScreen.show(`${message}\n\nversão ${__BUILD_ID__} · ${navigator.userAgent}`);
   }
 
   /** Barra de progresso da geração (a etapa pesada, o terreno, avisa várias vezes). */
@@ -223,6 +263,7 @@ export class App {
 
   private onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array): void {
     this.worldTotalMs = performance.now() - this.worldRequestedAt;
+    this.lastGenerationSignal = performance.now();
     this.info = info;
     this.colors = colors;
     if (!this.renderer) this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
@@ -363,6 +404,10 @@ export class App {
     const dt = this.lastTime ? Math.min(0.1, (time - this.lastTime) / 1000) : 0;
     this.lastTime = time;
     this.frameDt = dt;
+    // Vigia: geração sem nenhuma notícia há muito tempo vira erro na tela, nunca espera infinita.
+    if (!this.loadingEl.hidden && !this.errorScreen.visible && performance.now() - this.lastGenerationSignal > GENERATION_WATCHDOG_MS) {
+      this.fail(`O simulador não deu notícia da geração por ${GENERATION_WATCHDOG_MS / 1000} s (última etapa: "${this.loadingText.textContent}").`);
+    }
     const renderer = this.renderer;
     if (!renderer) return;
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
@@ -421,6 +466,7 @@ export class App {
 
   private updateDebug(): void {
     if (!this.debug.visible || !this.info) return;
+    const renderer = this.renderer;
     this.debug.update({
       fps: this.stats.fps,
       frameMs: this.stats.frameMs,
@@ -440,6 +486,8 @@ export class App {
       geologyMs: this.stats.geologyMs,
       recompositions: this.stats.recompositions,
       memoryMb: this.stats.memoryMb,
+      drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
+      version: __BUILD_ID__,
     });
   }
 
@@ -457,6 +505,19 @@ export class App {
     };
     requestAnimationFrame(loop);
   }
+}
+
+/** Tentar de novo: limpa o cache do jogo (pode ter versão velha misturada) e recarrega a página. */
+async function retry(): Promise<void> {
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
+    await Promise.all(regs.map((r) => r.update().catch(() => undefined)));
+    const keys = (await caches?.keys?.()) ?? [];
+    await Promise.all(keys.filter((k) => k.startsWith('sandbox-mundo')).map((k) => caches.delete(k)));
+  } catch {
+    // sem cache para limpar: segue para o recarregamento
+  }
+  window.location.reload();
 }
 
 /** Cor do fundo oceânico recém-nascido (a mesma que o worker pinta na dorsal), de 0 a 1. */

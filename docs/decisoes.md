@@ -273,3 +273,11 @@ Formato: data — decisão — motivo — alternativa descartada.
   nem saltar (`advanceDisplayTick`). Na transição, a composição anterior usa o próprio raio de busca
   (antes usava o da nova, ~5× menor, e errava as bordas no primeiro quadro). Medido de novo: zero
   quadros com salto (máximo 0,47% dos pixels por quadro) com placas em 100% e tempo 20×.
+
+- **2026-10-15 — Erros sempre visíveis, desenho de reserva e conferência de versão.**
+  Todo erro (worker, shader, tela) vira uma tela com o texto e "Tentar de novo"; um vigia de 20 s
+  cobre o caso de silêncio. O globo tem dois shaders: o completo (interpolação das placas) e um
+  simplificado de reserva, escolhido sozinho se o completo não compilar. Worker e tela trocam a
+  versão do build (`__BUILD_ID__`, o hash do commit no CI) e recarregam uma vez se diferirem.
+  Alternativa descartada: só mostrar o erro, sem reserva (o jogo ficaria inutilizável num celular
+  com driver defeituoso).

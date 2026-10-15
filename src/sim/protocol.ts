@@ -46,6 +46,10 @@ export interface CellQuery {
 }
 
 export type FromWorker =
+  /** Primeira mensagem do worker: a versão dele (a tela confere com a própria). */
+  | { type: 'hello'; version: string }
+  /** Erro dentro do worker (em vez de travar em silêncio). */
+  | { type: 'error'; message: string; stack?: string }
   | { type: 'world'; info: WorldInfo; colors: Uint8Array; plateCells: Uint8Array }
   /** As placas andaram: mundo todo repintado, placa de cada célula e ângulos desta composição. */
   | { type: 'recomposed'; patches: Patch[]; plateCells: Uint8Array; angles: number[] }

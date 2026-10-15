@@ -36,9 +36,16 @@ function serviceWorker(): Plugin {
   };
 }
 
+/**
+ * Identificador do build: o mesmo valor entra na tela e no worker. Se um cache antigo servir uma
+ * parte de outra versão, a tela percebe pela conferência de versão e recarrega.
+ */
+const BUILD_ID = (process.env.GITHUB_SHA ?? '').slice(0, 8) || Date.now().toString(36);
+
 // `base: './'` faz o build funcionar tanto na raiz quanto em /sandbox-mundo/ (GitHub Pages).
 export default defineConfig({
   base: './',
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   server: { host: true },
   plugins: [serviceWorker()],
   test: {

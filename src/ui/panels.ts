@@ -25,6 +25,9 @@ export interface DebugStats {
   recompositions: number;
   /** Memória aproximada do worker (MB). */
   memoryMb: number;
+  /** Desenho completo ou simplificado (com o motivo). */
+  drawing: string;
+  version: string;
 }
 
 export class DebugPanel {
@@ -70,6 +73,8 @@ export class DebugPanel {
       `worker       ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms`,
       `placas       ${s.recompositions} recomposições · última ${s.geologyMs.toFixed(0)} ms`,
       `memória      ~${s.memoryMb.toFixed(0)} MB no worker`,
+      `desenho      ${s.drawing}`,
+      `versão       ${s.version}`,
     ].join('\n');
   }
 }

@@ -9,6 +9,10 @@ export interface SimEvents {
   onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[]): void;
   onProgress(stage: string, fraction: number): void;
   onPatch(patches: Patch[], brushMs: number): void;
+  /** Erro no worker, no protocolo ou versão diferente (`versionMismatch`). */
+  onError(message: string, versionMismatch?: boolean): void;
+  /** Qualquer mensagem do worker (para o vigia de "sem resposta"). */
+  onAlive?(): void;
   onClock(tick: number, speed: Speed, ticksPerSecond: number, geologyMs: number, recompositions: number, memoryMb: number, angles: number[]): void;
 }
 
@@ -26,7 +30,20 @@ export class SimClient {
 
   constructor(private events: SimEvents) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-    this.worker.onmessage = (e: MessageEvent<FromWorker>) => this.receive(e.data);
+    this.worker.onmessage = (e: MessageEvent<FromWorker>) => {
+      this.events.onAlive?.();
+      try {
+        this.receive(e.data);
+      } catch (err) {
+        // Erro na tela ao tratar uma mensagem (ex.: a GPU recusou o desenho): aparece, não trava.
+        this.events.onError(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
+      }
+    };
+    this.worker.onerror = (e) => {
+      e.preventDefault();
+      this.events.onError(`Erro ao carregar ou rodar o simulador: ${e.message || 'sem detalhes'}`);
+    };
+    this.worker.onmessageerror = () => this.events.onError('Mensagem do simulador ilegível (versões diferentes?)', true);
   }
 
   private send(msg: ToWorker): void {
@@ -72,6 +89,14 @@ export class SimClient {
 
   private receive(msg: FromWorker): void {
     switch (msg.type) {
+      case 'hello':
+        if (msg.version !== __BUILD_ID__) {
+          this.events.onError(`Versões diferentes: tela ${__BUILD_ID__}, simulador ${msg.version}`, true);
+        }
+        break;
+      case 'error':
+        this.events.onError(msg.stack?.includes(msg.message) ? msg.stack : msg.message + (msg.stack ? `\n\n${msg.stack}` : ''));
+        break;
       case 'world':
         this.brushInFlight = false;
         this.events.onWorld(msg.info, msg.colors, msg.plateCells);

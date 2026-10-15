@@ -477,3 +477,48 @@ body {
   pointer-events: none;
   z-index: 5;
 }
+
+.error-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(2, 3, 10, 0.94);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.error-screen[hidden] {
+  display: none;
+}
+
+.error-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.error-hint {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.error-text {
+  max-width: min(560px, 100%);
+  max-height: 45vh;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+  user-select: text;
+  -webkit-user-select: text;
+}

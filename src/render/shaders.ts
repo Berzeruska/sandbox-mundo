@@ -56,10 +56,33 @@ vec3 toTexture${sfx}(int pl, vec3 a) {
   return rotCS(a, uPlateAxis[pl].xyz, b.x, b.y);
 }
 
-// Qual placa está em p agora (-1 = fenda nova onde as placas se afastam). Candidatas: a placa
-// que estava em p e as que estavam em volta, até a distância que as placas andaram; continental
-// fica por cima. Fenda sem afastamento (só arredondamento) fica com a placa que estava em p,
-// como a recomposição faz ao "cicatrizar".
+// Testa uma placa candidata: ela é dona de p se, desgirando p pela rotação dela, cai em território
+// dela (com tolerância de ~0,7 célula ao arredondamento da textura; nesse caso a cor é lida no ponto
+// vizinho que é dela, não no da outra placa). Continental fica por cima.
+// Escrito sem arrays locais nem laços: alguns compiladores de GPU de celular falham com isso.
+void tryPlate${sfx}(int pl, vec3 p, inout int best, inout bool bestCont, inout vec3 bestFix) {
+  vec3 s = toTexture${sfx}(pl, toPlate(pl, p));
+  uint v = plateAt${sfx}(s);
+  vec3 thisFix = vec3(0.0);
+  bool mine = int(v & ${PLATE_MASK}u) == pl;
+  if (!mine) {
+    float tol = uCellAngle * 0.7;
+    vec3 es = normalize(vec3(s.z, 0.0, -s.x) + vec3(1e-6, 0.0, 0.0)) * tol;
+    vec3 ns = cross(s, es);
+    uint w = plateAt${sfx}(s + es);
+    if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = es; }
+    if (!mine) { w = plateAt${sfx}(s - es); if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = -es; } }
+    if (!mine) { w = plateAt${sfx}(s + ns); if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = ns; } }
+    if (!mine) { w = plateAt${sfx}(s - ns); if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = -ns; } }
+  }
+  if (!mine) return;
+  bool cont = (v & ${CONTINENTAL_BIT}u) != 0u;
+  if (best < 0 || (cont && !bestCont)) { best = pl; bestCont = cont; bestFix = thisFix; }
+}
+
+// Qual placa está em p agora (-1 = fenda nova onde as placas se afastam). Candidatas: a placa que
+// estava em p e as que estavam em volta, até a distância que as placas andaram. Fenda sem
+// afastamento (só arredondamento) fica com a placa que estava em p, como a recomposição faz.
 int plateNow${sfx}(vec3 p, out vec3 fix) {
   fix = vec3(0.0);
   uint v0 = plateAt${sfx}(p);
@@ -67,54 +90,29 @@ int plateNow${sfx}(vec3 p, out vec3 fix) {
   // Atalho para o miolo da placa (a maior parte do planeta): longe de fronteira e com as placas
   // tendo andado menos que essa distância, só pode ser a própria placa.
   if ((v0 & ${NEAR_BOUNDARY_BIT}u) == 0u && ${maxDelta} < ${(NEAR_BOUNDARY_CELLS - 0.5).toFixed(1)} * uCellAngle) return pl0;
-  int cand[5];
-  int count = 0;
-  cand[count++] = pl0;
   vec3 e = vec3(p.z, 0.0, -p.x);
   e = dot(e, e) < 1e-12 ? vec3(1.0, 0.0, 0.0) : normalize(e);
-  vec3 nn = cross(p, e);
   float dist = ${maxDelta} * 1.5;
-  vec3 probes[4] = vec3[4](p + e * dist, p - e * dist, p + nn * dist, p - nn * dist);
-  for (int k = 0; k < 4; k++) {
-    int pl = int(plateAt${sfx}(probes[k]) & ${PLATE_MASK}u);
-    bool seen = false;
-    for (int j = 0; j < 5; j++) if (j < count && cand[j] == pl) seen = true;
-    if (!seen) cand[count++] = pl;
-  }
+  vec3 de = e * dist;
+  vec3 dn = cross(p, e) * dist;
+  int c1 = int(plateAt${sfx}(p + de) & ${PLATE_MASK}u);
+  int c2 = int(plateAt${sfx}(p - de) & ${PLATE_MASK}u);
+  int c3 = int(plateAt${sfx}(p + dn) & ${PLATE_MASK}u);
+  int c4 = int(plateAt${sfx}(p - dn) & ${PLATE_MASK}u);
   int best = -1;
   bool bestCont = false;
   vec3 bestFix = vec3(0.0);
-  float tol = uCellAngle * 0.7;
-  for (int j = 0; j < 5; j++) {
-    if (j >= count) break;
-    int pl = cand[j];
-    vec3 s = toTexture${sfx}(pl, toPlate(pl, p));
-    uint v = plateAt${sfx}(s);
-    bool mine = int(v & ${PLATE_MASK}u) == pl;
-    vec3 thisFix = vec3(0.0);
-    // Tolerância de ~0,7 célula: a textura já é arredondada por célula, e sem isso apareciam
-    // buracos falsos de 1 célula ao longo das fronteiras (que a recomposição não tem).
-    if (!mine) {
-      vec3 es = normalize(vec3(s.z, 0.0, -s.x) + vec3(1e-6, 0.0, 0.0));
-      vec3 ns = cross(s, es);
-      vec3 near4[4] = vec3[4](s + es * tol, s - es * tol, s + ns * tol, s - ns * tol);
-      for (int k = 0; k < 4 && !mine; k++) {
-        uint w = plateAt${sfx}(near4[k]);
-        // Achou a placa ao lado: lê a cor lá (no território dela), não no ponto da outra placa.
-        if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = near4[k] - s; }
-      }
-    }
-    if (!mine) continue;
-    bool cont = (v & ${CONTINENTAL_BIT}u) != 0u;
-    if (best < 0 || (cont && !bestCont)) { best = pl; bestCont = cont; bestFix = thisFix; }
-  }
+  tryPlate${sfx}(pl0, p, best, bestCont, bestFix);
+  if (c1 != pl0) tryPlate${sfx}(c1, p, best, bestCont, bestFix);
+  if (c2 != pl0 && c2 != c1) tryPlate${sfx}(c2, p, best, bestCont, bestFix);
+  if (c3 != pl0 && c3 != c1 && c3 != c2) tryPlate${sfx}(c3, p, best, bestCont, bestFix);
+  if (c4 != pl0 && c4 != c1 && c4 != c2 && c4 != c3) tryPlate${sfx}(c4, p, best, bestCont, bestFix);
   if (best >= 0) { fix = bestFix; return best; }
-  int owner = cand[0];
-  for (int j = 1; j < 5; j++) {
-    if (j >= count) break;
-    if (closing(owner, cand[j], p) < 0.0) return -1;
-  }
-  return owner;
+  if (c1 != pl0 && closing(pl0, c1, p) < 0.0) return -1;
+  if (c2 != pl0 && closing(pl0, c2, p) < 0.0) return -1;
+  if (c3 != pl0 && closing(pl0, c3, p) < 0.0) return -1;
+  if (c4 != pl0 && closing(pl0, c4, p) < 0.0) return -1;
+  return pl0;
 }
 
 // Cor da superfície no ponto p (antes da luz), com o conjunto de texturas ${sfx || "atual"}.
@@ -159,45 +157,36 @@ vec3 surface${sfx}(vec3 p, float cellPx) {
 `;
 }
 
-export const FRAGMENT_SHADER = `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2DArray;
 
-uniform sampler2DArray uCells;
-uniform int uN;
-uniform vec2 uCenter;   // centro do globo em pixels (origem embaixo, como gl_FragCoord)
-uniform float uRadius;  // raio do globo em pixels
-uniform mat3 uRot;      // visão -> mundo
-uniform vec3 uLight;    // direção da luz, em coordenadas de visão
-uniform float uCellAngle; // ângulo entre células vizinhas (radianos)
-
-// Intensidade da textura de detalhe por bioma (de BIOME_INFO).
-const float DETAIL[${BIOME_COUNT}] = float[${BIOME_COUNT}](${BIOME_INFO.map((b) => b.detail.toFixed(3)).join(', ')});
-
-out vec4 outColor;
-
-const float QUARTER_PI = 0.78539816339;
-${faceSelectGlsl()}
-
-// --- Ruído 3D na esfera (só visual): contínuo através das faces e dos cantos do cubo ---
-// Lido de uma textura 3D pré-calculada (filtro linear, repetida), não calculado por pixel.
-uniform highp sampler3D uNoise;
-
-vec3 noise3(vec3 p) {
-  return texture(uNoise, p * (1.0 / 64.0)).rgb * 2.0 - 1.0;
+/** Variante simplificada: só a cor da célula, com bordas orgânicas e textura (sem placas). */
+const SIMPLE_GLSL = `
+vec4 cellAt(vec3 p) {
+  return texelFetch(uCells, texelOf(p), 0);
 }
 
-// Texel (x, y, face) da célula que contém o ponto p da esfera.
-ivec3 texelOf(vec3 p) {
-  int face; vec3 n; vec3 u; vec3 v;
-  faceFrame(p, face, n, u, v);
-  float dn = dot(p, n);
-  vec2 ab = atan(vec2(dot(p, u), dot(p, v)) / dn) / QUARTER_PI;
-  ivec2 texel = clamp(ivec2(floor((ab + 1.0) * 0.5 * float(uN))), ivec2(0), ivec2(uN - 1));
-  return ivec3(texel, face);
+vec3 surface(vec3 p, float cellPx) {
+  vec3 q = p;
+  float warpAmount = smoothstep(0.8, 2.5, cellPx);
+  if (warpAmount > 0.0) {
+    float f = 1.0 / (uCellAngle * 1.7);
+    vec3 w = noise3(p * f) + 0.5 * noise3(p.zxy * f * 2.03 + 17.0);
+    q = normalize(p + w * (uCellAngle * 0.7 * warpAmount));
+  }
+  vec4 cell = cellAt(q);
+  vec3 base = cell.rgb;
+  float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius);
+  if (detailAmount > 0.0) {
+    int biome = clamp(int(cell.a * 255.0 + 0.5), 0, ${BIOME_COUNT - 1});
+    float fd = 1.0 / (uCellAngle * 0.4);
+    float dn = noise3(p * fd).x + 0.5 * noise3(p.yzx * fd * 2.13 + 31.0).y;
+    base *= 1.0 + DETAIL[biome] * dn * detailAmount;
+  }
+  return base;
 }
+`;
 
+/** Variante completa: movimento suave das placas (uniforms, rotações e os dois conjuntos de texturas). */
+const MOTION_GLSL = `
 // Composição anterior: durante a transição suave logo depois de uma recomposição, as duas são
 // desenhadas e misturadas.
 uniform sampler2DArray uCellsPrev;
@@ -239,6 +228,54 @@ float closing(int a, int b, vec3 p) {
 
 ${setFunctions('', 'uCells', 'uPlates', 'uPlateBase', 'uMaxDelta')}
 ${setFunctions('Prev', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uMaxDeltaPrev')}
+`;
+
+/**
+ * Shader do globo. `motion = true`: completo, com o movimento suave das placas (textura de placas,
+ * ângulos e transição entre composições). `motion = false`: simplificado, sem nada disso — é o plano B
+ * automático se o driver da GPU não compilar o completo (o jogo funciona, só com os saltos da T4).
+ */
+export function fragmentShader(motion: boolean): string {
+  return `#version 300 es
+precision highp float;
+precision highp int;
+precision highp sampler2DArray;
+
+uniform sampler2DArray uCells;
+uniform int uN;
+uniform vec2 uCenter;   // centro do globo em pixels (origem embaixo, como gl_FragCoord)
+uniform float uRadius;  // raio do globo em pixels
+uniform mat3 uRot;      // visão -> mundo
+uniform vec3 uLight;    // direção da luz, em coordenadas de visão
+uniform float uCellAngle; // ângulo entre células vizinhas (radianos)
+
+// Intensidade da textura de detalhe por bioma (de BIOME_INFO).
+const float DETAIL[${BIOME_COUNT}] = float[${BIOME_COUNT}](${BIOME_INFO.map((b) => b.detail.toFixed(3)).join(', ')});
+
+out vec4 outColor;
+
+const float QUARTER_PI = 0.78539816339;
+${faceSelectGlsl()}
+
+// --- Ruído 3D na esfera (só visual): contínuo através das faces e dos cantos do cubo ---
+// Lido de uma textura 3D pré-calculada (filtro linear, repetida), não calculado por pixel.
+uniform highp sampler3D uNoise;
+
+vec3 noise3(vec3 p) {
+  return texture(uNoise, p * (1.0 / 64.0)).rgb * 2.0 - 1.0;
+}
+
+// Texel (x, y, face) da célula que contém o ponto p da esfera.
+ivec3 texelOf(vec3 p) {
+  int face; vec3 n; vec3 u; vec3 v;
+  faceFrame(p, face, n, u, v);
+  float dn = dot(p, n);
+  vec2 ab = atan(vec2(dot(p, u), dot(p, v)) / dn) / QUARTER_PI;
+  ivec2 texel = clamp(ivec2(floor((ab + 1.0) * 0.5 * float(uN))), ivec2(0), ivec2(uN - 1));
+  return ivec3(texel, face);
+}
+
+${motion ? MOTION_GLSL : SIMPLE_GLSL}
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
   p += dot(p, p + 45.32);
@@ -272,9 +309,9 @@ void main() {
   // para não cintilar ao girar o globo de longe.
   float cellPx = uCellAngle * uRadius;
 
-  vec3 base = surface(p, cellPx);
+  vec3 base = surface(p, cellPx);${motion ? `
   // Transição suave depois de uma recomposição: mistura com a composição anterior.
-  if (uFade < 1.0) base = mix(surfacePrev(p, cellPx), base, uFade);
+  if (uFade < 1.0) base = mix(surfacePrev(p, cellPx), base, uFade);` : ''}
 
   // Luz suave: lado iluminado e sombra sem ficar preto; um toque de atmosfera na borda.
   float diffuse = max(dot(nView, uLight), 0.0);
@@ -282,4 +319,8 @@ void main() {
   float rim = pow(1.0 - nView.z, 3.0);
   col = mix(col, vec3(0.35, 0.6, 1.0), rim * 0.35);
   outColor = vec4(col, 1.0);
-}`;
+}`
+}
+
+/** Shader completo (com movimento suave das placas). */
+export const FRAGMENT_SHADER = fragmentShader(true);

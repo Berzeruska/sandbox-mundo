@@ -1,4 +1,4 @@
-import { FRAGMENT_SHADER, VERTEX_SHADER } from './shaders';
+import { fragmentShader, VERTEX_SHADER } from './shaders';
 import type { Camera } from './camera';
 import { packRect } from './dirty';
 import { buildNoiseVolume, NOISE_SIZE } from './noise-volume';
@@ -55,6 +55,14 @@ export class GlobeRenderer {
   private vao: WebGLVertexArrayObject | null = null;
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private rot = new Float32Array(9);
+  /**
+   * Shader completo (movimento suave das placas) ou simplificado (plano B). O simplificado entra se
+   * o driver da GPU recusar o completo ou se a GPU perder o contexto com ele.
+   */
+  motionSupported = true;
+  /** Por que o desenho está simplificado (vazio = completo). Aparece no painel Dados. */
+  fallbackReason = '';
+  private contextLosses = 0;
   /** Bloco reaproveitado para os envios parciais. */
   private packBuffer = new Uint8Array(0);
   private lost = false;
@@ -69,9 +77,15 @@ export class GlobeRenderer {
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
       this.lost = true;
+      this.contextLosses++;
     });
     canvas.addEventListener('webglcontextrestored', () => {
       this.lost = false;
+      // A GPU reiniciou: se foi com o shader completo, volta com o simplificado (mais leve).
+      if (this.motionSupported) {
+        this.motionSupported = false;
+        this.fallbackReason = 'a GPU reiniciou (contexto perdido) com o desenho completo';
+      }
       this.init();
     });
     this.init();
@@ -93,7 +107,19 @@ export class GlobeRenderer {
 
   private init(): void {
     const gl = this.gl;
-    this.program = linkProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER);
+    this.program = null;
+    if (this.motionSupported) {
+      try {
+        this.program = linkProgram(gl, VERTEX_SHADER, fragmentShader(true));
+      } catch (err) {
+        // Plano B: o driver não aceitou o shader completo; o jogo segue com o simplificado.
+        this.motionSupported = false;
+        this.fallbackReason = err instanceof Error ? err.message : String(err);
+        console.warn('Shader completo recusado pela GPU; usando o simplificado.', err);
+      }
+    }
+    // Se até o simplificado falhar, o erro sobe e aparece na tela (App).
+    this.program ??= linkProgram(gl, VERTEX_SHADER, fragmentShader(false));
     for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
@@ -209,7 +235,8 @@ export class GlobeRenderer {
     gl.bindTexture(gl.TEXTURE_3D, this.noiseTexture);
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.plateTexture);
-    const fading = !!motion && motion.moving && motion.fade < 1 && !!this.prevTexture && !!this.prevPlateTexture;
+    const moving = this.motionSupported && !!motion && motion.moving;
+    const fading = moving && !!motion && motion.fade < 1 && !!this.prevTexture && !!this.prevPlateTexture;
     gl.activeTexture(gl.TEXTURE3);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, fading ? this.prevTexture : this.texture);
     gl.activeTexture(gl.TEXTURE4);
@@ -222,7 +249,6 @@ export class GlobeRenderer {
     gl.uniform1i(u.uCellsPrev ?? null, 3);
     gl.uniform1i(u.uPlatesPrev ?? null, 4);
     gl.uniform1f(u.uFade ?? null, fading && motion ? motion.fade : 1);
-    const moving = !!motion && motion.moving;
     gl.uniform1i(u.uMoving ?? null, moving ? 1 : 0);
     if (motion && moving) {
       gl.uniform4fv(u.uPlateAxis ?? null, motion.axis, 0, MAX_SHADER_PLATES * 4);
