@@ -39,3 +39,12 @@ Formato: data — decisão — motivo — alternativa descartada.
 
 - **2026-10-14 — Build com caminhos relativos (`base: './'`).**
   Motivo: o mesmo build funciona no GitHub Pages (`/sandbox-mundo/`) e em qualquer outra pasta.
+
+- **2026-10-14 — Entrada por Pointer Events num módulo só (`src/input/pointer.ts`).**
+  Motivo: Pointer Events tratam mouse, toque e caneta com o mesmo código; separar em `touch.ts` e
+  `mouse.ts` (como previa a arquitetura) duplicaria a lógica de giro e zoom.
+
+- **2026-10-14 — Giro livre do globo (quatérnio), com botão "norte para cima".**
+  Motivo: o ponto sob o dedo segue o dedo em qualquer lugar, inclusive em cima dos polos, sem
+  travar. Como o giro livre pode inclinar o norte, há um botão para endireitar.
+  Descartado: guinada/arfagem com limite nos polos (trava ao passar por cima do polo).

@@ -37,7 +37,7 @@ tempo. Fluido no celular.
   (lado iluminado e sombra suave) e fundo de espaço.
   Verificação manual: globo nítido, sem emenda visível entre faces, polos sem distorção.
 
-- [ ] **T7 — Câmera e controles** (`src/render/camera.ts`, `src/input/`)
+- [x] **T7 — Câmera e controles** (`src/render/camera.ts`, `src/input/`)
   Mouse: arrastar gira, roda dá zoom no ponto do cursor.
   Toque: um dedo gira, pinça dá zoom, toque duplo aproxima.
   Zoom do globo inteiro até o pedaço preencher a tela com pixels de célula visíveis.

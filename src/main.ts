@@ -19,7 +19,7 @@ requestAnimationFrame(() =>
       const app = new App(canvas, 'pangeia');
       loading.remove();
       app.start();
-      if (import.meta.env.DEV) (window as unknown as { app: App }).app = app;
+      if (import.meta.env.DEV) (window as unknown as { game: App }).game = app;
     } catch (err) {
       loading.textContent = `Erro: ${err instanceof Error ? err.message : String(err)}`;
       throw err;

@@ -1,4 +1,5 @@
 import { seedFrom } from './core/rng';
+import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Camera } from './render/camera';
 import { buildColors } from './render/colors';
 import { GlobeRenderer } from './render/globe-renderer';
@@ -16,8 +17,11 @@ export class App {
   readonly renderer: GlobeRenderer;
   world: WorldState;
   colors: Uint8Array;
+  readonly input: PointerInput;
+  mode: InputMode = 'move';
   private grid: CubeSphere;
   private needsDraw = true;
+  private lastTime = 0;
 
   constructor(canvas: HTMLCanvasElement, seedText: string) {
     this.grid = new CubeSphere(DEFAULT_N);
@@ -25,7 +29,20 @@ export class App {
     this.colors = new Uint8Array(this.world.cellCount * 4);
     buildColors(this.world, this.colors);
     this.renderer = new GlobeRenderer(canvas, this.world.params.n, this.colors);
+    this.camera.setCellAngle(this.grid.cellAngle);
     this.camera.lookAt(landCenter(this.world));
+    this.input = new PointerInput(canvas, this.camera, {
+      getMode: () => this.mode,
+      onCameraChange: () => this.requestDraw(),
+      onPaint: (sx, sy, phase) => this.paint(sx, sy, phase),
+    });
+  }
+
+  /** Pincéis (T8). */
+  paint(sx: number, sy: number, phase: PaintPhase): void {
+    void sx;
+    void sy;
+    void phase;
   }
 
   private generate(seedText: string): WorldState {
@@ -39,8 +56,12 @@ export class App {
     this.needsDraw = true;
   }
 
-  /** Um quadro: ajusta tamanho e desenha se algo mudou. */
-  frame(): void {
+  /** Um quadro: ajusta tamanho, avança animações e desenha se algo mudou. */
+  frame(time: number): void {
+    const dt = this.lastTime ? Math.min(0.1, (time - this.lastTime) / 1000) : 0;
+    this.lastTime = time;
+    if (this.camera.update(dt)) this.needsDraw = true;
+    if (this.input.update(dt)) this.needsDraw = true;
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
     if (this.renderer.resize(ratio)) {
       this.camera.setViewport(this.renderer.canvas.width, this.renderer.canvas.height);
@@ -53,8 +74,8 @@ export class App {
   }
 
   start(): void {
-    const loop = (): void => {
-      this.frame();
+    const loop = (time: number): void => {
+      this.frame(time);
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
