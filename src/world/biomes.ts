@@ -23,26 +23,28 @@ export interface BiomeInfo {
   name: string;
   /** Cor do pixel (RGB). */
   color: readonly [number, number, number];
+  /** Intensidade da textura de detalhe desenhada pelo shader (0 = liso). Só visual. */
+  detail: number;
 }
 
 /** Paleta única e consultável, indexada pelo código do bioma. */
 export const BIOME_INFO: readonly BiomeInfo[] = [
-  { name: 'Oceano profundo', color: [22, 52, 110] },
-  { name: 'Oceano raso', color: [44, 98, 160] },
-  { name: 'Praia', color: [226, 210, 150] },
-  { name: 'Gelo', color: [236, 244, 250] },
-  { name: 'Tundra', color: [150, 158, 128] },
-  { name: 'Taiga', color: [56, 96, 70] },
-  { name: 'Floresta temperada', color: [62, 128, 58] },
-  { name: 'Campo', color: [128, 176, 84] },
-  { name: 'Estepe', color: [176, 178, 110] },
-  { name: 'Deserto quente', color: [222, 190, 120] },
-  { name: 'Deserto frio', color: [176, 164, 140] },
-  { name: 'Savana', color: [190, 176, 82] },
-  { name: 'Floresta tropical', color: [28, 110, 44] },
-  { name: 'Pântano', color: [76, 104, 72] },
-  { name: 'Montanha', color: [124, 112, 100] },
-  { name: 'Pico nevado', color: [222, 226, 232] },
+  { name: 'Oceano profundo', color: [22, 52, 110], detail: 0.03 },
+  { name: 'Oceano raso', color: [44, 98, 160], detail: 0.04 },
+  { name: 'Praia', color: [226, 210, 150], detail: 0.05 },
+  { name: 'Gelo', color: [236, 244, 250], detail: 0.03 },
+  { name: 'Tundra', color: [150, 158, 128], detail: 0.07 },
+  { name: 'Taiga', color: [56, 96, 70], detail: 0.12 },
+  { name: 'Floresta temperada', color: [62, 128, 58], detail: 0.12 },
+  { name: 'Campo', color: [128, 176, 84], detail: 0.06 },
+  { name: 'Estepe', color: [176, 178, 110], detail: 0.06 },
+  { name: 'Deserto quente', color: [222, 190, 120], detail: 0.06 },
+  { name: 'Deserto frio', color: [176, 164, 140], detail: 0.06 },
+  { name: 'Savana', color: [190, 176, 82], detail: 0.07 },
+  { name: 'Floresta tropical', color: [28, 110, 44], detail: 0.12 },
+  { name: 'Pântano', color: [76, 104, 72], detail: 0.1 },
+  { name: 'Montanha', color: [124, 112, 100], detail: 0.12 },
+  { name: 'Pico nevado', color: [222, 226, 232], detail: 0.05 },
 ];
 
 export const BIOME_COUNT = BIOME_INFO.length;

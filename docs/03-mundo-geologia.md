@@ -42,7 +42,9 @@ Elevar terreno, rebaixar terreno, água, gelo, apagar gelo. Tamanho do pincel aj
 Cada pincelada recalcula clima e bioma só da região afetada (mais uma borda).
 
 ### Como está implementado (M1)
-- Elevar/rebaixar: ~2.200 m por segundo segurando, no centro do pincel, suavizando até a borda.
+- Elevar/rebaixar: ~2.200 m por segundo segurando, no centro do pincel, com queda em sino
+  `(1 − t²)³` até zero na borda (t = distância ao centro / raio). Nos últimos 6 km antes do teto
+  (9.000 m) ou do fundo, o pincel desacelera em vez de chapar: o resultado é morro ou bacia, não mesa.
 - Água: afunda o terreno para 40 m abaixo do nível do mar (lago/mar raso).
 - Gelo/Derreter: marcam a célula como "gelo pintado" ou "gelo apagado", que vencem o clima
   (apagar a calota polar não faz ela voltar sozinha).

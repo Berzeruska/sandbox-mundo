@@ -1,3 +1,4 @@
+import { BIOME_COUNT, BIOME_INFO } from '../world/biomes';
 import { FACES, type Vec3 } from '../world/cubesphere';
 
 const vec = (v: Vec3): string => `vec3(${v.map((c) => c.toFixed(1)).join(', ')})`;
@@ -40,11 +41,33 @@ uniform vec2 uCenter;   // centro do globo em pixels (origem embaixo, como gl_Fr
 uniform float uRadius;  // raio do globo em pixels
 uniform mat3 uRot;      // visão -> mundo
 uniform vec3 uLight;    // direção da luz, em coordenadas de visão
+uniform float uCellAngle; // ângulo entre células vizinhas (radianos)
+
+// Intensidade da textura de detalhe por bioma (de BIOME_INFO).
+const float DETAIL[${BIOME_COUNT}] = float[${BIOME_COUNT}](${BIOME_INFO.map((b) => b.detail.toFixed(3)).join(', ')});
 
 out vec4 outColor;
 
 const float QUARTER_PI = 0.78539816339;
 ${faceSelectGlsl()}
+
+// --- Ruído 3D na esfera (só visual): contínuo através das faces e dos cantos do cubo ---
+// Lido de uma textura 3D pré-calculada (filtro linear, repetida), não calculado por pixel.
+uniform highp sampler3D uNoise;
+
+vec3 noise3(vec3 p) {
+  return texture(uNoise, p * (1.0 / 64.0)).rgb * 2.0 - 1.0;
+}
+
+// Célula que contém o ponto p da esfera: cor (rgb) e código do bioma (a).
+vec4 cellAt(vec3 p) {
+  int face; vec3 n; vec3 u; vec3 v;
+  faceFrame(p, face, n, u, v);
+  float dn = dot(p, n);
+  vec2 ab = atan(vec2(dot(p, u), dot(p, v)) / dn) / QUARTER_PI;
+  ivec2 texel = clamp(ivec2(floor((ab + 1.0) * 0.5 * float(uN))), ivec2(0), ivec2(uN - 1));
+  return texelFetch(uCells, ivec3(texel, face), 0);
+}
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -75,12 +98,30 @@ void main() {
   vec3 nView = vec3(d, sqrt(1.0 - r2));
   vec3 p = uRot * nView;
 
-  int face; vec3 n; vec3 u; vec3 v;
-  faceFrame(p, face, n, u, v);
-  float dn = dot(p, n);
-  vec2 ab = atan(vec2(dot(p, u), dot(p, v)) / dn) / QUARTER_PI;
-  ivec2 texel = clamp(ivec2(floor((ab + 1.0) * 0.5 * float(uN))), ivec2(0), ivec2(uN - 1));
-  vec3 base = texelFetch(uCells, ivec3(texel, face), 0).rgb;
+  // Tamanho de uma célula na tela (px). Os detalhes somem quando ficam pequenos demais
+  // para não cintilar ao girar o globo de longe.
+  float cellPx = uCellAngle * uRadius;
+
+  // Bordas orgânicas: desloca o ponto com ruído (até ~1 célula) antes de escolher a célula.
+  // A simulação continua na grade; só o desenho das fronteiras vira curva.
+  vec3 q = p;
+  float warpAmount = smoothstep(0.8, 2.5, cellPx);
+  if (warpAmount > 0.0) {
+    float f = 1.0 / (uCellAngle * 1.7);
+    vec3 w = noise3(p * f) + 0.5 * noise3(p.zxy * f * 2.03 + 17.0);
+    q = normalize(p + w * (uCellAngle * 0.7 * warpAmount));
+  }
+  vec4 cell = cellAt(q);
+  vec3 base = cell.rgb;
+
+  // Textura sutil por bioma (floresta e montanha mais rugosas, água e gelo quase lisos).
+  float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius);
+  if (detailAmount > 0.0) {
+    int biome = clamp(int(cell.a * 255.0 + 0.5), 0, ${BIOME_COUNT - 1});
+    float fd = 1.0 / (uCellAngle * 0.4);
+    float dn = noise3(p * fd).x + 0.5 * noise3(p.yzx * fd * 2.13 + 31.0).y;
+    base *= 1.0 + DETAIL[biome] * dn * detailAmount;
+  }
 
   // Luz suave: lado iluminado e sombra sem ficar preto; um toque de atmosfera na borda.
   float diffuse = max(dot(nView, uLight), 0.0);

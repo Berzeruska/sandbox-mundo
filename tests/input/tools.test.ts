@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyBrush, Tool } from '../../src/input/tools';
+import { applyBrush, brushFalloff, MAX_ELEVATION, MIN_ELEVATION, softLimit, Tool } from '../../src/input/tools';
 import { Biome } from '../../src/world/biomes';
 import { computeWaterDistance, updateClimate } from '../../src/world/climate';
 import { createWorld } from '../../src/world/create';
@@ -142,5 +142,75 @@ describe('pincel atravessa faces (bug 2026-10-15)', () => {
         expect([...out.subarray(dst, dst + 4)]).toEqual([...colors.subarray(src, src + 4)]);
       }
     }
+  });
+});
+
+describe('queda suave do pincel (T14)', () => {
+  it('falloff: 1 no centro, 0 na borda, sempre decrescente e suave', () => {
+    expect(brushFalloff(0)).toBe(1);
+    expect(brushFalloff(1)).toBe(0);
+    let prev = 1;
+    for (let t = 0.01; t <= 1; t += 0.01) {
+      const v = brushFalloff(t);
+      expect(v).toBeLessThanOrEqual(prev);
+      prev = v;
+    }
+    // Chega na borda sem degrau: perto de 1, já é quase zero.
+    expect(brushFalloff(0.95)).toBeLessThan(0.001);
+  });
+
+  const profile = (tool: Tool, seconds: number) => {
+    const g = new CubeSphere(128);
+    const w = new WorldState({ ...params, n: 128 }, g);
+    w.elevation.fill(200);
+    computeWaterDistance(w);
+    updateClimate(w);
+    const c = latLonToPoint(0.3, 0.5);
+    const radiusCells = 20;
+    for (let f = 0; f < seconds * 60; f++) applyBrush(w, tool, c, radiusCells, 1 / 60);
+    // Altura média por anel (fração do raio).
+    const rings = new Array(10).fill(0);
+    const counts = new Array(10).fill(0);
+    let outside = 0;
+    for (let i = 0; i < w.cellCount; i++) {
+      const dot = g.positions[i * 3]! * c[0] + g.positions[i * 3 + 1]! * c[1] + g.positions[i * 3 + 2]! * c[2];
+      const t = Math.acos(Math.min(1, dot)) / (radiusCells * g.cellAngle);
+      if (t < 1) {
+        rings[Math.floor(t * 10)] += w.elevation[i]!;
+        counts[Math.floor(t * 10)]++;
+      } else if (w.elevation[i] !== 200) outside++;
+    }
+    return { rings: rings.map((s, k) => s / counts[k]), outside, max: Math.max(...w.elevation), min: Math.min(...w.elevation) };
+  };
+
+  it('Elevar faz um morro: anéis cada vez mais baixos do centro à borda, borda quase intacta', () => {
+    const { rings, outside } = profile(Tool.Raise, 1.5);
+    for (let k = 1; k < rings.length; k++) expect(rings[k]).toBeLessThan(rings[k - 1]!);
+    expect(rings[9]! - 200).toBeLessThan(0.02 * (rings[0]! - 200));
+    expect(outside).toBe(0);
+    // Sem platô: meio do raio bem mais baixo que o centro.
+    expect(rings[5]! - 200).toBeLessThan(0.45 * (rings[0]! - 200));
+  });
+
+  it('segurando 4 s (o caso que virava platô), continua um morro abaixo do teto', () => {
+    const { rings, max } = profile(Tool.Raise, 4);
+    expect(max).toBeLessThan(MAX_ELEVATION);
+    // Centro bem mais alto que o anel do meio, e o topo ainda arredondado (não uma mesa).
+    expect(rings[0]! - rings[5]!).toBeGreaterThan(2000);
+    expect(rings[0]! - rings[2]!).toBeGreaterThan(300);
+  });
+
+  it('Rebaixar faz uma bacia com a mesma forma', () => {
+    const { rings, min } = profile(Tool.Lower, 1.5);
+    for (let k = 1; k < rings.length; k++) expect(rings[k]).toBeGreaterThan(rings[k - 1]!);
+    expect(min).toBeGreaterThanOrEqual(MIN_ELEVATION);
+  });
+
+  it('softLimit desacelera perto do teto e do fundo', () => {
+    expect(softLimit(0, 1)).toBe(1);
+    expect(softLimit(MAX_ELEVATION, 1)).toBe(0);
+    expect(softLimit(MAX_ELEVATION - 3000, 1)).toBeCloseTo(0.5, 6);
+    expect(softLimit(0, -1)).toBe(-1);
+    expect(softLimit(MIN_ELEVATION, -1)).toBe(-0);
   });
 });

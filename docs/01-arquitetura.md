@@ -29,7 +29,10 @@ num projeto escrito majoritariamente por IA.
 - O estado visual das células (cor do bioma, gelo, água) é enviado à GPU como textura
   (array de 6 camadas, filtro NEAREST para pixel nítido).
 - O shader, por pixel da tela: raio → ponto na esfera → face + coordenada → lê a célula.
-- Só células alteradas são reenviadas (atualização parcial da textura).
+- Só células alteradas são reenviadas (atualização parcial da textura, copiada para um bloco
+  contínuo antes do envio).
+- Detalhe visual (T13): o shader deforma as fronteiras entre células com ruído e aplica textura
+  sutil por bioma, lendo ruído de uma textura 3D fixa. A simulação continua na grade; é só desenho.
 
 ## Simulação
 - Tick fixo (passo de tempo constante), independente da taxa de quadros.

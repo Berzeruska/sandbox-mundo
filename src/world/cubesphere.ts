@@ -88,6 +88,62 @@ export function pointToFaceCoord(x: number, y: number, z: number): { face: numbe
   return { face, a: Math.atan(cu) / QUARTER_PI, b: Math.atan(cv) / QUARTER_PI };
 }
 
+/** Área (esferorradianos) do triângulo esférico de vértices unitários a, b, c. */
+function sphericalTriangleArea(a: Vec3, b: Vec3, c: Vec3): number {
+  const triple =
+    a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
+  const ab = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const bc = b[0] * c[0] + b[1] * c[1] + b[2] * c[2];
+  const ca = c[0] * a[0] + c[1] * a[1] + c[2] * a[2];
+  return 2 * Math.atan2(Math.abs(triple), 1 + ab + bc + ca);
+}
+
+/** Ângulo (radianos) no vértice b entre os arcos b→a e b→c, medido no plano tangente. */
+function cornerAngle(a: Vec3, b: Vec3, c: Vec3): number {
+  const tangent = (q: Vec3): Vec3 => {
+    const d = q[0] * b[0] + q[1] * b[1] + q[2] * b[2];
+    return [q[0] - d * b[0], q[1] - d * b[1], q[2] - d * b[2]];
+  };
+  const u = tangent(a);
+  const v = tangent(c);
+  const dot = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  return Math.acos(Math.max(-1, Math.min(1, dot / (Math.hypot(...u) * Math.hypot(...v)))));
+}
+
+export type Projection = 'equiangular' | 'gnomonic';
+
+/** Coordenada de face → coordenada no cubo, para cada projeção (só a equiangular é usada no jogo). */
+function toCube(c: number, projection: Projection): number {
+  return projection === 'equiangular' ? Math.tan(c * QUARTER_PI) : c;
+}
+
+/** Os 4 cantos de uma célula na esfera, em volta (sentido x+, depois y+). */
+export function cellCorners(face: number, x: number, y: number, n: number, projection: Projection = 'equiangular'): Vec3[] {
+  const { n: fn, u, v } = frame(face);
+  const coord = (k: number): number => (k / n) * 2 - 1;
+  return [
+    [x, y],
+    [x + 1, y],
+    [x + 1, y + 1],
+    [x, y + 1],
+  ].map(([cx, cy]) => cubeToSphere(fn, u, v, toCube(coord(cx as number), projection), toCube(coord(cy as number), projection), [0, 0, 0]));
+}
+
+/** Área da célula (esferorradianos) e seus 4 ângulos internos (radianos). */
+export function cellShape(
+  face: number,
+  x: number,
+  y: number,
+  n: number,
+  projection: Projection = 'equiangular',
+): { area: number; angles: number[] } {
+  const [a, b, c, d] = cellCorners(face, x, y, n, projection) as [Vec3, Vec3, Vec3, Vec3];
+  return {
+    area: sphericalTriangleArea(a, b, c) + sphericalTriangleArea(a, c, d),
+    angles: [cornerAngle(d, a, b), cornerAngle(a, b, c), cornerAngle(b, c, d), cornerAngle(c, d, a)],
+  };
+}
+
 /** Latitude e longitude em radianos. */
 export function pointToLatLon(x: number, y: number, z: number): { lat: number; lon: number } {
   const len = Math.hypot(x, y, z);
