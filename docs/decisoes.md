@@ -68,3 +68,9 @@ Formato: data — decisão — motivo — alternativa descartada.
 - **2026-10-14 — Service worker gerado por um plugin próprio de ~30 linhas no `vite.config.ts`.**
   Motivo: lista exata dos arquivos do build para abrir offline, sem dependência nova.
   Descartado: `vite-plugin-pwa` (traz o Workbox inteiro para algo que cabe em poucas linhas).
+
+- **2026-10-14 — T12, medição no notebook (parcial; falta o celular do usuário).**
+  Notebook do usuário, GPU integrada AMD Radeon 610M, Chrome, 1280×800: **60 fps** com o globo
+  girando sem parar, tanto inteiro quanto no zoom máximo (célula de 48 px); JavaScript gasta
+  ~0,2 ms por quadro. Geração do mundo: ~0,6 s. Pincel máximo (raio 30): ~3–5 ms por aplicação.
+  Resolução mantida em N = 256. Medição no celular: pendente (ver M1-especificacao, T12).
