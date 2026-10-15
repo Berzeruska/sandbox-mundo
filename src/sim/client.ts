@@ -3,11 +3,11 @@ import type { Tool } from '../input/tools';
 import type { Layers } from '../render/colors';
 import type { Vec3 } from '../world/cubesphere';
 import type { WorkCounters } from '../ui/benchmark';
-import type { CellQuery, FromWorker, Patch, ToWorker, WorldInfo } from './protocol';
+import type { CellQuery, FromWorker, Patch, PlateMotionInfo, ToWorker, WorldInfo } from './protocol';
 
 export interface SimEvents {
   onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array): void;
-  onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[]): void;
+  onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[], plates: PlateMotionInfo[]): void;
   onProgress(stage: string, fraction: number): void;
   onPatch(patches: Patch[], brushMs: number): void;
   /** Erro no worker, no protocolo ou versão diferente (`versionMismatch`). */
@@ -103,7 +103,7 @@ export class SimClient {
         this.events.onWorld(msg.info, msg.colors, msg.plateCells);
         break;
       case 'recomposed':
-        this.events.onRecomposed(msg.patches, msg.plateCells, msg.angles);
+        this.events.onRecomposed(msg.patches, msg.plateCells, msg.angles, msg.plates);
         break;
       case 'progress':
         this.events.onProgress(msg.stage, msg.fraction);

@@ -289,3 +289,16 @@ Formato: data — decisão — motivo — alternativa descartada.
   passam a ter fundo quase opaco. O laço do worker só roda com mundo e tempo correndo, e o relógio vai
   à tela no máximo a cada 100 ms (o desenho das placas já adianta os ângulos sozinho entre mensagens).
   Alternativa descartada: manter o desfoque só fora da deriva (complica e não resolve tempo rodando).
+
+- **2026-10-15 — Placas com identidade fixa: polaridade por par, solda e pedaços (D3).**
+  Medido em 2 min de deriva no máximo (3 sementes, N = 128): ~10% das trocas de dono de célula eram
+  A→B→A, quase todas em fronteiras oceano–oceano, porque quem mergulhava era decidido célula a célula
+  e a crosta inicial tem toda a mesma idade. Agora a polaridade é do par de placas (decidida uma vez).
+  Continentes que colidem por 8 recomposições se soldam (giram juntos); pedaço solto < 0,4% do planeta
+  passa para a vizinha. Trocas A→B→A: 2.276/1.591/1.949 → 457/207/227 (o resto é arredondamento de
+  1 célula). Critério de "bonito" segue valendo (4–7 continentes, nenhum > 40%, nas 5 sementes aos
+  2 min; "mundo" ficou em 4 continentes com o maior em 40% — no limite, porque continentes que se
+  encontram agora ficam juntos). Consequência de design a decidir depois: sem rifte, com o tempo os
+  continentes tendem a se juntar (ciclo de supercontinente). "Tamanho fixo" ao pé da letra não é
+  possível com placas rígidas cobrindo a esfera (dorsais fazem crescer, subducção encolhe); o que
+  ficou fixo é a identidade e a forma: nada de placas comendo umas às outras alternadamente.

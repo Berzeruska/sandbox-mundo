@@ -12,7 +12,7 @@ import { Camera } from './render/camera';
 import { GlobeRenderer } from './render/globe-renderer';
 import { Overlay } from './render/overlay';
 import { SimClient } from './sim/client';
-import { applyPatch, type Patch, type WorldInfo } from './sim/protocol';
+import { applyPatch, type Patch, type PlateMotionInfo, type WorldInfo } from './sim/protocol';
 import { Hud } from './ui/hud';
 import { activeBrush, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
@@ -212,7 +212,7 @@ export class App {
     this.sim = new SimClient({
       onError: (message, versionMismatch) => this.fail(message, versionMismatch),
       onWorld: (info, colors, plateCells) => this.onWorld(info, colors, plateCells),
-      onRecomposed: (patches, plateCells, angles) => this.onRecomposed(patches, plateCells, angles),
+      onRecomposed: (patches, plateCells, angles, plates) => this.onRecomposed(patches, plateCells, angles, plates),
       onProgress: (stage, fraction) => {
         this.lastGenerationSignal = performance.now();
         this.showProgress(stage, fraction);
@@ -319,8 +319,12 @@ export class App {
   }
 
   /** As placas andaram: textura nova composta nos ângulos `angles`; o desenho suave continua dali. */
-  private onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[]): void {
+  private onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[], plates: PlateMotionInfo[]): void {
     if (!this.info || !this.renderer) return;
+    // Eixo, velocidade e centro de cada placa nesta composição (o eixo muda quando placas se soldam).
+    this.info.plates = plates;
+    const u = this.motion.uniforms;
+    plates.forEach((p, k) => u.axis.set([...p.axis, p.speed], k * 4));
     const receiveStart = performance.now();
     for (const p of patches) applyPatch(this.colors, this.info.n, p);
     // A composição atual vira a anterior e as duas se misturam por FADE_MS (sem salto na troca).
@@ -362,7 +366,8 @@ export class App {
       u.total[k * 2] = Math.cos(shown);
       u.total[k * 2 + 1] = Math.sin(shown);
       const plate = info.plates[k];
-      if (plate) u.center.set(rotate(plate.center, plate.axis, shown), k * 3);
+      // Centro na composição base, girado pelo que a placa andou desde então.
+      if (plate) u.center.set(rotate(plate.center, plate.axis, shown - base), k * 3);
       u.base[k * 2] = Math.cos(base);
       u.base[k * 2 + 1] = Math.sin(base);
       const prev = m.prevAngles[k] ?? base;

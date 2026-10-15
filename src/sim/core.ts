@@ -195,6 +195,7 @@ export class SimulationCore {
       patches: makePatches(this.colors, n, faces),
       plateCells: packPlates(world),
       angles: Array.from(tectonics.angle),
+      plates: world.plates.map((pl, k) => ({ ...tectonics.plateMotion(k), center: [pl.center[0], pl.center[1], pl.center[2]] as Vec3 })),
     });
     const t4 = this.now();
     w.send += t4 - t3;

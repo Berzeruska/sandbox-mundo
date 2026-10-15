@@ -28,7 +28,17 @@ export interface WorldInfo {
   /** Direção média da terra firme (para onde a câmera olha ao nascer o mundo). */
   landCenter: Vec3;
   /** Eixo, velocidade relativa e centro inicial de cada placa (para o desenho suave do movimento). */
-  plates: { axis: Vec3; speed: number; center: Vec3 }[];
+  plates: PlateMotionInfo[];
+}
+
+/**
+ * Movimento de uma placa a partir de uma composição: gira em torno de `axis` com a velocidade
+ * relativa `speed`; `center` é o centro dela naquela composição. Muda numa solda (D3).
+ */
+export interface PlateMotionInfo {
+  axis: Vec3;
+  speed: number;
+  center: Vec3;
 }
 
 export type ToWorker =
@@ -53,7 +63,7 @@ export type FromWorker =
   | { type: 'error'; message: string; stack?: string }
   | { type: 'world'; info: WorldInfo; colors: Uint8Array; plateCells: Uint8Array }
   /** As placas andaram: mundo todo repintado, placa de cada célula e ângulos desta composição. */
-  | { type: 'recomposed'; patches: Patch[]; plateCells: Uint8Array; angles: number[] }
+  | { type: 'recomposed'; patches: Patch[]; plateCells: Uint8Array; angles: number[]; plates: PlateMotionInfo[] }
   | { type: 'progress'; stage: string; fraction: number }
   | { type: 'patch'; patches: Patch[]; brushMs: number }
   | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number; geologyMs: number; memoryMb: number; angles: number[]; work: WorkCounters }

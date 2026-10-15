@@ -199,9 +199,10 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   removido; worker dorme quando pausado; relógio à tela no máximo 10×/s (61 → 9 mensagens/s; tela
   2,8 → 1,2 ms por quadro com CPU 6× mais lenta). O medidor ganhou cenários com o painel aberto com e
   sem o desfoque antigo, para confirmar no aparelho, e o tempo da primeira abertura.
-- [ ] **D3 — Placas com tamanho e identidade fixos:** continentes que colidem se soldam e erguem
+- [x] **D3 — Placas com tamanho e identidade fixos:** continentes que colidem se soldam e erguem
   cordilheira; fragmento pequeno gruda na placa maior; nada de pedaços colidindo para sempre
-  (achar a causa da oscilação).
+  (achar a causa da oscilação). *Causa:* desempate da subducção célula a célula entre oceânicas de
+  mesma idade (ver 03-mundo-geologia, D3).
 - [ ] **D4 — Shader de deriva mais leve para a Mali-G52.**
 - [ ] **D5 — Geração ≤ 3 s no aparelho.**
 

@@ -33,6 +33,17 @@ export const RIDGE_DEPTH = -2500;
 /** Nascimento atribuído à crosta inicial (bem antiga). */
 const ANCIENT = -1_000_000;
 
+// --- Identidade das placas (D3). ---
+/**
+ * Solda continental: dois continentes que colidem (frente de pelo menos WELD_FRONT_SHARE das
+ * células, ~12 células em N = 256) por WELD_AFTER recomposições passam a andar juntos. A cordilheira
+ * cresce durante essas recomposições e a colisão para (antes, empurravam um contra o outro para sempre).
+ */
+export const WELD_AFTER = 8;
+const WELD_FRONT_SHARE = 12 / (6 * 256 * 256);
+/** Pedaço solto de placa menor que esta fração do planeta gruda na placa vizinha (~0,4%). */
+export const FRAGMENT_SHARE = 0.004;
+
 // --- Relevo nas fronteiras (T5). Valores por recomposição (cada uma = RECOMPOSE_CELLS de deriva). ---
 /** Idade (passos) em que o fundo oceânico chega à planície abissal. */
 export const AGE_FULL_TICKS = 40_000;
@@ -66,6 +77,11 @@ const SMOOTH_START = 1200;
 const SMOOTH_RATE = 0.25;
 
 /** Profundidade do fundo oceânico pela idade: dorsal rasa, afunda com a raiz da idade. */
+/** Chave de um par de placas (sem ordem). */
+function pairKey(a: number, b: number): number {
+  return a < b ? a * 256 + b : b * 256 + a;
+}
+
 export function oceanDepthAt(age: number): number {
   return RIDGE_DEPTH - ABYSSAL_EXTRA * Math.sqrt(Math.min(1, Math.max(0, age) / AGE_FULL_TICKS));
 }
@@ -78,6 +94,26 @@ export class Tectonics {
   private axis: Float64Array;
   private speed: Float64Array;
   private center0: Float64Array;
+  /**
+   * A posição de cada placa é a rotação acumulada até a última troca de eixo (`rot0`, matriz 3×3) e
+   * depois o giro em torno do eixo atual pelo ângulo andado desde então (angle − angle0). O eixo só
+   * muda numa solda; entre recomposições é sempre um giro em torno de um eixo fixo (o desenho conta com isso).
+   */
+  private rot0: Float64Array;
+  private angle0: Float64Array;
+  /** Solda: grupo de cada placa (união-busca) e recomposições de colisão de cada par. */
+  private group: Int32Array;
+  private collisions = new Map<number, number>();
+  /** Quantas soldas e pedaços absorvidos já houve (para medir e testar). */
+  welds = 0;
+  fragmentsAbsorbed = 0;
+  /**
+   * Polaridade da subducção entre duas placas oceânicas, decidida uma vez por par: qual das duas
+   * mergulha. Antes era decidido célula a célula (mais velha; empate, mais funda), e como a crosta
+   * inicial tem toda a mesma idade, cada célula da fronteira escolhia diferente e as placas se
+   * "comiam" alternadamente, trocando de dono a cada recomposição (a oscilação).
+   */
+  private polarity = new Map<number, number>();
   /** Passo atual (para a idade da crosta). */
   tick = 0;
   /** Passo da última recomposição (subsidência do fundo oceânico é incremental). */
@@ -120,6 +156,13 @@ export class Tectonics {
     this.axis = new Float64Array(plates * 3);
     this.speed = new Float64Array(plates);
     this.center0 = new Float64Array(plates * 3);
+    this.rot0 = new Float64Array(plates * 9);
+    this.angle0 = new Float64Array(plates);
+    this.group = new Int32Array(plates);
+    for (let k = 0; k < plates; k++) {
+      this.rot0[k * 9] = this.rot0[k * 9 + 4] = this.rot0[k * 9 + 8] = 1;
+      this.group[k] = k;
+    }
     world.plates.forEach((p, k) => {
       const s = Math.hypot(p.omega[0], p.omega[1], p.omega[2]);
       this.speed[k] = s;
@@ -252,34 +295,59 @@ export class Tectonics {
     return true;
   }
 
-  /** Gira um ponto pela rotação inversa da placa (do mundo para o referencial dela). */
-  private toPlate(p: number, x: number, y: number, z: number, cos: Float64Array, sin: Float64Array, out: Vec3): void {
+  /** Matriz da posição atual da placa (referencial → mundo): giro desde a última troca de eixo × rot0. */
+  private rotation(p: number, out: Float64Array, o = 0): void {
     const kx = this.axis[p * 3] as number;
     const ky = this.axis[p * 3 + 1] as number;
     const kz = this.axis[p * 3 + 2] as number;
-    const c = cos[p] as number;
-    const s = -(sin[p] as number); // rotação inversa
-    const d = kx * x + ky * y + kz * z;
-    out[0] = x * c + (ky * z - kz * y) * s + kx * d * (1 - c);
-    out[1] = y * c + (kz * x - kx * z) * s + ky * d * (1 - c);
-    out[2] = z * c + (kx * y - ky * x) * s + kz * d * (1 - c);
+    const a = (this.angle[p] as number) - (this.angle0[p] as number);
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    const t = 1 - c;
+    // Rodrigues em forma de matriz.
+    const r = [
+      c + kx * kx * t, kx * ky * t - kz * s, kx * kz * t + ky * s,
+      ky * kx * t + kz * s, c + ky * ky * t, ky * kz * t - kx * s,
+      kz * kx * t - ky * s, kz * ky * t + kx * s, c + kz * kz * t,
+    ];
+    const m = this.rot0;
+    const b = p * 9;
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        out[o + i * 3 + j] =
+          (r[i * 3] as number) * (m[b + j] as number) +
+          (r[i * 3 + 1] as number) * (m[b + 3 + j] as number) +
+          (r[i * 3 + 2] as number) * (m[b + 6 + j] as number);
+      }
+    }
+  }
+
+  /** Gira um ponto pela rotação inversa da placa (do mundo para o referencial dela). `inv`: matrizes já transpostas. */
+  private toPlate(p: number, x: number, y: number, z: number, inv: Float64Array, out: Vec3): void {
+    const b = p * 9;
+    out[0] = (inv[b] as number) * x + (inv[b + 1] as number) * y + (inv[b + 2] as number) * z;
+    out[1] = (inv[b + 3] as number) * x + (inv[b + 4] as number) * y + (inv[b + 5] as number) * z;
+    out[2] = (inv[b + 6] as number) * x + (inv[b + 7] as number) * y + (inv[b + 8] as number) * z;
   }
 
   /** Centro atual da placa (o centro original girado). */
   private centerNow(p: number, out: Vec3): void {
-    const kx = this.axis[p * 3] as number;
-    const ky = this.axis[p * 3 + 1] as number;
-    const kz = this.axis[p * 3 + 2] as number;
-    const a = this.angle[p] as number;
-    const c = Math.cos(a);
-    const s = Math.sin(a);
+    const m = new Float64Array(9);
+    this.rotation(p, m);
     const x = this.center0[p * 3] as number;
     const y = this.center0[p * 3 + 1] as number;
     const z = this.center0[p * 3 + 2] as number;
-    const d = kx * x + ky * y + kz * z;
-    out[0] = x * c + (ky * z - kz * y) * s + kx * d * (1 - c);
-    out[1] = y * c + (kz * x - kx * z) * s + ky * d * (1 - c);
-    out[2] = z * c + (kx * y - ky * x) * s + kz * d * (1 - c);
+    out[0] = (m[0] as number) * x + (m[1] as number) * y + (m[2] as number) * z;
+    out[1] = (m[3] as number) * x + (m[4] as number) * y + (m[5] as number) * z;
+    out[2] = (m[6] as number) * x + (m[7] as number) * y + (m[8] as number) * z;
+  }
+
+  /** Eixo (unitário) e velocidade relativa atuais de uma placa (mudam numa solda). */
+  plateMotion(p: number): { axis: Vec3; speed: number } {
+    return {
+      axis: [this.axis[p * 3] as number, this.axis[p * 3 + 1] as number, this.axis[p * 3 + 2] as number],
+      speed: this.speed[p] as number,
+    };
   }
 
   /**
@@ -317,14 +385,16 @@ export class Tectonics {
     const { positions, neighbors, cellAngle } = world.grid;
     const n = world.cellCount;
     const plates = this.angle.length;
-    const cos = new Float64Array(plates);
-    const sin = new Float64Array(plates);
+    // Matriz inversa (transposta) da posição de cada placa: mundo → referencial dela.
+    const inv = new Float64Array(plates * 9);
+    const m = new Float64Array(9);
     let maxMove = 0;
     for (let p = 0; p < plates; p++) {
-      cos[p] = Math.cos(this.angle[p] as number);
-      sin[p] = Math.sin(this.angle[p] as number);
+      this.rotation(p, m);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) inv[p * 9 + i * 3 + j] = m[j * 3 + i] as number;
       maxMove = Math.max(maxMove, Math.abs((this.angle[p] as number) - (this.lastAngle[p] as number)));
     }
+    this.preparePolarity();
 
     // Faixa perto das fronteiras antigas, onde pode haver sobreposição ou buraco.
     const reach = Math.ceil(maxMove / cellAngle) + 2;
@@ -358,12 +428,19 @@ export class Tectonics {
     const newSample = new Int32Array(n).fill(-1);
     const q: Vec3 = [0, 0, 0];
     const pull = (p: number, c: number): number => {
-      this.toPlate(p, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, cos, sin, q);
+      this.toPlate(p, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, inv, q);
       return this.find(p, world.grid.pointToCell(q[0], q[1], q[2]));
     };
     const refOf = (p: number, c: number): number => {
-      this.toPlate(p, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, cos, sin, q);
+      this.toPlate(p, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, inv, q);
       return world.grid.pointToCell(q[0], q[1], q[2]);
+    };
+    // Frente de colisão continental de cada par nesta recomposição (para a solda).
+    const front = new Map<number, number>();
+    const deepInside = (c: number, owner: number): boolean => {
+      if (prevPlate[c] !== owner) return false;
+      for (let d = 0; d < 4; d++) if (prevPlate[neighbors[c * 4 + d] as number] !== owner) return false;
+      return true;
     };
 
     const gaps: number[] = [];
@@ -403,7 +480,17 @@ export class Tectonics {
         if (i === win) continue;
         const loser = this.sPlate[i] as number;
         const winner = this.sPlate[win] as number;
-        if (loser !== winner && this.closing(loser, winner, x, y, z) > 0) this.kill(i);
+        if (loser === winner) continue;
+        // Consumida se as placas se aproximam ali, ou se a crosta perdedora entrou fundo no território
+        // que a vencedora já tinha (a célula e as 4 vizinhas eram dela): isso não é arredondamento.
+        // Antes só valia o primeiro teste (direção entre os centros, grosseira na borda), e crosta
+        // ficava escondida sob a outra placa, acumulando e reaparecendo depois como pedaços soltos.
+        if (this.closing(loser, winner, x, y, z) <= 0 && !deepInside(c, winner)) continue;
+        this.kill(i);
+        if (this.sCrust[i] === Crust.Continental && this.sCrust[win] === Crust.Continental && this.find_(loser) !== this.find_(winner)) {
+          const key = pairKey(loser, winner);
+          front.set(key, (front.get(key) ?? 0) + 1);
+        }
       }
     }
 
@@ -476,8 +563,11 @@ export class Tectonics {
       const plate = world.plates[p];
       if (plate) this.centerNow(p, plate.center as Vec3);
     }
+    this.absorbFragments(inv);
     updateBoundaries(world);
     if (this.reliefEnabled) this.relief();
+    // Depois do relevo: a recomposição que completa a colisão ainda ergue a cordilheira.
+    if (this.weldCollisions(front)) updateBoundaries(world);
     this.recompositions++;
     this.compact();
   }
@@ -546,16 +636,8 @@ export class Tectonics {
       const cOcean = world.crust[c] === Crust.Oceanic;
       const nOcean = world.crust[nb] === Crust.Oceanic;
       if (kind === Boundary.Convergent) {
-        const ci = this.cellSample[c] as number;
-        const ni = this.cellSample[nb] as number;
-        // Mesmo desempate da sobreposição: a mais velha afunda; mesma idade, a mais funda.
-        let older = false;
-        if (ci >= 0 && ni >= 0) {
-          const bc = this.sBirth[ci] as number;
-          const bn = this.sBirth[ni] as number;
-          older = bc !== bn ? bc < bn : (this.sElev[ci] as number) < (this.sElev[ni] as number);
-        }
-        const subducts = cOcean && (!nOcean || older);
+        // Mesma regra da sobreposição: entre duas oceânicas, a polaridade do par decide quem mergulha.
+        const subducts = cOcean && (!nOcean || this.subducts(world.plate[c] as number, world.plate[nb] as number));
         if (subducts) {
           trenchDist[c] = 0;
           trenchFrontier.push(c);
@@ -683,15 +765,208 @@ export class Tectonics {
     const ca = this.sCrust[a] as number;
     const cb = this.sCrust[b] as number;
     if (ca !== cb) return ca === Crust.Continental;
-    if (ca === Crust.Oceanic) {
-      const ba = this.sBirth[a] as number;
-      const bb = this.sBirth[b] as number;
-      if (ba !== bb) return ba > bb; // a oceânica mais velha afunda
-      const ea = this.sElev[a] as number;
-      const eb = this.sElev[b] as number;
-      if (ea !== eb) return ea > eb; // mesma idade: a mais funda afunda
+    const pa = this.sPlate[a] as number;
+    const pb = this.sPlate[b] as number;
+    // Duas oceânicas de placas diferentes: a polaridade do par (a mesma ao longo de toda a fronteira).
+    if (ca === Crust.Oceanic && pa !== pb) return this.subducts(pb, pa);
+    return pa === prevOwner && pb !== prevOwner;
+  }
+
+  /** Raiz do grupo de solda da placa. */
+  private find_(p: number): number {
+    let r = p;
+    while (this.group[r] !== r) r = this.group[r] as number;
+    return r;
+  }
+
+  /** Idade média e profundidade média do fundo oceânico de cada placa (para decidir a polaridade). */
+  private plateOcean: { birth: Float64Array; depth: Float64Array } | null = null;
+
+  private preparePolarity(): void {
+    const plates = this.angle.length;
+    const birth = new Float64Array(plates);
+    const depth = new Float64Array(plates);
+    const count = new Float64Array(plates);
+    const world = this.world;
+    for (let c = 0; c < world.cellCount; c++) {
+      const i = this.cellSample[c] as number;
+      if (i < 0 || this.sCrust[i] !== Crust.Oceanic) continue;
+      const p = this.sPlate[i] as number;
+      birth[p] = (birth[p] as number) + (this.sBirth[i] as number);
+      depth[p] = (depth[p] as number) + (this.sElev[i] as number);
+      count[p] = (count[p] as number) + 1;
     }
-    return (this.sPlate[a] as number) === prevOwner && (this.sPlate[b] as number) !== prevOwner;
+    for (let p = 0; p < plates; p++) {
+      const k = (count[p] as number) || 1;
+      birth[p] = (birth[p] as number) / k;
+      depth[p] = (depth[p] as number) / k;
+    }
+    this.plateOcean = { birth, depth };
+  }
+
+  /**
+   * A placa a mergulha sob a b (entre duas oceânicas)? Decidido no primeiro encontro do par e
+   * guardado: a de fundo oceânico mais velho (mais denso) mergulha; empate, a mais funda; empate,
+   * a de número menor. Assim toda a fronteira tem a mesma polaridade, sempre.
+   */
+  private subducts(a: number, b: number): boolean {
+    if (a === b) return false;
+    const key = pairKey(a, b);
+    let sub = this.polarity.get(key);
+    if (sub === undefined) {
+      const po = this.plateOcean;
+      const ba = po ? (po.birth[a] as number) : 0;
+      const bb = po ? (po.birth[b] as number) : 0;
+      const da = po ? (po.depth[a] as number) : 0;
+      const db = po ? (po.depth[b] as number) : 0;
+      sub = ba !== bb ? (ba < bb ? a : b) : da !== db ? (da < db ? a : b) : Math.min(a, b);
+      this.polarity.set(key, sub);
+    }
+    return sub === a;
+  }
+
+  /**
+   * Solda: pares de placas com colisão continental nesta recomposição somam uma; ao chegar em
+   * WELD_AFTER, os dois grupos passam a girar juntos (vetor de rotação médio, pesado pela área). As
+   * placas continuam com a mesma identidade; só deixam de se mover uma contra a outra.
+   */
+  private weldCollisions(front: Map<number, number>): boolean {
+    const world = this.world;
+    const before = this.welds;
+    const minFront = Math.max(3, Math.round(WELD_FRONT_SHARE * world.cellCount));
+    for (const [key, cells] of front) {
+      if (cells < minFront) continue;
+      const a = Math.floor(key / 256);
+      const b = key % 256;
+      if (this.find_(a) === this.find_(b)) continue;
+      const k = (this.collisions.get(key) ?? 0) + 1;
+      this.collisions.set(key, k);
+      if (k >= WELD_AFTER) this.weld(a, b);
+    }
+    return this.welds !== before;
+  }
+
+  private weld(a: number, b: number): void {
+    const world = this.world;
+    const plates = this.angle.length;
+    const ra = this.find_(a);
+    const rb = this.find_(b);
+    this.group[rb] = ra;
+    // Área de cada placa agora.
+    const area = new Float64Array(plates);
+    for (let c = 0; c < world.cellCount; c++) area[world.plate[c] as number] = (area[world.plate[c] as number] as number) + 1;
+    const members: number[] = [];
+    const omega: Vec3 = [0, 0, 0];
+    let total = 0;
+    for (let p = 0; p < plates; p++) {
+      if (this.find_(p) !== ra) continue;
+      members.push(p);
+      const w = area[p] as number;
+      const s = this.speed[p] as number;
+      omega[0] += (this.axis[p * 3] as number) * s * w;
+      omega[1] += (this.axis[p * 3 + 1] as number) * s * w;
+      omega[2] += (this.axis[p * 3 + 2] as number) * s * w;
+      total += w;
+    }
+    if (total > 0) for (let d = 0; d < 3; d++) omega[d] = (omega[d] as number) / total;
+    const speed = Math.hypot(omega[0], omega[1], omega[2]);
+    const m = new Float64Array(9);
+    for (const p of members) {
+      // Congela a posição atual em rot0 e recomeça o giro em torno do eixo comum.
+      this.rotation(p, m);
+      this.rot0.set(m, p * 9);
+      this.angle0[p] = this.angle[p] as number;
+      this.speed[p] = speed;
+      this.axis[p * 3] = speed > 0 ? omega[0] / speed : 0;
+      this.axis[p * 3 + 1] = speed > 0 ? omega[1] / speed : 1;
+      this.axis[p * 3 + 2] = speed > 0 ? omega[2] / speed : 0;
+      const plate = world.plates[p];
+      if (plate) plate.omega = [omega[0], omega[1], omega[2]];
+    }
+    this.welds++;
+  }
+
+  /**
+   * Pedaço solto de placa (componente que não é o principal, ou a placa inteira) menor que
+   * FRAGMENT_SHARE do planeta passa para a placa vizinha com quem mais faz divisa: a crosta é
+   * regravada no referencial da nova dona e passa a andar com ela.
+   */
+  private absorbFragments(inv: Float64Array): void {
+    const world = this.world;
+    const { neighbors, positions } = world.grid;
+    const n = world.cellCount;
+    const limit = Math.max(4, Math.round(FRAGMENT_SHARE * n));
+    const comp = new Int32Array(n).fill(-1);
+    const sizes: number[] = [];
+    const compPlate: number[] = [];
+    const stack: number[] = [];
+    for (let c = 0; c < n; c++) {
+      if (comp[c] !== -1 || this.cellSample[c] === -1) continue;
+      const id = sizes.length;
+      const p = world.plate[c] as number;
+      let size = 0;
+      comp[c] = id;
+      stack.push(c);
+      while (stack.length) {
+        const k = stack.pop() as number;
+        size++;
+        for (let d = 0; d < 4; d++) {
+          const nb = neighbors[k * 4 + d] as number;
+          if (comp[nb] === -1 && world.plate[nb] === p && this.cellSample[nb] !== -1) {
+            comp[nb] = id;
+            stack.push(nb);
+          }
+        }
+      }
+      sizes.push(size);
+      compPlate.push(p);
+    }
+    // Pequeno: pedaço solto ou a placa inteira já menor que o limite.
+    const small = (id: number) => (sizes[id] as number) < limit;
+    // Divisas de cada pedaço pequeno com outras placas.
+    const contacts = new Map<number, Map<number, number>>();
+    for (let c = 0; c < n; c++) {
+      const id = comp[c] as number;
+      if (id < 0 || !small(id)) continue;
+      for (let d = 0; d < 4; d++) {
+        const nb = neighbors[c * 4 + d] as number;
+        const q = world.plate[nb] as number;
+        if (q === compPlate[id] || this.cellSample[nb] === -1) continue;
+        let m = contacts.get(id);
+        if (!m) contacts.set(id, (m = new Map()));
+        m.set(q, (m.get(q) ?? 0) + 1);
+      }
+    }
+    const target = new Map<number, number>();
+    for (const [id, m] of contacts) {
+      let best = -1;
+      let bestCount = 0;
+      for (const [q, k] of m) if (k > bestCount || (k === bestCount && q < best)) [best, bestCount] = [q, k];
+      if (best >= 0) target.set(id, best);
+    }
+    if (!target.size) return;
+    const q: Vec3 = [0, 0, 0];
+    for (let c = 0; c < n; c++) {
+      const id = comp[c] as number;
+      const to = id >= 0 ? target.get(id) : undefined;
+      if (to === undefined) continue;
+      const old = this.cellSample[c] as number;
+      this.toPlate(to, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, inv, q);
+      const ref = world.grid.pointToCell(q[0], q[1], q[2]);
+      // Se a nova dona já tem amostra ali (escondida sob o pedaço), ela recebe a crosta do pedaço.
+      let i = this.find(to, ref);
+      if (i >= 0) {
+        this.sElev[i] = this.sElev[old] as number;
+        this.sCrust[i] = this.sCrust[old] as number;
+        this.sBirth[i] = this.sBirth[old] as number;
+      } else {
+        i = this.addSample(to, ref, this.sElev[old] as number, this.sCrust[old] as number, this.sBirth[old] as number);
+      }
+      this.kill(old);
+      this.cellSample[c] = i;
+      world.plate[c] = to;
+    }
+    this.fragmentsAbsorbed += target.size;
   }
 
   /** Depois de uma pincelada: grava nas amostras o que foi pintado nas células (anda com a placa). */

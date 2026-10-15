@@ -111,13 +111,34 @@ Aplicado a cada recomposição, nas amostras das placas (o relevo viaja com elas
 - **Oceano sob continente**: fossa no mar (até -6.500 m; o oceano que vem chegando já vai afundando)
   e cordilheira vulcânica com o pico a 3–4 células da costa (como os Andes).
 - **Continente contra continente**: cordilheira larga em sino dos dois lados (até 7.000 m).
-- **Oceano contra oceano**: a mais velha (ou, empatando, a mais funda) afunda; na outra, arco de
-  ilhas a 2–3 células da fossa, só em trechos (ruído fixo na placa): ilhas soltas, não um risco.
+- **Oceano contra oceano**: uma das placas mergulha, sempre a mesma ao longo de toda a fronteira
+  (polaridade do par, ver D3); na outra, arco de ilhas a 2–3 células da fossa, só em trechos (ruído
+  fixo na placa): ilhas soltas, não um risco.
 - **Margem passiva**: continente encostado em fundo oceânico jovem afunda até virar plataforma, com
   intensidade variando ao longo da costa (ruído fixo na placa): baías e penínsulas nas costas de rifte.
 - **Erosão leve**: acima de 2.500 m os picos cedem; acima de 1.200 m o relevo suaviza com as vizinhas
   (cordilheiras viram faixas).
 - A fração de terra fica estável (~28–30% em 2 min no máximo).
+
+### Como está implementado (M2, D3: placas com identidade fixa)
+- **Polaridade da subducção por par**: entre duas placas oceânicas que se aproximam, decide-se uma
+  vez qual mergulha (fundo oceânico médio mais velho; empate, mais fundo; empate, número menor) e
+  isso vale para a fronteira inteira, para sempre. Antes era decidido célula a célula, e como a
+  crosta inicial tem toda a mesma idade, o desempate pela profundidade variava de célula para célula:
+  as placas se comiam alternadamente e células trocavam de dono a cada recomposição (a oscilação;
+  ~80–89% dessas trocas sumiram, sobra só o arredondamento de 1 célula na linha da fronteira).
+- **Solda continental**: dois continentes que colidem (frente de ~12 células em N = 256) por 8
+  recomposições erguem a cordilheira e então passam a girar juntos (vetor de rotação médio pesado
+  pela área). As placas mantêm a identidade; só param de se mover uma contra a outra. Antes giravam
+  em eixos fixos para sempre e continuavam empurrando, consumindo crosta.
+- **Pedaços soltos**: parte de placa separada do corpo dela (ou placa inteira) menor que 0,4% do
+  planeta passa para a placa vizinha com quem mais faz divisa; a crosta é regravada no referencial
+  da nova dona e anda com ela.
+- **Crosta enterrada**: além da aproximação pelos centros das placas, crosta que entrou fundo no
+  território que a outra placa já tinha (a célula e as 4 vizinhas) é consumida.
+- O movimento de cada placa é a rotação acumulada até a última troca de eixo mais o giro em torno do
+  eixo atual; o eixo só muda numa solda, e a tela recebe eixo, velocidade e centro novos junto com a
+  recomposição.
 
 ### Geração v2 (M2): costas recortadas e mares internos
 Decisão do usuário: aceitar que a mesma semente gere um mundo inicial diferente do da v1.x.
