@@ -30,7 +30,7 @@ gelo, tudo fluido no celular do usuário.
 ## Marco 1.1 — Ajustes visuais da v1.0 (branch `marco-1.1`)
 Pedidos do usuário após testar a v1.0 no celular.
 - [x] **T12.1 — Projeção:** verificar cubo→esfera e medir distorção (já era equiangular; ver decisões)
-- [ ] **T13 — Detalhe visual no shader:** bordas orgânicas entre biomas e textura sutil por bioma,
+- [x] **T13 — Detalhe visual no shader:** bordas orgânicas entre biomas e textura sutil por bioma,
   escondendo a grade, sem mudar a simulação; fps antes/depois
 - [ ] **T14 — Pincéis com queda suave:** Elevar/Rebaixar fortes no centro e zero na borda, sem platô
 

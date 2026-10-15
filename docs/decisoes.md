@@ -90,3 +90,21 @@ Formato: data — decisão — motivo — alternativa descartada.
   3 células dividem um vértice e precisam ter ângulos de ~120° (nenhuma projeção de cubo evita).
   Os polos ficam no centro das faces ±Y, com desvio 0°. Solução visual: esconder a grade no shader
   (T13). Nenhuma mudança na geração: **a mesma semente continua gerando o mesmo mundo.**
+
+- **2026-10-15 — T13: detalhe visual no shader para esconder a grade (sem mudar a simulação).**
+  - Bordas orgânicas: o shader desloca o ponto da esfera com ruído (até ~1 célula) antes de escolher a
+    célula; fronteiras de bioma, costas e calotas viram curvas. Ruído em 3D na esfera, sem emenda.
+  - Textura sutil por bioma (intensidade em `BIOME_INFO.detail`; o bioma vai no canal alfa).
+  - Removida a variação de brilho por célula da CPU (ela desenhava a grade).
+  - Os dois efeitos somem com o zoom afastado (célula < ~1–2 px), para não cintilar.
+  - Ruído lido de uma textura 3D pré-calculada (64³ RGBA, ~1 MB), não calculado por pixel: a
+    primeira versão com hash por pixel custava ~3 ms por quadro a mais no notebook.
+  - fps sem limite de tela (Radeon 610M, build de produção, giro de teste):
+    | Cenário                      | Antes (v1.0) | Hash por pixel | Final (textura 3D) |
+    |------------------------------|--------------|----------------|--------------------|
+    | Notebook 1920×1080, inteiro  | 935          | 251            | 734                |
+    | Notebook 1920×1080, zoom máx | 525          | 271            | 646                |
+    | Celular 412×915 @2x, inteiro | 997          | 663            | 1175               |
+    | Celular 412×915 @2x, zoom máx| 596          | 439            | 680                |
+    (variações de ±20% entre execuções são ruído da medição.) Imagem: `docs/img/t13-antes-depois.png`.
+  - A mesma semente continua gerando o mesmo mundo (nenhuma mudança na simulação).
