@@ -171,11 +171,14 @@ mundos evoluem.
   Testes: velocidade 0 não muda nada; uma placa sozinha gira sem deformar (forma preservada dentro
   de uma tolerância); área total de crosta conservada sem fronteiras ativas; determinismo.
 
-- [ ] **T5 — Fronteiras e relevo**
+- [x] **T5 — Fronteiras e relevo**
   Classificação convergente/divergente/transformante; dorsais com profundidade pela idade;
   subducção com fossa; colisão erguendo montanhas; rifte continental; erosão leve.
   Testes: em cenários sintéticos de duas placas, montanha/fossa/dorsal aparecem onde devem; em
   10.000 passos a fração de terra fica entre 20% e 40% e nada vira NaN.
+  Critério de "bonito" do usuário (2026-10-15): depois da Pangeia se partir, 4 a 7 continentes de
+  tamanhos variados, com penínsulas, golfos e mares internos, fronteiras irregulares, nenhum com mais
+  de ~40% da terra. Feito: 5 sementes fixas passam em 1 e 2 min (imagens em `docs/img/m2-formas-*`).
 
 - [ ] **T6 — Recursos minerais e petróleo** (`src/world/resources.ts`)
   Depósitos de ferro, cobre, ouro, nióbio, petróleo, carvão (e outros) gerados pela geologia real:

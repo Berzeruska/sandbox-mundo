@@ -50,7 +50,7 @@ describe('tectônica: movimento das placas', () => {
     const axis: Vec3 = [0.3, 0.9, 0.3].map((v, _, a) => v / Math.hypot(...a)) as Vec3;
     const w = synthetic(32, () => 0, (_p, i) => (i * 37) % 2000 - 1000, [plate(0, axis, [0, 1, 0])]);
     const elev0 = Float32Array.from(w.elevation);
-    const t = new Tectonics(w);
+    const t = new Tectonics(w, { relief: false });
     const angle = 0.37;
     t.angle[0] = angle;
     t.recompose();
@@ -73,7 +73,7 @@ describe('tectônica: movimento das placas', () => {
         (p) => (p[0] > 0 ? 500 : -3000),
         [plate(0, [0, 1, 0], [1, 0, 0]), plate(1, [0, -1, 0], [-1, 0, 0])],
       );
-      const t = new Tectonics(w);
+      const t = new Tectonics(w, { relief: false });
       t.angle[0] = 0.12;
       t.angle[1] = 0.12;
       t.recompose();
@@ -109,7 +109,7 @@ describe('tectônica: movimento das placas', () => {
   it('falha transformante (deslizando de lado) não abre oceano nem destrói continente', () => {
     // Girar em torno de X move os pontos paralelamente à fronteira x = 0.
     const w = synthetic(48, (p) => (p[0] > 0 ? 0 : 1), () => 500, [plate(0, [1, 0, 0], [1, 0, 0]), plate(1, [-1, 0, 0], [-1, 0, 0])]);
-    const t = new Tectonics(w);
+    const t = new Tectonics(w, { relief: false });
     t.angle[0] = 0.2;
     t.angle[1] = 0.2;
     t.recompose();
@@ -151,7 +151,7 @@ describe('tectônica: movimento das placas', () => {
     const w = synthetic(48, () => 0, () => 200, [plate(0, axis, [0, 1, 0])]);
     computeWaterDistance(w);
     updateClimate(w);
-    const t = new Tectonics(w);
+    const t = new Tectonics(w, { relief: false });
     const point: Vec3 = [0, 0, 1];
     const { region } = applyBrush(w, Tool.Raise, point, 4, 2);
     t.syncCells(region);

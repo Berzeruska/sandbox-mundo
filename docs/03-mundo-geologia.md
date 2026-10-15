@@ -65,15 +65,17 @@ Cada pincelada recalcula clima e bioma só da região afetada (mais uma borda).
 - Cidades sobre terreno que muda: sofrem dano/terremoto, não "teletransportam". Regras no Marco 2.
 
 ### Como está implementado (M2, T3: as placas nascem; o movimento vem na T4)
-- 8 a 14 placas por mundo (sorteio próprio, separado do terreno: a mesma semente continua gerando o
-  mesmo relevo).
-- Voronoi na esfera com pesos (placas de tamanhos variados) e deformação por ruído (fronteiras
-  curvas); depois cada placa fica com o seu maior pedaço contínuo (pedaços soltos vão para a vizinha).
-- 3 a 5 sementes caem na terra: a Pangeia fica repartida em pelo menos 3 placas.
+- 8 a 14 placas por mundo (sorteio próprio, separado do terreno).
+- **Crescimento de regiões com custo por ruído** (Dijkstra a partir das sementes, dividido pelo peso
+  de cada placa): placas de tamanhos variados, sempre contíguas, com fronteiras recortadas que seguem
+  os "vales" do ruído (antes: Voronoi deformado, fronteiras em arcos lisos).
+- 5 a 8 sementes caem na terra; nenhuma placa fica com mais de 35% da terra (a que passar ganha mais
+  uma semente e as regiões crescem de novo).
 - Crosta continental onde é terra ou plataforma (acima de -500 m); oceânica no resto.
-- Cada placa tem velocidade angular ω (polo de Euler × velocidade relativa 0,3–1). Placas
-  continentais (≥ 30% de crosta continental) apontam para fora do centro do supercontinente, com
-  um desvio aleatório: quando o movimento chegar (T4), a Pangeia se abre.
+- Cada placa tem velocidade angular ω (polo de Euler × velocidade relativa). Placas da Pangeia (com
+  pelo menos 3% da terra) seguem uma **expansão a partir do centro do supercontinente**: a velocidade
+  cresce com a distância ao centro, então todo par de vizinhas se afasta e a Pangeia se parte em
+  vários continentes (a do centro fica quase parada). Desvio aleatório de ±0,2 rad.
 - Tipo de fronteira por célula, comparando o movimento das duas placas: aproximando = convergente,
   afastando = divergente, deslizando de lado = transformante. Duas rodadas de "voto da vizinhança"
   deixam cada trecho com um tipo só.
@@ -93,14 +95,43 @@ Cada pincelada recalcula clima e bioma só da região afetada (mais uma borda).
 - Depois de cada recomposição: distância até a água, clima, biomas e cores do mundo todo.
 - Pinceladas ficam gravadas na placa e viajam com ela. O gelo pintado/apagado e a variação regional
   de clima ficam presos à posição no globo (não andam com a placa).
-- **Ritmo**: 6×10⁻⁶ rad por passo no controle 100% (velocidade relativa 1). Com o tempo em 20× e o
-  controle no máximo, as placas andam ~1 célula a cada ~5 s e a Pangeia se abre em ~2 minutos.
+- **Ritmo**: 1,4×10⁻⁵ rad por passo no controle 100% (velocidade relativa 1); recomposição a cada
+  2 células (o movimento suave do desenho esconde o tamanho do passo). Com o tempo em 20× e o controle
+  no máximo, a Pangeia se parte antes de 1 minuto e aos 2 minutos há 5–7 continentes separados.
   Controle inicial: 25%. Em 0% a geologia congela (clima e tempo seguem).
 - A recomposição é disparada por ângulo contado em passos, não por tempo real: mesma semente e
   mesmos comandos, mesmo resultado.
-- Ainda sem relevo nas fronteiras (T5): o fundo oceânico novo é liso, colisões ainda não erguem
-  montanhas e a crosta continental que colide some aos poucos (a fração de terra cai ~1–2 pontos a
-  cada 0,3 rad de deriva); a T5 transforma isso em cordilheira.
+- Buracos de 1 célula só por arredondamento (cercados de crosta) são cicatrizados copiando a vizinha;
+  qualquer outra fenda vira fundo oceânico novo (copiar continente arrastava tiras de terra).
+
+### Como está implementado (M2, T5: relevo nas fronteiras)
+Aplicado a cada recomposição, nas amostras das placas (o relevo viaja com elas):
+- **Fundo oceânico envelhece**: nasce na dorsal a -2.500 m e afunda com a raiz da idade até -5.000 m
+  (dorsais rasas no meio dos oceanos, planícies abissais longe delas).
+- **Oceano sob continente**: fossa no mar (até -6.500 m; o oceano que vem chegando já vai afundando)
+  e cordilheira vulcânica com o pico a 3–4 células da costa (como os Andes).
+- **Continente contra continente**: cordilheira larga em sino dos dois lados (até 7.000 m).
+- **Oceano contra oceano**: a mais velha (ou, empatando, a mais funda) afunda; na outra, arco de
+  ilhas a 2–3 células da fossa, só em trechos (ruído fixo na placa): ilhas soltas, não um risco.
+- **Margem passiva**: continente encostado em fundo oceânico jovem afunda até virar plataforma, com
+  intensidade variando ao longo da costa (ruído fixo na placa): baías e penínsulas nas costas de rifte.
+- **Erosão leve**: acima de 2.500 m os picos cedem; acima de 1.200 m o relevo suaviza com as vizinhas
+  (cordilheiras viram faixas).
+- A fração de terra fica estável (~28–30% em 2 min no máximo).
+
+### Geração v2 (M2): costas recortadas e mares internos
+Decisão do usuário: aceitar que a mesma semente gere um mundo inicial diferente do da v1.x.
+- Ruído fino só numa faixa em volta da costa (detalhe de ~2 a ~16 células): baías, penínsulas e
+  ilhotas, mantendo a fração de terra exata.
+- 2 a 4 bacias internas por mundo: depressões suaves que viram mares internos e golfos.
+- Os sorteios novos vêm depois dos antigos: o formato geral da Pangeia de cada semente continua
+  parecido com o da v1.x; o contorno e o interior mudam.
+
+### Critério de "bonito" (usuário, 2026-10-15)
+Depois de a Pangeia se partir: 4 a 7 continentes de tamanhos variados, com penínsulas, golfos e
+mares internos, fronteiras de placa irregulares, nenhum continente com mais de ~40% da terra.
+Conferido em 5 sementes fixas (`docs/img/m2-formas-antes.png` e `-depois.png`) e testado no CI
+(`tests/world/shapes.test.ts`, N = 128).
 
 ## Desastres (Marco 2)
 | Desastre   | Onde surge                         | Gatilho                     |

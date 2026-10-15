@@ -152,7 +152,8 @@ describe('placas no worker', () => {
     const w = core.world!;
     const max0 = Math.max(...w.elevation);
     core.tectonics!.recompose();
-    expect(Math.max(...w.elevation)).toBe(max0);
+    // A montanha continua lá (a erosão leve do relevo pode baixar um pouco o pico).
+    expect(Math.max(...w.elevation)).toBeGreaterThan(max0 * 0.85);
   });
 
   it('a tectônica só é montada no primeiro passo, e não com o controle em 0', () => {

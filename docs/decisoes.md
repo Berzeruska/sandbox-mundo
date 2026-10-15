@@ -255,3 +255,21 @@ Formato: data — decisão — motivo — alternativa descartada.
 
 - **2026-10-15 — Resolução continua N = 256 até o Marco 3** (decisão do usuário). A escala do
   planeta versus humanos é questão aberta da especificação do M3.
+
+- **2026-10-15 — Formas dos continentes (critério de "bonito" do usuário) e T5 (relevo).**
+  Antes (T4, 5 sementes, 2 min a 20× no máximo): 1–4 continentes, o maior com 46–100% da terra,
+  riftes como canais estreitos. Causas: poucas placas na Pangeia (3–5), direções parecidas entre
+  vizinhas, fronteiras em arcos lisos, contorno de bolota. Depois: 5–7 continentes, o maior com
+  23–37%. Mudanças: placas por crescimento de regiões com custo por ruído; 5–8 sementes na terra e
+  teto de 35% da terra por placa; expansão radial da Pangeia (todo par de vizinhas se afasta);
+  deriva ~2,3× mais rápida com recomposição a cada 2 células; cicatrização só de buracos isolados;
+  geração v2 (ruído costeiro + bacias internas); relevo da T5. Tentativa descartada: repulsão entre
+  placas continentais (pedaços se reencontravam depois de 2 min).
+  Imagens: `docs/img/m2-formas-antes.png`, `docs/img/m2-formas-depois.png`.
+
+- **2026-10-15 — Relógio do desenho próprio e raio de busca da composição anterior.**
+  Com o relevo, cada recomposição ocupa o worker por mais tempo e o relógio parava de chegar; o
+  desenho passou a ter um relógio próprio que segue o ritmo nominal e corrige aos poucos, sem voltar
+  nem saltar (`advanceDisplayTick`). Na transição, a composição anterior usa o próprio raio de busca
+  (antes usava o da nova, ~5× menor, e errava as bordas no primeiro quadro). Medido de novo: zero
+  quadros com salto (máximo 0,47% dos pixels por quadro) com placas em 100% e tempo 20×.

@@ -1,5 +1,7 @@
 import type { Vec3 } from './cubesphere';
-import { CONTINENTAL_DEPTH, Crust, updateBoundaries } from './plates';
+import { createRng } from '../core/rng';
+import { Noise3D } from './noise';
+import { Boundary, CONTINENTAL_DEPTH, Crust, updateBoundaries } from './plates';
 import type { WorldState } from './state';
 
 /**
@@ -13,22 +15,60 @@ import type { WorldState } from './state';
  *
  * - Buraco entre placas que se afastam → crosta oceânica nova (dorsal).
  * - Duas placas no mesmo lugar, se aproximando → a continental vence; a oceânica é consumida.
- * - Buracos e sobreposições de 1 célula só por arredondamento (sem movimento relativo real) são
- *   "cicatrizados" copiando a vizinha, sem criar oceano nem destruir crosta.
+ * - Buracos isolados de 1 célula só por arredondamento (sem afastamento real, cercados de crosta)
+ *   são "cicatrizados" copiando a vizinha; qualquer outra fenda vira fundo oceânico novo.
+ *   Sobreposição sem aproximação real não destrói crosta.
  * - A recomposição é disparada por ângulo percorrido (contado em passos), nunca por tempo real:
  *   mesma semente + mesmos comandos = mesmo resultado.
  */
 
 /** Ângulo (rad) por passo, com o controle "Placas" em 100% e velocidade relativa 1 da placa. */
-export const MAX_PLATE_RATE = 6e-6;
+export const MAX_PLATE_RATE = 1.4e-5;
 /** Valor inicial do controle "Placas" (0 a 1): deriva lenta, que o jogador acelera ou congela. */
 export const DEFAULT_PLATE_RATE = 0.25;
 /** Recompor quando alguma placa andou esta fração do tamanho de uma célula. */
-export const RECOMPOSE_CELLS = 1;
+export const RECOMPOSE_CELLS = 2;
 /** Profundidade da crosta oceânica recém-nascida na dorsal (m, relativa ao nível do mar). */
 export const RIDGE_DEPTH = -2500;
 /** Nascimento atribuído à crosta inicial (bem antiga). */
 const ANCIENT = -1_000_000;
+
+// --- Relevo nas fronteiras (T5). Valores por recomposição (cada uma = RECOMPOSE_CELLS de deriva). ---
+/** Idade (passos) em que o fundo oceânico chega à planície abissal. */
+export const AGE_FULL_TICKS = 40_000;
+/** Profundidade extra da planície abissal em relação à dorsal (m). */
+export const ABYSSAL_EXTRA = 2500;
+/** Fossa de subducção: profundidade alvo e quanto afunda por recomposição (m). */
+export const TRENCH_DEPTH = -6500;
+const TRENCH_RATE = 900;
+/** Quantas células de oceano antes da fossa já vão afundando (a crosta é consumida na fronteira). */
+const TRENCH_REACH = 3;
+/** Colisão continental: elevação perto da fronteira por recomposição (m) e teto. */
+const COLLISION_UPLIFT = 480;
+const COLLISION_MAX = 7000;
+/** Cordilheira vulcânica (oceano sob continente) e arco de ilhas (oceano sob oceano). */
+const ARC_UPLIFT = 300;
+const ARC_MAX = 4800;
+const ISLAND_ARC_UPLIFT = 550;
+const ISLAND_ARC_MAX = 900;
+/** Alcance (células) das montanhas para dentro da placa que fica por cima. */
+const OROGEN_REACH = 8;
+/** Margem passiva: a borda do continente que se rasga afunda até virar plataforma (m). */
+const MARGIN_RATE = 260;
+const MARGIN_REACH = 3;
+/** Enquanto o oceano novo encostado tem menos que esta idade (passos), a margem segue afundando. */
+const MARGIN_AGE = 30_000;
+/** Erosão: acima desta altura (m) o relevo cede um pouco a cada recomposição. */
+const EROSION_START = 2500;
+const EROSION_RATE = 0.035;
+/** Acima desta altura (m) o relevo suaviza com as vizinhas (cordilheiras viram faixas, não riscos). */
+const SMOOTH_START = 1200;
+const SMOOTH_RATE = 0.25;
+
+/** Profundidade do fundo oceânico pela idade: dorsal rasa, afunda com a raiz da idade. */
+export function oceanDepthAt(age: number): number {
+  return RIDGE_DEPTH - ABYSSAL_EXTRA * Math.sqrt(Math.min(1, Math.max(0, age) / AGE_FULL_TICKS));
+}
 
 export class Tectonics {
   readonly world: WorldState;
@@ -40,6 +80,10 @@ export class Tectonics {
   private center0: Float64Array;
   /** Passo atual (para a idade da crosta). */
   tick = 0;
+  /** Passo da última recomposição (subsidência do fundo oceânico é incremental). */
+  private lastReliefTick = 0;
+  /** Ruído fixo no referencial das placas (recorte das margens passivas). */
+  private marginNoise: Noise3D;
   /** Quantas recomposições já houve (para medir e testar). */
   recompositions = 0;
 
@@ -63,8 +107,12 @@ export class Tectonics {
   /** Amostra que compôs cada célula do mundo na última recomposição (ou -1). */
   readonly cellSample: Int32Array;
 
-  constructor(world: WorldState) {
+  /** Relevo nas fronteiras (T5). Os testes de movimento puro desligam para comparar alturas exatas. */
+  readonly reliefEnabled: boolean;
+
+  constructor(world: WorldState, options: { relief?: boolean } = {}) {
     this.world = world;
+    this.reliefEnabled = options.relief ?? true;
     const n = world.cellCount;
     const plates = world.plates.length;
     this.angle = new Float64Array(plates);
@@ -90,6 +138,7 @@ export class Tectonics {
     this.sBirth = new Int32Array(cap);
     this.sAlive = new Uint8Array(cap);
     this.initialPlate = Uint8Array.from(world.plate);
+    this.marginNoise = new Noise3D(createRng((world.params.seed ^ 0x2545f491) >>> 0));
     this.cellSample = new Int32Array(n);
     // No início, o referencial de cada placa coincide com o mundo.
     for (let c = 0; c < n; c++) {
@@ -366,10 +415,12 @@ export class Tectonics {
       for (const c of pending) {
         let fromSample = -1;
         let ownerVotes: number[] | null = null;
+        let covered = 0;
         for (let d = 0; d < 4; d++) {
           const nb = neighbors[c * 4 + d] as number;
           const s = newSample[nb] as number;
           if (s < 0) continue;
+          covered++;
           ownerVotes ??= new Array<number>(plates).fill(0);
           ownerVotes[this.sPlate[s] as number] = (ownerVotes[this.sPlate[s] as number] as number) + 1;
           if (this.sPlate[s] === prevPlate[c] || fromSample < 0) fromSample = s;
@@ -392,13 +443,17 @@ export class Tectonics {
         const y = positions[c * 3 + 1] as number;
         const z = positions[c * 3 + 2] as number;
         const opening = other >= 0 && this.closing(owner, other, x, y, z) < 0;
+        // Cicatriza (copia a vizinha) só buraco isolado de arredondamento, cercado de crosta.
+        // Fenda de verdade vira fundo oceânico novo, mesmo sem afastamento claro: copiar
+        // continente ali arrastava tiras de terra atrás das placas que deslizam de lado.
+        const isolatedHole = covered >= 3;
         const ref = refOf(owner, c);
         const existing = this.find(owner, ref);
         if (existing >= 0) {
           newSample[c] = existing;
           continue;
         }
-        const i = opening
+        const i = opening || !isolatedHole
           ? this.addSample(owner, ref, RIDGE_DEPTH, Crust.Oceanic, this.tick)
           : this.addSample(owner, ref, this.sElev[fromSample] as number, this.sCrust[fromSample] as number, this.sBirth[fromSample] as number);
         newSample[c] = i;
@@ -422,8 +477,205 @@ export class Tectonics {
       if (plate) this.centerNow(p, plate.center as Vec3);
     }
     updateBoundaries(world);
+    if (this.reliefEnabled) this.relief();
     this.recompositions++;
     this.compact();
+  }
+
+  /**
+   * Relevo nas fronteiras (T5), aplicado nas amostras (anda com as placas):
+   * - fundo oceânico jovem afunda com a idade (dorsais rasas, planícies abissais);
+   * - convergência: a crosta oceânica (a mais velha, entre duas oceânicas) afunda numa fossa; a placa
+   *   que fica por cima ergue cordilheira (colisão continental), cordilheira vulcânica (oceano sob
+   *   continente) ou arco de ilhas (oceano sob oceano);
+   * - divergência que rasga continente: a borda afunda até virar plataforma, com intensidade que
+   *   varia ao longo da costa (baías e penínsulas em vez de corte reto);
+   * - erosão leve dos picos.
+   */
+  private relief(): void {
+    const world = this.world;
+    const { neighbors, positions } = world.grid;
+    const n = world.cellCount;
+    const elev = world.elevation;
+
+    // 1) Fundo oceânico jovem afunda (incremental desde a última recomposição).
+    for (let c = 0; c < n; c++) {
+      const i = this.cellSample[c] as number;
+      if (i < 0 || this.sCrust[i] !== Crust.Oceanic || (this.sBirth[i] as number) <= ANCIENT) continue;
+      const birth = this.sBirth[i] as number;
+      elev[c] = (elev[c] as number) + oceanDepthAt(this.tick - birth) - oceanDepthAt(this.lastReliefTick - birth);
+    }
+    this.lastReliefTick = this.tick;
+
+    // 2) Papéis nas fronteiras.
+    const KIND_COLLISION = 1;
+    const KIND_ARC = 2;
+    const KIND_ISLAND_ARC = 3;
+    const orogenKind = new Uint8Array(n);
+    const orogenDist = new Uint8Array(n).fill(255);
+    const marginDist = new Uint8Array(n).fill(255);
+    const trenchDist = new Uint8Array(n).fill(255);
+    let orogenFrontier: number[] = [];
+    let marginFrontier: number[] = [];
+    let trenchFrontier: number[] = [];
+    // Margem passiva: continente encostado em fundo oceânico jovem (aberto por um rifte). A fenda
+    // nova fica com crosta da própria placa, então essa costa nem é fronteira de placa.
+    for (let c = 0; c < n; c++) {
+      if (world.crust[c] !== Crust.Continental) continue;
+      for (let d = 0; d < 4; d++) {
+        const k = neighbors[c * 4 + d] as number;
+        const s = this.cellSample[k] as number;
+        if (s < 0 || this.sCrust[s] !== Crust.Oceanic) continue;
+        const birth = this.sBirth[s] as number;
+        if (birth > ANCIENT && this.tick - birth < MARGIN_AGE) {
+          marginDist[c] = 0;
+          marginFrontier.push(c);
+          break;
+        }
+      }
+    }
+    for (let c = 0; c < n; c++) {
+      const kind = world.boundary[c];
+      if (kind !== Boundary.Convergent && kind !== Boundary.Divergent) continue;
+      let nb = -1;
+      for (let d = 0; d < 4 && nb < 0; d++) {
+        const k = neighbors[c * 4 + d] as number;
+        if (world.plate[k] !== world.plate[c]) nb = k;
+      }
+      if (nb < 0) continue;
+      const cOcean = world.crust[c] === Crust.Oceanic;
+      const nOcean = world.crust[nb] === Crust.Oceanic;
+      if (kind === Boundary.Convergent) {
+        const ci = this.cellSample[c] as number;
+        const ni = this.cellSample[nb] as number;
+        // Mesmo desempate da sobreposição: a mais velha afunda; mesma idade, a mais funda.
+        let older = false;
+        if (ci >= 0 && ni >= 0) {
+          const bc = this.sBirth[ci] as number;
+          const bn = this.sBirth[ni] as number;
+          older = bc !== bn ? bc < bn : (this.sElev[ci] as number) < (this.sElev[ni] as number);
+        }
+        const subducts = cOcean && (!nOcean || older);
+        if (subducts) {
+          trenchDist[c] = 0;
+          trenchFrontier.push(c);
+        } else {
+          orogenKind[c] = !cOcean && !nOcean ? KIND_COLLISION : !cOcean ? KIND_ARC : KIND_ISLAND_ARC;
+          orogenDist[c] = 0;
+          orogenFrontier.push(c);
+        }
+      }
+    }
+    // Fossa: o oceano que vem chegando já afunda antes de ser consumido.
+    for (let step = 1; step <= TRENCH_REACH && trenchFrontier.length; step++) {
+      const next: number[] = [];
+      for (const c of trenchFrontier) {
+        for (let d = 0; d < 4; d++) {
+          const k = neighbors[c * 4 + d] as number;
+          if (world.plate[k] !== world.plate[c] || world.crust[k] !== Crust.Oceanic || (trenchDist[k] as number) <= step) continue;
+          trenchDist[k] = step;
+          next.push(k);
+        }
+      }
+      trenchFrontier = next;
+    }
+    // Espalha para dentro da mesma placa.
+    for (let step = 1; step <= OROGEN_REACH && orogenFrontier.length; step++) {
+      const next: number[] = [];
+      for (const c of orogenFrontier) {
+        for (let d = 0; d < 4; d++) {
+          const k = neighbors[c * 4 + d] as number;
+          if (world.plate[k] !== world.plate[c] || (orogenDist[k] as number) <= step) continue;
+          orogenDist[k] = step;
+          orogenKind[k] = orogenKind[c] as number;
+          next.push(k);
+        }
+      }
+      orogenFrontier = next;
+    }
+    for (let step = 1; step <= MARGIN_REACH && marginFrontier.length; step++) {
+      const next: number[] = [];
+      for (const c of marginFrontier) {
+        for (let d = 0; d < 4; d++) {
+          const k = neighbors[c * 4 + d] as number;
+          if (world.plate[k] !== world.plate[c] || world.crust[k] === Crust.Oceanic || (marginDist[k] as number) <= step) continue;
+          marginDist[k] = step;
+          next.push(k);
+        }
+      }
+      marginFrontier = next;
+    }
+
+    // 3) Aplica fossas, montanhas, arcos e margens.
+    for (let c = 0; c < n; c++) {
+      const td = trenchDist[c] as number;
+      if (td !== 255) {
+        const target = TRENCH_DEPTH + td * 700;
+        const e = elev[c] as number;
+        if (e > target) elev[c] = Math.max(target, e - TRENCH_RATE);
+      }
+      const od = orogenDist[c] as number;
+      if (od !== 255) {
+        const kind = orogenKind[c];
+        const e = elev[c] as number;
+        if (kind === KIND_COLLISION) {
+          // Faixa larga em sino a partir da frente de colisão.
+          const f = Math.exp(-((od / 4) ** 2));
+          elev[c] = Math.min(COLLISION_MAX, e + COLLISION_UPLIFT * f);
+        } else if (kind === KIND_ARC) {
+          // Cordilheira vulcânica com o pico a 3–4 células da costa (como os Andes).
+          const f = Math.exp(-(((od - 3.5) / 2.2) ** 2));
+          if (e < ARC_MAX) elev[c] = Math.min(ARC_MAX, e + ARC_UPLIFT * f);
+        } else if (od >= 2 && od <= 3 && e < ISLAND_ARC_MAX) {
+          // Arco de ilhas: só trechos do arco emergem (ruído fixo na placa): ilhas soltas, não um risco.
+          const i = this.cellSample[c] as number;
+          const ref = i >= 0 ? (this.sRef[i] as number) : c;
+          const v = 0.5 + 0.5 * this.marginNoise.sample(
+            (positions[ref * 3] as number) * 9 + 31,
+            (positions[ref * 3 + 1] as number) * 9,
+            (positions[ref * 3 + 2] as number) * 9,
+          );
+          const f = Math.min(1, Math.max(0, (v - 0.55) / 0.2));
+          if (f > 0) elev[c] = Math.min(ISLAND_ARC_MAX, e + ISLAND_ARC_UPLIFT * f);
+        }
+      }
+      const md = marginDist[c] as number;
+      if (md !== 255) {
+        // Ruído fixo no referencial da placa: a borda afunda mais em uns trechos que em outros.
+        const i = this.cellSample[c] as number;
+        const ref = i >= 0 ? (this.sRef[i] as number) : c;
+        const x = positions[ref * 3] as number;
+        const y = positions[ref * 3 + 1] as number;
+        const z = positions[ref * 3 + 2] as number;
+        const v = 0.5 + 0.5 * this.marginNoise.sample(x * 14, y * 14, z * 14);
+        const target = md === 0 ? -160 : md === 1 ? -60 : 40;
+        const e = elev[c] as number;
+        if (e > target) elev[c] = Math.max(target, e - MARGIN_RATE * (0.2 + 1.6 * v * v) * (1 - md / (MARGIN_REACH + 1)));
+      }
+    }
+
+    // 4) Erosão leve: picos cedem e o relevo alto suaviza com as vizinhas.
+    for (let c = 0; c < n; c++) {
+      const e = elev[c] as number;
+      if (e <= SMOOTH_START) continue;
+      let mean = 0;
+      for (let d = 0; d < 4; d++) mean += elev[neighbors[c * 4 + d] as number] as number;
+      mean /= 4;
+      const eroded = e > EROSION_START ? e - EROSION_RATE * (e - EROSION_START) : e;
+      // Só puxa para a média quando a vizinhança também é terra alta (não "derrete" a costa).
+      elev[c] = mean > 0 ? eroded + SMOOTH_RATE * (mean - eroded) : eroded;
+    }
+
+    // 5) Grava nas amostras (anda com a placa); a crosta segue a altura.
+    for (let c = 0; c < n; c++) {
+      const i = this.cellSample[c] as number;
+      if (i < 0) continue;
+      this.sElev[i] = elev[c] as number;
+      const crust = world.heightAboveSea(c) > CONTINENTAL_DEPTH ? Crust.Continental : Crust.Oceanic;
+      // Crosta continental não vira oceânica só por afundar na margem; arco que emerge vira continental.
+      if (crust === Crust.Continental) this.sCrust[i] = crust;
+      world.crust[c] = this.sCrust[i] as number;
+    }
   }
 
   /** Regra de quem fica por cima numa sobreposição: continental > oceânica > mais jovem. */
@@ -435,6 +687,9 @@ export class Tectonics {
       const ba = this.sBirth[a] as number;
       const bb = this.sBirth[b] as number;
       if (ba !== bb) return ba > bb; // a oceânica mais velha afunda
+      const ea = this.sElev[a] as number;
+      const eb = this.sElev[b] as number;
+      if (ea !== eb) return ea > eb; // mesma idade: a mais funda afunda
     }
     return (this.sPlate[a] as number) === prevOwner && (this.sPlate[b] as number) !== prevOwner;
   }
