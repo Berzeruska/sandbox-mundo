@@ -26,7 +26,7 @@ tempo. Fluido no celular.
   Ruído 3D na esfera + máscara de supercontinente. Parâmetros: semente, nível do mar, fração de terra.
   Testes: determinismo; fração de terra dentro de ±5% do alvo; um continente principal dominante.
 
-- [ ] **T5 — Clima e biomas** (`src/world/climate.ts`, `src/world/biomes.ts`)
+- [x] **T5 — Clima e biomas** (`src/world/climate.ts`, `src/world/biomes.ts`)
   Temperatura (latitude + altitude), precipitação (faixas + oceano + sombra de chuva), classificação
   nos biomas de `docs/03-mundo-geologia.md`, calotas nos polos.
   Testes: polo mais frio que equador; montanha alta mais fria que a base; todos os biomas

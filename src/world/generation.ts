@@ -50,6 +50,8 @@ export function generateTerrain(world: WorldState): void {
   const warpNoise = createNoise3D(rng);
   const ridgeNoise = createNoise3D(rng);
   const ridgeMask = createNoise3D(rng);
+  const tempNoise = createNoise3D(rng);
+  const rainNoise = createNoise3D(rng);
 
   // Supercontinente = união de alguns "lobos" (calotas) em volta de um centro, com a borda
   // deformada por ruído. Isso dá um formato irregular, com baías e penínsulas, e não um círculo.
@@ -85,6 +87,9 @@ export function generateTerrain(world: WorldState): void {
       if (m > mask) mask = m;
     }
     continent[i] = mask;
+    // Variação regional do clima (usada em climate.ts) para os biomas não virarem listras retas.
+    world.tempNoise[i] = fbm(tempNoise, x * 2.5, y * 2.5, z * 2.5, 3) * 1.6;
+    world.rainNoise[i] = fbm(rainNoise, x * 3, y * 3, z * 3, 4) * 1.6;
     // Ganho 0.6: as oitavas médias pesam mais, e a costa ganha baías e penínsulas.
     // Longe do continente o detalhe pesa menos, para o oceano não virar um arquipélago.
     const detail = fbm(baseNoise, x * 3.5, y * 3.5, z * 3.5, 6, 0.6);

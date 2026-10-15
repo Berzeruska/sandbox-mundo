@@ -13,6 +13,18 @@
   mais umidade perto do oceano e sombra de chuva atrás de montanhas.
 - Valores guardados por célula; recalculados quando o terreno muda.
 
+### Como está implementado (M1)
+- Temperatura ao nível do mar: ~28 °C no equador, ~-24 °C nos polos; cai 6,5 °C por km de altitude.
+- Chuva base por latitude: ~2.300 mm no equador, ~250 mm perto de 27°, ~1.400 mm perto de 50°.
+- Umidade cai com a distância até a água (alcance ~1.500 km). Perto do equador o interior seca
+  menos (chuva de convecção, como na Amazônia e no Congo).
+- Sombra de chuva: olha ~640 km contra o vento predominante da faixa (alísios de leste até 30°,
+  ventos de oeste de 30° a 60°, ventos polares de leste acima de 60°).
+- Variação regional (ruído da semente): ±3 °C e chuva ×0,5–×2, para os biomas não virarem listras.
+- Gelo natural: terra abaixo de -12 °C, mar abaixo de -10 °C.
+- Pântano/mangue: baixada (até 60 m) quente (≥ 12 °C) e úmida (≥ 1.600 mm), ou chuva extrema.
+- Valores exatos e limiares ficam em `src/world/climate.ts` e `src/world/biomes.ts`.
+
 ## Biomas (classificação por temperatura × precipitação)
 Oceano profundo, oceano raso, praia, gelo/calota polar, tundra, taiga (floresta boreal),
 floresta temperada, campo/pradaria, estepe, deserto quente, deserto frio, savana,

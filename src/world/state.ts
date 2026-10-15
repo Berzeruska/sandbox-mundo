@@ -40,6 +40,9 @@ export class WorldState {
   readonly ice: Uint8Array;
   /** `IceMode` de cada célula. */
   readonly iceMode: Uint8Array;
+  /** Variação regional do clima gerada pela semente, em [-1, 1]: temperatura e chuva. */
+  readonly tempNoise: Float32Array;
+  readonly rainNoise: Float32Array;
   /** Distância (em células) até a água mais próxima; 0 na água. Usada pela umidade. */
   readonly waterDistance: Uint16Array;
   seaLevel: number;
@@ -56,6 +59,8 @@ export class WorldState {
     this.biome = new Uint8Array(this.cellCount);
     this.ice = new Uint8Array(this.cellCount);
     this.iceMode = new Uint8Array(this.cellCount);
+    this.tempNoise = new Float32Array(this.cellCount);
+    this.rainNoise = new Float32Array(this.cellCount);
     this.waterDistance = new Uint16Array(this.cellCount);
   }
 
