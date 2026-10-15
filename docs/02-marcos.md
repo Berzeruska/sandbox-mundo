@@ -27,6 +27,16 @@ terreno e gelo, controle de tempo, painel de depuração.
 gelo, tudo fluido no celular do usuário.
 **Concluído em 2026-10-15** — todas as tarefas T1–T12 marcadas na especificação; celular a 68–91 fps.
 
+## Marco 1.1 — Ajustes visuais da v1.0 (branch `marco-1.1`)
+Pedidos do usuário após testar a v1.0 no celular.
+- [x] **T12.1 — Projeção:** verificar cubo→esfera e medir distorção (já era equiangular; ver decisões)
+- [ ] **T13 — Detalhe visual no shader:** bordas orgânicas entre biomas e textura sutil por bioma,
+  escondendo a grade, sem mudar a simulação; fps antes/depois
+- [ ] **T14 — Pincéis com queda suave:** Elevar/Rebaixar fortes no centro e zero na borda, sem platô
+
+**Aceite:** sem visual de "prisma" perto dos cantos do cubo; morro pintado tem forma de morro.
+Fecha com PR para `main` e tag `v1.1`.
+
 ## Marco 2 — Geologia viva
 Placas tectônicas, deriva continental com velocidade controlada pelo jogador (inclusive zero),
 montanhas nas colisões, terremotos, vulcões, tsunamis, desastres climáticos (seca, enchente,

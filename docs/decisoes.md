@@ -79,3 +79,14 @@ Formato: data — decisão — motivo — alternativa descartada.
   Medido pelo usuário com o "girar sem parar" do painel de depuração (acima de 60 porque a tela do
   aparelho tem taxa de atualização alta). Meta de ≥ 30 fps atendida com folga: **N = 256 mantido**,
   nenhuma redução de resolução necessária.
+
+- **2026-10-15 — Projeção cubo→esfera verificada: já é a equiangular (desde a T2), mantida.**
+  Medição em N = 256 (`cellShape` em `src/world/cubesphere.ts`, teste em `tests/world/cubesphere.test.ts`):
+  | Projeção            | Área maior/menor | Pior desvio de ângulo |
+  |---------------------|------------------|------------------------|
+  | gnomônica simples   | 5,155            | 30,0° (células do canto do cubo) |
+  | equiangular (atual) | 1,410            | 30,0° (células do canto do cubo) |
+  O "losango" perto dos cantos do cubo não depende da projeção: num canto se encontram 3 faces, então
+  3 células dividem um vértice e precisam ter ângulos de ~120° (nenhuma projeção de cubo evita).
+  Os polos ficam no centro das faces ±Y, com desvio 0°. Solução visual: esconder a grade no shader
+  (T13). Nenhuma mudança na geração: **a mesma semente continua gerando o mesmo mundo.**
