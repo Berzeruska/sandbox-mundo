@@ -3,6 +3,13 @@ import type { WorldState } from './state';
 import { createNoise3D, fbm, ridged } from './noise';
 import { latLonToPoint, type Vec3 } from './cubesphere';
 
+/** Bacias internas por mundo (mares internos e golfos), geração v2. */
+const BASINS_MIN = 2;
+const BASINS_MAX = 4;
+/** Ruído costeiro (geração v2): largura da faixa em torno da costa e amplitude, no relevo bruto. */
+const COAST_BAND = 0.12;
+const COAST_AMPLITUDE = 0.24;
+
 /** A cada quantas células (potência de 2, menos 1) o progresso é avisado. */
 const PROGRESS_MASK = 16383;
 
@@ -98,6 +105,43 @@ export function generateTerrain(world: WorldState, onProgress?: (fraction: numbe
     // Longe do continente o detalhe pesa menos, para o oceano não virar um arquipélago.
     const detail = fbm(baseNoise, x * 3.5, y * 3.5, z * 3.5, 6, 0.6);
     raw[i] = (mask * 2 - 1) * 0.5 + detail * (0.3 + 0.3 * mask);
+  }
+
+  // --- Geração v2 (M2): costas recortadas e mares internos. Sorteios novos vêm depois dos antigos,
+  // então o formato geral da Pangeia de cada semente continua parecido; só o contorno muda.
+  // Bacias internas: depressões suaves dentro do continente que viram mares internos e golfos.
+  const basins: { p: Vec3; cos: number; r: number; depth: number }[] = [];
+  const basinCount = rng.int(BASINS_MIN, BASINS_MAX);
+  for (let k = 0; k < basinCount; k++) {
+    const r = rng.range(0.07, 0.15);
+    basins.push({
+      p: moveAlong(center, rng.range(0, Math.PI * 2), radius * rng.range(0.15, 0.75)),
+      cos: Math.cos(r),
+      r,
+      depth: rng.range(0.3, 0.55),
+    });
+  }
+  const coastNoise = createNoise3D(rng);
+  for (let i = 0; i < n; i++) {
+    const x = positions[i * 3] as number;
+    const y = positions[i * 3 + 1] as number;
+    const z = positions[i * 3 + 2] as number;
+    for (const b of basins) {
+      const dot = x * b.p[0] + y * b.p[1] + z * b.p[2];
+      if (dot <= b.cos) continue;
+      raw[i] = (raw[i] as number) - b.depth * smoothstep(b.r, 0, Math.acos(Math.min(1, dot))) * (continent[i] as number);
+    }
+  }
+  // Ruído fino só perto da costa (baías, penínsulas e ilhotas de 1 a ~15 células); longe dela não
+  // muda nada e nem é calculado.
+  const t0 = thresholdForFraction(raw, landFraction);
+  for (let i = 0; i < n; i++) {
+    const off = ((raw[i] as number) - t0) / COAST_BAND;
+    if (off * off > 6) continue;
+    const x = positions[i * 3] as number;
+    const y = positions[i * 3 + 1] as number;
+    const z = positions[i * 3 + 2] as number;
+    raw[i] = (raw[i] as number) + COAST_AMPLITUDE * Math.exp(-off * off) * fbm(coastNoise, x * 8, y * 8, z * 8, 4, 0.6);
   }
 
   const t = thresholdForFraction(raw, landFraction);

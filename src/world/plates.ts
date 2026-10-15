@@ -1,6 +1,6 @@
 import { createRng, type Rng } from '../core/rng';
 import type { Vec3 } from './cubesphere';
-import { Noise3D } from './noise';
+import { fbm, Noise3D } from './noise';
 import type { WorldState } from './state';
 
 /**
@@ -14,6 +14,13 @@ export const MAX_PLATES = 14;
 export const CONTINENTAL_DEPTH = -500;
 /** Fração mínima de crosta continental para a placa ser tratada como continental. */
 export const CONTINENTAL_PLATE_FRACTION = 0.3;
+/** Quantas sementes caem na terra (repartem a Pangeia). */
+export const LAND_SEEDS_MIN = 5;
+export const LAND_SEEDS_MAX = 8;
+/** Placa com pelo menos esta fração da terra do mundo entra na expansão da Pangeia. */
+export const PANGEA_PLATE_SHARE = 0.03;
+/** Nenhuma placa com mais que esta fração da terra (senão ela ganha mais uma semente). */
+export const MAX_LAND_SHARE = 0.35;
 
 export const Crust = { Oceanic: 0, Continental: 1 } as const;
 export type Crust = (typeof Crust)[keyof typeof Crust];
@@ -120,60 +127,67 @@ export function generatePlates(world: WorldState): void {
   const rng = plateRng(world.params.seed);
   const { positions } = world.grid;
   const n = world.cellCount;
-  const count = rng.int(MIN_PLATES, MAX_PLATES);
 
   // Crosta: continental onde é terra ou plataforma rasa.
   for (let i = 0; i < n; i++) {
     world.crust[i] = world.heightAboveSea(i) > CONTINENTAL_DEPTH ? Crust.Continental : Crust.Oceanic;
   }
 
-  // Sementes: algumas na terra (repartem a Pangeia), o resto em qualquer lugar.
+  // Sementes: várias na terra (a Pangeia fica repartida em pedaços de tamanhos variados), o resto
+  // em qualquer lugar. Pesos diferentes deixam umas placas grandes e outras pequenas.
   const landCells: number[] = [];
   for (let i = 0; i < n; i++) if (!world.isWater(i)) landCells.push(i);
   const cellPoint = (c: number): Vec3 => [positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number];
-  const onLand = Math.min(count - 2, rng.int(3, 5));
+  const count = rng.int(MIN_PLATES, MAX_PLATES);
+  const onLand = Math.min(count - 3, rng.int(LAND_SEEDS_MIN, LAND_SEEDS_MAX));
   const landSeeds = landCells.length
-    ? pickSeeds(onLand, () => cellPoint(landCells[rng.int(0, landCells.length - 1)] as number), [], 0.45)
+    ? pickSeeds(onLand, () => cellPoint(landCells[rng.int(0, landCells.length - 1)] as number), [], 0.3)
     : [];
   const seeds = [...landSeeds, ...pickSeeds(count - landSeeds.length, () => randomUnit(rng), landSeeds, 0.5)];
-  const weights = seeds.map(() => rng.range(0.7, 1.35));
+  const weights = seeds.map(() => rng.range(0.6, 1.6));
 
-  // Deformação do domínio (fronteiras curvas).
-  const wx = new Noise3D(rng);
-  const wy = new Noise3D(rng);
-  const wz = new Noise3D(rng);
-  // Uma oitava basta para fronteiras curvas e custa metade de duas (é a parte cara das placas).
-  const WARP = 0.22;
-  const F = 2.1;
+  // Custo de atravessar cada célula (ruído): as placas crescem mais devagar onde ele é alto, então
+  // as fronteiras ficam recortadas em vez de arcos lisos.
+  const costNoise = new Noise3D(rng);
+  const cost = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const x = positions[i * 3] as number;
     const y = positions[i * 3 + 1] as number;
     const z = positions[i * 3 + 2] as number;
-    const px = x + WARP * wx.sample(x * F, y * F, z * F);
-    const py = y + WARP * wy.sample(x * F, y * F, z * F);
-    const pz = z + WARP * wz.sample(x * F, y * F, z * F);
-    const len = Math.hypot(px, py, pz);
-    let best = 0;
-    let bestD = Infinity;
-    for (let k = 0; k < seeds.length; k++) {
-      const s = seeds[k] as Vec3;
-      const w = weights[k] as number;
-      // Distância de corda ao quadrado, dividida pelo peso: barata (sem acos) e monotônica.
-      const d = (2 - (2 * (px * s[0] + py * s[1] + pz * s[2])) / len) / (w * w);
-      if (d < bestD) {
-        bestD = d;
-        best = k;
+    cost[i] = 1 + 0.85 * fbm(costNoise, x * 5, y * 5, z * 5, 5, 0.6);
+  }
+  growRegions(world, seeds, weights, cost);
+
+  // Nenhuma placa com mais que MAX_LAND_SHARE da terra: a que passar ganha mais uma semente na
+  // terra dela (longe da semente atual) e as regiões crescem de novo.
+  for (let round = 0; round < 4 && seeds.length < MAX_PLATES; round++) {
+    const share = new Float64Array(seeds.length);
+    for (const c of landCells) share[world.plate[c] as number] = (share[world.plate[c] as number] as number) + 1;
+    let worst = 0;
+    for (let p = 1; p < seeds.length; p++) if ((share[p] as number) > (share[worst] as number)) worst = p;
+    if ((share[worst] as number) <= MAX_LAND_SHARE * landCells.length) break;
+    const s0 = seeds[worst] as Vec3;
+    let far = -1;
+    let farDot = Infinity;
+    for (const c of landCells) {
+      if (world.plate[c] !== worst) continue;
+      const d = (positions[c * 3] as number) * s0[0] + (positions[c * 3 + 1] as number) * s0[1] + (positions[c * 3 + 2] as number) * s0[2];
+      if (d < farDot) {
+        farDot = d;
+        far = c;
       }
     }
-    world.plate[i] = best;
+    if (far < 0) break;
+    seeds.push(cellPoint(far));
+    weights.push(rng.range(0.8, 1.3));
+    growRegions(world, seeds, weights, cost);
   }
 
-  makeContiguous(world, count);
-
-  // Centros, fração continental e movimento.
-  const center = new Float64Array(count * 3);
-  const cells = new Uint32Array(count);
-  const continental = new Uint32Array(count);
+  // Centros e fração continental.
+  const plates = seeds.length;
+  const center = new Float64Array(plates * 3);
+  const cells = new Uint32Array(plates);
+  const continental = new Uint32Array(plates);
   for (let i = 0; i < n; i++) {
     const p = world.plate[i] as number;
     center[p * 3] = (center[p * 3] as number) + (positions[i * 3] as number);
@@ -182,32 +196,44 @@ export function generatePlates(world: WorldState): void {
     cells[p] = (cells[p] as number) + 1;
     if (world.crust[i] === Crust.Continental) continental[p] = (continental[p] as number) + 1;
   }
+
+  // Movimento: expansão a partir do centro do supercontinente. A velocidade cresce com a distância
+  // ao centro, então todo par de placas vizinhas da Pangeia se afasta (como um balão inflando) e ela
+  // se parte em vários continentes, não em dois. Entram na expansão as placas com pelo menos
+  // PANGEA_PLATE_SHARE da terra (mesmo que tenham mais oceano que terra); a placa bem no centro fica
+  // quase parada. Um desvio aleatório pequeno evita que pareça simétrico.
   const land = landCentroid(world);
+  const landShare = new Float64Array(plates);
+  for (const c of landCells) landShare[world.plate[c] as number] = (landShare[world.plate[c] as number] as number) + 1;
   world.plates = [];
-  for (let p = 0; p < count; p++) {
+  for (let p = 0; p < plates; p++) {
     const c = normalize([center[p * 3] as number, center[p * 3 + 1] as number, center[p * 3 + 2] as number]);
     const contFraction = (continental[p] as number) / Math.max(1, cells[p] as number);
+    const inPangea = (landShare[p] as number) >= PANGEA_PLATE_SHARE * Math.max(1, landCells.length);
     let omega: Vec3;
-    // Para fora do centro do supercontinente, no plano tangente da placa.
     const away: Vec3 = [c[0] - land[0], c[1] - land[1], c[2] - land[2]];
     const along = dot(away, c);
     const tangent: Vec3 = [away[0] - along * c[0], away[1] - along * c[1], away[2] - along * c[2]];
-    if (contFraction >= CONTINENTAL_PLATE_FRACTION && Math.hypot(...tangent) > 0.05) {
-      // Direção de afastamento com um desvio aleatório; eixo = c × direção (então ω × c aponta para ela).
+    const dist = Math.hypot(...tangent);
+    if (inPangea && dist > 0.02) {
       const d = normalize(tangent);
       const side = normalize(cross(c, d));
-      const a = rng.range(-0.5, 0.5);
+      const a = rng.range(-0.2, 0.2);
       const dir = normalize([
         d[0] * Math.cos(a) + side[0] * Math.sin(a),
         d[1] * Math.cos(a) + side[1] * Math.sin(a),
         d[2] * Math.cos(a) + side[2] * Math.sin(a),
       ]);
       const axis = normalize(cross(c, dir));
-      const speed = rng.range(0.5, 1);
+      const speed = Math.min(1, 0.25 + 1.2 * dist) * rng.range(0.9, 1.1);
       omega = [axis[0] * speed, axis[1] * speed, axis[2] * speed];
+    } else if (inPangea) {
+      // Bem no centro: quase parada (as vizinhas é que se afastam dela).
+      const axis = randomUnit(rng);
+      omega = [axis[0] * 0.1, axis[1] * 0.1, axis[2] * 0.1];
     } else {
       const axis = randomUnit(rng);
-      const speed = rng.range(0.3, 0.9);
+      const speed = rng.range(0.3, 0.8);
       omega = [axis[0] * speed, axis[1] * speed, axis[2] * speed];
     }
     world.plates.push({ id: p, seed: seeds[p] as Vec3, center: c, omega, continental: contFraction, color: plateColor(p) });
@@ -267,69 +293,93 @@ export function smoothBoundaries(world: WorldState): void {
 }
 
 /**
- * Cada placa fica com o seu maior pedaço contínuo; pedaços soltos passam para a placa vizinha
- * que mais os cerca. Repete até não sobrar pedaço solto.
+ * Crescimento de regiões (Dijkstra a partir das sementes): cada célula fica com a placa que chega
+ * nela pelo caminho de menor custo, dividido pelo peso da placa. As placas saem contíguas por
+ * construção e as fronteiras seguem os "vales" do ruído de custo.
  */
-function makeContiguous(world: WorldState, count: number): void {
+function growRegions(world: WorldState, seeds: readonly Vec3[], weights: readonly number[], cost: Float32Array): void {
   const { neighbors } = world.grid;
   const n = world.cellCount;
-  const comp = new Int32Array(n);
-  for (let round = 0; round < 10; round++) {
-    comp.fill(-1);
-    const compPlate: number[] = [];
-    const compSize: number[] = [];
-    const stack: number[] = [];
-    for (let s = 0; s < n; s++) {
-      if (comp[s] !== -1) continue;
-      const id = compPlate.length;
-      const plate = world.plate[s] as number;
-      compPlate.push(plate);
-      compSize.push(0);
-      comp[s] = id;
-      stack.push(s);
-      while (stack.length) {
-        const c = stack.pop() as number;
-        compSize[id] = (compSize[id] as number) + 1;
-        for (let d = 0; d < 4; d++) {
-          const nb = neighbors[c * 4 + d] as number;
-          if (comp[nb] === -1 && world.plate[nb] === plate) {
-            comp[nb] = id;
-            stack.push(nb);
-          }
-        }
+  const dist = new Float32Array(n).fill(Infinity);
+  const heap = new MinHeap(n * 2);
+  seeds.forEach((s, k) => {
+    const c = world.grid.pointToCell(s[0], s[1], s[2]);
+    dist[c] = 0;
+    world.plate[c] = k;
+    heap.push(0, c);
+  });
+  while (heap.size) {
+    const d = heap.topKey();
+    const c = heap.pop();
+    if (d > (dist[c] as number)) continue;
+    const label = world.plate[c] as number;
+    const w = weights[label] as number;
+    for (let k = 0; k < 4; k++) {
+      const nb = neighbors[c * 4 + k] as number;
+      const nd = d + ((cost[c] as number) + (cost[nb] as number)) / (2 * w);
+      if (nd < (dist[nb] as number)) {
+        dist[nb] = nd;
+        world.plate[nb] = label;
+        heap.push(nd, nb);
       }
     }
-    // Maior pedaço de cada placa.
-    const keep = new Array<number>(count).fill(-1);
-    for (let id = 0; id < compPlate.length; id++) {
-      const p = compPlate[id] as number;
-      const k = keep[p] as number;
-      if (k === -1 || (compSize[id] as number) > (compSize[k] as number)) keep[p] = id;
+  }
+}
+
+/** Fila de prioridade mínima (chaves float, valores inteiros), em arrays tipados que crescem. */
+class MinHeap {
+  private keys: Float32Array;
+  private values: Int32Array;
+  size = 0;
+
+  constructor(capacity: number) {
+    this.keys = new Float32Array(capacity);
+    this.values = new Int32Array(capacity);
+  }
+
+  push(key: number, value: number): void {
+    if (this.size === this.keys.length) {
+      const k = new Float32Array(this.keys.length * 2);
+      k.set(this.keys);
+      const v = new Int32Array(this.values.length * 2);
+      v.set(this.values);
+      this.keys = k;
+      this.values = v;
     }
-    let moved = false;
-    for (let id = 0; id < compPlate.length; id++) {
-      if (keep[compPlate[id] as number] === id) continue;
-      // Pedaço solto: vai para a placa vizinha mais frequente na borda dele.
-      const votes = new Map<number, number>();
-      for (let c = 0; c < n; c++) {
-        if (comp[c] !== id) continue;
-        for (let d = 0; d < 4; d++) {
-          const nb = neighbors[c * 4 + d] as number;
-          if (comp[nb] !== id) votes.set(world.plate[nb] as number, (votes.get(world.plate[nb] as number) ?? 0) + 1);
-        }
-      }
-      let target = compPlate[id] as number;
-      let bestVotes = -1;
-      for (const [p, v] of votes) {
-        if (v > bestVotes) {
-          bestVotes = v;
-          target = p;
-        }
-      }
-      for (let c = 0; c < n; c++) if (comp[c] === id) world.plate[c] = target;
-      moved = true;
+    let i = this.size++;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if ((this.keys[parent] as number) <= key) break;
+      this.keys[i] = this.keys[parent] as number;
+      this.values[i] = this.values[parent] as number;
+      i = parent;
     }
-    if (!moved) return;
+    this.keys[i] = key;
+    this.values[i] = value;
+  }
+
+  topKey(): number {
+    return this.keys[0] as number;
+  }
+
+  pop(): number {
+    const top = this.values[0] as number;
+    const lastKey = this.keys[--this.size] as number;
+    const lastValue = this.values[this.size] as number;
+    let i = 0;
+    for (;;) {
+      const l = i * 2 + 1;
+      if (l >= this.size) break;
+      const r = l + 1;
+      const child = r < this.size && (this.keys[r] as number) < (this.keys[l] as number) ? r : l;
+      if ((this.keys[child] as number) >= lastKey) break;
+      this.keys[i] = this.keys[child] as number;
+      this.values[i] = this.values[child] as number;
+      i = child;
+    }
+    this.keys[i] = lastKey;
+    this.values[i] = lastValue;
+    return top;
   }
 }
 

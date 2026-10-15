@@ -7,7 +7,7 @@ import {
   classifyBoundary,
   Crust,
   CONTINENTAL_DEPTH,
-  CONTINENTAL_PLATE_FRACTION,
+  PANGEA_PLATE_SHARE,
   generatePlates,
   landCentroid,
   MAX_PLATES,
@@ -91,11 +91,13 @@ describe('placas tectônicas: geração', () => {
     }
   });
 
-  it.each(seeds)('semente %i: placas continentais se afastam do centro do supercontinente', (seed) => {
+  it.each(seeds)('semente %i: placas da Pangeia se afastam do centro do supercontinente', (seed) => {
     const w = make(seed);
     const land = landCentroid(w);
+    const landCells = [...Array(w.cellCount).keys()].filter((i) => !w.isWater(i));
     for (const plate of w.plates) {
-      if (plate.continental < CONTINENTAL_PLATE_FRACTION) continue;
+      const share = landCells.filter((i) => w.plate[i] === plate.id).length / landCells.length;
+      if (share < PANGEA_PLATE_SHARE) continue;
       const c = plate.center;
       const away: Vec3 = [c[0] - land[0], c[1] - land[1], c[2] - land[2]];
       if (Math.hypot(...away) < 0.1) continue; // placa bem no centro: sem direção definida
