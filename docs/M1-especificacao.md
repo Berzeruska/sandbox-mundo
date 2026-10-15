@@ -32,7 +32,7 @@ tempo. Fluido no celular.
   Testes: polo mais frio que equador; montanha alta mais fria que a base; todos os biomas
   da lista são alcançáveis com algum par temperatura × precipitação.
 
-- [ ] **T6 — Renderização do globo** (`src/render/`)
+- [x] **T6 — Renderização do globo** (`src/render/`)
   WebGL2, textura de 6 camadas com filtro NEAREST, shader ortográfico, iluminação simples
   (lado iluminado e sombra suave) e fundo de espaço.
   Verificação manual: globo nítido, sem emenda visível entre faces, polos sem distorção.
