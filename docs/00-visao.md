@@ -29,6 +29,9 @@ ordem histórica real, fazem economia e guerra sozinhas, e o jogador observa, in
 ## Estética
 - 2D visto de cima, pixel art simples. Funcionalidade antes de beleza.
 - Embelezamento (sprites melhores, pseudo-3D) é um marco posterior, não agora.
+- **Escala visual** (ideia do usuário, 2026-10-15): pessoas e cidades **bem pequenas** no mapa, para
+  o planeta parecer vasto. Vale desde os primeiros indivíduos e povoados (Marcos 3 e 4) e no
+  acabamento visual (Marco 8).
 
 ## Fora de escopo (por enquanto)
 - Multijogador.

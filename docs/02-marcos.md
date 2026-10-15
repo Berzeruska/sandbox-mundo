@@ -49,26 +49,34 @@ desastres surgem onde a geologia e o clima indicam.
 ## Marco 3 — Ecologia
 Plantas e animais em nível agregado e individual, cadeia alimentar, migração, dragão como predador
 de topo, avisos de espécie em risco e de último indivíduo. Ver `docs/04-ecologia.md`.
+Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a
+**escala visual** pequena dos indivíduos (`docs/00-visao.md`).
 
 **Aceite:** 1.000 anos acelerados sem extinção em massa e sem estagnação (teste automático +
 observação do usuário).
 
 ## Marco 4 — Humanos e economia básica
 Aldeias, agricultura, caça, fome, doença, domesticação, crescimento de povoados, comércio simples.
-Ver `docs/05-civilizacao-politica.md`.
+**Uso econômico dos recursos minerais** gerados no M2; desmatamento com consequências ambientais;
+povoados bem pequenos no mapa. Ver `docs/05-civilizacao-politica.md` e `docs/04-ecologia.md`.
 
 ## Marco 5 — Política e mente
 Evolução de regimes, botão divino de concessão, ideologias, sistemas econômicos, líderes com
 traços, legitimidade, golpes e revoluções, crônica do mundo, nomes de cidades.
+**Quatro classes sociais** (elite cultural, política, militar com chefe do exército, operários).
 Ver `docs/05-civilizacao-politica.md` e `docs/07-cronica-nomes.md`.
 
 ## Marco 6 — Guerra
 Frentes fluidas, conquista contínua, trincheiras, logística, moral de tropa, combate visível de perto.
-Ver `docs/06-guerra.md`.
+**Doutrinas ligadas a cultura, terreno e tecnologia** (ex.: guerra de túneis). Ver `docs/06-guerra.md`.
 
 ## Marco 7 — Tecnologia militar
 Árvore tecnológica militar; tanques, aviões, bombardeio, operados pela IA dos humanos.
-Dissuasão e reconstrução para o mundo não se autodestruir.
+Dissuasão e reconstrução para o mundo não se autodestruir. **Recursos estratégicos** (petróleo,
+nióbio...), doutrina de **batalha profunda**, e consequências ambientais da guerra (incêndio,
+contaminação, inverno nuclear) e do combustível fóssil (aquecimento).
 
 ## Marco 8 — Embelezamento
+Inclui o acabamento visual do menu de ferramentas (decidido no M2) e a escala visual pequena de
+pessoas e cidades.
 Sprites melhores, animações, possível pseudo-3D, som.

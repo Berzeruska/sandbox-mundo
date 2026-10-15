@@ -77,3 +77,22 @@ Cada pincelada recalcula clima e bioma só da região afetada (mais uma borda).
 
 Todo desastre tem: probabilidade base, intensidade, área, e registro na crônica se for grande.
 O jogador também pode provocar qualquer desastre manualmente.
+
+## Recursos minerais e petróleo (geração no Marco 2; uso nos Marcos 4 e 7)
+Ideia do usuário registrada em 2026-10-15.
+- Depósitos de **ferro, cobre, ouro, nióbio, petróleo, carvão** (e outros, como estanho, prata,
+  urânio, sal), gerados pela **geologia real**, não espalhados ao acaso:
+  | Recurso | Onde se forma | Por quê (geologia real) |
+  |---------|---------------|-------------------------|
+  | Cobre (e ouro, molibdênio) | arcos de subducção | depósitos pórfiros acima da placa que afunda |
+  | Ferro | crátons antigos (interior estável e velho dos continentes) | formações ferríferas bandadas |
+  | Ouro | crátons antigos e zonas de colisão | cinturões de rochas verdes, veios em falhas |
+  | Petróleo e gás | bacias sedimentares (margens passivas, riftes, mares rasos antigos) | matéria orgânica soterrada e aquecida |
+  | Carvão | bacias sedimentares de antigas florestas pantanosas | vegetação soterrada |
+  | Nióbio | carbonatitos, **raros** (intraplaca e riftes) | magmas raros e alcalinos |
+- Cada depósito tem tipo, quantidade e profundidade, e **pertence a uma placa: move-se junto
+  com ela** na deriva.
+- Visível como **camada opcional** no menu Geologia ("Ver recursos").
+- Determinístico pela semente, como todo o resto.
+- **Uso** (mineração, armas, eletrônica, economia, combustível) não é do M2: economia básica no
+  Marco 4 (`05-civilizacao-politica.md`) e tecnologia militar no Marco 7 (`06-guerra.md`).

@@ -45,3 +45,18 @@
 ## Moral e fim de guerra
 - Moral nacional cai com perdas e territórios perdidos. Abaixo de um limiar: pedido de paz,
   colapso ou golpe (ver legitimidade em `05-civilizacao-politica.md`).
+
+## Doutrinas de guerra ligadas a cultura, terreno e tecnologia (Marcos 6 e 7)
+Ideia do usuário registrada em 2026-10-15. Doutrinas **não pertencem a países**: surgem da cultura,
+do terreno e da tecnologia de cada civilização. Exemplos (há outras):
+- **Batalha profunda:** tanques e artilharia em massa, rompendo e avançando em profundidade.
+  Favorecida por planícies abertas e indústria pesada.
+- **Guerra de túneis:** rede subterrânea, armadilhas, mobilidade escondida, ataque e sumiço.
+  Favorecida por floresta densa, montanha e solo cavável.
+- **Terreno pesa:** floresta favorece túneis e emboscada; planície favorece blindados; montanha
+  favorece defesa.
+- Uma civilização pode adotar, misturar ou trocar de doutrina conforme vence, perde e evolui.
+
+## Recursos estratégicos (Marco 7)
+Ferro, cobre, petróleo, carvão, nióbio etc. (gerados no Marco 2) viram matéria-prima de armas,
+veículos, eletrônica e combustível. Controle de jazidas vira objetivo de guerra.

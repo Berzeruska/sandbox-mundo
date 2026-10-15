@@ -36,3 +36,17 @@ Rodar 1.000 anos simulados (sem render) com sementes fixas e verificar:
 - nenhuma extinção em massa (> X% das espécies em < Y anos);
 - populações não ficam paradas (variância mínima ao longo do tempo).
 Os limiares X e Y são definidos e ajustados durante o marco, e registrados em `decisoes.md`.
+
+## Feedback ambiental (base no Marco 3; guerra no Marco 7)
+Ideia do usuário registrada em 2026-10-15. O ambiente reage ao que as civilizações fazem, e isso
+volta para elas:
+- **Desmatamento** → erosão, enchentes, deslizamentos e desertificação na região.
+- **Queima de combustível fóssil** (petróleo, carvão) → aquecimento global → mais secas e furacões
+  (liga com o clima e os desastres do Marco 2 e com a temperatura global).
+- **Bombas** (Marco 7) → incêndio, contaminação do solo e da água e, em escala grande,
+  **inverno nuclear** (queda de temperatura global e de colheitas).
+- **Florestas densas e fauna preservada devem valer a pena** para as civilizações: proteção contra
+  enchente e erosão, caça, madeira renovável, chuva regional, vantagem militar defensiva (floresta
+  favorece túneis e emboscada, ver `06-guerra.md`).
+- O Marco 3 prepara a base (vegetação, solo e fauna reagindo a perturbações); os gatilhos humanos
+  entram nos Marcos 4 (desmatamento, agricultura) e 7 (combustível fóssil em escala, bombas).

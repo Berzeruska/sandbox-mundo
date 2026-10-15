@@ -28,6 +28,8 @@ nunca trava, nem em velocidade máxima, nem no celular.
   temporárias que se recuperam.
 - O jogador pode provocar qualquer desastre manualmente, com ferramentas novas na barra.
 - Pincéis do M1 continuam valendo. Uma montanha pintada viaja junto com a sua placa.
+- Uma camada **"Ver recursos"** (menu Geologia) mostra os depósitos minerais e de petróleo, que
+  nascem onde a geologia real os formaria e viajam com as placas.
 
 ## Modelo técnico (resumo; detalhes viram decisões registradas durante as tarefas)
 
@@ -95,9 +97,9 @@ nunca trava, nem em velocidade máxima, nem no celular.
   Um botão abre um menu por categorias e o jogador escolhe o que fica ativo:
   - **Tempo:** pausa e velocidades;
   - **Relevo:** mover, elevar, rebaixar, água, gelo, derreter, tamanho do pincel;
-  - **Desastres:** provocar cada desastre e frequência (as ferramentas chegam nas T7–T10);
-  - **Geologia:** velocidade das placas (chega na T4);
-  - **Clima:** temperatura global (chega na T6).
+  - **Desastres:** provocar cada desastre e frequência (as ferramentas chegam nas T8–T11);
+  - **Geologia:** velocidade das placas (chega na T4) e camada de recursos (chega na T6);
+  - **Clima:** temperatura global (chega na T7).
   Na tela fica só a ferramenta escolhida e um atalho de pausa sempre visível. Confortável no celular
   com uma mão; não pode cobrir o planeta mais do que a v1.1. **Esboço do layout aprovado pelo usuário
   antes de codar.** Ferramentas de tarefas futuras aparecem desativadas ("em breve") até a tarefa delas.
@@ -130,46 +132,57 @@ nunca trava, nem em velocidade máxima, nem no celular.
   Testes: em cenários sintéticos de duas placas, montanha/fossa/dorsal aparecem onde devem; em
   10.000 passos a fração de terra fica entre 20% e 40% e nada vira NaN.
 
-- [ ] **T6 — Clima que acompanha a deriva, eras glaciais e temperatura global**
+- [ ] **T6 — Recursos minerais e petróleo** (`src/world/resources.ts`)
+  Depósitos de ferro, cobre, ouro, nióbio, petróleo, carvão (e outros) gerados pela geologia real:
+  cobre (e ouro) em arcos de subducção; ferro (e ouro) em crátons antigos; petróleo e carvão em bacias
+  sedimentares; nióbio em carbonatitos raros. Cada depósito pertence a uma placa e **se move com ela**.
+  Camada opcional "Ver recursos" no menu Geologia. Determinístico pela semente.
+  Só a geração e a visualização; o **uso** fica para os Marcos 4 (economia) e 7 (militar).
+  Testes: cada tipo só aparece no ambiente geológico certo (ex.: nenhum cobre longe de subducção
+  antiga ou atual); nióbio é raro (abaixo de um limite de depósitos); depósitos acompanham a placa
+  (após girar uma placa, os depósitos dela giram junto); mesma semente, mesmos depósitos.
+  Detalhes em `docs/03-mundo-geologia.md`.
+
+- [ ] **T7 — Clima que acompanha a deriva, eras glaciais e temperatura global**
   Recálculo periódico no worker e envio só do que mudou; ciclo glacial automático e suave; controle
   de temperatura global em Clima, somado ao ciclo.
   Testes: o recálculo parcial bate com o total; a área de gelo cresce com a temperatura global
   menor e recua com ela maior; ciclo e controle se somam.
 
-- [ ] **T7 — Terremotos e tsunamis** (`src/world/disasters/`)
+- [ ] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa
   temporariamente; desenho das ondas na camada sobreposta.
   Testes: terremotos só perto de fronteiras; tsunami só a partir de terremoto no mar e forte;
   efeitos temporários se recuperam; determinismo.
 
-- [ ] **T8 — Vulcões e pontos quentes**
+- [ ] **T9 — Vulcões e pontos quentes**
   Arcos de subducção, dorsais (fraco), pontos quentes fixos; erupção ergue terreno **para sempre**
   (pode criar ilha) e espalha cinzas temporárias.
   Testes: ponto quente sob placa em movimento forma uma cadeia de ilhas; erupções só em lugares
   permitidos; relevo vulcânico persiste e as cinzas somem.
 
-- [ ] **T9 — Desastres climáticos**
+- [ ] **T10 — Desastres climáticos**
   Anomalias de chuva (seca, enchente), furacões com trajetória, incêndios; perturbação temporária
   com recuperação.
   Testes: furacão só nasce em oceano tropical quente e enfraquece em terra; incêndio só em floresta
   sob seca; frequências dentro da faixa esperada em 1.000 anos simulados.
 
-- [ ] **T10 — Desastres na mão do jogador e frequência**
+- [ ] **T11 — Desastres na mão do jogador e frequência**
   Em Desastres: ferramenta para provocar cada desastre e controle de frequência (nenhum → muitos),
   padrão "raro". Camadas "Ver placas" e "Ver tensão".
   Testes: frequência 0 não gera desastre natural; "raro" fica na faixa de ~1 notável a cada 1–2 min
   em 1×; provocar manualmente funciona com qualquer frequência.
 
-- [ ] **T11 — Avisos e lista de desastres**
+- [ ] **T12 — Avisos e lista de desastres**
   Aviso curto só para desastres grandes; lista completa no painel; tocar leva a câmera ao local.
   (Não é a crônica permanente, que fica no M5.)
 
-- [ ] **T12 — Teste longo de estabilidade**
+- [ ] **T13 — Teste longo de estabilidade**
   Teste automático: partindo da Pangeia, em velocidade padrão, depois de X passos existem ≥ 3
   continentes grandes, a fração de terra está entre 20% e 40%, há montanhas, nenhum valor inválido,
   e os desastres aconteceram nas quantidades esperadas.
 
-- [ ] **T13 — Medição de desempenho e comparação com a linha de base**
+- [ ] **T14 — Medição de desempenho e comparação com a linha de base**
   Placas no máximo + tempo no máximo: tela ≥ 30 fps no celular (≥ 60 no notebook). Medir nas mesmas
   condições da linha de base da v1.1 (`docs/decisoes.md`) e comparar. Medir também quantos passos por
   segundo o worker aguenta. Registrar em `docs/decisoes.md`.
@@ -185,7 +198,8 @@ nunca trava, nem em velocidade máxima, nem no celular.
 7. Tudo continua fluido no meu celular (comparado à linha de base da v1.1).
 
 ## Fora do M2 (não fazer agora)
-Vida (plantas, animais), humanos, cidades e dano a cidades (as regras de "cidade sobre terreno que
+Uso dos recursos minerais (economia no M4, militar no M7); feedback ambiental (M3/M4/M7); classes
+sociais (M5); doutrinas de guerra (M6/M7). Vida (plantas, animais), humanos, cidades e dano a cidades (as regras de "cidade sobre terreno que
 muda" ficam para quando houver cidades, no M4), crônica permanente (M5), som, sprites novos.
 
 ## Decisões de design do usuário (2026-10-15)

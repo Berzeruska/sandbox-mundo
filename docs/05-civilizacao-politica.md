@@ -65,3 +65,19 @@ Regras de transição (exemplos):
 - Prosperidade longa + baixa polarização → transições pacíficas e reformas.
 
 As regras ficam numa tabela de dados, não espalhadas no código, para o usuário poder ajustá-las.
+
+## Classes sociais (Marco 5)
+Ideia do usuário registrada em 2026-10-15. Quatro classes, cada uma com interesses próprios, que
+precisam coexistir; o equilíbrio (ou o conflito) entre elas pesa na legitimidade, nos golpes e nas
+revoluções:
+- **Elite cultural:** pensadores, filósofos, escritores. Afeta a cultura e a economia (ideias,
+  inovação, ideologias que surgem e se espalham).
+- **Classe política:** governa e administra; quer poder e estabilidade.
+- **Classe militar:** com um **chefe do exército** (personagem com traços, como os líderes); quer
+  recursos, prestígio e guerra vitoriosa; pode dar golpe.
+- **Operários:** produzem; querem comida, salário e segurança; base das revoltas e greves.
+
+## Recursos minerais na economia (Marco 4)
+Os depósitos gerados no Marco 2 (`03-mundo-geologia.md`) passam a ser explorados: mineração,
+comércio, riqueza de quem controla as jazidas, e disputa por elas. Uso militar e eletrônico no
+Marco 7.

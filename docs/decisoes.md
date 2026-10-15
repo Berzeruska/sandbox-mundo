@@ -160,3 +160,9 @@ Formato: data — decisão — motivo — alternativa descartada.
   separado por endereço, para a prévia e o site principal não apagarem um ao outro.
   Limitação: o próximo deploy do `main` publica só o `main` e remove as prévias (voltam no próximo
   push do branch). Descartado: repositório separado para prévias (mais um repo e um token).
+
+- **2026-10-15 — Ideias novas do usuário registradas nos marcos certos (sem implementar agora).**
+  Recursos minerais e petróleo: geração no M2 (nova T6), uso nos M4/M7 (`03`, `05`, `06`).
+  Quatro classes sociais: M5 (`05`). Feedback ambiental: base no M3, gatilhos humanos no M4/M7
+  (`04`). Doutrinas de guerra ligadas a cultura, terreno e tecnologia: M6/M7 (`06`). Escala visual
+  pequena de pessoas e cidades: M3/M4 e M8 (`00`). Resumo em `docs/02-marcos.md`.
