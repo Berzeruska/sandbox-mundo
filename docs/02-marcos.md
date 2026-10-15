@@ -3,7 +3,7 @@
 Cada marco termina jogável e testável no celular. Só se começa o próximo com o anterior aceito
 pelo usuário.
 
-Marco atual: **Marco 0 → Marco 1**
+Marco atual: **Marco 1** (Marco 0 aceito em 2026-10-14)
 
 ---
 
@@ -12,7 +12,7 @@ Marco atual: **Marco 0 → Marco 1**
 - [x] `npm run check` (tipos + lint + testes) funcionando
 - [x] Repositório no GitHub criado e com o primeiro push
 - [x] GitHub Actions: `check` em todo push; deploy de `main` no GitHub Pages
-- [ ] Página publicada abrindo no celular (tela preta com "Sandbox Mundo" basta)
+- [x] Página publicada abrindo no celular (tela preta com "Sandbox Mundo" basta)
 - [x] `CHANGELOG.md`, `docs/bugs.md` criados
 
 **Aceite:** o usuário abre o link do GitHub Pages no celular e no notebook.
