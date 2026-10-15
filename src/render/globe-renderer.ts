@@ -2,6 +2,25 @@ import { FRAGMENT_SHADER, VERTEX_SHADER } from './shaders';
 import type { Camera } from './camera';
 import { packRect } from './dirty';
 import { buildNoiseVolume, NOISE_SIZE } from './noise-volume';
+import { MAX_SHADER_PLATES } from './plate-motion';
+
+/** Estado do movimento das placas para o desenho suave entre recomposições. */
+export interface PlateMotionUniforms {
+  moving: boolean;
+  /** Eixo (x, y, z) e velocidade relativa (w) de cada placa, MAX_SHADER_PLATES × 4. */
+  axis: Float32Array;
+  /** Centro atual de cada placa, MAX_SHADER_PLATES × 3. */
+  center: Float32Array;
+  /** cos, sen do ângulo total de cada placa, MAX_SHADER_PLATES × 2. */
+  total: Float32Array;
+  /** cos, sen do ângulo em que a textura foi composta, MAX_SHADER_PLATES × 2. */
+  base: Float32Array;
+  /** Igual a `base`, para a composição anterior (transição suave). */
+  basePrev: Float32Array;
+  /** Mistura com a composição anterior: 1 = só a atual. */
+  fade: number;
+  maxDelta: number;
+}
 
 /** Retângulo alterado de uma face (em células). */
 export interface DirtyRect {
@@ -24,6 +43,13 @@ export class GlobeRenderer {
   private program: WebGLProgram | null = null;
   private texture: WebGLTexture | null = null;
   private noiseTexture: WebGLTexture | null = null;
+  private plateTexture: WebGLTexture | null = null;
+  /** Texturas da composição anterior, mantidas durante a transição suave. */
+  private prevTexture: WebGLTexture | null = null;
+  private prevPlateTexture: WebGLTexture | null = null;
+  private plateCells: Uint8Array | null = null;
+  /** Cor do fundo oceânico novo (fenda aberta entre placas antes da recomposição), 0–1. */
+  ridgeColor: [number, number, number] = [0.08, 0.18, 0.39];
   private vao: WebGLVertexArrayObject | null = null;
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private rot = new Float32Array(9);
@@ -53,18 +79,63 @@ export class GlobeRenderer {
   setWorld(n: number, colors: Uint8Array): void {
     this.n = n;
     this.colors = colors;
-    if (!this.lost) this.createTexture();
+    if (!this.lost) {
+      if (this.prevTexture) this.gl.deleteTexture(this.prevTexture);
+      if (this.prevPlateTexture) this.gl.deleteTexture(this.prevPlateTexture);
+      this.prevTexture = null;
+      this.prevPlateTexture = null;
+      this.createTexture();
+      this.createPlateTexture();
+    }
   }
 
   private init(): void {
     const gl = this.gl;
     this.program = linkProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER);
-    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle']) {
+    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.vao = gl.createVertexArray();
     this.createNoiseTexture();
     this.createTexture();
+    this.createPlateTexture();
+  }
+
+  /**
+   * Recomposição chegou: a composição atual vira a "anterior" (para a transição suave) e as cores
+   * (já atualizadas no array) e as placas novas viram a atual.
+   */
+  recomposed(plateCells: Uint8Array): void {
+    if (this.lost) return;
+    const gl = this.gl;
+    if (this.prevTexture) gl.deleteTexture(this.prevTexture);
+    if (this.prevPlateTexture) gl.deleteTexture(this.prevPlateTexture);
+    this.prevTexture = this.texture;
+    this.prevPlateTexture = this.plateTexture;
+    this.texture = null;
+    this.plateTexture = null;
+    this.plateCells = plateCells;
+    this.createTexture();
+    this.createPlateTexture();
+  }
+
+  /** Placa de cada célula (bits 0–3) e crosta continental (bit 4), para o movimento suave. */
+  setPlates(cells: Uint8Array): void {
+    this.plateCells = cells;
+    if (!this.lost) this.createPlateTexture();
+  }
+
+  private createPlateTexture(): void {
+    const gl = this.gl;
+    if (this.plateTexture) gl.deleteTexture(this.plateTexture);
+    this.plateTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.plateTexture);
+    gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.R8UI, this.n, this.n, 6);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    const data = this.plateCells && this.plateCells.length === this.n * this.n * 6 ? this.plateCells : new Uint8Array(this.n * this.n * 6);
+    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, 0, this.n, this.n, 6, gl.RED_INTEGER, gl.UNSIGNED_BYTE, data);
   }
 
   private createNoiseTexture(): void {
@@ -124,7 +195,7 @@ export class GlobeRenderer {
     return true;
   }
 
-  draw(camera: Camera): void {
+  draw(camera: Camera, motion?: PlateMotionUniforms): void {
     if (this.lost || !this.program) return;
     const gl = this.gl;
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -134,10 +205,32 @@ export class GlobeRenderer {
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texture);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_3D, this.noiseTexture);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.plateTexture);
+    const fading = !!motion && motion.moving && motion.fade < 1 && !!this.prevTexture && !!this.prevPlateTexture;
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, fading ? this.prevTexture : this.texture);
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, fading ? this.prevPlateTexture : this.plateTexture);
     gl.activeTexture(gl.TEXTURE0);
     const u = this.uniforms;
     gl.uniform1i(u.uCells ?? null, 0);
     gl.uniform1i(u.uNoise ?? null, 1);
+    gl.uniform1i(u.uPlates ?? null, 2);
+    gl.uniform1i(u.uCellsPrev ?? null, 3);
+    gl.uniform1i(u.uPlatesPrev ?? null, 4);
+    gl.uniform1f(u.uFade ?? null, fading && motion ? motion.fade : 1);
+    const moving = !!motion && motion.moving;
+    gl.uniform1i(u.uMoving ?? null, moving ? 1 : 0);
+    if (motion && moving) {
+      gl.uniform4fv(u.uPlateAxis ?? null, motion.axis, 0, MAX_SHADER_PLATES * 4);
+      gl.uniform3fv(u.uPlateCenter ?? null, motion.center, 0, MAX_SHADER_PLATES * 3);
+      gl.uniform2fv(u.uPlateTotal ?? null, motion.total, 0, MAX_SHADER_PLATES * 2);
+      gl.uniform2fv(u.uPlateBase ?? null, motion.base, 0, MAX_SHADER_PLATES * 2);
+      gl.uniform2fv(u.uPlateBasePrev ?? null, motion.basePrev, 0, MAX_SHADER_PLATES * 2);
+      gl.uniform1f(u.uMaxDelta ?? null, motion.maxDelta);
+      gl.uniform3f(u.uRidgeColor ?? null, this.ridgeColor[0], this.ridgeColor[1], this.ridgeColor[2]);
+    }
     gl.uniform1i(u.uN ?? null, this.n);
     // gl_FragCoord tem origem embaixo; a câmera usa origem em cima.
     gl.uniform2f(u.uCenter ?? null, camera.centerX(), this.canvas.height - camera.centerY());

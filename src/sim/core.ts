@@ -6,6 +6,8 @@ import { dirtyRects } from '../render/dirty';
 import { climateCacheBytes, computeWaterDistance, updateClimate } from '../world/climate';
 import { createWorld, WORLD_STAGES } from '../world/create';
 import { DEFAULT_PLATE_RATE, Tectonics } from '../world/tectonics';
+import { Crust } from '../world/plates';
+import { NEAR_BOUNDARY_CELLS, packPlateCell } from '../render/plate-motion';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
 import { makePatches, transferables, type FromWorker, type ToWorker } from './protocol';
@@ -125,9 +127,15 @@ export class SimulationCore {
         generationMs,
         stagesMs,
         landCenter: landCenter(world),
+        plates: world.plates.map((p) => {
+          const speed = Math.hypot(p.omega[0], p.omega[1], p.omega[2]);
+          const axis: Vec3 = speed > 0 ? [p.omega[0] / speed, p.omega[1] / speed, p.omega[2] / speed] : [0, 1, 0];
+          return { axis, speed, center: [p.center[0], p.center[1], p.center[2]] as Vec3 };
+        }),
       },
       // Cópia: o worker continua com as próprias cores; a cópia vai transferida.
       colors: this.colors.slice(),
+      plateCells: packPlates(world),
     });
     this.postClock(true);
   }
@@ -154,14 +162,23 @@ export class SimulationCore {
     this.send({ type: 'patch', patches: makePatches(this.colors, n, faces), brushMs: -1 });
   }
 
-  /** Depois que as placas se moveram: clima, biomas e cores do mundo todo. */
+  /** Depois que as placas se moveram: clima, biomas e cores do mundo todo, com os ângulos. */
   private afterRecompose(t0: number): void {
     const world = this.world;
-    if (!world) return;
+    const tectonics = this.tectonics;
+    if (!world || !tectonics) return;
     computeWaterDistance(world);
     updateClimate(world);
-    this.sendAllColors();
+    buildColors(world, this.colors, undefined, this.layers);
+    const n = world.params.n;
+    const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
     this.geologyMs = this.now() - t0;
+    this.send({
+      type: 'recomposed',
+      patches: makePatches(this.colors, n, faces),
+      plateCells: packPlates(world),
+      angles: Array.from(tectonics.angle),
+    });
   }
 
   /** Liga/desliga camadas: repinta o mundo todo e manda as 6 faces como remendos. */
@@ -225,8 +242,45 @@ export class SimulationCore {
       geologyMs: this.geologyMs,
       recompositions: this.tectonics?.recompositions ?? 0,
       memoryMb: this.memoryBytes() / 1e6,
+      angles: this.tectonics ? Array.from(this.tectonics.angle) : [],
     });
   }
+}
+
+/** Placa de cada célula e crosta continental, no formato da textura de placas do shader. */
+export function packPlates(world: WorldState): Uint8Array {
+  const n = world.cellCount;
+  const { neighbors } = world.grid;
+  // Perto de fronteira: até NEAR_BOUNDARY_CELLS passos de uma célula com vizinha de outra placa.
+  const near = new Uint8Array(n);
+  let frontier: number[] = [];
+  for (let i = 0; i < n; i++) {
+    for (let d = 0; d < 4; d++) {
+      if (world.plate[neighbors[i * 4 + d] as number] !== world.plate[i]) {
+        near[i] = 1;
+        frontier.push(i);
+        break;
+      }
+    }
+  }
+  for (let step = 0; step < NEAR_BOUNDARY_CELLS && frontier.length; step++) {
+    const next: number[] = [];
+    for (const c of frontier) {
+      for (let d = 0; d < 4; d++) {
+        const nb = neighbors[c * 4 + d] as number;
+        if (!near[nb]) {
+          near[nb] = 1;
+          next.push(nb);
+        }
+      }
+    }
+    frontier = next;
+  }
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    out[i] = packPlateCell(world.plate[i] as number, world.crust[i] === Crust.Continental, near[i] === 1);
+  }
+  return out;
 }
 
 /** Bytes dos arrays tipados de um objeto (só os campos próprios, um nível). */

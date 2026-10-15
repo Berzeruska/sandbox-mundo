@@ -33,6 +33,9 @@ num projeto escrito majoritariamente por IA.
   contínuo antes do envio).
 - Detalhe visual (T13): o shader deforma as fronteiras entre células com ruído e aplica textura
   sutil por bioma, lendo ruído de uma textura 3D fixa. A simulação continua na grade; é só desenho.
+- Movimento das placas (M2): entre recomposições o shader desgira cada pixel pela rotação rígida da
+  placa dele (textura de placas + ângulos vindos do worker); na troca de composição há 350 ms de
+  transição. Regra espelhada em TypeScript (`src/render/plate-motion.ts`) para os testes.
 
 ## Simulação
 - Tick fixo (passo de tempo constante), independente da taxa de quadros.

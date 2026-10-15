@@ -3,7 +3,11 @@ import { Clock, formatDate, type Speed } from './core/time';
 import { PaintGate } from './input/paint-gate';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
-import { DEFAULT_PLATE_RATE } from './world/tectonics';
+import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectonics';
+import { extrapolateAngle, MAX_SHADER_PLATES, rotate } from './render/plate-motion';
+import type { PlateMotionUniforms } from './render/globe-renderer';
+import { BIOME_INFO, Biome } from './world/biomes';
+import { BASE_TICKS_PER_SECOND } from './core/time';
 import { Camera } from './render/camera';
 import { GlobeRenderer } from './render/globe-renderer';
 import { Overlay } from './render/overlay';
@@ -17,6 +21,8 @@ import { DebugPanel, NewWorldDialog } from './ui/panels';
 export const DEFAULT_N = 256;
 const MAX_PIXEL_RATIO = 2;
 const DEFAULT_BRUSH = 6;
+/** Duração da transição suave entre a composição anterior e a nova (ms). */
+const FADE_MS = 350;
 
 /**
  * Thread principal: câmera, entrada, interface e desenho. O mundo vive no Web Worker
@@ -39,6 +45,28 @@ export class App {
   tool: Tool = Tool.Raise;
   brushSize = DEFAULT_BRUSH;
   private canvas: HTMLCanvasElement;
+  /** Controle "Placas" (0 a 1), espelho do que foi mandado ao worker. */
+  private plateRate = DEFAULT_PLATE_RATE;
+  /** Movimento das placas para o desenho suave: ângulos da composição, recebidos e mostrados. */
+  private motion = {
+    baseAngles: [] as number[],
+    received: [] as number[],
+    receivedAt: 0,
+    shown: [] as number[],
+    uniforms: {
+      moving: false,
+      axis: new Float32Array(MAX_SHADER_PLATES * 4),
+      center: new Float32Array(MAX_SHADER_PLATES * 3),
+      total: new Float32Array(MAX_SHADER_PLATES * 2),
+      base: new Float32Array(MAX_SHADER_PLATES * 2),
+      basePrev: new Float32Array(MAX_SHADER_PLATES * 2),
+      fade: 1,
+      maxDelta: 0,
+    } as PlateMotionUniforms,
+    /** Ângulos da composição anterior e início da transição suave (ms). */
+    prevAngles: [] as number[],
+    fadeStart: 0,
+  };
   private loadingEl: HTMLDivElement;
   private loadingText: HTMLDivElement;
   private loadingFill: HTMLDivElement;
@@ -93,7 +121,10 @@ export class App {
           this.brushSize = size;
           this.requestDraw();
         },
-        onPlateRate: (percent) => this.sim.setPlateRate(percent / 100),
+        onPlateRate: (percent) => {
+          this.plateRate = percent / 100;
+          this.sim.setPlateRate(this.plateRate);
+        },
         onSpeed: (speed) => this.setSpeed(speed),
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
@@ -143,11 +174,16 @@ export class App {
     });
 
     this.sim = new SimClient({
-      onWorld: (info, colors) => this.onWorld(info, colors),
+      onWorld: (info, colors, plateCells) => this.onWorld(info, colors, plateCells),
+      onRecomposed: (patches, plateCells, angles) => this.onRecomposed(patches, plateCells, angles),
       onProgress: (stage, fraction) => this.showProgress(stage, fraction),
       onPatch: (patches, brushMs) => this.onPatch(patches, brushMs),
-      onClock: (tick, speed, ticksPerSecond, geologyMs, recompositions, memoryMb) => {
+      onClock: (tick, speed, ticksPerSecond, geologyMs, recompositions, memoryMb, angles) => {
         this.stats.memoryMb = memoryMb;
+        if (angles.length) {
+          this.motion.received = angles;
+          this.motion.receivedAt = performance.now();
+        }
         this.clock.tick = tick;
         this.stats.ticksPerSecond = ticksPerSecond;
         this.stats.geologyMs = geologyMs;
@@ -177,12 +213,24 @@ export class App {
     this.loadingFill.style.width = `${pct}%`;
   }
 
-  private onWorld(info: WorldInfo, colors: Uint8Array): void {
+  private onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array): void {
     this.worldTotalMs = performance.now() - this.worldRequestedAt;
     this.info = info;
     this.colors = colors;
     if (!this.renderer) this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
     else this.renderer.setWorld(info.n, colors);
+    this.renderer.setPlates(plateCells);
+    this.renderer.ridgeColor = ridgeColor();
+    // Mundo novo: placas nos ângulos 0.
+    const zeros = info.plates.map(() => 0);
+    this.motion.baseAngles = zeros;
+    this.motion.prevAngles = [...zeros];
+    this.motion.fadeStart = 0;
+    this.motion.received = [...zeros];
+    this.motion.shown = [...zeros];
+    const u = this.motion.uniforms;
+    u.axis.fill(0);
+    info.plates.forEach((p, k) => u.axis.set([...p.axis, p.speed], k * 4));
     this.camera.setCellAngle(Math.PI / 2 / info.n);
     this.camera.stopSpin();
     this.camera.zoom = 1;
@@ -191,6 +239,59 @@ export class App {
     this.loadingEl.hidden = true;
     this.updateDebug();
     this.requestDraw();
+  }
+
+  /** As placas andaram: textura nova composta nos ângulos `angles`; o desenho suave continua dali. */
+  private onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[]): void {
+    if (!this.info || !this.renderer) return;
+    for (const p of patches) applyPatch(this.colors, this.info.n, p);
+    // A composição atual vira a anterior e as duas se misturam por FADE_MS (sem salto na troca).
+    this.renderer.recomposed(plateCells);
+    this.motion.prevAngles = this.motion.baseAngles;
+    this.motion.baseAngles = angles;
+    this.motion.fadeStart = performance.now();
+    this.requestDraw();
+  }
+
+  /**
+   * Ângulos a mostrar neste quadro (adiantando o último recebido pelo tempo) e uniformes do shader.
+   * Retorna true se algo mudou e precisa redesenhar.
+   */
+  private updateMotion(): boolean {
+    const m = this.motion;
+    const info = this.info;
+    if (!info || !m.received.length) return false;
+    const speed = this.clock.speed;
+    const ticksPerSecond = speed === 0 ? 0 : speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * speed;
+    const since = (performance.now() - m.receivedAt) / 1000;
+    const u = m.uniforms;
+    let changed = false;
+    let maxDelta = 0;
+    for (let k = 0; k < info.plates.length; k++) {
+      const rate = MAX_PLATE_RATE * this.plateRate * (info.plates[k]?.speed ?? 0) * ticksPerSecond;
+      const shown = extrapolateAngle(m.received[k] ?? 0, rate, since, m.shown[k] ?? 0);
+      if (shown !== m.shown[k]) changed = true;
+      m.shown[k] = shown;
+      const base = m.baseAngles[k] ?? 0;
+      maxDelta = Math.max(maxDelta, Math.abs(shown - base));
+      u.total[k * 2] = Math.cos(shown);
+      u.total[k * 2 + 1] = Math.sin(shown);
+      const plate = info.plates[k];
+      if (plate) u.center.set(rotate(plate.center, plate.axis, shown), k * 3);
+      u.base[k * 2] = Math.cos(base);
+      u.base[k * 2 + 1] = Math.sin(base);
+      const prev = m.prevAngles[k] ?? base;
+      u.basePrev[k * 2] = Math.cos(prev);
+      u.basePrev[k * 2 + 1] = Math.sin(prev);
+    }
+    const fade = Math.min(1, (performance.now() - m.fadeStart) / FADE_MS);
+    if (fade !== u.fade) changed = true;
+    u.fade = fade;
+    const moving = maxDelta > 1e-7 || fade < 1;
+    if (moving !== u.moving) changed = true;
+    u.moving = moving;
+    u.maxDelta = maxDelta;
+    return changed;
   }
 
   private onPatch(patches: Patch[], brushMs: number): void {
@@ -253,6 +354,7 @@ export class App {
     }
     if (this.camera.update(dt)) this.needsDraw = true;
     if (this.input.update(dt)) this.needsDraw = true;
+    if (this.updateMotion()) this.needsDraw = true;
     const gate = this.paintGate.frame(performance.now());
     if (gate !== 'none') this.applyBrushAtScreen(gate === 'first' ? 1 / 20 : dt);
 
@@ -263,7 +365,7 @@ export class App {
     }
 
     if (this.needsDraw) {
-      renderer.draw(this.camera);
+      renderer.draw(this.camera, this.motion.uniforms);
       this.drawOverlay();
       this.needsDraw = false;
     }
@@ -336,6 +438,13 @@ export class App {
     };
     requestAnimationFrame(loop);
   }
+}
+
+/** Cor do fundo oceânico recém-nascido (a mesma que o worker pinta na dorsal), de 0 a 1. */
+function ridgeColor(): [number, number, number] {
+  const c = BIOME_INFO[Biome.DeepOcean]?.color ?? [22, 52, 110];
+  const k = 1.12 - 0.42 * Math.min(1, -RIDGE_DEPTH / 5000);
+  return [(c[0] * k) / 255, (c[1] * k) / 255, (c[2] * k) / 255];
 }
 
 /** Guarda a semente na URL: o link compartilhado abre o mesmo mundo. */

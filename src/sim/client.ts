@@ -5,10 +5,11 @@ import type { Vec3 } from '../world/cubesphere';
 import type { CellQuery, FromWorker, Patch, ToWorker, WorldInfo } from './protocol';
 
 export interface SimEvents {
-  onWorld(info: WorldInfo, colors: Uint8Array): void;
+  onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array): void;
+  onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[]): void;
   onProgress(stage: string, fraction: number): void;
   onPatch(patches: Patch[], brushMs: number): void;
-  onClock(tick: number, speed: Speed, ticksPerSecond: number, geologyMs: number, recompositions: number, memoryMb: number): void;
+  onClock(tick: number, speed: Speed, ticksPerSecond: number, geologyMs: number, recompositions: number, memoryMb: number, angles: number[]): void;
 }
 
 /**
@@ -73,7 +74,10 @@ export class SimClient {
     switch (msg.type) {
       case 'world':
         this.brushInFlight = false;
-        this.events.onWorld(msg.info, msg.colors);
+        this.events.onWorld(msg.info, msg.colors, msg.plateCells);
+        break;
+      case 'recomposed':
+        this.events.onRecomposed(msg.patches, msg.plateCells, msg.angles);
         break;
       case 'progress':
         this.events.onProgress(msg.stage, msg.fraction);
@@ -90,7 +94,7 @@ export class SimClient {
         }
         break;
       case 'clock':
-        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.recompositions, msg.memoryMb);
+        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.recompositions, msg.memoryMb, msg.angles);
         break;
       case 'query':
         this.queries.get(msg.id)?.(msg.cell);

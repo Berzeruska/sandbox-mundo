@@ -229,3 +229,29 @@ Formato: data — decisão — motivo — alternativa descartada.
   Medição (notebook, processador em modo lento): recomposição com clima e cores ~530 ms, no worker;
   tela a 60 fps durante a deriva (p99 17 ms). No celular deve ficar ~1,5 s a cada ~5 s em 20× no
   máximo: o relógio segue. A T7 (clima que acompanha a deriva) vai recalcular só o que mudou.
+
+- **2026-10-15 — Movimento suave das placas no desenho (pedido do usuário: "nenhum salto visível").**
+  O shader interpola a rotação rígida de cada placa entre recomposições: cada pixel descobre a placa
+  (busca entre a placa que estava ali e as vizinhas, com tolerância de ~0,7 célula ao arredondamento
+  da textura) e desfaz a rotação dela desde a composição. Fenda onde as placas se afastam aparece
+  como fundo oceânico novo; sem afastamento, fica com a placa de antes (mesma regra da recomposição).
+  Ruído de borda e textura de detalhe ficam presos à placa. Na chegada de cada recomposição, 350 ms
+  de transição misturando a composição anterior e a nova (as bordas sempre diferem ~1 célula, porque
+  a textura já é arredondada por célula e a recomposição lê o referencial da placa).
+  O worker manda a textura de placas (placa, crosta continental, "perto de fronteira") e os ângulos;
+  o App adianta o ângulo entre mensagens do worker (no máximo 0,3 s, nunca para trás).
+  Medição quadro a quadro (leitura de pixels a 60 fps, placas em 100%, tempo 20×): antes, 7 saltos
+  em 40 s com 17–21% da região mudando de uma vez; depois, 2.252 quadros, mediana 0,11% e máximo
+  0,75% por quadro, **zero** quadros com mais de 2%.
+  Custo de GPU: ~30–40% a mais só enquanto as placas andam (atalho para o miolo das placas: longe
+  de fronteira só pode ser a própria placa); parado, no patamar da T3.
+
+- **2026-10-15 — Regressão de geração no celular (2,4 → ~6 s): memória da tectônica.**
+  No notebook a T4 custava só +50–70 ms; o que pesava no celular era memória: índice denso de
+  placas × células (~22 MB) mais o mundo antigo vivo durante a geração do novo. Correção: índice só
+  das amostras novas (as iniciais valem por identidade), mundo antigo solto antes de gerar e
+  tectônica montada no primeiro passo. Notebook: mesmo tempo da T3. Painel Dados mostra a memória
+  estimada do worker (~35 MB + tabelas) e o tempo por etapa.
+
+- **2026-10-15 — Resolução continua N = 256 até o Marco 3** (decisão do usuário). A escala do
+  planeta versus humanos é questão aberta da especificação do M3.

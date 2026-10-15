@@ -118,8 +118,13 @@ describe('placas no worker', () => {
     for (let i = 0; i < 400; i++) core.advance(0.25); // 400 × 60 passos
     expect(core.tectonics!.recompositions).toBeGreaterThan(0);
     expect(core.world!.elevation).not.toEqual(before);
-    const fullPatch = inbox.find((m) => m.type === 'patch' && m.patches.length === 6);
-    expect(fullPatch).toBeDefined();
+    const recomposed = lastOf(inbox, 'recomposed')!;
+    expect(recomposed.patches.length).toBe(6);
+    expect(recomposed.plateCells.length).toBe(core.world!.cellCount);
+    expect(recomposed.angles.length).toBe(core.world!.plates.length);
+    expect(recomposed.angles.some((a) => a > 0)).toBe(true);
+    // O relógio manda os ângulos atuais para o desenho suave.
+    expect(lastOf(inbox, 'clock')!.angles.length).toBe(core.world!.plates.length);
     expect(lastOf(inbox, 'clock')!.recompositions).toBe(core.tectonics!.recompositions);
   });
 
