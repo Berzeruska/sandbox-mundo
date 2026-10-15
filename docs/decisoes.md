@@ -108,3 +108,13 @@ Formato: data — decisão — motivo — alternativa descartada.
     | Celular 412×915 @2x, zoom máx| 596          | 439            | 680                |
     (variações de ±20% entre execuções são ruído da medição.) Imagem: `docs/img/t13-antes-depois.png`.
   - A mesma semente continua gerando o mesmo mundo (nenhuma mudança na simulação).
+
+- **2026-10-15 — T14: pincéis em forma de sino, teto macio e sombreado de relevo.**
+  Diagnóstico: os dados já tinham queda do centro à borda; o "platô" vinha do teto duro (4 s de Elevar
+  travavam o centro em 9.000 m, que virava gelo chapado), das cores em faixas por bioma e da falta de
+  indicação de inclinação. Correção: queda `(1 − t²)³`, desaceleração nos últimos 6 km antes do
+  teto/fundo e sombreado de relevo nas cores (luz de noroeste, inclinação em metros por célula
+  calculada em 3D, sem emenda entre faces; vale para o planeta todo, inclusive montanhas naturais).
+  Perfil de Elevar com pincel 29 por 4 s: antes 8.999 m no centro (teto) e 5.213 m no meio do raio;
+  depois 6.799 m e 3.909 m, borda intacta. Imagem: `docs/img/t14-antes-depois.png`.
+  Só visual e pincéis: a mesma semente continua gerando o mesmo mundo.

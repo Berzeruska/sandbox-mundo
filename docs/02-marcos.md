@@ -32,7 +32,7 @@ Pedidos do usuário após testar a v1.0 no celular.
 - [x] **T12.1 — Projeção:** verificar cubo→esfera e medir distorção (já era equiangular; ver decisões)
 - [x] **T13 — Detalhe visual no shader:** bordas orgânicas entre biomas e textura sutil por bioma,
   escondendo a grade, sem mudar a simulação; fps antes/depois
-- [ ] **T14 — Pincéis com queda suave:** Elevar/Rebaixar fortes no centro e zero na borda, sem platô
+- [x] **T14 — Pincéis com queda suave:** Elevar/Rebaixar fortes no centro e zero na borda, sem platô
 
 **Aceite:** sem visual de "prisma" perto dos cantos do cubo; morro pintado tem forma de morro.
 Fecha com PR para `main` e tag `v1.1`.
