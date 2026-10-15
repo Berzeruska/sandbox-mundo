@@ -39,10 +39,18 @@ export class App {
   brushSize = DEFAULT_BRUSH;
   private canvas: HTMLCanvasElement;
   private loadingEl: HTMLDivElement;
+  private loadingText: HTMLDivElement;
+  private loadingFill: HTMLDivElement;
   private lastRunningSpeed: Speed = 1;
   /** Giro contínuo para medir fps (redesenha todo quadro). */
   private stressSpin = false;
-  private stats = { frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0, brushMs: 0, ticksPerSecond: 0 };
+  private stats = {
+    frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0, brushMs: 0, ticksPerSecond: 0,
+    minGap: Infinity, maxGap: 0, lastMinGap: 0, lastMaxGap: 0, prevTime: 0,
+  };
+  /** Momento do pedido de mundo novo, para medir o tempo total até o globo aparecer. */
+  private worldRequestedAt = 0;
+  private worldTotalMs = 0;
   private needsDraw = true;
   private lastTime = 0;
   /** Posição do pincel na tela (mouse por cima ou dedo pintando), ou null. */
@@ -108,6 +116,12 @@ export class App {
     this.worldDialog = new NewWorldDialog(this.hud.root, (text) => this.newWorld(text));
     this.loadingEl = document.createElement('div');
     this.loadingEl.className = 'loading';
+    this.loadingText = document.createElement('div');
+    const bar = document.createElement('div');
+    bar.className = 'loading-bar';
+    this.loadingFill = document.createElement('div');
+    bar.append(this.loadingFill);
+    this.loadingEl.append(this.loadingText, bar);
     root.append(this.loadingEl);
     this.hud.setSpeed(this.clock.speed);
     this.hud.setDate(formatDate(this.clock));
@@ -124,6 +138,7 @@ export class App {
 
     this.sim = new SimClient({
       onWorld: (info, colors) => this.onWorld(info, colors),
+      onProgress: (stage, fraction) => this.showProgress(stage, fraction),
       onPatch: (patches, brushMs) => this.onPatch(patches, brushMs),
       onClock: (tick, speed, ticksPerSecond) => {
         this.clock.tick = tick;
@@ -140,12 +155,21 @@ export class App {
 
   /** Pede ao worker outro planeta. O globo atual continua na tela (e girável) enquanto ele nasce. */
   newWorld(seedText: string): void {
-    this.loadingEl.textContent = 'Gerando mundo…';
+    this.showProgress('', 0);
     this.loadingEl.hidden = false;
+    this.worldRequestedAt = performance.now();
     this.sim.newWorld(seedText, DEFAULT_N);
   }
 
+  /** Barra de progresso da geração (a etapa pesada, o terreno, avisa várias vezes). */
+  private showProgress(stage: string, fraction: number): void {
+    const pct = Math.round(fraction * 100);
+    this.loadingText.textContent = stage ? `Gerando mundo… ${pct}% (${stage})` : 'Gerando mundo…';
+    this.loadingFill.style.width = `${pct}%`;
+  }
+
   private onWorld(info: WorldInfo, colors: Uint8Array): void {
+    this.worldTotalMs = performance.now() - this.worldRequestedAt;
     this.info = info;
     this.colors = colors;
     if (!this.renderer) this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
@@ -239,6 +263,14 @@ export class App {
 
   private measure(time: number, workMs: number): void {
     const st = this.stats;
+    // Menor e maior intervalo entre quadros: mostra a taxa que a tela está oferecendo
+    // (16,7 ms = 60 Hz; 11,1 ms = 90 Hz; 8,3 ms = 120 Hz).
+    if (st.prevTime) {
+      const gap = time - st.prevTime;
+      st.minGap = Math.min(st.minGap, gap);
+      st.maxGap = Math.max(st.maxGap, gap);
+    }
+    st.prevTime = time;
     st.frames++;
     st.workMs += workMs;
     if (!st.since) st.since = time;
@@ -246,6 +278,10 @@ export class App {
     if (elapsed >= 500) {
       st.fps = (st.frames * 1000) / elapsed;
       st.frameMs = st.workMs / st.frames;
+      st.lastMinGap = st.minGap === Infinity ? 0 : st.minGap;
+      st.lastMaxGap = st.maxGap;
+      st.minGap = Infinity;
+      st.maxGap = 0;
       st.frames = 0;
       st.workMs = 0;
       st.since = time;
@@ -263,6 +299,10 @@ export class App {
       seedText: this.info.seedText,
       seed: this.info.seed,
       generationMs: this.info.generationMs,
+      generationTotalMs: this.worldTotalMs,
+      stagesMs: this.info.stagesMs,
+      minGapMs: this.stats.lastMinGap,
+      maxGapMs: this.stats.lastMaxGap,
       zoom: this.camera.zoom,
       cellPixels: this.camera.cellPixels(),
       ticksPerSecond: this.stats.ticksPerSecond,

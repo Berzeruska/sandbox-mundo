@@ -20,7 +20,9 @@ export interface WorldInfo {
   cellCount: number;
   seedText: string;
   seed: number;
+  /** Tempo do worker para gerar (ms), por etapa e total. */
   generationMs: number;
+  stagesMs: Record<string, number>;
   /** Direção média da terra firme (para onde a câmera olha ao nascer o mundo). */
   landCenter: Vec3;
 }
@@ -40,6 +42,7 @@ export interface CellQuery {
 
 export type FromWorker =
   | { type: 'world'; info: WorldInfo; colors: Uint8Array }
+  | { type: 'progress'; stage: string; fraction: number }
   | { type: 'patch'; patches: Patch[]; brushMs: number }
   | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number }
   | { type: 'query'; id: number; cell: CellQuery };

@@ -178,3 +178,20 @@ Formato: data — decisão — motivo — alternativa descartada.
   Medição (build de produção, Radeon 610M, tela de celular): gerar mundo novo leva ~1,65 s nos dois
   casos, mas o maior intervalo entre quadros caiu de **1.658 ms (tela congelada) para 17 ms**.
   Pincel 30 segurado: 60 fps (máx. 19 ms entre quadros). Mesma semente, mesmo mundo (teste).
+
+- **2026-10-15 — fps "cravado em 60" na T2: não é limite do jogo.**
+  O laço de desenho é só `requestAnimationFrame`, que segue a taxa que o navegador oferece. Sem limite
+  de tela (notebook, build de produção), a T2 desenha 741–907 fps, no mesmo patamar da v1.1
+  (948–1.097). No Android, quem escolhe 60/90/120 Hz é o sistema: economia de bateria e taxa
+  adaptativa (muitos aparelhos só sobem com o dedo na tela) costumam derrubar para 60.
+  Para comparar nas mesmas condições, o painel Dados agora mostra a taxa da tela (~Hz) e o menor e o
+  maior intervalo entre quadros.
+
+- **2026-10-15 — Tempo de geração no painel e barra de progresso.**
+  Painel Dados: tempo total do pedido até o globo aparecer, tempo do worker e de cada etapa.
+  Medido no notebook: 0,8–1,7 s (varia bastante entre rodadas), então ~3–5 s no celular, acima do
+  limite de 2 s do usuário: a tela "Gerando mundo…" ganhou barra de progresso, que avança durante o
+  terreno (a etapa pesada, ~65% do tempo). O ruído virou classe (`Noise3D`), o que ajuda o motor
+  JavaScript a manter o código otimizado entre mundos; mundos idênticos aos da v1.1 (byte a byte).
+  Próximo passo, se precisar: gerar o terreno em vários workers ao mesmo tempo (mesmo resultado,
+  2–4× mais rápido em celulares com vários núcleos).

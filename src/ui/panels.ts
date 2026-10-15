@@ -8,6 +8,12 @@ export interface DebugStats {
   seedText: string;
   seed: number;
   generationMs: number;
+  /** Do pedido até o globo aparecer (ms), medido na thread principal. */
+  generationTotalMs: number;
+  stagesMs: Record<string, number>;
+  /** Menor e maior intervalo entre quadros no último meio segundo (ms). */
+  minGapMs: number;
+  maxGapMs: number;
   zoom: number;
   cellPixels: number;
   /** Passos de simulação por segundo no worker. */
@@ -48,11 +54,13 @@ export class DebugPanel {
 
   update(s: DebugStats): void {
     this.body.textContent = [
-      `fps          ${s.fps.toFixed(0)}`,
+      `fps          ${s.fps.toFixed(0)}   (tela ~${s.minGapMs > 0 ? Math.round(1000 / s.minGapMs) : 0} Hz)`,
       `ms/quadro    ${s.frameMs.toFixed(2)}`,
+      `intervalo    mín ${s.minGapMs.toFixed(1)} · máx ${s.maxGapMs.toFixed(1)} ms`,
       `células      ${s.cells.toLocaleString('pt-BR')} (6 × ${s.n}²)`,
       `semente      ${s.seedText} (${s.seed})`,
-      `geração      ${s.generationMs.toFixed(0)} ms`,
+      `geração      ${s.generationTotalMs.toFixed(0)} ms total (worker ${s.generationMs.toFixed(0)})`,
+      `  etapas     ${Object.entries(s.stagesMs).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(' · ')}`,
       `zoom         ${s.zoom.toFixed(2)}× · célula ${s.cellPixels.toFixed(1)} px`,
       `worker       ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms`,
     ].join('\n');

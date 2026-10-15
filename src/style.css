@@ -440,6 +440,26 @@ body {
   z-index: 10;
 }
 
+.loading {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loading-bar {
+  width: min(260px, 70vw);
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.loading-bar > div {
+  height: 100%;
+  width: 0;
+  background: #2f6fd6;
+  transition: width 0.15s linear;
+}
+
 .loading[hidden] {
   display: none;
 }

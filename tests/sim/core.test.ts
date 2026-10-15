@@ -86,3 +86,23 @@ describe('núcleo da simulação (worker)', () => {
     expect(msg.cell.water).toBe(msg.cell.elevation <= 0);
   });
 });
+
+describe('progresso da geração', () => {
+  it('avisa várias vezes durante o terreno, só para a frente, até ~100%', () => {
+    const inbox: FromWorker[] = [];
+    const core = new SimulationCore((m) => inbox.push(m), () => 0);
+    core.handle({ type: 'newWorld', seedText: 'p', n: 128 });
+    const progress = inbox.filter((m) => m.type === 'progress') as Extract<FromWorker, { type: 'progress' }>[];
+    expect(progress.filter((p) => p.stage === 'terreno').length).toBeGreaterThan(3);
+    for (let i = 1; i < progress.length; i++) expect(progress[i]!.fraction).toBeGreaterThanOrEqual(progress[i - 1]!.fraction);
+    expect(progress.at(-1)!.fraction).toBeGreaterThan(0.85);
+    expect(progress.at(-1)!.fraction).toBeLessThanOrEqual(1);
+  });
+
+  it('overallProgress soma os pesos das etapas', async () => {
+    const { overallProgress, GENERATION_STAGES } = await import('../../src/sim/core');
+    expect(GENERATION_STAGES.reduce((s, x) => s + x.weight, 0)).toBeCloseTo(1, 9);
+    expect(overallProgress('grade', 0)).toBe(0);
+    expect(overallProgress('cores', 1)).toBeCloseTo(1, 9);
+  });
+});

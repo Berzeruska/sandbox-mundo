@@ -3,12 +3,29 @@ import { Clock } from '../core/time';
 import { applyBrush } from '../input/tools';
 import { buildColors } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
-import { createWorld } from '../world/create';
+import { createWorld, WORLD_STAGES } from '../world/create';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
 import { makePatches, transferables, type FromWorker, type ToWorker } from './protocol';
 
 export type Post = (msg: FromWorker, transfer: ArrayBuffer[]) => void;
+
+/** Etapas da geração vistas pelo jogador e o peso aproximado de cada uma no tempo total. */
+export const GENERATION_STAGES: readonly { name: string; weight: number }[] = [
+  { name: 'grade', weight: 0.08 },
+  ...WORLD_STAGES.map((name) => ({ name, weight: name === 'terreno' ? 0.62 : name === 'clima' ? 0.2 : 0.02 })),
+  { name: 'cores', weight: 0.08 },
+];
+
+/** Fração total concluída, dada a etapa atual e quanto dela já foi feito. */
+export function overallProgress(stage: string, fraction: number): number {
+  let done = 0;
+  for (const s of GENERATION_STAGES) {
+    if (s.name === stage) return Math.min(1, done + s.weight * fraction);
+    done += s.weight;
+  }
+  return done;
+}
 
 /**
  * O "cérebro" que roda dentro do Web Worker: guarda o mundo e o relógio, responde a comandos e
@@ -51,13 +68,28 @@ export class SimulationCore {
   }
 
   private newWorld(seedText: string, n: number): void {
-    if (!this.grid || this.grid.n !== n) this.grid = new CubeSphere(n);
     const t0 = this.now();
-    const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3 }, this.grid);
-    const generationMs = this.now() - t0;
+    const stagesMs: Record<string, number> = {};
+    let current = '';
+    let mark = t0;
+    const stage = (name: string, fraction = 0): void => {
+      if (name !== current) {
+        const t = this.now();
+        if (current) stagesMs[current] = t - mark;
+        current = name;
+        mark = t;
+      }
+      this.send({ type: 'progress', stage: name, fraction: overallProgress(name, fraction) });
+    };
+    stage('grade');
+    if (!this.grid || this.grid.n !== n) this.grid = new CubeSphere(n);
+    const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3 }, this.grid, stage);
+    stage('cores');
     this.world = world;
     this.colors = new Uint8Array(world.cellCount * 4);
     buildColors(world, this.colors);
+    stagesMs[current] = this.now() - mark;
+    const generationMs = this.now() - t0;
     this.clock.tick = 0;
     this.send({
       type: 'world',
@@ -67,6 +99,7 @@ export class SimulationCore {
         seedText,
         seed: world.params.seed,
         generationMs,
+        stagesMs,
         landCenter: landCenter(world),
       },
       // Cópia: o worker continua com as próprias cores; a cópia vai transferida.

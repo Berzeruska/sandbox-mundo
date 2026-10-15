@@ -5,6 +5,7 @@ import type { CellQuery, FromWorker, Patch, ToWorker, WorldInfo } from './protoc
 
 export interface SimEvents {
   onWorld(info: WorldInfo, colors: Uint8Array): void;
+  onProgress(stage: string, fraction: number): void;
   onPatch(patches: Patch[], brushMs: number): void;
   onClock(tick: number, speed: Speed, ticksPerSecond: number): void;
 }
@@ -63,6 +64,9 @@ export class SimClient {
       case 'world':
         this.brushInFlight = false;
         this.events.onWorld(msg.info, msg.colors);
+        break;
+      case 'progress':
+        this.events.onProgress(msg.stage, msg.fraction);
         break;
       case 'patch':
         this.events.onPatch(msg.patches, msg.brushMs);

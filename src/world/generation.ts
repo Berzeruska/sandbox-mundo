@@ -3,6 +3,9 @@ import type { WorldState } from './state';
 import { createNoise3D, fbm, ridged } from './noise';
 import { latLonToPoint, type Vec3 } from './cubesphere';
 
+/** A cada quantas células (potência de 2, menos 1) o progresso é avisado. */
+const PROGRESS_MASK = 16383;
+
 /** Profundidade máxima do oceano e altura máxima das montanhas geradas (metros). */
 export const MAX_DEPTH = 5000;
 export const MAX_HEIGHT = 5500;
@@ -43,7 +46,7 @@ export function thresholdForFraction(values: Float32Array, fraction: number): nu
  * ruído para não ficar redonda) somado a ruído fractal, com cordilheiras por ruído de crista.
  * A fração de terra é garantida escolhendo o limiar exato que deixa `landFraction` acima da água.
  */
-export function generateTerrain(world: WorldState): void {
+export function generateTerrain(world: WorldState, onProgress?: (fraction: number) => void): void {
   const { seed, landFraction } = world.params;
   const rng = createRng(seed);
   const baseNoise = createNoise3D(rng);
@@ -75,6 +78,7 @@ export function generateTerrain(world: WorldState): void {
   const continent = new Float32Array(n);
 
   for (let i = 0; i < n; i++) {
+    if (onProgress && (i & PROGRESS_MASK) === 0) onProgress((0.8 * i) / n);
     const x = positions[i * 3] as number;
     const y = positions[i * 3 + 1] as number;
     const z = positions[i * 3 + 2] as number;
@@ -106,6 +110,7 @@ export function generateTerrain(world: WorldState): void {
   }
 
   for (let i = 0; i < n; i++) {
+    if (onProgress && (i & PROGRESS_MASK) === 0) onProgress(0.8 + (0.2 * i) / n);
     const h = raw[i] as number;
     let elev: number;
     if (h > t) {
