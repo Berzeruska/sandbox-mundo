@@ -39,6 +39,9 @@ num projeto escrito majoritariamente por IA.
 - Velocidades: pausado, 1×, 2×, 5×, 20×, máximo. Em velocidade alta, renderização cai de frequência
   antes da simulação.
 - A partir do Marco 2, a simulação roda num **Web Worker** (outra thread), para a tela nunca travar.
+  Organização: `src/sim/core.ts` (núcleo, testável), `src/sim/worker.ts` (adaptador do worker),
+  `src/sim/client.ts` (lado da thread principal) e `src/sim/protocol.ts` (mensagens e remendos).
+  A thread principal só desenha a cópia das cores e manda comandos; nunca lê o mundo direto.
 - Estado em **arrays tipados** (`Float32Array`, `Uint8Array`), não em milhares de objetos.
 
 ## Dois níveis de simulação (a partir do Marco 3)

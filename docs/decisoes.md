@@ -137,6 +137,8 @@ Formato: data — decisão — motivo — alternativa descartada.
   desenhava por software e ficava lento. Correção: a lógica virou função pura
   (`inertiaFromHistory` em `src/input/pointer.ts`) com teste determinístico de tempos sintéticos em
   `tests/input/pointer.test.ts`; a checagem dependente de relógio saiu do roteiro do navegador.
+  O mesmo foi feito com a espera de 80 ms que separa pincelada de pinça (`PaintGate` em
+  `src/input/paint-gate.ts`, teste em `tests/input/paint-gate.test.ts`).
 
 - **2026-10-15 — Menu de ferramentas por categorias (M2, T1): layout aprovado pelo usuário.**
   Esboço: `docs/img/m2-t1-esboco-menu.png`. Decisões junto com a aprovação:
@@ -166,3 +168,13 @@ Formato: data — decisão — motivo — alternativa descartada.
   Quatro classes sociais: M5 (`05`). Feedback ambiental: base no M3, gatilhos humanos no M4/M7
   (`04`). Doutrinas de guerra ligadas a cultura, terreno e tecnologia: M6/M7 (`06`). Escala visual
   pequena de pessoas e cidades: M3/M4 e M8 (`00`). Resumo em `docs/02-marcos.md`.
+
+- **2026-10-15 — T2 do M2: simulação no Web Worker.**
+  O worker (`src/sim/worker.ts`) guarda o mundo, o relógio, a geração, o clima e os pincéis; a lógica
+  fica em `SimulationCore` (`src/sim/core.ts`), testada sem worker. A thread principal guarda só uma
+  cópia das cores, atualizada por **remendos** (retângulos alterados, buffers transferidos sem cópia).
+  Pinceladas são agrupadas: enquanto o worker processa uma, as seguintes acumulam tempo e posição,
+  sem formar fila. Sem `SharedArrayBuffer` (o GitHub Pages não permite os cabeçalhos exigidos).
+  Medição (build de produção, Radeon 610M, tela de celular): gerar mundo novo leva ~1,65 s nos dois
+  casos, mas o maior intervalo entre quadros caiu de **1.658 ms (tela congelada) para 17 ms**.
+  Pincel 30 segurado: 60 fps (máx. 19 ms entre quadros). Mesma semente, mesmo mundo (teste).

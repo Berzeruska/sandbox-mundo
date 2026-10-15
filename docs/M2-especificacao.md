@@ -108,7 +108,7 @@ nunca trava, nem em velocidade máxima, nem no celular.
   Testes: estado do menu (categoria aberta, ferramenta ativa, troca de categoria) em lógica pura.
   Verificação manual: celular com uma mão e notebook; área coberta medida e comparada à v1.1.
 
-- [ ] **T2 — Simulação no Web Worker** (`src/sim/worker.ts`, `src/sim/protocol.ts`)
+- [x] **T2 — Simulação no Web Worker** (`src/sim/worker.ts`, `src/sim/protocol.ts`)
   Mover o mundo, o relógio, a geração, o clima e os pincéis para o worker. A thread principal recebe
   os remendos de cor e manda comandos.
   Testes: codificar/decodificar mensagens; o mundo gerado no worker é idêntico ao da thread principal

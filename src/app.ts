@@ -1,79 +1,64 @@
-import { seedFrom } from './core/rng';
+import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
 import { Clock, formatDate, type Speed } from './core/time';
+import { PaintGate } from './input/paint-gate';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
-import { applyBrush, Tool } from './input/tools';
+import { Tool } from './input/tools';
 import { Camera } from './render/camera';
-import { buildColors } from './render/colors';
-import { dirtyRects } from './render/dirty';
 import { GlobeRenderer } from './render/globe-renderer';
 import { Overlay } from './render/overlay';
+import { SimClient } from './sim/client';
+import { applyPatch, type Patch, type WorldInfo } from './sim/protocol';
 import { Hud } from './ui/hud';
-import { DebugPanel, NewWorldDialog } from './ui/panels';
 import { activeBrush, inputModeOf } from './ui/menu-state';
-import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
-import { createWorld } from './world/create';
-import { CubeSphere, type Vec3 } from './world/cubesphere';
-import type { WorldState } from './world/state';
+import { DebugPanel, NewWorldDialog } from './ui/panels';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
 const MAX_PIXEL_RATIO = 2;
 const DEFAULT_BRUSH = 6;
-/**
- * Espera antes de começar a pintar (ms). Se o segundo dedo chegar antes, é pinça e nada é pintado;
- * sem isso, todo zoom por pinça no modo pintar deixaria um borrão onde o primeiro dedo encostou.
- */
-const PAINT_DELAY_MS = 80;
 
-/** Liga simulação, câmera, entrada, interface e renderização. A simulação não sabe que o App existe. */
+/**
+ * Thread principal: câmera, entrada, interface e desenho. O mundo vive no Web Worker
+ * (`src/sim/`); aqui fica só uma cópia das cores para a textura, atualizada por remendos.
+ */
 export class App {
   readonly camera = new Camera();
-  readonly renderer: GlobeRenderer;
   readonly overlay: Overlay;
   readonly input: PointerInput;
   readonly hud: Hud;
-  readonly clock = new Clock();
-  private lastRunningSpeed: Speed = 1;
+  readonly sim: SimClient;
   readonly debug: DebugPanel;
   readonly worldDialog: NewWorldDialog;
-  private loadingEl: HTMLDivElement;
-  private generationMs = 0;
-  /** Giro contínuo para medir fps (redesenha todo quadro). */
-  private stressSpin = false;
-  private stats = { frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0 };
-  world: WorldState;
-  colors: Uint8Array;
+  /** Cópia do relógio do worker, só para mostrar a data. */
+  readonly clock = new Clock();
+  renderer: GlobeRenderer | null = null;
+  info: WorldInfo | null = null;
+  colors: Uint8Array = new Uint8Array(0);
   mode: InputMode = 'move';
   tool: Tool = Tool.Raise;
   brushSize = DEFAULT_BRUSH;
-  private grid: CubeSphere;
+  private canvas: HTMLCanvasElement;
+  private loadingEl: HTMLDivElement;
+  private lastRunningSpeed: Speed = 1;
+  /** Giro contínuo para medir fps (redesenha todo quadro). */
+  private stressSpin = false;
+  private stats = { frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0, brushMs: 0, ticksPerSecond: 0 };
   private needsDraw = true;
   private lastTime = 0;
   /** Posição do pincel na tela (mouse por cima ou dedo pintando), ou null. */
   private brushScreen: { x: number; y: number } | null = null;
-  private painting = false;
-  private paintStartedAt = 0;
-  private paintApplied = false;
+  /** Decide quando o toque vira pincelada (espera o segundo dedo de uma pinça). */
+  private paintGate = new PaintGate();
 
   constructor(root: HTMLElement, seedText: string) {
-    const canvas = document.createElement('canvas');
-    canvas.id = 'globe';
+    this.canvas = document.createElement('canvas');
+    this.canvas.id = 'globe';
     const overlayCanvas = document.createElement('canvas');
     overlayCanvas.id = 'overlay';
-    root.append(canvas, overlayCanvas);
-
-    this.grid = new CubeSphere(DEFAULT_N);
-    const t0 = performance.now();
-    this.world = this.generate(seedText);
-    this.generationMs = performance.now() - t0;
-    this.colors = new Uint8Array(this.world.cellCount * 4);
-    buildColors(this.world, this.colors);
-    this.renderer = new GlobeRenderer(canvas, this.world.params.n, this.colors);
+    root.append(this.canvas, overlayCanvas);
     this.overlay = new Overlay(overlayCanvas);
-    this.camera.setCellAngle(this.grid.cellAngle);
-    this.camera.lookAt(landCenter(this.world));
 
-    this.input = new PointerInput(canvas, this.camera, {
+    this.input = new PointerInput(this.canvas, this.camera, {
       getMode: () => this.mode,
       onCameraChange: () => this.requestDraw(),
       onPaint: (sx, sy, phase) => this.onPaint(sx, sy, phase),
@@ -102,7 +87,7 @@ export class App {
         onSpeed: (speed) => this.setSpeed(speed),
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
-          if (action === 'newWorld') this.worldDialog.show(this.world.params.seedText);
+          if (action === 'newWorld') this.worldDialog.show(this.info?.seedText ?? '');
           if (action === 'debug') {
             this.debug.toggle();
             this.updateDebug();
@@ -123,9 +108,7 @@ export class App {
     this.worldDialog = new NewWorldDialog(this.hud.root, (text) => this.newWorld(text));
     this.loadingEl = document.createElement('div');
     this.loadingEl.className = 'loading';
-    this.loadingEl.hidden = true;
     root.append(this.loadingEl);
-
     this.hud.setSpeed(this.clock.speed);
     this.hud.setDate(formatDate(this.clock));
 
@@ -138,31 +121,51 @@ export class App {
     window.addEventListener('keyup', (e) => {
       if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) e.preventDefault();
     });
+
+    this.sim = new SimClient({
+      onWorld: (info, colors) => this.onWorld(info, colors),
+      onPatch: (patches, brushMs) => this.onPatch(patches, brushMs),
+      onClock: (tick, speed, ticksPerSecond) => {
+        this.clock.tick = tick;
+        this.stats.ticksPerSecond = ticksPerSecond;
+        if (speed !== this.clock.speed) {
+          this.clock.speed = speed;
+          this.hud.setSpeed(speed);
+        }
+        this.hud.setDate(formatDate(this.clock));
+      },
+    });
+    this.newWorld(seedText);
   }
 
-  /** Gera outro planeta com a semente dada (mantém a grade, zera o calendário). */
+  /** Pede ao worker outro planeta. O globo atual continua na tela (e girável) enquanto ele nasce. */
   newWorld(seedText: string): void {
     this.loadingEl.textContent = 'Gerando mundo…';
     this.loadingEl.hidden = false;
-    // Deixa a mensagem aparecer antes do trabalho pesado.
-    requestAnimationFrame(() =>
-      setTimeout(() => {
-        const t0 = performance.now();
-        this.world = this.generate(seedText);
-        this.generationMs = performance.now() - t0;
-        buildColors(this.world, this.colors);
-        this.renderer.setWorld(this.world.params.n, this.colors);
-        this.camera.stopSpin();
-        this.camera.zoom = 1;
-        this.camera.lookAt(landCenter(this.world));
-        this.clock.tick = 0;
-        this.hud.setDate(formatDate(this.clock));
-        setSeedInUrl(seedText);
-        this.loadingEl.hidden = true;
-        this.updateDebug();
-        this.requestDraw();
-      }, 30),
-    );
+    this.sim.newWorld(seedText, DEFAULT_N);
+  }
+
+  private onWorld(info: WorldInfo, colors: Uint8Array): void {
+    this.info = info;
+    this.colors = colors;
+    if (!this.renderer) this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
+    else this.renderer.setWorld(info.n, colors);
+    this.camera.setCellAngle(Math.PI / 2 / info.n);
+    this.camera.stopSpin();
+    this.camera.zoom = 1;
+    this.camera.lookAt(info.landCenter);
+    setSeedInUrl(info.seedText);
+    this.loadingEl.hidden = true;
+    this.updateDebug();
+    this.requestDraw();
+  }
+
+  private onPatch(patches: Patch[], brushMs: number): void {
+    if (!this.info || !this.renderer) return;
+    for (const p of patches) applyPatch(this.colors, this.info.n, p);
+    this.renderer.upload(patches);
+    this.stats.brushMs = brushMs;
+    this.requestDraw();
   }
 
   /** Pausa, ou retoma na última velocidade usada. */
@@ -174,18 +177,12 @@ export class App {
     if (speed !== 0) this.lastRunningSpeed = speed;
     this.clock.speed = speed;
     this.hud.setSpeed(speed);
-  }
-
-  private generate(seedText: string): WorldState {
-    return createWorld(
-      { seedText, seed: seedFrom(seedText), n: this.grid.n, seaLevel: 0, landFraction: 0.3 },
-      this.grid,
-    );
+    this.sim.setSpeed(speed);
   }
 
   setMode(mode: InputMode): void {
     this.mode = mode;
-    this.painting = false;
+    this.paintGate.cancel();
     this.requestDraw();
   }
 
@@ -195,28 +192,17 @@ export class App {
 
   private onPaint(sx: number, sy: number, phase: PaintPhase): void {
     this.brushScreen = { x: sx, y: sy };
-    if (phase === 'start') {
-      this.painting = true;
-      this.paintStartedAt = performance.now();
-      this.paintApplied = false;
-    } else if (phase === 'end') {
-      // Toque rápido (soltou antes da espera): aplica uma vez, com efeito visível.
-      if (this.painting && !this.paintApplied) this.applyBrushAtScreen(1 / 20);
-      this.painting = false;
-    } else if (phase === 'cancel') {
-      this.painting = false;
-    }
+    if (phase === 'start') this.paintGate.start(performance.now());
+    else if (phase === 'cancel') this.paintGate.cancel();
+    // Toque rápido (soltou antes da espera): aplica uma vez, com efeito visível.
+    else if (phase === 'end' && this.paintGate.end()) this.applyBrushAtScreen(1 / 20);
     this.requestDraw();
   }
 
   private applyBrushAtScreen(dt: number): void {
-    if (!this.brushScreen) return;
+    if (!this.brushScreen || !this.info) return;
     const p = this.camera.pick(this.brushScreen.x, this.brushScreen.y);
-    if (!p) return;
-    const { region } = applyBrush(this.world, this.tool, p, this.brushSize, dt);
-    buildColors(this.world, this.colors, region);
-    this.renderer.upload(dirtyRects(this.grid, region));
-    this.needsDraw = true;
+    if (p) this.sim.brush(this.tool, p, this.brushSize, dt);
   }
 
   /** Um quadro: ajusta tamanho, avança animações e pincel, e desenha se algo mudou. */
@@ -224,20 +210,18 @@ export class App {
     const workStart = performance.now();
     const dt = this.lastTime ? Math.min(0.1, (time - this.lastTime) / 1000) : 0;
     this.lastTime = time;
+    const renderer = this.renderer;
+    if (!renderer) return;
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
-    if (this.renderer.resize(ratio)) {
-      this.camera.setViewport(this.renderer.canvas.width, this.renderer.canvas.height);
-      this.overlay.resize(this.renderer.canvas.width, this.renderer.canvas.height);
+    if (renderer.resize(ratio)) {
+      this.camera.setViewport(renderer.canvas.width, renderer.canvas.height);
+      this.overlay.resize(renderer.canvas.width, renderer.canvas.height);
       this.needsDraw = true;
     }
-    // No M1 o tempo só avança o calendário; os passos da simulação entram no M2.
-    if (this.clock.advance(dt) > 0) this.hud.setDate(formatDate(this.clock));
     if (this.camera.update(dt)) this.needsDraw = true;
     if (this.input.update(dt)) this.needsDraw = true;
-    if (this.painting && performance.now() - this.paintStartedAt >= PAINT_DELAY_MS) {
-      this.applyBrushAtScreen(this.paintApplied ? dt : 1 / 20);
-      this.paintApplied = true;
-    }
+    const gate = this.paintGate.frame(performance.now());
+    if (gate !== 'none') this.applyBrushAtScreen(gate === 'first' ? 1 / 20 : dt);
 
     if (this.stressSpin) {
       const r = quatFromAxisAngle([0, 1, 0], dt * 0.6);
@@ -246,7 +230,7 @@ export class App {
     }
 
     if (this.needsDraw) {
-      this.renderer.draw(this.camera);
+      renderer.draw(this.camera);
       this.drawOverlay();
       this.needsDraw = false;
     }
@@ -270,25 +254,27 @@ export class App {
   }
 
   private updateDebug(): void {
-    if (!this.debug.visible) return;
+    if (!this.debug.visible || !this.info) return;
     this.debug.update({
       fps: this.stats.fps,
       frameMs: this.stats.frameMs,
-      cells: this.world.cellCount,
-      n: this.world.params.n,
-      seedText: this.world.params.seedText,
-      seed: this.world.params.seed,
-      generationMs: this.generationMs,
+      cells: this.info.cellCount,
+      n: this.info.n,
+      seedText: this.info.seedText,
+      seed: this.info.seed,
+      generationMs: this.info.generationMs,
       zoom: this.camera.zoom,
       cellPixels: this.camera.cellPixels(),
+      ticksPerSecond: this.stats.ticksPerSecond,
+      brushMs: this.stats.brushMs,
     });
   }
 
   private drawOverlay(): void {
     this.overlay.clear();
-    if (this.mode !== 'paint' || !this.brushScreen) return;
+    if (this.mode !== 'paint' || !this.brushScreen || !this.info) return;
     const p = this.camera.pick(this.brushScreen.x, this.brushScreen.y);
-    if (p) this.overlay.drawCap(this.camera, p, this.brushSize * this.grid.cellAngle);
+    if (p) this.overlay.drawCap(this.camera, p, this.brushSize * (Math.PI / 2 / this.info.n));
   }
 
   start(): void {
@@ -305,20 +291,4 @@ export function setSeedInUrl(seedText: string): void {
   const url = new URL(window.location.href);
   url.searchParams.set('seed', seedText);
   window.history.replaceState(null, '', url);
-}
-
-/** Direção média da terra firme: onde a câmera começa olhando. */
-export function landCenter(world: WorldState): Vec3 {
-  const { positions } = world.grid;
-  let x = 0;
-  let y = 0;
-  let z = 0;
-  for (let i = 0; i < world.cellCount; i++) {
-    if (world.isWater(i)) continue;
-    x += positions[i * 3] as number;
-    y += positions[i * 3 + 1] as number;
-    z += positions[i * 3 + 2] as number;
-  }
-  const len = Math.hypot(x, y, z);
-  return len > 1e-9 ? [x / len, y / len, z / len] : [0, 0, 1];
 }

@@ -10,6 +10,10 @@ export interface DebugStats {
   generationMs: number;
   zoom: number;
   cellPixels: number;
+  /** Passos de simulação por segundo no worker. */
+  ticksPerSecond: number;
+  /** Tempo da última pincelada no worker (ms). */
+  brushMs: number;
 }
 
 export class DebugPanel {
@@ -50,6 +54,7 @@ export class DebugPanel {
       `semente      ${s.seedText} (${s.seed})`,
       `geração      ${s.generationMs.toFixed(0)} ms`,
       `zoom         ${s.zoom.toFixed(2)}× · célula ${s.cellPixels.toFixed(1)} px`,
+      `worker       ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms`,
     ].join('\n');
   }
 }
