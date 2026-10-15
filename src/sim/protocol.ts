@@ -33,6 +33,7 @@ export type ToWorker =
   | { type: 'brush'; tool: Tool; point: Vec3; radius: number; dt: number }
   | { type: 'speed'; speed: Speed }
   | { type: 'layers'; layers: Layers }
+  | { type: 'plateRate'; rate: number }
   | { type: 'query'; id: number; point: Vec3 };
 
 export interface CellQuery {
@@ -46,7 +47,7 @@ export type FromWorker =
   | { type: 'world'; info: WorldInfo; colors: Uint8Array }
   | { type: 'progress'; stage: string; fraction: number }
   | { type: 'patch'; patches: Patch[]; brushMs: number }
-  | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number }
+  | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number; geologyMs: number; recompositions: number }
   | { type: 'query'; id: number; cell: CellQuery };
 
 /** Empacota os retângulos alterados (cada um no seu próprio buffer, para transferir). */

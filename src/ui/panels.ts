@@ -20,6 +20,9 @@ export interface DebugStats {
   ticksPerSecond: number;
   /** Tempo da última pincelada no worker (ms). */
   brushMs: number;
+  /** Última recomposição das placas, com clima e cores (ms), e quantas já houve. */
+  geologyMs: number;
+  recompositions: number;
 }
 
 export class DebugPanel {
@@ -63,6 +66,7 @@ export class DebugPanel {
       `  etapas     ${Object.entries(s.stagesMs).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(' · ')}`,
       `zoom         ${s.zoom.toFixed(2)}× · célula ${s.cellPixels.toFixed(1)} px`,
       `worker       ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms`,
+      `placas       ${s.recompositions} recomposições · última ${s.geologyMs.toFixed(0)} ms`,
     ].join('\n');
   }
 }

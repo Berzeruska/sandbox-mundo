@@ -165,7 +165,7 @@ mundos evoluem.
   Testes: toda célula tem placa; cada placa é contígua; número de placas dentro da faixa; a Pangeia
   cobre ≥ 3 placas; determinismo.
 
-- [ ] **T4 — Movimento, recomposição e controle "Placas"** (`src/world/tectonics.ts`)
+- [x] **T4 — Movimento, recomposição e controle "Placas"** (`src/world/tectonics.ts`)
   Crosta no referencial da placa, recomposição global, controle de velocidade em Geologia (0 congela).
   Ritmo: no máximo, com o tempo em 20×, a Pangeia se parte em ~2 minutos reais.
   Testes: velocidade 0 não muda nada; uma placa sozinha gira sem deformar (forma preservada dentro

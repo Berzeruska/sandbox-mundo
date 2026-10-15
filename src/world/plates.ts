@@ -214,7 +214,12 @@ export function generatePlates(world: WorldState): void {
   }
 
   // Classificação das fronteiras (para a camada e, depois, para montanhas e terremotos).
-  for (let i = 0; i < n; i++) world.boundary[i] = classifyBoundary(world, i);
+  updateBoundaries(world);
+}
+
+/** Reclassifica todas as fronteiras (depois de gerar ou de mover as placas). */
+export function updateBoundaries(world: WorldState): void {
+  for (let i = 0; i < world.cellCount; i++) world.boundary[i] = classifyBoundary(world, i);
   // Duas rodadas de voto: células isoladas com tipo diferente caem de ~5–10% para ~0,3%.
   smoothBoundaries(world);
   smoothBoundaries(world);

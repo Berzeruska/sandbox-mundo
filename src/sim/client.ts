@@ -8,7 +8,7 @@ export interface SimEvents {
   onWorld(info: WorldInfo, colors: Uint8Array): void;
   onProgress(stage: string, fraction: number): void;
   onPatch(patches: Patch[], brushMs: number): void;
-  onClock(tick: number, speed: Speed, ticksPerSecond: number): void;
+  onClock(tick: number, speed: Speed, ticksPerSecond: number, geologyMs: number, recompositions: number): void;
 }
 
 /**
@@ -35,6 +35,11 @@ export class SimClient {
   newWorld(seedText: string, n: number): void {
     this.pendingBrush = null;
     this.send({ type: 'newWorld', seedText, n });
+  }
+
+  /** Controle "Placas": 0 congela a geologia, 1 é o máximo. */
+  setPlateRate(rate: number): void {
+    this.send({ type: 'plateRate', rate });
   }
 
   setLayers(layers: Layers): void {
@@ -85,7 +90,7 @@ export class SimClient {
         }
         break;
       case 'clock':
-        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond);
+        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.recompositions);
         break;
       case 'query':
         this.queries.get(msg.id)?.(msg.cell);

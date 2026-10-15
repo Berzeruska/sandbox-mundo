@@ -106,3 +106,42 @@ describe('progresso da geração', () => {
     expect(overallProgress('cores', 1)).toBeCloseTo(1, 9);
   });
 });
+
+describe('placas no worker', () => {
+  it('com o controle "Placas" ligado, o relógio move as placas e manda o mundo repintado', () => {
+    const { core, inbox } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'deriva', n: 32 });
+    core.handle({ type: 'plateRate', rate: 1 });
+    core.handle({ type: 'speed', speed: 20 });
+    const before = Float32Array.from(core.world!.elevation);
+    inbox.length = 0;
+    for (let i = 0; i < 400; i++) core.advance(0.25); // 400 × 60 passos
+    expect(core.tectonics!.recompositions).toBeGreaterThan(0);
+    expect(core.world!.elevation).not.toEqual(before);
+    const fullPatch = inbox.find((m) => m.type === 'patch' && m.patches.length === 6);
+    expect(fullPatch).toBeDefined();
+    expect(lastOf(inbox, 'clock')!.recompositions).toBe(core.tectonics!.recompositions);
+  });
+
+  it('controle em 0 congela a geologia mesmo com o tempo correndo', () => {
+    const { core } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'parado', n: 32 });
+    core.handle({ type: 'plateRate', rate: 0 });
+    core.handle({ type: 'speed', speed: 20 });
+    const before = Float32Array.from(core.world!.elevation);
+    for (let i = 0; i < 200; i++) core.advance(0.25);
+    expect(core.tectonics!.recompositions).toBe(0);
+    expect(core.world!.elevation).toEqual(before);
+  });
+
+  it('pincelada fica gravada na placa (sobrevive à recomposição)', () => {
+    const { core } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'grava', n: 32 });
+    const p = latLonToPoint(0.1, 0.2);
+    core.handle({ type: 'brush', tool: Tool.Raise, point: p, radius: 3, dt: 2 });
+    const w = core.world!;
+    const max0 = Math.max(...w.elevation);
+    core.tectonics!.recompose();
+    expect(Math.max(...w.elevation)).toBe(max0);
+  });
+});

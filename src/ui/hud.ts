@@ -20,6 +20,8 @@ export interface HudCallbacks {
   onSpeed(speed: Speed): void;
   onTogglePause(): void;
   onBrushSize(size: number): void;
+  /** Controle "Placas" (0 a 100%). */
+  onPlateRate(percent: number): void;
   onNorthUp(): void;
   /** Ação do menu (ex.: 'newWorld', 'debug'). */
   onAction(action: string): void;
@@ -56,6 +58,7 @@ export class Hud {
   state: MenuState = INITIAL_MENU;
   private speed: Speed = 1;
   private brushSize: number;
+  private platePercent: number;
   private lastDate = '';
 
   private dateText: HTMLSpanElement;
@@ -72,8 +75,10 @@ export class Hud {
     parent: HTMLElement,
     private cb: HudCallbacks,
     initialBrushSize: number,
+    initialPlatePercent: number,
   ) {
     this.brushSize = initialBrushSize;
+    this.platePercent = initialPlatePercent;
     this.root = el('div', 'hud');
 
     const chip = el('div', 'hud-chip');
@@ -160,6 +165,25 @@ export class Hud {
     return wrap;
   }
 
+  /** Controle de velocidade das placas (0 congela a geologia). */
+  private plateSlider(): HTMLElement {
+    const wrap = el('span', 'hud-brush');
+    const range = el('input', 'hud-brush-range hud-plate-range');
+    range.type = 'range';
+    range.min = '0';
+    range.max = '100';
+    range.value = String(this.platePercent);
+    range.setAttribute('aria-label', 'Velocidade das placas');
+    const value = el('span', 'hud-brush-value hud-plate-value', `${this.platePercent}%`);
+    range.addEventListener('input', () => {
+      this.platePercent = Number(range.value);
+      for (const v of this.root.querySelectorAll<HTMLElement>('.hud-plate-value')) v.textContent = `${this.platePercent}%`;
+      this.cb.onPlateRate(this.platePercent);
+    });
+    wrap.append(range, value);
+    return wrap;
+  }
+
   private render(): void {
     const paused = this.speed === 0;
     this.speedBadge.textContent = paused ? 'pausado' : speedLabel(this.speed);
@@ -200,6 +224,10 @@ export class Hud {
     if (item.brush !== undefined) {
       name.append(el('small', '', 'pincel'));
       card.append(name, this.brushSlider());
+    } else if (item.id === 'plateSpeed') {
+      name.textContent = 'Placas';
+      name.append(el('small', '', this.platePercent === 0 ? 'congeladas' : 'velocidade'));
+      card.append(name, this.plateSlider());
     } else {
       name.append(el('small', '', 'girar e aproximar'));
       card.append(name);
@@ -234,6 +262,11 @@ export class Hud {
     if (this.state.category === 'relevo') {
       const row = el('div', 'hud-row');
       row.append(el('span', '', 'Pincel'), this.brushSlider());
+      this.grid.append(row);
+    }
+    if (this.state.category === 'geologia') {
+      const row = el('div', 'hud-row');
+      row.append(el('span', '', 'Placas'), this.plateSlider());
       this.grid.append(row);
     }
     if (this.state.category === 'desastres') {

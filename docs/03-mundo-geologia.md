@@ -80,6 +80,28 @@ Cada pincelada recalcula clima e bioma só da região afetada (mais uma borda).
 - Camada "Ver placas" (menu Geologia): cada placa com um tom e as fronteiras em vermelho
   (convergente), azul (divergente) e amarelo (transformante).
 
+### Como está implementado (M2, T4: movimento)
+- Cada placa guarda a sua crosta (altura, tipo, data de nascimento) no **próprio referencial** e só
+  acumula um ângulo de rotação em torno do seu eixo fixo. As amostras nunca são recopiadas de célula
+  em célula, então os continentes não se deformam.
+- **Recomposição**: quando alguma placa andou 1 célula (~39 km), o mapa é refeito. Para cada célula,
+  desfaz-se a rotação de cada placa candidata e consulta-se a amostra dela; perto das fronteiras
+  testam-se todas as placas.
+- Buraco onde as placas se afastam → crosta oceânica nova a -2.500 m (dorsal). Sobreposição onde se
+  aproximam → continental fica por cima; a oceânica mais velha afunda e é consumida. Buracos e
+  sobreposições só de arredondamento (sem movimento relativo) são cicatrizados copiando a vizinha.
+- Depois de cada recomposição: distância até a água, clima, biomas e cores do mundo todo.
+- Pinceladas ficam gravadas na placa e viajam com ela. O gelo pintado/apagado e a variação regional
+  de clima ficam presos à posição no globo (não andam com a placa).
+- **Ritmo**: 6×10⁻⁶ rad por passo no controle 100% (velocidade relativa 1). Com o tempo em 20× e o
+  controle no máximo, as placas andam ~1 célula a cada ~5 s e a Pangeia se abre em ~2 minutos.
+  Controle inicial: 25%. Em 0% a geologia congela (clima e tempo seguem).
+- A recomposição é disparada por ângulo contado em passos, não por tempo real: mesma semente e
+  mesmos comandos, mesmo resultado.
+- Ainda sem relevo nas fronteiras (T5): o fundo oceânico novo é liso, colisões ainda não erguem
+  montanhas e a crosta continental que colide some aos poucos (a fração de terra cai ~1–2 pontos a
+  cada 0,3 rad de deriva); a T5 transforma isso em cordilheira.
+
 ## Desastres (Marco 2)
 | Desastre   | Onde surge                         | Gatilho                     |
 |------------|------------------------------------|-----------------------------|

@@ -3,6 +3,7 @@ import { Clock, formatDate, type Speed } from './core/time';
 import { PaintGate } from './input/paint-gate';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
+import { DEFAULT_PLATE_RATE } from './world/tectonics';
 import { Camera } from './render/camera';
 import { GlobeRenderer } from './render/globe-renderer';
 import { Overlay } from './render/overlay';
@@ -46,7 +47,7 @@ export class App {
   private stressSpin = false;
   private stats = {
     frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0, brushMs: 0, ticksPerSecond: 0,
-    minGap: Infinity, maxGap: 0, lastMinGap: 0, lastMaxGap: 0, prevTime: 0,
+    minGap: Infinity, maxGap: 0, lastMinGap: 0, lastMaxGap: 0, prevTime: 0, geologyMs: 0, recompositions: 0,
   };
   /** Momento do pedido de mundo novo, para medir o tempo total até o globo aparecer. */
   private worldRequestedAt = 0;
@@ -92,6 +93,7 @@ export class App {
           this.brushSize = size;
           this.requestDraw();
         },
+        onPlateRate: (percent) => this.sim.setPlateRate(percent / 100),
         onSpeed: (speed) => this.setSpeed(speed),
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
@@ -111,6 +113,7 @@ export class App {
         },
       },
       this.brushSize,
+      Math.round(DEFAULT_PLATE_RATE * 100),
     );
     this.debug = new DebugPanel(this.hud.root, () => {
       this.stressSpin = !this.stressSpin;
@@ -143,9 +146,11 @@ export class App {
       onWorld: (info, colors) => this.onWorld(info, colors),
       onProgress: (stage, fraction) => this.showProgress(stage, fraction),
       onPatch: (patches, brushMs) => this.onPatch(patches, brushMs),
-      onClock: (tick, speed, ticksPerSecond) => {
+      onClock: (tick, speed, ticksPerSecond, geologyMs, recompositions) => {
         this.clock.tick = tick;
         this.stats.ticksPerSecond = ticksPerSecond;
+        this.stats.geologyMs = geologyMs;
+        this.stats.recompositions = recompositions;
         if (speed !== this.clock.speed) {
           this.clock.speed = speed;
           this.hud.setSpeed(speed);
@@ -310,6 +315,8 @@ export class App {
       cellPixels: this.camera.cellPixels(),
       ticksPerSecond: this.stats.ticksPerSecond,
       brushMs: this.stats.brushMs,
+      geologyMs: this.stats.geologyMs,
+      recompositions: this.stats.recompositions,
     });
   }
 

@@ -3,7 +3,9 @@ import { Clock } from '../core/time';
 import { applyBrush } from '../input/tools';
 import { buildColors, NO_LAYERS, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
+import { computeWaterDistance, updateClimate } from '../world/climate';
 import { createWorld, WORLD_STAGES } from '../world/create';
+import { DEFAULT_PLATE_RATE, Tectonics } from '../world/tectonics';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
 import { makePatches, transferables, type FromWorker, type ToWorker } from './protocol';
@@ -41,6 +43,11 @@ export class SimulationCore {
   readonly clock = new Clock();
   /** Camadas opcionais ligadas no menu (ex.: "Ver placas"). */
   layers: Layers = NO_LAYERS;
+  /** Movimento das placas do mundo atual e o controle "Placas" (0 a 1). */
+  tectonics: Tectonics | null = null;
+  plateRate = DEFAULT_PLATE_RATE;
+  /** Tempo da última recomposição com clima e cores (ms), para o painel Dados. */
+  private geologyMs = 0;
   private grid: CubeSphere | null = null;
   private lastPostedTick = -1;
   private ticksWindow = { since: 0, ticks: 0, rate: 0 };
@@ -61,6 +68,9 @@ export class SimulationCore {
         break;
       case 'brush':
         this.brush(msg);
+        break;
+      case 'plateRate':
+        this.plateRate = Math.max(0, Math.min(1, msg.rate));
         break;
       case 'layers':
         this.setLayers(msg.layers);
@@ -94,6 +104,7 @@ export class SimulationCore {
     const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3 }, this.grid, stage);
     stage('cores');
     this.world = world;
+    this.tectonics = new Tectonics(world);
     this.colors = new Uint8Array(world.cellCount * 4);
     buildColors(world, this.colors, undefined, this.layers);
     stagesMs[current] = this.now() - mark;
@@ -121,21 +132,37 @@ export class SimulationCore {
     if (!world) return;
     const t0 = this.now();
     const { region } = applyBrush(world, msg.tool, msg.point, msg.radius, msg.dt);
+    // A pincelada fica gravada na placa: anda junto quando ela se mover.
+    this.tectonics?.syncCells(region);
     buildColors(world, this.colors, region, this.layers);
     const patches = makePatches(this.colors, world.params.n, dirtyRects(world.grid, region));
     this.send({ type: 'patch', patches, brushMs: this.now() - t0 });
   }
 
+  /** Repinta o mundo todo e manda as 6 faces como remendos (brushMs -1: não é pincelada). */
+  private sendAllColors(): void {
+    const world = this.world;
+    if (!world) return;
+    buildColors(world, this.colors, undefined, this.layers);
+    const n = world.params.n;
+    const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
+    this.send({ type: 'patch', patches: makePatches(this.colors, n, faces), brushMs: -1 });
+  }
+
+  /** Depois que as placas se moveram: clima, biomas e cores do mundo todo. */
+  private afterRecompose(t0: number): void {
+    const world = this.world;
+    if (!world) return;
+    computeWaterDistance(world);
+    updateClimate(world);
+    this.sendAllColors();
+    this.geologyMs = this.now() - t0;
+  }
+
   /** Liga/desliga camadas: repinta o mundo todo e manda as 6 faces como remendos. */
   private setLayers(layers: Layers): void {
     this.layers = layers;
-    const world = this.world;
-    if (!world) return;
-    buildColors(world, this.colors, undefined, layers);
-    const n = world.params.n;
-    const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
-    // brushMs = -1: não é pincelada (não entra no tempo do pincel do painel Dados).
-    this.send({ type: 'patch', patches: makePatches(this.colors, n, faces), brushMs: -1 });
+    this.sendAllColors();
   }
 
   private query(id: number, point: Vec3): void {
@@ -151,7 +178,16 @@ export class SimulationCore {
 
   /** Avança o relógio pelo tempo real `dt` (segundos). Chamado pelo laço do worker. */
   advance(dt: number): void {
-    const ran = this.clock.advance(dt, undefined, this.now);
+    // Cada passo move as placas; a recomposição acontece no passo exato em que elas andaram o
+    // bastante (contado em passos, não em tempo real: o resultado não depende do aparelho).
+    const ran = this.clock.advance(
+      dt,
+      () => {
+        const t0 = this.now();
+        if (this.tectonics?.step(this.plateRate)) this.afterRecompose(t0);
+      },
+      this.now,
+    );
     const w = this.ticksWindow;
     const t = this.now();
     if (!w.since) w.since = t;
@@ -168,7 +204,14 @@ export class SimulationCore {
   private postClock(force: boolean): void {
     if (!force && this.clock.tick === this.lastPostedTick) return;
     this.lastPostedTick = this.clock.tick;
-    this.send({ type: 'clock', tick: this.clock.tick, speed: this.clock.speed, ticksPerSecond: this.ticksWindow.rate });
+    this.send({
+      type: 'clock',
+      tick: this.clock.tick,
+      speed: this.clock.speed,
+      ticksPerSecond: this.ticksWindow.rate,
+      geologyMs: this.geologyMs,
+      recompositions: this.tectonics?.recompositions ?? 0,
+    });
   }
 }
 

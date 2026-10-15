@@ -218,3 +218,14 @@ Formato: data — decisão — motivo — alternativa descartada.
   latitude). Efeito pequeno e esperado: sementes do mar pendem ~1,5 ponto para os polos porque
   precisam ficar longe das sementes da terra, e a Pangeia nasce em latitudes baixas e médias; não
   afeta centros nem pontos triplos. Teste de regressão: `tests/world/plates.test.ts`.
+
+- **2026-10-15 — T4 do M2: movimento das placas por recomposição a partir do referencial da placa.**
+  Cada placa guarda a crosta no próprio referencial (amostras + índice por placa e célula, ~22 MB no
+  máximo de 14 placas); o mundo é recomposto quando alguma placa anda 1 célula. Motivo: copiar crosta
+  de célula em célula a cada passo acumularia erro e deformaria os continentes.
+  Descartado: avançar a crosta célula a célula no mapa global (deforma com o tempo).
+  Ritmo: 6×10⁻⁶ rad/passo no máximo (≈ 9.000× a deriva real de ~5 cm/ano), com 20× e controle 100% a
+  Pangeia se abre em ~2 min (decisão do usuário). Controle inicial 25%.
+  Medição (notebook, processador em modo lento): recomposição com clima e cores ~530 ms, no worker;
+  tela a 60 fps durante a deriva (p99 17 ms). No celular deve ficar ~1,5 s a cada ~5 s em 20× no
+  máximo: o relógio segue. A T7 (clima que acompanha a deriva) vai recalcular só o que mudou.
