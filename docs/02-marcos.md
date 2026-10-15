@@ -52,6 +52,17 @@ de topo, avisos de espécie em risco e de último indivíduo. Ver `docs/04-ecolo
 Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a
 **escala visual** pequena dos indivíduos (`docs/00-visao.md`).
 
+**Questão aberta para a especificação do M3 (não decidida, registrada em 2026-10-15):**
+escala do planeta versus tamanho dos humanos e das cidades. O usuário **não quer humanos de 1 pixel**.
+Hoje, com um planeta do tamanho da Terra, cada célula tem ~33–39 km. Opções a avaliar:
+1. **Planeta menor que a Terra** (células menores em km, mesma quantidade de células);
+2. **Camada de detalhe local ao aproximar** (ao chegar perto, uma grade fina gerada a partir da
+   célula grande, só na região visível);
+3. **Humanos desenhados em escala própria** (indivíduos e cidades com tamanho visual fixo,
+   independente da escala física do terreno).
+Avaliar desempenho no celular, coerência com a simulação agregada × individual e com a escala
+visual pequena pedida (`docs/00-visao.md`).
+
 **Aceite:** 1.000 anos acelerados sem extinção em massa e sem estagnação (teste automático +
 observação do usuário).
 

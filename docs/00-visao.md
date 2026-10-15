@@ -31,7 +31,8 @@ ordem histórica real, fazem economia e guerra sozinhas, e o jogador observa, in
 - Embelezamento (sprites melhores, pseudo-3D) é um marco posterior, não agora.
 - **Escala visual** (ideia do usuário, 2026-10-15): pessoas e cidades **bem pequenas** no mapa, para
   o planeta parecer vasto. Vale desde os primeiros indivíduos e povoados (Marcos 3 e 4) e no
-  acabamento visual (Marco 8).
+  acabamento visual (Marco 8). Sem humanos de 1 pixel: a relação entre a escala do planeta e o
+  tamanho de pessoas e cidades é questão aberta da especificação do Marco 3 (`docs/02-marcos.md`).
 
 ## Fora de escopo (por enquanto)
 - Multijogador.

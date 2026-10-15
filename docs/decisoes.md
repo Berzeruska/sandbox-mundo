@@ -203,3 +203,18 @@ Formato: data — decisão — motivo — alternativa descartada.
   tipo diferente: ~5–10% → ~0,3%). Sorteio separado do terreno: relevo idêntico ao de antes.
   Custo: ~140 ms no notebook em ritmo normal (o processador deste notebook às vezes cai ~2,8× de
   velocidade com aquecimento: todas as etapas sobem juntas, inclusive as que não mudaram).
+
+- **2026-10-15 — Medição do usuário na T3 (celular).**
+  Geração: 2.373 ms total (2.355 no worker). fps 89–91, mínimo 71 (a tela agora sobe a 90 Hz, então
+  o "cravado em 60" da T2 era escolha do aparelho). Pausar rápido enquanto gira derruba a 64–71 por
+  instantes: registrado, sem correção por enquanto (investigar se voltar a incomodar).
+
+- **2026-10-15 — "Placas se encontram no polo": sem viés, é geometria.**
+  Medido em 300–1.500 sementes, por faixas de latitude de igual área (uniforme = 20% cada):
+  centros das placas 19,7 / 20,3 / 19,7 / 20,8 / 19,5%; pontos triplos 19,6 / 20,7 / 20,0 / 20,2 /
+  19,5% (equador → polo). Cada mundo tem ~16–20 pontos triplos e a região a menos de ~18° dos polos
+  cobre 5% da esfera: a chance de ao menos um cair ali é ~60% (medido: 63%). A calota branca destaca
+  as linhas. O sorteio das sementes já era uniforme na esfera (coordenada vertical uniforme, não a
+  latitude). Efeito pequeno e esperado: sementes do mar pendem ~1,5 ponto para os polos porque
+  precisam ficar longe das sementes da terra, e a Pangeia nasce em latitudes baixas e médias; não
+  afeta centros nem pontos triplos. Teste de regressão: `tests/world/plates.test.ts`.

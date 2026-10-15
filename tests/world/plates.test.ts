@@ -111,7 +111,7 @@ describe('placas tectônicas: tipos de fronteira', () => {
     const g = new CubeSphere(16);
     const w = new WorldState({ seedText: '', seed: 0, n: 16, seaLevel: 0, landFraction: 0.3 }, g);
     for (let i = 0; i < w.cellCount; i++) w.plate[i] = g.positions[i * 3]! > 0 ? 0 : 1;
-    const plate = (id: number, omega: Vec3) => ({ id, center: [id ? -1 : 1, 0, 0] as Vec3, omega, continental: 0, color: [0, 0, 0] as const });
+    const plate = (id: number, omega: Vec3) => ({ id, seed: [id ? -1 : 1, 0, 0] as Vec3, center: [id ? -1 : 1, 0, 0] as Vec3, omega, continental: 0, color: [0, 0, 0] as const });
     w.plates = [plate(0, omega0), plate(1, omega1)];
     // Célula da fronteira perto do equador, do lado da placa 0 (x > 0, z ≈ 0, y ≈ 0 ... na borda x ≈ 0).
     const boundaryCell = [...Array(w.cellCount).keys()].find(
@@ -166,5 +166,29 @@ describe('placas tectônicas: trechos de fronteira uniformes', () => {
     const before = Uint8Array.from(w.boundary);
     smoothBoundaries(w);
     for (let i = 0; i < w.cellCount; i++) expect(w.boundary[i] === 0).toBe(before[i] === 0);
+  });
+});
+
+describe('placas tectônicas: sem viés de latitude', () => {
+  it('centros das placas e pontos triplos se espalham por igual nas faixas de latitude (igual área)', () => {
+    const g = new CubeSphere(32);
+    const band = (y: number) => Math.min(4, Math.floor(Math.abs(y) * 5));
+    const centers = [0, 0, 0, 0, 0];
+    const triples = [0, 0, 0, 0, 0];
+    for (let s = 1; s <= 80; s++) {
+      const w = new WorldState({ seedText: '', seed: s, n: 32, seaLevel: 0, landFraction: 0.3 }, g);
+      generateTerrain(w);
+      generatePlates(w);
+      for (const p of w.plates) centers[band(p.center[1])]!++;
+      for (let i = 0; i < w.cellCount; i++) {
+        const set = new Set([w.plate[i], ...[0, 1, 2, 3].map((d) => w.plate[g.neighbor(i, d)])]);
+        if (set.size >= 3) triples[band(g.positions[i * 3 + 1]!)]!++;
+      }
+    }
+    for (const counts of [centers, triples]) {
+      const total = counts.reduce((a, b) => a + b, 0);
+      for (const c of counts) expect(c / total).toBeGreaterThan(0.14);
+      for (const c of counts) expect(c / total).toBeLessThan(0.26);
+    }
   });
 });

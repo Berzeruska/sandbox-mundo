@@ -23,6 +23,8 @@ export type Boundary = (typeof Boundary)[keyof typeof Boundary];
 
 export interface Plate {
   id: number;
+  /** Semente do Voronoi que originou a placa. */
+  seed: Vec3;
   /** Centro (direção média das células da placa). */
   center: Vec3;
   /**
@@ -208,7 +210,7 @@ export function generatePlates(world: WorldState): void {
       const speed = rng.range(0.3, 0.9);
       omega = [axis[0] * speed, axis[1] * speed, axis[2] * speed];
     }
-    world.plates.push({ id: p, center: c, omega, continental: contFraction, color: plateColor(p) });
+    world.plates.push({ id: p, seed: seeds[p] as Vec3, center: c, omega, continental: contFraction, color: plateColor(p) });
   }
 
   // Classificação das fronteiras (para a camada e, depois, para montanhas e terremotos).

@@ -91,6 +91,51 @@ nunca trava, nem em velocidade máxima, nem no celular.
   Vegetação e vida de verdade só chegam no M3.
 - Toda aleatoriedade vem da semente do mundo: mesma semente + mesmos comandos = mesmos desastres.
 
+## Proposta: costas recortadas pela geologia (aguardando aprovação do usuário)
+Pedido do usuário (2026-10-15): baías, penínsulas, arquipélagos e ilhas pequenas, no estilo de Europa
+e Ásia. A ideia é que o recorte **nasça da geologia** ao longo do tempo, e não de enfeite.
+
+### O que cabe na resolução atual
+N = 256 → cada célula tem **~33–39 km** num planeta do tamanho da Terra (1.024 células no equador).
+O menor detalhe que se lê como forma tem ~3 células (~110 km); 1 célula aparece como um ponto.
+| Cabe bem (≥ 3 células) | Cabe como ponto ou traço (1–2 células) | Não cabe (< 1 célula) |
+|---|---|---|
+| Itália, Grécia continental, Crimeia, Jutlândia, Coreia, Kamchatka | Creta, Chipre, Córsega, ilhas menores do Havaí, ilhas de arcos (Antilhas, Aleutas) | Fiordes, ilhas do Egeu e da Dalmácia, recifes e atóis pequenos |
+| Mar Vermelho, Adriático, Golfo Pérsico, Mar do Japão, Báltico, Golfo de Biscaia | Canal da Mancha (como canal de 1 célula), Golfo da Califórnia estreito | Estreitos de Bósforo e Gibraltar (viram 1 célula exagerada ou fecham) |
+| Japão, Filipinas, Indonésia (ilhas grandes), Sri Lanka, Taiwan | | Deltas e lagunas em detalhe |
+O deslocamento orgânico do shader (T13) deixa as costas curvas abaixo de 1 célula, mas não cria
+ilhas novas. Para fiordes e ilhotas seria preciso N = 512 (~20 km, 4× as células e a geração) ou
+a camada de detalhe local que é questão aberta do M3.
+
+### Mecanismos propostos (cada um no lugar onde a geologia o cria)
+1. **Riftes e microcontinentes (T5):** onde uma placa continental se abre, nasce um mar estreito e
+   comprido (como o Mar Vermelho) e, às vezes, uma lasca de continente se solta e vira ilha grande
+   (como Madagascar, Japão, Córsega–Sardenha). Cria golfos, penínsulas e ilhas grandes.
+2. **Arcos de ilhas em colisão oceano–oceano (T5/T9):** a placa mais velha afunda e, ~100–200 km
+   atrás da fossa, nasce uma fileira de vulcões que vira cadeia de ilhas de 1–3 células espaçadas
+   (Antilhas, Aleutas, Marianas). Atrás do arco pode abrir uma **bacia de retroarco** (Mar do Japão).
+3. **Cadeias de pontos quentes (T9):** o ponto quente fica parado e a placa passa por cima, deixando
+   uma fileira de ilhas que envelhecem, erodem e afundam (Havaí); as mais velhas viram baixios.
+4. **Plataforma continental alagada e nível do mar (T7):** a borda rasa dos continentes fica perto
+   do nível do mar; quando o gelo derrete nas eras quentes, o mar sobe e alaga as planícies baixas,
+   criando mares rasos, baías e ilhas (como o Mar do Norte e a Plataforma de Sunda); nas eras frias
+   recua e reconecta. As costas mudam com o clima.
+5. **Colisões continentais (T5):** além das cordilheiras, criam mares interiores e golfos na frente
+   das montanhas (como o Golfo Pérsico) e penínsulas entre zonas de colisão (Itália, Grécia).
+6. **Ruído fino só na faixa costeira (geração):** acrescentar detalhe de alta frequência (período de
+   2–3 células) e pequena amplitude (±100–200 m) só onde o terreno está perto do nível do mar; células
+   na beira viram terra ou água e surgem baías e ilhotas de 1–3 células. É o único item que muda o
+   **mundo inicial**.
+
+### Decisão necessária antes de implementar o item 6
+Mudar a geração faz a mesma semente gerar costas diferentes das da v1.x. Opções:
+- **(a)** aceitar a mudança agora, registrando uma "versão de geração" (sementes antigas passam a dar
+  mundos com costas mais recortadas);
+- **(b)** manter o mundo inicial idêntico e deixar todo o recorte surgir com o tempo (itens 1–5),
+  partindo de uma Pangeia de costa mais lisa.
+Recomendação: (a), porque a Pangeia inicial também deve ter costa recortada e o M2 já muda como os
+mundos evoluem.
+
 ## Tarefas (fazer em ordem; cada uma = um commit)
 
 - [x] **T1 — Menu de ferramentas por categorias** (`src/ui/`)
