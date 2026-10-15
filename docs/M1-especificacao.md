@@ -48,7 +48,7 @@ tempo. Fluido no celular.
   (botão alternador, essencial no celular). Recalcular clima e bioma só na área afetada.
   Atualizar só a parte alterada da textura.
 
-- [ ] **T9 — Relógio e controle de tempo** (`src/core/time.ts`, `src/ui/hud.ts`)
+- [x] **T9 — Relógio e controle de tempo** (`src/core/time.ts`, `src/ui/hud.ts`)
   Data do mundo (ano), pausa e velocidades 1×, 2×, 5×, 20×, máximo. No M1 o tempo só avança o
   calendário; a estrutura de tick fixo já fica pronta para o M2.
 

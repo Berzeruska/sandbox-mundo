@@ -1,10 +1,12 @@
 import { MAX_BRUSH, MIN_BRUSH, TOOL_INFO, type Tool } from '../input/tools';
 import type { InputMode } from '../input/pointer';
+import { SPEEDS, speedLabel, type Speed } from '../core/time';
 
 export interface HudCallbacks {
   onModeToggle(): void;
   onTool(tool: Tool): void;
   onBrushSize(size: number): void;
+  onSpeed(speed: Speed): void;
 }
 
 function button(icon: string, label: string, onClick: () => void): HTMLButtonElement {
@@ -29,6 +31,9 @@ export class Hud {
   private toolBtns = new Map<Tool, HTMLButtonElement>();
   private sizeInput: HTMLInputElement;
   private sizeValue: HTMLSpanElement;
+  private dateText: HTMLDivElement;
+  private speedBtns = new Map<Speed, HTMLButtonElement>();
+  private lastDate = '';
 
   constructor(parent: HTMLElement, cb: HudCallbacks, initialSize: number) {
     this.root = document.createElement('div');
@@ -66,7 +71,23 @@ export class Hud {
     size.append(sizeLabel, this.sizeInput, this.sizeValue);
     tools.append(size);
 
-    this.root.append(tools);
+    const time = document.createElement('div');
+    time.className = 'hud-bar hud-time';
+    this.dateText = document.createElement('div');
+    this.dateText.className = 'hud-date';
+    time.append(this.dateText);
+    for (const speed of SPEEDS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'hud-btn hud-speed';
+      b.textContent = speedLabel(speed);
+      b.setAttribute('aria-label', speed === 0 ? 'Pausar' : `Velocidade ${speedLabel(speed)}`);
+      b.addEventListener('click', () => cb.onSpeed(speed));
+      this.speedBtns.set(speed, b);
+      time.append(b);
+    }
+
+    this.root.append(time, tools);
     parent.append(this.root);
   }
 
@@ -77,6 +98,16 @@ export class Hud {
     if (label) label.textContent = mode === 'move' ? 'Mover' : 'Pintar';
     this.modeBtn.classList.toggle('active', mode === 'paint');
     this.root.classList.toggle('painting', mode === 'paint');
+  }
+
+  setDate(text: string): void {
+    if (text === this.lastDate) return;
+    this.lastDate = text;
+    this.dateText.textContent = text;
+  }
+
+  setSpeed(speed: Speed): void {
+    for (const [s, b] of this.speedBtns) b.classList.toggle('selected', s === speed);
   }
 
   setTool(tool: Tool): void {

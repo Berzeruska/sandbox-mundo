@@ -48,3 +48,8 @@ Formato: data — decisão — motivo — alternativa descartada.
   Motivo: o ponto sob o dedo segue o dedo em qualquer lugar, inclusive em cima dos polos, sem
   travar. Como o giro livre pode inclinar o norte, há um botão para endireitar.
   Descartado: guinada/arfagem com limite nos polos (trava ao passar por cima do polo).
+
+- **2026-10-14 — Relógio de passo fixo: 1 passo = 1 mês; 1× = 1 ano por segundo.**
+  Velocidades 2×, 5×, 20× multiplicam os passos; "máximo" roda quantos passos couberem em 8 ms por
+  quadro (teto de 600). Motivo: resultado da simulação não depende do fps do aparelho.
+  Escala provisória: reavaliar no M2, quando a geologia começar a usar os passos.

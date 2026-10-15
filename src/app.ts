@@ -1,4 +1,5 @@
 import { seedFrom } from './core/rng';
+import { Clock, formatDate, type Speed } from './core/time';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { applyBrush, Tool } from './input/tools';
 import { Camera } from './render/camera';
@@ -28,6 +29,8 @@ export class App {
   readonly overlay: Overlay;
   readonly input: PointerInput;
   readonly hud: Hud;
+  readonly clock = new Clock();
+  private lastRunningSpeed: Speed = 1;
   world: WorldState;
   colors: Uint8Array;
   mode: InputMode = 'move';
@@ -85,11 +88,30 @@ export class App {
           this.brushSize = size;
           this.requestDraw();
         },
+        onSpeed: (speed) => this.setSpeed(speed),
       },
       this.brushSize,
     );
     this.hud.setTool(this.tool);
     this.hud.setMode(this.mode);
+    this.hud.setSpeed(this.clock.speed);
+    this.hud.setDate(formatDate(this.clock));
+
+    // Notebook: barra de espaço pausa e retoma (sem "clicar" no botão que estiver com foco).
+    window.addEventListener('keydown', (e) => {
+      if (e.code !== 'Space' || e.target instanceof HTMLInputElement) return;
+      e.preventDefault();
+      if (!e.repeat) this.setSpeed(this.clock.speed === 0 ? this.lastRunningSpeed : 0);
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) e.preventDefault();
+    });
+  }
+
+  setSpeed(speed: Speed): void {
+    if (speed !== 0) this.lastRunningSpeed = speed;
+    this.clock.speed = speed;
+    this.hud.setSpeed(speed);
   }
 
   private generate(seedText: string): WorldState {
@@ -146,6 +168,8 @@ export class App {
       this.overlay.resize(this.renderer.canvas.width, this.renderer.canvas.height);
       this.needsDraw = true;
     }
+    // No M1 o tempo só avança o calendário; os passos da simulação entram no M2.
+    if (this.clock.advance(dt) > 0) this.hud.setDate(formatDate(this.clock));
     if (this.camera.update(dt)) this.needsDraw = true;
     if (this.input.update(dt)) this.needsDraw = true;
     if (this.painting && performance.now() - this.paintStartedAt >= PAINT_DELAY_MS) {
