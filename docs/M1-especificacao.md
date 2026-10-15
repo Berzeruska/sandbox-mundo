@@ -22,7 +22,7 @@ tempo. Fluido no celular.
 - [x] **T3 — Estado do mundo** (`src/world/state.ts`)
   Arrays tipados por célula: elevação, temperatura, precipitação, bioma, gelo.
 
-- [ ] **T4 — Geração da Pangeia** (`src/world/generation.ts`)
+- [x] **T4 — Geração da Pangeia** (`src/world/generation.ts`)
   Ruído 3D na esfera + máscara de supercontinente. Parâmetros: semente, nível do mar, fração de terra.
   Testes: determinismo; fração de terra dentro de ±5% do alvo; um continente principal dominante.
 
