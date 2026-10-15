@@ -19,7 +19,7 @@ tempo. Fluido no celular.
   Testes: ida e volta das conversões; toda célula tem exatamente 4 vizinhos ortogonais;
   vizinhança é simétrica (se A vê B, B vê A).
 
-- [ ] **T3 — Estado do mundo** (`src/world/state.ts`)
+- [x] **T3 — Estado do mundo** (`src/world/state.ts`)
   Arrays tipados por célula: elevação, temperatura, precipitação, bioma, gelo.
 
 - [ ] **T4 — Geração da Pangeia** (`src/world/generation.ts`)
