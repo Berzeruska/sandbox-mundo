@@ -26,3 +26,10 @@ requestAnimationFrame(() =>
     }
   }, 30),
 );
+
+// PWA: guarda o jogo para abrir offline (só no build publicado, não no servidor de desenvolvimento).
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch((err: unknown) => console.warn('Service worker não registrado:', err));
+  });
+}

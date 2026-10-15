@@ -60,3 +60,11 @@ Formato: data — decisão — motivo — alternativa descartada.
 
 - **2026-10-14 — Semente na URL (`?seed=...`).**
   Motivo: um link reproduz exatamente o mesmo mundo, o que ajuda a relatar bugs.
+
+- **2026-10-14 — `@types/node` (só tipos, ~2,5 MB no disco, 0 bytes no jogo).**
+  Motivo: o `vite.config.ts` usa `node:fs`/`node:crypto` para gerar o service worker. Fica num
+  `tsconfig.node.json` separado para os tipos do Node não vazarem no código do navegador.
+
+- **2026-10-14 — Service worker gerado por um plugin próprio de ~30 linhas no `vite.config.ts`.**
+  Motivo: lista exata dos arquivos do build para abrir offline, sem dependência nova.
+  Descartado: `vite-plugin-pwa` (traz o Workbox inteiro para algo que cabe em poucas linhas).

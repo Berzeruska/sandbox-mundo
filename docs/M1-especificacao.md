@@ -56,7 +56,7 @@ tempo. Fluido no celular.
   Botões grandes para toque. Painel com fps, ms por quadro, número de células, semente.
   Botão "novo mundo" com campo de semente.
 
-- [ ] **T11 — PWA**
+- [x] **T11 — PWA**
   Manifest + service worker: instalar na tela inicial e abrir offline.
 
 - [ ] **T12 — Medição no celular e ajuste**
