@@ -1,4 +1,5 @@
 import { BIOME_INFO } from '../world/biomes';
+import type { CubeSphere } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
 
 /**
@@ -26,49 +27,61 @@ const SHADE_STRENGTH = 0.35;
 /** Inclinação (metros de subida por célula) que dá ~76% da força máxima do sombreado. */
 const SHADE_SLOPE = 400;
 
+/** Pesos fixos do sombreado por grade: 4 por célula (um por vizinho). */
+const shadeWeights = new WeakMap<CubeSphere, Float32Array>();
+
+/**
+ * Para cada célula e vizinho: quanto 1 metro de subida rumo àquele vizinho conta como "subir em
+ * direção à luz" (noroeste), em metros por célula. Só depende da geometria da grade, então é
+ * calculado uma vez e o sombreado vira 4 multiplicações por célula.
+ */
+function shadeWeightsFor(grid: CubeSphere): Float32Array {
+  const cached = shadeWeights.get(grid);
+  if (cached) return cached;
+  const { positions, neighbors, cellAngle } = grid;
+  const w = new Float32Array(grid.cellCount * 4);
+  for (let i = 0; i < grid.cellCount; i++) {
+    const px = positions[i * 3] as number;
+    const py = positions[i * 3 + 1] as number;
+    const pz = positions[i * 3 + 2] as number;
+    // Direção noroeste no plano tangente.
+    let ex = pz;
+    let ez = -px;
+    const elen = Math.hypot(ex, ez) || 1;
+    ex /= elen;
+    ez /= elen;
+    const lx = (py * ez - ex) * Math.SQRT1_2;
+    const ly = (pz * ex - px * ez) * Math.SQRT1_2;
+    const lz = (-py * ex - ez) * Math.SQRT1_2;
+    for (let d = 0; d < 4; d++) {
+      const j = neighbors[i * 4 + d] as number;
+      const dx = (positions[j * 3] as number) - px;
+      const dy = (positions[j * 3 + 1] as number) - py;
+      const dz = (positions[j * 3 + 2] as number) - pz;
+      const len2 = dx * dx + dy * dy + dz * dz;
+      // Gradiente por diferenças: cada eixo entra duas vezes (4 vizinhos), daí o 0,5.
+      w[i * 4 + d] = (0.5 * cellAngle * (dx * lx + dy * ly + dz * lz)) / len2;
+    }
+  }
+  shadeWeights.set(grid, w);
+  return w;
+}
+
 /**
  * Sombreado de relevo (só visual): encostas viradas para o noroeste (de onde vem a luz) ficam mais
  * claras, as viradas para o sudeste mais escuras. A inclinação é medida em metros por célula, com
  * os 4 vizinhos em 3D, então não tem emenda entre as faces do cubo. Terra plana = 1.
  */
 export function hillshade(world: WorldState, i: number): number {
-  const { positions, neighbors, cellAngle } = world.grid;
-  const px = positions[i * 3] as number;
-  const py = positions[i * 3 + 1] as number;
-  const pz = positions[i * 3 + 2] as number;
+  const weights = shadeWeightsFor(world.grid);
+  const { neighbors } = world.grid;
   const hi = Math.max(0, world.heightAboveSea(i));
-  // Gradiente (direção de subida) em metros por célula, no plano tangente.
-  // Com 4 vizinhos em 2 eixos, cada eixo entra duas vezes: daí a média (× 0,5).
-  let gx = 0;
-  let gy = 0;
-  let gz = 0;
+  let upTowardLight = 0;
   for (let d = 0; d < 4; d++) {
     const j = neighbors[i * 4 + d] as number;
-    const dx = (positions[j * 3] as number) - px;
-    const dy = (positions[j * 3 + 1] as number) - py;
-    const dz = (positions[j * 3 + 2] as number) - pz;
-    const len = Math.hypot(dx, dy, dz);
-    const dh = Math.max(0, world.heightAboveSea(j)) - hi;
-    // dh / (distância em células), na direção unitária do vizinho.
-    const s = (0.5 * dh * cellAngle) / (len * len);
-    gx += dx * s;
-    gy += dy * s;
-    gz += dz * s;
+    upTowardLight += (Math.max(0, world.heightAboveSea(j)) - hi) * (weights[i * 4 + d] as number);
   }
-  // Direção noroeste no plano tangente.
-  let ex = pz;
-  let ez = -px;
-  const elen = Math.hypot(ex, ez) || 1;
-  ex /= elen;
-  ez /= elen;
-  const nx = py * ez;
-  const ny = pz * ex - px * ez;
-  const nz = -py * ex;
-  const lx = (nx - ex) * Math.SQRT1_2;
-  const ly = ny * Math.SQRT1_2;
-  const lz = (nz - ez) * Math.SQRT1_2;
   // Terreno que sobe rumo à luz tem a encosta virada para longe dela: mais escuro.
-  const upTowardLight = gx * lx + gy * ly + gz * lz;
   return 1 - SHADE_STRENGTH * Math.tanh(upTowardLight / SHADE_SLOPE);
 }
 
