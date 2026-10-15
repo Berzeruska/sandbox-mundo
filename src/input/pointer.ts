@@ -25,11 +25,28 @@ interface PointerState {
 type Action = 'none' | 'rotate' | 'paint' | 'pinch';
 
 /** Quanto tempo de movimento recente (ms) entra no cálculo da inércia. */
-const INERTIA_WINDOW = 80;
+export const INERTIA_WINDOW = 80;
 const TAP_MAX_MS = 300;
 const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_ZOOM = 2.5;
 const ZOOM_ANIM_SECONDS = 0.25;
+
+/**
+ * Inércia ao soltar: compõe as rotações feitas nos últimos INERTIA_WINDOW ms e devolve a rotação
+ * total e o tempo que ela levou (para virar velocidade). Sem movimento recente, devolve null.
+ * Função pura (tempos entram como parâmetro), testada sem depender do relógio.
+ */
+export function inertiaFromHistory(
+  history: readonly { t: number; r: Quat }[],
+  now: number,
+): { rotation: Quat; seconds: number } | null {
+  const recent = history.filter((h) => h.t >= now - INERTIA_WINDOW);
+  const first = recent[0];
+  if (recent.length < 2 || !first) return null;
+  let rotation = quatIdentity();
+  for (const h of recent) rotation = quatMultiply(rotation, h.r);
+  return { rotation, seconds: Math.max(1000 / 120, now - first.t) / 1000 };
+}
 
 /**
  * Mouse e toque com Pointer Events (o mesmo código nos dois).
@@ -171,13 +188,8 @@ export class PointerInput {
 
   /** Soma os movimentos dos últimos instantes e transforma em velocidade de giro. */
   private startInertia(now: number): void {
-    const recent = this.history.filter((h) => h.t >= now - INERTIA_WINDOW);
-    const first = recent[0];
-    if (recent.length < 2 || !first) return;
-    let total = quatIdentity();
-    for (const h of recent) total = quatMultiply(total, h.r);
-    const span = Math.max(1000 / 120, now - first.t) / 1000;
-    this.camera.setSpinFrom(total, span);
+    const spin = inertiaFromHistory(this.history, now);
+    if (spin) this.camera.setSpinFrom(spin.rotation, spin.seconds);
   }
 
   private detectTap(ptr: PointerState, x: number, y: number, t: number): void {

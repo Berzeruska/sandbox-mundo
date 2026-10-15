@@ -118,3 +118,22 @@ Formato: data — decisão — motivo — alternativa descartada.
   Perfil de Elevar com pincel 29 por 4 s: antes 8.999 m no centro (teto) e 5.213 m no meio do raio;
   depois 6.799 m e 3.909 m, borda intacta. Imagem: `docs/img/t14-antes-depois.png`.
   Só visual e pincéis: a mesma semente continua gerando o mesmo mundo.
+
+- **2026-10-15 — Linha de base de desempenho (v1.1), medida pelo usuário no celular dele.**
+  Painel de depuração, "girar sem parar":
+  | Situação              | mín. | média | máx.  |
+  |-----------------------|------|-------|-------|
+  | Globo inteiro         | 59   | 65–67 | 91    |
+  | De perto, girando     | 55   | —     | 61–63 |
+  Notebook (Radeon 610M, sem limite de tela, build de produção): globo inteiro 727 fps, zoom máximo
+  619 fps em 1920×1080; 1.168 / 615 fps em tela de celular 412×915 @2x.
+  **Regra:** ao fim de cada marco, medir de novo nas mesmas condições e comparar com esta tabela
+  (registrar aqui). Meta mínima continua: ≥ 30 fps no celular, 60 no notebook.
+
+- **2026-10-15 — Nenhum teste pode depender do relógio real.**
+  O CI roda só o Vitest (`npm run check`), determinístico. As verificações no navegador (Playwright)
+  são roteiros locais de conferência, fora do CI. A checagem de inércia do roteiro dependia do
+  intervalo real entre eventos de toque emulados (janela de 80 ms) e falhava quando o navegador
+  desenhava por software e ficava lento. Correção: a lógica virou função pura
+  (`inertiaFromHistory` em `src/input/pointer.ts`) com teste determinístico de tempos sintéticos em
+  `tests/input/pointer.test.ts`; a checagem dependente de relógio saiu do roteiro do navegador.
