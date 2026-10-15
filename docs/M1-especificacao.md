@@ -59,7 +59,7 @@ tempo. Fluido no celular.
 - [x] **T11 — PWA**
   Manifest + service worker: instalar na tela inicial e abrir offline.
 
-- [ ] **T12 — Medição no celular e ajuste**
+- [x] **T12 — Medição no celular e ajuste**
   Medir fps no celular do usuário. Se < 30 fps, reduzir resolução ou otimizar até atingir.
   Registrar resultado em `docs/decisoes.md`.
 

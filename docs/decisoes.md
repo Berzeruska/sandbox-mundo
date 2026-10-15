@@ -73,4 +73,9 @@ Formato: data — decisão — motivo — alternativa descartada.
   Notebook do usuário, GPU integrada AMD Radeon 610M, Chrome, 1280×800: **60 fps** com o globo
   girando sem parar, tanto inteiro quanto no zoom máximo (célula de 48 px); JavaScript gasta
   ~0,2 ms por quadro. Geração do mundo: ~0,6 s. Pincel máximo (raio 30): ~3–5 ms por aplicação.
-  Resolução mantida em N = 256. Medição no celular: pendente (ver M1-especificacao, T12).
+  Resolução mantida em N = 256.
+
+- **2026-10-15 — T12 concluída: celular do usuário a 68–91 fps.**
+  Medido pelo usuário com o "girar sem parar" do painel de depuração (acima de 60 porque a tela do
+  aparelho tem taxa de atualização alta). Meta de ≥ 30 fps atendida com folga: **N = 256 mantido**,
+  nenhuma redução de resolução necessária.
