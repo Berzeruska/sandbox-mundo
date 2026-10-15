@@ -14,4 +14,9 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Nos testes, `!` é aceitável: se o valor for nulo, o teste falha de qualquer jeito.
+    files: ['tests/**'],
+    rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
+  },
 );

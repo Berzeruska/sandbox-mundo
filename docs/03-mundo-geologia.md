@@ -13,6 +13,18 @@
   mais umidade perto do oceano e sombra de chuva atrás de montanhas.
 - Valores guardados por célula; recalculados quando o terreno muda.
 
+### Como está implementado (M1)
+- Temperatura ao nível do mar: ~28 °C no equador, ~-24 °C nos polos; cai 6,5 °C por km de altitude.
+- Chuva base por latitude: ~2.300 mm no equador, ~250 mm perto de 27°, ~1.400 mm perto de 50°.
+- Umidade cai com a distância até a água (alcance ~1.500 km). Perto do equador o interior seca
+  menos (chuva de convecção, como na Amazônia e no Congo).
+- Sombra de chuva: olha ~640 km contra o vento predominante da faixa (alísios de leste até 30°,
+  ventos de oeste de 30° a 60°, ventos polares de leste acima de 60°).
+- Variação regional (ruído da semente): ±3 °C e chuva ×0,5–×2, para os biomas não virarem listras.
+- Gelo natural: terra abaixo de -12 °C, mar abaixo de -10 °C.
+- Pântano/mangue: baixada (até 60 m) quente (≥ 12 °C) e úmida (≥ 1.600 mm), ou chuva extrema.
+- Valores exatos e limiares ficam em `src/world/climate.ts` e `src/world/biomes.ts`.
+
 ## Biomas (classificação por temperatura × precipitação)
 Oceano profundo, oceano raso, praia, gelo/calota polar, tundra, taiga (floresta boreal),
 floresta temperada, campo/pradaria, estepe, deserto quente, deserto frio, savana,
@@ -28,6 +40,17 @@ Cada bioma tem uma cor fixa de pixel definida em `src/world/biomes.ts` (paleta �
 ## Pincéis do jogador (Marco 1)
 Elevar terreno, rebaixar terreno, água, gelo, apagar gelo. Tamanho do pincel ajustável.
 Cada pincelada recalcula clima e bioma só da região afetada (mais uma borda).
+
+### Como está implementado (M1)
+- Elevar/rebaixar: ~2.200 m por segundo segurando, no centro do pincel, suavizando até a borda.
+- Água: afunda o terreno para 40 m abaixo do nível do mar (lago/mar raso).
+- Gelo/Derreter: marcam a célula como "gelo pintado" ou "gelo apagado", que vencem o clima
+  (apagar a calota polar não faz ela voltar sozinha).
+- Tamanho do pincel: raio de 1 a 30 células.
+- Borda recalculada: ~640 km (alcance da sombra de chuva). Um lago pintado deixa a região em volta
+  mais úmida, e uma serra pintada deixa o lado a favor do vento mais seco.
+- No celular, um dedo pinta e dois dedos dão zoom; a pintura espera 80 ms para não confundir o
+  começo de uma pinça com uma pincelada.
 
 ## Placas tectônicas (Marco 2)
 - O mundo é dividido em placas (polígonos na esfera), cada uma com eixo e velocidade de rotação.

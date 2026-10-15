@@ -39,3 +39,43 @@ Formato: data — decisão — motivo — alternativa descartada.
 
 - **2026-10-14 — Build com caminhos relativos (`base: './'`).**
   Motivo: o mesmo build funciona no GitHub Pages (`/sandbox-mundo/`) e em qualquer outra pasta.
+
+- **2026-10-14 — Entrada por Pointer Events num módulo só (`src/input/pointer.ts`).**
+  Motivo: Pointer Events tratam mouse, toque e caneta com o mesmo código; separar em `touch.ts` e
+  `mouse.ts` (como previa a arquitetura) duplicaria a lógica de giro e zoom.
+
+- **2026-10-14 — Giro livre do globo (quatérnio), com botão "norte para cima".**
+  Motivo: o ponto sob o dedo segue o dedo em qualquer lugar, inclusive em cima dos polos, sem
+  travar. Como o giro livre pode inclinar o norte, há um botão para endireitar.
+  Descartado: guinada/arfagem com limite nos polos (trava ao passar por cima do polo).
+
+- **2026-10-14 — Relógio de passo fixo: 1 passo = 1 mês; 1× = 1 ano por segundo.**
+  Velocidades 2×, 5×, 20× multiplicam os passos; "máximo" roda quantos passos couberem em 8 ms por
+  quadro (teto de 600). Motivo: resultado da simulação não depende do fps do aparelho.
+  Escala provisória: reavaliar no M2, quando a geologia começar a usar os passos.
+
+- **2026-10-14 — Ruído com tabela de gradientes e tabela do vento sob demanda.**
+  Motivo: a abertura do jogo caiu de ~2,6 s para ~0,7 s no notebook (o celular é ~3× mais lento).
+  Os mundos gerados continuam idênticos para a mesma semente (conferido byte a byte).
+
+- **2026-10-14 — Semente na URL (`?seed=...`).**
+  Motivo: um link reproduz exatamente o mesmo mundo, o que ajuda a relatar bugs.
+
+- **2026-10-14 — `@types/node` (só tipos, ~2,5 MB no disco, 0 bytes no jogo).**
+  Motivo: o `vite.config.ts` usa `node:fs`/`node:crypto` para gerar o service worker. Fica num
+  `tsconfig.node.json` separado para os tipos do Node não vazarem no código do navegador.
+
+- **2026-10-14 — Service worker gerado por um plugin próprio de ~30 linhas no `vite.config.ts`.**
+  Motivo: lista exata dos arquivos do build para abrir offline, sem dependência nova.
+  Descartado: `vite-plugin-pwa` (traz o Workbox inteiro para algo que cabe em poucas linhas).
+
+- **2026-10-14 — T12, medição no notebook (parcial; falta o celular do usuário).**
+  Notebook do usuário, GPU integrada AMD Radeon 610M, Chrome, 1280×800: **60 fps** com o globo
+  girando sem parar, tanto inteiro quanto no zoom máximo (célula de 48 px); JavaScript gasta
+  ~0,2 ms por quadro. Geração do mundo: ~0,6 s. Pincel máximo (raio 30): ~3–5 ms por aplicação.
+  Resolução mantida em N = 256.
+
+- **2026-10-15 — T12 concluída: celular do usuário a 68–91 fps.**
+  Medido pelo usuário com o "girar sem parar" do painel de depuração (acima de 60 porque a tela do
+  aparelho tem taxa de atualização alta). Meta de ≥ 30 fps atendida com folga: **N = 256 mantido**,
+  nenhuma redução de resolução necessária.

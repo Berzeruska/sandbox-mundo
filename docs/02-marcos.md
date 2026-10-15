@@ -3,7 +3,8 @@
 Cada marco termina jogável e testável no celular. Só se começa o próximo com o anterior aceito
 pelo usuário.
 
-Marco atual: **Marco 1** (Marco 0 aceito em 2026-10-14)
+Marco atual: **Marco 2** — especificação em `docs/M2-especificacao.md`, aguardando aprovação do usuário.
+Marco 0 aceito em 2026-10-14. Marco 1 aceito em 2026-10-15 (`v1.0`).
 
 ---
 
@@ -24,6 +25,7 @@ terreno e gelo, controle de tempo, painel de depuração.
 
 **Aceite:** girar, aproximar qualquer ponto (incluindo polos) até preencher a tela, editar terreno e
 gelo, tudo fluido no celular do usuário.
+**Concluído em 2026-10-15** — todas as tarefas T1–T12 marcadas na especificação; celular a 68–91 fps.
 
 ## Marco 2 — Geologia viva
 Placas tectônicas, deriva continental com velocidade controlada pelo jogador (inclusive zero),
