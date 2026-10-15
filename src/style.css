@@ -443,3 +443,17 @@ body {
 .loading[hidden] {
   display: none;
 }
+
+.preview-badge {
+  position: absolute;
+  top: calc(48px + env(safe-area-inset-top));
+  left: 10px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: #b5452f;
+  color: #fff;
+  font: 600 11px/1.4 system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  z-index: 5;
+}

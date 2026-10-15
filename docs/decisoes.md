@@ -151,3 +151,12 @@ Formato: data — decisão — motivo — alternativa descartada.
   menu aberto ≈ 50%, só enquanto aberto. O botão ☰ e o cartão abrem o menu na categoria da
   ferramenta ativa. Ferramentas de tarefas futuras ficam desativadas ("em breve"). A lógica do menu
   é pura e testada; a barra de espaço (pausa) e Esc (fecha o menu) funcionam no notebook.
+
+- **2026-10-15 — Prévias de branch publicadas em `/previa/<branch>/` (workflow `preview.yml`).**
+  Motivo: o usuário testa no celular por link antes do merge, sem mexer no `main`.
+  Como funciona: um push num branch `marco-*` reconstrói o site principal a partir do `main`
+  (igual ao que já está no ar) e coloca o build do branch em `/previa/<branch>/`, com etiqueta
+  "PRÉVIA". O ambiente `github-pages` passou a aceitar deploy de `marco-*`. O cache offline é
+  separado por endereço, para a prévia e o site principal não apagarem um ao outro.
+  Limitação: o próximo deploy do `main` publica só o `main` e remove as prévias (voltam no próximo
+  push do branch). Descartado: repositório separado para prévias (mais um repo e um token).

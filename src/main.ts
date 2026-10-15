@@ -10,6 +10,16 @@ loading.textContent = 'Gerando mundo…';
 root.append(loading);
 document.title = GAME_NAME;
 
+// Prévia de um branch (publicada em /previa/<branch>/): etiqueta fixa para não confundir com a oficial.
+const previewLabel = (import.meta.env.VITE_PREVIEW as string | undefined)?.trim();
+if (previewLabel) {
+  const badge = document.createElement('div');
+  badge.className = 'preview-badge';
+  badge.textContent = `PRÉVIA ${previewLabel}`;
+  root.append(badge);
+  document.title = `${GAME_NAME} (prévia ${previewLabel})`;
+}
+
 // Deixa a mensagem aparecer antes do trabalho pesado da geração.
 requestAnimationFrame(() =>
   setTimeout(() => {
