@@ -2,6 +2,16 @@
 
 ## [Não lançado]
 
+## [1.1] — 2026-10-15 — Ajustes visuais da v1.0
+- Projeção cubo→esfera verificada: já era a equiangular (área maior/menor 1,41; a gnomônica seria
+  5,16). O losango nos cantos do cubo é geométrico e foi escondido no desenho (abaixo).
+- Grade escondida no shader: fronteiras orgânicas entre biomas, costas e calotas, e textura sutil
+  por bioma; somem ao afastar o zoom. Ruído lido de textura 3D: custo de GPU praticamente nulo.
+- Pincéis Elevar/Rebaixar em forma de sino (forte no centro, zero na borda) e com teto macio:
+  fazem morro e bacia, não platô.
+- Sombreado de relevo: encostas iluminadas de noroeste, inclusive nas montanhas naturais.
+- A mesma semente gera exatamente o mesmo mundo da v1.0 (conferido byte a byte).
+
 ## [1.0] — 2026-10-15 — Marco 1: o globo
 - Planeta cube-sphere (6 × 256² células) desenhado em WebGL2, pixel nítido, luz suave e espaço.
 - Pangeia gerada por semente (número ou palavra), ~30% de terra num supercontinente, cordilheiras.

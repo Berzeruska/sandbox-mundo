@@ -22,12 +22,33 @@ export const TOOL_INFO: readonly { tool: Tool; label: string; icon: string }[] =
 
 /** Velocidade de elevar/rebaixar no centro do pincel (metros por segundo segurando). */
 export const RAISE_RATE = 2200;
+/** Nos últimos metros antes do teto (ou do fundo), o pincel desacelera em vez de chapar. */
+export const SOFT_LIMIT_RANGE = 6000;
 /** Profundidade de um corpo d'água pintado (metros abaixo do nível do mar). */
 export const PAINTED_WATER_DEPTH = 40;
 export const MIN_ELEVATION = -MAX_DEPTH - 1000;
 export const MAX_ELEVATION = 9000;
 export const MIN_BRUSH = 1;
 export const MAX_BRUSH = 30;
+
+/**
+ * Força do pincel pela distância ao centro (t = 0 no centro, 1 na borda): 1 no centro, 0 na borda,
+ * com chegada suave nas duas pontas. Forma de sino: o resultado é um morro, não uma mesa.
+ */
+export function brushFalloff(t: number): number {
+  if (t >= 1) return 0;
+  const k = 1 - t * t;
+  return k * k * k;
+}
+
+/**
+ * Multiplicador com sinal (+ sobe, − desce) que vai a zero perto do teto/fundo, para o pincel
+ * desacelerar em vez de chapar o topo num platô.
+ */
+export function softLimit(elevation: number, direction: 1 | -1): number {
+  const room = direction > 0 ? MAX_ELEVATION - elevation : elevation - MIN_ELEVATION;
+  return direction * Math.min(1, Math.max(0, room / SOFT_LIMIT_RANGE));
+}
 
 export interface BrushResult {
   /** Células cujo clima, bioma e cor foram recalculados. */
@@ -55,9 +76,9 @@ export function applyBrush(world: WorldState, tool: Tool, center: Vec3, radiusCe
         (positions[c * 3 + 1] as number) * center[1] +
         (positions[c * 3 + 2] as number) * center[2];
       const t = Math.acos(Math.min(1, dot)) / radius;
-      const falloff = (1 - t * t) ** 2;
-      const delta = RAISE_RATE * dt * falloff * (tool === Tool.Raise ? 1 : -1);
-      world.elevation[c] = Math.min(MAX_ELEVATION, Math.max(MIN_ELEVATION, (world.elevation[c] as number) + delta));
+      const e = world.elevation[c] as number;
+      const delta = RAISE_RATE * dt * brushFalloff(t) * softLimit(e, tool === Tool.Raise ? 1 : -1);
+      world.elevation[c] = Math.min(MAX_ELEVATION, Math.max(MIN_ELEVATION, e + delta));
       changedTerrain = true;
     } else if (tool === Tool.Water) {
       world.elevation[c] = Math.min(world.elevation[c] as number, world.seaLevel - PAINTED_WATER_DEPTH);

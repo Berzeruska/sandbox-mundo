@@ -1,6 +1,7 @@
 import { FRAGMENT_SHADER, VERTEX_SHADER } from './shaders';
 import type { Camera } from './camera';
 import { packRect } from './dirty';
+import { buildNoiseVolume, NOISE_SIZE } from './noise-volume';
 
 /** Retângulo alterado de uma face (em células). */
 export interface DirtyRect {
@@ -22,6 +23,7 @@ export class GlobeRenderer {
   private colors: Uint8Array;
   private program: WebGLProgram | null = null;
   private texture: WebGLTexture | null = null;
+  private noiseTexture: WebGLTexture | null = null;
   private vao: WebGLVertexArrayObject | null = null;
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private rot = new Float32Array(9);
@@ -57,11 +59,25 @@ export class GlobeRenderer {
   private init(): void {
     const gl = this.gl;
     this.program = linkProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER);
-    for (const name of ['uCells', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight']) {
+    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.vao = gl.createVertexArray();
+    this.createNoiseTexture();
     this.createTexture();
+  }
+
+  private createNoiseTexture(): void {
+    const gl = this.gl;
+    this.noiseTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_3D, this.noiseTexture);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA8, NOISE_SIZE, NOISE_SIZE, NOISE_SIZE, 0, gl.RGBA, gl.UNSIGNED_BYTE, buildNoiseVolume());
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    for (const wrap of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R]) {
+      gl.texParameteri(gl.TEXTURE_3D, wrap, gl.REPEAT);
+    }
   }
 
   private createTexture(): void {
@@ -116,14 +132,19 @@ export class GlobeRenderer {
     gl.bindVertexArray(this.vao);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texture);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_3D, this.noiseTexture);
+    gl.activeTexture(gl.TEXTURE0);
     const u = this.uniforms;
     gl.uniform1i(u.uCells ?? null, 0);
+    gl.uniform1i(u.uNoise ?? null, 1);
     gl.uniform1i(u.uN ?? null, this.n);
     // gl_FragCoord tem origem embaixo; a câmera usa origem em cima.
     gl.uniform2f(u.uCenter ?? null, camera.centerX(), this.canvas.height - camera.centerY());
     gl.uniform1f(u.uRadius ?? null, camera.radius());
     gl.uniformMatrix3fv(u.uRot ?? null, false, camera.rotationMatrix(this.rot));
     gl.uniform3f(u.uLight ?? null, -0.42, 0.5, 0.76);
+    gl.uniform1f(u.uCellAngle ?? null, Math.PI / 2 / this.n);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 }

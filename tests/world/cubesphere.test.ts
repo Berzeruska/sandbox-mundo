@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CubeSphere,
   FACES,
+  cellShape,
   faceCoordToPoint,
   latLonToPoint,
   pointToFaceCoord,
@@ -131,5 +132,33 @@ describe('cubesphere: grade', () => {
     }
     expect(got.size).toBe(expected);
     expect(new Set([...got].map((i) => g.faceOf(i))).size).toBe(3);
+  });
+});
+
+describe('cubesphere: distorção das células (projeção)', () => {
+  const stats = (n: number, projection: 'equiangular' | 'gnomonic') => {
+    let minA = Infinity, maxA = 0, total = 0, worstAngle = 0;
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const { area, angles } = cellShape(0, x, y, n, projection);
+        minA = Math.min(minA, area);
+        maxA = Math.max(maxA, area);
+        total += area;
+        for (const a of angles) worstAngle = Math.max(worstAngle, Math.abs((a * 180) / Math.PI - 90));
+      }
+    }
+    return { ratio: maxA / minA, total: total * 6, worstAngle };
+  };
+
+  it('áreas somam a esfera inteira (4π)', () => {
+    expect(stats(32, 'equiangular').total).toBeCloseTo(4 * Math.PI, 6);
+    expect(stats(32, 'gnomonic').total).toBeCloseTo(4 * Math.PI, 6);
+  });
+
+  it('equiangular (a usada no jogo) distorce bem menos que a gnomônica', () => {
+    const eq = stats(64, 'equiangular');
+    const gn = stats(64, 'gnomonic');
+    expect(eq.ratio).toBeLessThan(1.45);
+    expect(gn.ratio).toBeGreaterThan(5);
   });
 });

@@ -79,3 +79,42 @@ Formato: data — decisão — motivo — alternativa descartada.
   Medido pelo usuário com o "girar sem parar" do painel de depuração (acima de 60 porque a tela do
   aparelho tem taxa de atualização alta). Meta de ≥ 30 fps atendida com folga: **N = 256 mantido**,
   nenhuma redução de resolução necessária.
+
+- **2026-10-15 — Projeção cubo→esfera verificada: já é a equiangular (desde a T2), mantida.**
+  Medição em N = 256 (`cellShape` em `src/world/cubesphere.ts`, teste em `tests/world/cubesphere.test.ts`):
+  | Projeção            | Área maior/menor | Pior desvio de ângulo |
+  |---------------------|------------------|------------------------|
+  | gnomônica simples   | 5,155            | 30,0° (células do canto do cubo) |
+  | equiangular (atual) | 1,410            | 30,0° (células do canto do cubo) |
+  O "losango" perto dos cantos do cubo não depende da projeção: num canto se encontram 3 faces, então
+  3 células dividem um vértice e precisam ter ângulos de ~120° (nenhuma projeção de cubo evita).
+  Os polos ficam no centro das faces ±Y, com desvio 0°. Solução visual: esconder a grade no shader
+  (T13). Nenhuma mudança na geração: **a mesma semente continua gerando o mesmo mundo.**
+
+- **2026-10-15 — T13: detalhe visual no shader para esconder a grade (sem mudar a simulação).**
+  - Bordas orgânicas: o shader desloca o ponto da esfera com ruído (até ~1 célula) antes de escolher a
+    célula; fronteiras de bioma, costas e calotas viram curvas. Ruído em 3D na esfera, sem emenda.
+  - Textura sutil por bioma (intensidade em `BIOME_INFO.detail`; o bioma vai no canal alfa).
+  - Removida a variação de brilho por célula da CPU (ela desenhava a grade).
+  - Os dois efeitos somem com o zoom afastado (célula < ~1–2 px), para não cintilar.
+  - Ruído lido de uma textura 3D pré-calculada (64³ RGBA, ~1 MB), não calculado por pixel: a
+    primeira versão com hash por pixel custava ~3 ms por quadro a mais no notebook.
+  - fps sem limite de tela (Radeon 610M, build de produção, giro de teste):
+    | Cenário                      | Antes (v1.0) | Hash por pixel | Final (textura 3D) |
+    |------------------------------|--------------|----------------|--------------------|
+    | Notebook 1920×1080, inteiro  | 935          | 251            | 734                |
+    | Notebook 1920×1080, zoom máx | 525          | 271            | 646                |
+    | Celular 412×915 @2x, inteiro | 997          | 663            | 1175               |
+    | Celular 412×915 @2x, zoom máx| 596          | 439            | 680                |
+    (variações de ±20% entre execuções são ruído da medição.) Imagem: `docs/img/t13-antes-depois.png`.
+  - A mesma semente continua gerando o mesmo mundo (nenhuma mudança na simulação).
+
+- **2026-10-15 — T14: pincéis em forma de sino, teto macio e sombreado de relevo.**
+  Diagnóstico: os dados já tinham queda do centro à borda; o "platô" vinha do teto duro (4 s de Elevar
+  travavam o centro em 9.000 m, que virava gelo chapado), das cores em faixas por bioma e da falta de
+  indicação de inclinação. Correção: queda `(1 − t²)³`, desaceleração nos últimos 6 km antes do
+  teto/fundo e sombreado de relevo nas cores (luz de noroeste, inclinação em metros por célula
+  calculada em 3D, sem emenda entre faces; vale para o planeta todo, inclusive montanhas naturais).
+  Perfil de Elevar com pincel 29 por 4 s: antes 8.999 m no centro (teto) e 5.213 m no meio do raio;
+  depois 6.799 m e 3.909 m, borda intacta. Imagem: `docs/img/t14-antes-depois.png`.
+  Só visual e pincéis: a mesma semente continua gerando o mesmo mundo.
