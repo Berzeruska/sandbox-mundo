@@ -193,7 +193,12 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   quadros acima de 50 ms por cenário; trabalho da tela por quadro; worker (passos/s, ms por passo,
   ocupação, recomposições divididas em placas/clima/cores/envio); geração por etapa; GPU detectada.
 - [ ] **D2 — Tempo rodando sem placas ≥ 60 fps:** o worker trabalha só o necessário e não manda
-  atualização à tela sem mudança.
+  atualização à tela sem mudança. *Implementado, aguardando o relatório do aparelho:* o 1º relatório
+  (5d83bca) deu 91 fps com o painel escondido e worker 0% ocupado, então o worker não era a causa;
+  suspeita principal: o desfoque por trás do painel Dados (onde o usuário lia o fps). Desfoque
+  removido; worker dorme quando pausado; relógio à tela no máximo 10×/s (61 → 9 mensagens/s; tela
+  2,8 → 1,2 ms por quadro com CPU 6× mais lenta). O medidor ganhou cenários com o painel aberto com e
+  sem o desfoque antigo, para confirmar no aparelho, e o tempo da primeira abertura.
 - [ ] **D3 — Placas com tamanho e identidade fixos:** continentes que colidem se soldam e erguem
   cordilheira; fragmento pequeno gruda na placa maior; nada de pedaços colidindo para sempre
   (achar a causa da oscilação).

@@ -15,6 +15,13 @@ import { makePatches, transferables, type FromWorker, type ToWorker } from './pr
 
 export type Post = (msg: FromWorker, transfer: ArrayBuffer[]) => void;
 
+/**
+ * Intervalo mínimo entre mensagens de relógio à tela (ms). A data a 20× muda 240 vezes por segundo,
+ * ninguém lê tão rápido; e o desenho das placas adianta os ângulos sozinho entre uma mensagem e
+ * outra. Menos mensagens = menos trabalho na thread principal (o celular-alvo só tem 2 núcleos fortes).
+ */
+export const CLOCK_POST_MS = 100;
+
 /** Etapas da geração vistas pelo jogador e o peso aproximado de cada uma no tempo total. */
 export const GENERATION_STAGES: readonly { name: string; weight: number }[] = [
   { name: 'grade', weight: 0.08 },
@@ -55,6 +62,7 @@ export class SimulationCore {
   readonly work: WorkCounters = emptyWork();
   private grid: CubeSphere | null = null;
   private lastPostedTick = -1;
+  private lastPostedAt = -Infinity;
   private ticksWindow = { since: 0, ticks: 0, rate: 0 };
 
   constructor(
@@ -247,9 +255,23 @@ export class SimulationCore {
     this.postClock(false);
   }
 
-  /** Avisa o relógio quando o calendário mudou (no máximo uma vez por chamada). */
+  /**
+   * O laço do relógio precisa rodar? Só com mundo e tempo correndo; parado, o worker dorme até a
+   * próxima mensagem (não acorda 60 vezes por segundo à toa num núcleo que a tela quer usar).
+   */
+  get running(): boolean {
+    return this.world !== null && this.clock.speed !== 0;
+  }
+
+  /**
+   * Avisa o relógio quando o calendário mudou, no máximo a cada CLOCK_POST_MS (`force`: já, ex.:
+   * mudou a velocidade ou nasceu um mundo).
+   */
   private postClock(force: boolean): void {
     if (!force && this.clock.tick === this.lastPostedTick) return;
+    const t = this.now();
+    if (!force && t - this.lastPostedAt < CLOCK_POST_MS) return;
+    this.lastPostedAt = t;
     this.lastPostedTick = this.clock.tick;
     this.work.clockMessages++;
     this.send({

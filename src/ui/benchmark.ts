@@ -121,6 +121,16 @@ export interface GenerationResult {
   receiveMs: number;
 }
 
+/** Primeira abertura da página (o mundo nasce junto com a página, sem nada em cache no worker). */
+export interface FirstLoad {
+  /** Da navegação até o globo aparecer. */
+  pageToGlobeMs: number;
+  /** Do pedido de mundo (página já carregada) até o globo. */
+  requestToGlobeMs: number;
+  workerMs: number;
+  stagesMs: Record<string, number>;
+}
+
 export interface DeviceInfo {
   version: string;
   date: string;
@@ -152,7 +162,7 @@ function workLine(r: ScenarioResult): string {
 }
 
 /** O relatório completo, em texto simples (o usuário copia e cola na conversa). */
-export function formatReport(device: DeviceInfo, scenarios: readonly ScenarioResult[], gen: GenerationResult | null): string {
+export function formatReport(device: DeviceInfo, scenarios: readonly ScenarioResult[], gen: GenerationResult | null, first: FirstLoad | null = null): string {
   const lines = [
     'Sandbox Mundo — medição de desempenho',
     `versão ${device.version} · ${device.date}`,
@@ -175,6 +185,15 @@ export function formatReport(device: DeviceInfo, scenarios: readonly ScenarioRes
       .map(([k, v]) => `${k} ${f0(v)}`)
       .join(' · ');
     lines.push('', `geração: ${f0(gen.totalMs)} ms do pedido ao globo (worker ${f0(gen.workerMs)} · tela ao receber ${f0(gen.receiveMs)})`, `  etapas: ${stages}`);
+  }
+  if (first) {
+    const stages = Object.entries(first.stagesMs)
+      .map(([k, v]) => `${k} ${f0(v)}`)
+      .join(' · ');
+    lines.push(
+      `primeira abertura: ${f0(first.pageToGlobeMs)} ms da página ao globo (pedido ao globo ${f0(first.requestToGlobeMs)} · worker ${f0(first.workerMs)})`,
+      `  etapas: ${stages}`,
+    );
   }
   return lines.join('\n');
 }

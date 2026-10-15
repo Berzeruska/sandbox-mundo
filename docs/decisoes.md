@@ -281,3 +281,11 @@ Formato: data — decisão — motivo — alternativa descartada.
   versão do build (`__BUILD_ID__`, o hash do commit no CI) e recarregam uma vez se diferirem.
   Alternativa descartada: só mostrar o erro, sem reserva (o jogo ficaria inutilizável num celular
   com driver defeituoso).
+
+- **2026-10-15 — Sem desfoque nos painéis; worker dorme pausado; relógio à tela até 10×/s (D2).**
+  O 1º relatório do aparelho-alvo mostrou 91 fps com tempo rodando e o painel escondido, e o worker
+  0% ocupado: a queda para 48 que o usuário via não vinha do worker. O painel Dados (onde ele lê o
+  fps) tinha `backdrop-filter: blur`, que a GPU refaz sobre o globo a cada mudança na tela. Painéis
+  passam a ter fundo quase opaco. O laço do worker só roda com mundo e tempo correndo, e o relógio vai
+  à tela no máximo a cada 100 ms (o desenho das placas já adianta os ângulos sozinho entre mensagens).
+  Alternativa descartada: manter o desfoque só fora da deriva (complica e não resolve tempo rodando).

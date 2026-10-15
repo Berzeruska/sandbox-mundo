@@ -23,17 +23,21 @@ scope.onmessage = (e: MessageEvent<ToWorker>) => {
   } catch (err) {
     report(err);
   }
+  wake();
 };
 scope.onerror = (e) => {
   report(e instanceof ErrorEvent ? (e.error ?? e.message) : e);
 };
 scope.onunhandledrejection = (e) => report(e.reason);
 
-// Laço do relógio, independente dos quadros da tela.
+// Laço do relógio, independente dos quadros da tela. Só roda com o tempo correndo: pausado (ou
+// sem mundo), o worker dorme e uma mensagem nova (ex.: mudar a velocidade) o acorda.
 const STEP_MS = 1000 / 60;
-let last = performance.now();
+let last = 0;
+let scheduled = false;
 let failed = false;
 const loop = (): void => {
+  scheduled = false;
   const now = performance.now();
   if (!failed) {
     try {
@@ -44,6 +48,14 @@ const loop = (): void => {
     }
   }
   last = now;
-  setTimeout(loop, STEP_MS);
+  if (core.running && !failed) {
+    scheduled = true;
+    setTimeout(loop, STEP_MS);
+  }
 };
-setTimeout(loop, STEP_MS);
+function wake(): void {
+  if (scheduled || failed || !core.running) return;
+  scheduled = true;
+  last = performance.now();
+  setTimeout(loop, STEP_MS);
+}

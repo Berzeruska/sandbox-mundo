@@ -15,9 +15,9 @@ import { SimClient } from './sim/client';
 import { applyPatch, type Patch, type WorldInfo } from './sim/protocol';
 import { Hud } from './ui/hud';
 import { activeBrush, inputModeOf } from './ui/menu-state';
-import { DebugPanel, NewWorldDialog } from './ui/panels';
+import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
-import { emptyWork, FrameRecorder, formatReport, workDelta, type GenerationResult, type ScenarioResult, type WorkCounters } from './ui/benchmark';
+import { emptyWork, FrameRecorder, formatReport, workDelta, type FirstLoad, type GenerationResult, type ScenarioResult, type WorkCounters } from './ui/benchmark';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
@@ -96,7 +96,11 @@ export class App {
     recorder: FrameRecorder | null;
     receive: number[];
     onWorld: ((receiveMs: number) => void) | null;
+    /** Cenário com o painel Dados aberto (ele se atualiza como no jogo normal). */
+    panelOpen: boolean;
   } | null = null;
+  /** Primeira abertura: da navegação até o primeiro globo na tela (ms), e a geração dentro disso. */
+  private firstLoad: FirstLoad | null = null;
   /** Últimos contadores de trabalho do worker (chegam com o relógio). */
   private work: WorkCounters = emptyWork();
   /** Momento do pedido de mundo novo, para medir o tempo total até o globo aparecer. */
@@ -278,6 +282,7 @@ export class App {
   private onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array): void {
     const receiveStart = performance.now();
     this.worldTotalMs = receiveStart - this.worldRequestedAt;
+    this.firstLoad ??= { pageToGlobeMs: receiveStart, requestToGlobeMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs };
     this.lastGenerationSignal = performance.now();
     this.info = info;
     this.colors = colors;
@@ -490,7 +495,7 @@ export class App {
   }
 
   private updateDebug(): void {
-    if (!this.debug.visible || !this.info || this.bench) return;
+    if (!this.debug.visible || !this.info || (this.bench && !this.bench.panelOpen)) return;
     const renderer = this.renderer;
     this.debug.update({
       fps: this.stats.fps,
@@ -524,24 +529,28 @@ export class App {
     if (this.bench || !this.info || !this.renderer) return;
     const seedText = this.info.seedText;
     const before = { speed: this.clock.speed, plateRate: this.plateRate, spin: this.stressSpin };
-    const bench: NonNullable<App['bench']> = { recorder: null, receive: [], onWorld: null };
+    const bench: NonNullable<App['bench']> = { recorder: null, receive: [], onWorld: null, panelOpen: false };
     this.bench = bench;
     this.hud.closeMenu();
     const startedAt = performance.now();
+    const steps = 8;
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-    const status = (step: number, name: string) =>
-      this.debug.setBenchmarkRunning(`Medindo ${step}/5: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`);
+    const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
+      this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
     const scenarios: ScenarioResult[] = [];
     // Um cenário: prepara, espera assentar, mede `ms` e guarda quadros + trabalho do worker.
-    const scenario = async (step: number, name: string, ms: number, setup: () => void): Promise<void> => {
-      status(step, name);
+    // `panel`: painel Dados escondido (só a linha de andamento) ou aberto, com ou sem o desfoque antigo.
+    const scenario = async (step: number, name: string, ms: number, setup: () => void, panel: PanelMode = 'hidden'): Promise<void> => {
+      bench.panelOpen = panel !== 'hidden';
+      status(step, name, panel);
       setup();
-      await wait(1000);
+      this.updateDebug();
+      await wait(800);
       const recorder = new FrameRecorder();
       bench.recorder = recorder;
       bench.receive = [];
       const work0 = { ...this.work };
-      const timer = setInterval(() => status(step, name), 1000);
+      const timer = setInterval(() => status(step, name, panel), 1000);
       await wait(ms);
       clearInterval(timer);
       const frames = recorder.summary();
@@ -564,20 +573,24 @@ export class App {
       this.camera.stopSpin();
       this.camera.zoom = 1;
       this.camera.lookAt(this.info.landCenter);
-      await scenario(1, 'pausado, parado', 6000, () => {
+      await scenario(1, 'pausado, parado', 5000, () => {
         spin(false);
         this.setSpeed(0);
         this.requestDraw();
       });
-      await scenario(2, 'pausado, girando', 8000, () => spin(true));
-      await scenario(3, 'tempo 20×, placas paradas', 12_000, () => {
+      await scenario(2, 'pausado, girando', 6000, () => spin(true));
+      await scenario(3, 'tempo 20×, placas paradas', 8000, () => {
         spin(false);
         this.sim.setPlateRate(0);
         this.setSpeed(20);
       });
-      await scenario(4, 'tempo 20×, placas 100%', 20_000, () => this.sim.setPlateRate(1));
+      await scenario(4, '  idem, painel c/ desfoque', 8000, () => undefined, 'blur');
+      await scenario(5, 'tempo 20×, placas 100%', 12_000, () => this.sim.setPlateRate(1));
+      await scenario(6, '  idem, painel c/ desfoque', 10_000, () => undefined, 'blur');
+      await scenario(7, '  idem, painel s/ desfoque', 10_000, () => undefined, 'plain');
+      bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(5, 'geração de mundo');
+      status(8, 'geração de mundo');
       this.setSpeed(0);
       this.sim.setPlateRate(before.plateRate);
       await wait(500);
@@ -608,6 +621,7 @@ export class App {
       },
       scenarios,
       gen,
+      this.firstLoad,
     );
     this.debug.showReport(report);
     this.updateDebug();

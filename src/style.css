@@ -352,11 +352,12 @@ body {
   z-index: 4;
   position: absolute;
   pointer-events: auto;
-  background: rgba(10, 14, 28, 0.92);
+  /* Sem desfoque por trás (backdrop-filter): na Mali-G52 ele é refeito a cada quadro em que o globo
+     muda e derrubava o fps com o painel aberto. Fundo quase opaco no lugar. */
+  background: rgba(10, 14, 28, 0.95);
   border-radius: 14px;
   padding: 12px;
   box-sizing: border-box;
-  backdrop-filter: blur(6px);
 }
 
 .panel.hidden {
@@ -382,12 +383,16 @@ body {
 
 /* Medindo: só a linha de andamento, sem desfoque por trás (não pesa na GPU durante a medição). */
 .debug-panel.benchmarking {
-  backdrop-filter: none;
   padding: 8px 12px;
 }
 
 .debug-panel.benchmarking > :not(.bench-status) {
   display: none;
+}
+
+/* Diagnóstico do "Medir desempenho": painel aberto com e sem desfoque por trás. */
+.debug-panel.legacy-blur {
+  backdrop-filter: blur(6px);
 }
 
 .world-panel {

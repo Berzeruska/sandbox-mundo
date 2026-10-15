@@ -30,6 +30,9 @@ export interface DebugStats {
   version: string;
 }
 
+/** Painel durante a medição: escondido (só o andamento) ou aberto, com ou sem o desfoque antigo. */
+export type PanelMode = 'hidden' | 'blur' | 'plain';
+
 export class DebugPanel {
   readonly root: HTMLDivElement;
   private body: HTMLPreElement;
@@ -74,12 +77,18 @@ export class DebugPanel {
   }
 
   /** Durante a medição: só a linha de andamento (o resto do painel não se atualiza nem pesa). */
-  setBenchmarkRunning(status: string | null): void {
+  setBenchmarkRunning(status: string | null, panel: PanelMode = 'hidden'): void {
     const running = status !== null;
     this.benchBtn.disabled = running;
-    this.root.classList.toggle('benchmarking', running);
+    this.root.classList.toggle('benchmarking', running && panel === 'hidden');
+    // Diagnóstico: o desfoque por trás do painel, como era até a D2, para comparar no aparelho.
+    this.root.classList.toggle('legacy-blur', running && panel === 'blur');
     this.benchStatus.hidden = !running;
-    if (running) this.benchStatus.textContent = status;
+    if (running) {
+      this.benchStatus.textContent = status;
+      this.report.hidden = true;
+      this.copyBtn.hidden = true;
+    }
   }
 
   showReport(text: string): void {

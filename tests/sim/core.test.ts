@@ -61,10 +61,41 @@ describe('núcleo da simulação (worker)', () => {
       core.advance(1 / 60);
     }
     expect(core.clock.tick).toBe(24); // 2× = 24 passos por segundo
-    expect(lastOf(inbox, 'clock')).toMatchObject({ tick: 24, speed: 2 });
+    expect(lastOf(inbox, 'clock')!.tick).toBeGreaterThanOrEqual(22);
+    expect(lastOf(inbox, 'clock')!.speed).toBe(2);
     core.handle({ type: 'speed', speed: 0 });
+    // Ao pausar, a data final vai na hora.
+    expect(lastOf(inbox, 'clock')).toMatchObject({ tick: 24, speed: 0 });
     core.advance(1);
     expect(core.clock.tick).toBe(24);
+  });
+
+  it('relógio: no máximo uma mensagem a cada CLOCK_POST_MS, e nenhuma sem mudança', async () => {
+    const { CLOCK_POST_MS } = await import('../../src/sim/core');
+    const { core, inbox, tick } = makeCore();
+    core.handle({ type: 'newWorld', seedText: '1', n: N });
+    core.handle({ type: 'speed', speed: 20 });
+    inbox.length = 0;
+    for (let i = 0; i < 120; i++) {
+      tick(1000 / 60);
+      core.advance(1 / 60);
+    }
+    const clocks = inbox.filter((m) => m.type === 'clock').length;
+    // 2 s de tempo a 20× (480 passos), mas só ~2000 / CLOCK_POST_MS mensagens.
+    expect(core.clock.tick).toBe(480);
+    expect(clocks).toBeLessThanOrEqual(Math.ceil(2000 / CLOCK_POST_MS) + 1);
+    expect(clocks).toBeGreaterThanOrEqual(Math.floor(2000 / CLOCK_POST_MS) - 1);
+    // Pausado: o laço nem precisa rodar, e avançar não manda nada.
+    core.handle({ type: 'speed', speed: 0 });
+    expect(core.running).toBe(false);
+    inbox.length = 0;
+    for (let i = 0; i < 60; i++) {
+      tick(1000 / 60);
+      core.advance(1 / 60);
+    }
+    expect(inbox.length).toBe(0);
+    core.handle({ type: 'speed', speed: 1 });
+    expect(core.running).toBe(true);
   });
 
   it('novo mundo zera o calendário', () => {
@@ -109,13 +140,16 @@ describe('progresso da geração', () => {
 
 describe('placas no worker', () => {
   it('com o controle "Placas" ligado, o relógio move as placas e manda o mundo repintado', () => {
-    const { core, inbox } = makeCore();
+    const { core, inbox, tick } = makeCore();
     core.handle({ type: 'newWorld', seedText: 'deriva', n: 32 });
     core.handle({ type: 'plateRate', rate: 1 });
     core.handle({ type: 'speed', speed: 20 });
     const before = Float32Array.from(core.world!.elevation);
     inbox.length = 0;
-    for (let i = 0; i < 400; i++) core.advance(0.25); // 400 × 60 passos
+    for (let i = 0; i < 400; i++) {
+      tick(250);
+      core.advance(0.25); // 400 × 60 passos
+    }
     expect(core.tectonics!.recompositions).toBeGreaterThan(0);
     expect(core.world!.elevation).not.toEqual(before);
     const recomposed = lastOf(inbox, 'recomposed')!;
