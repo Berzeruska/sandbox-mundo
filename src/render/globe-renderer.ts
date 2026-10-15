@@ -19,6 +19,8 @@ export interface PlateMotionUniforms {
   basePrev: Float32Array;
   /** Mistura com a composição anterior: 1 = só a atual. */
   fade: number;
+  /** Maior rotação desde a composição anterior (raio de busca dela na transição). */
+  maxDeltaPrev: number;
   maxDelta: number;
 }
 
@@ -92,7 +94,7 @@ export class GlobeRenderer {
   private init(): void {
     const gl = this.gl;
     this.program = linkProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER);
-    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade']) {
+    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.vao = gl.createVertexArray();
@@ -229,6 +231,7 @@ export class GlobeRenderer {
       gl.uniform2fv(u.uPlateBase ?? null, motion.base, 0, MAX_SHADER_PLATES * 2);
       gl.uniform2fv(u.uPlateBasePrev ?? null, motion.basePrev, 0, MAX_SHADER_PLATES * 2);
       gl.uniform1f(u.uMaxDelta ?? null, motion.maxDelta);
+      gl.uniform1f(u.uMaxDeltaPrev ?? null, motion.maxDeltaPrev);
       gl.uniform3f(u.uRidgeColor ?? null, this.ridgeColor[0], this.ridgeColor[1], this.ridgeColor[2]);
     }
     gl.uniform1i(u.uN ?? null, this.n);

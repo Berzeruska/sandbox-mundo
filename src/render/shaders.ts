@@ -37,7 +37,7 @@ void main() {
  * vezes: para a composição atual e para a anterior (transição suave). Gerar o código duas vezes
  * evita escolher a textura em tempo de execução: num ternário, muitas GPUs fazem as duas leituras.
  */
-function setFunctions(sfx: string, cells: string, plates: string, base: string): string {
+function setFunctions(sfx: string, cells: string, plates: string, base: string, maxDelta: string): string {
   return `
 // Célula que contém o ponto p da esfera: cor (rgb) e código do bioma (a).
 vec4 cellAt${sfx}(vec3 p) {
@@ -66,14 +66,14 @@ int plateNow${sfx}(vec3 p, out vec3 fix) {
   int pl0 = int(v0 & ${PLATE_MASK}u);
   // Atalho para o miolo da placa (a maior parte do planeta): longe de fronteira e com as placas
   // tendo andado menos que essa distância, só pode ser a própria placa.
-  if ((v0 & ${NEAR_BOUNDARY_BIT}u) == 0u && uMaxDelta < ${(NEAR_BOUNDARY_CELLS - 0.5).toFixed(1)} * uCellAngle) return pl0;
+  if ((v0 & ${NEAR_BOUNDARY_BIT}u) == 0u && ${maxDelta} < ${(NEAR_BOUNDARY_CELLS - 0.5).toFixed(1)} * uCellAngle) return pl0;
   int cand[5];
   int count = 0;
   cand[count++] = pl0;
   vec3 e = vec3(p.z, 0.0, -p.x);
   e = dot(e, e) < 1e-12 ? vec3(1.0, 0.0, 0.0) : normalize(e);
   vec3 nn = cross(p, e);
-  float dist = uMaxDelta * 1.5;
+  float dist = ${maxDelta} * 1.5;
   vec3 probes[4] = vec3[4](p + e * dist, p - e * dist, p + nn * dist, p - nn * dist);
   for (int k = 0; k < 4; k++) {
     int pl = int(plateAt${sfx}(probes[k]) & ${PLATE_MASK}u);
@@ -215,6 +215,7 @@ uniform vec2 uPlateBase[${MAX_SHADER_PLATES}];  // cos, sen do ângulo da compos
 uniform highp usampler2DArray uPlatesPrev;      // placas da composição anterior
 uniform vec2 uPlateBasePrev[${MAX_SHADER_PLATES}]; // ângulos da composição anterior
 uniform float uMaxDelta;                // maior rotação desde a composição (raio de busca)
+uniform float uMaxDeltaPrev;            // idem, desde a composição anterior (transição suave)
 uniform vec3 uRidgeColor;               // fundo oceânico novo (fenda ainda sem crosta)
 
 vec3 rotCS(vec3 v, vec3 k, float c, float s) {
@@ -236,8 +237,8 @@ float closing(int a, int b, vec3 p) {
   return dot(va - vb, d);
 }
 
-${setFunctions('', 'uCells', 'uPlates', 'uPlateBase')}
-${setFunctions('Prev', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev')}
+${setFunctions('', 'uCells', 'uPlates', 'uPlateBase', 'uMaxDelta')}
+${setFunctions('Prev', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uMaxDeltaPrev')}
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
   p += dot(p, p + 45.32);

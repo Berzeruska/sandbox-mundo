@@ -4,7 +4,7 @@ import { PaintGate } from './input/paint-gate';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
 import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectonics';
-import { extrapolateAngle, MAX_SHADER_PLATES, rotate } from './render/plate-motion';
+import { advanceDisplayTick, MAX_SHADER_PLATES, rotate } from './render/plate-motion';
 import type { PlateMotionUniforms } from './render/globe-renderer';
 import { BIOME_INFO, Biome } from './world/biomes';
 import { BASE_TICKS_PER_SECOND } from './core/time';
@@ -50,8 +50,12 @@ export class App {
   /** Movimento das placas para o desenho suave: ângulos da composição, recebidos e mostrados. */
   private motion = {
     baseAngles: [] as number[],
+    /** Último relógio do worker: passo, quando chegou e ângulos naquele passo. */
     received: [] as number[],
+    receivedTick: 0,
     receivedAt: 0,
+    /** Relógio do desenho (passos fracionários) e ângulos mostrados. */
+    displayTick: 0,
     shown: [] as number[],
     uniforms: {
       moving: false,
@@ -61,6 +65,7 @@ export class App {
       base: new Float32Array(MAX_SHADER_PLATES * 2),
       basePrev: new Float32Array(MAX_SHADER_PLATES * 2),
       fade: 1,
+      maxDeltaPrev: 0,
       maxDelta: 0,
     } as PlateMotionUniforms,
     /** Ângulos da composição anterior e início da transição suave (ms). */
@@ -82,6 +87,8 @@ export class App {
   private worldTotalMs = 0;
   private needsDraw = true;
   private lastTime = 0;
+  /** Duração do último quadro (s), para o relógio do desenho. */
+  private frameDt = 0;
   /** Posição do pincel na tela (mouse por cima ou dedo pintando), ou null. */
   private brushScreen: { x: number; y: number } | null = null;
   /** Decide quando o toque vira pincelada (espera o segundo dedo de uma pinça). */
@@ -182,6 +189,7 @@ export class App {
         this.stats.memoryMb = memoryMb;
         if (angles.length) {
           this.motion.received = angles;
+          this.motion.receivedTick = tick;
           this.motion.receivedAt = performance.now();
         }
         this.clock.tick = tick;
@@ -227,6 +235,8 @@ export class App {
     this.motion.prevAngles = [...zeros];
     this.motion.fadeStart = 0;
     this.motion.received = [...zeros];
+    this.motion.receivedTick = 0;
+    this.motion.displayTick = 0;
     this.motion.shown = [...zeros];
     const u = this.motion.uniforms;
     u.axis.fill(0);
@@ -263,13 +273,19 @@ export class App {
     if (!info || !m.received.length) return false;
     const speed = this.clock.speed;
     const ticksPerSecond = speed === 0 ? 0 : speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * speed;
-    const since = (performance.now() - m.receivedAt) / 1000;
+    const now = performance.now();
+    const since = Math.min(2, (now - m.receivedAt) / 1000);
+    // Passo estimado do worker agora, e o relógio do desenho seguindo ele sem saltos.
+    const target = m.receivedTick + since * ticksPerSecond;
+    m.displayTick = advanceDisplayTick(m.displayTick, target, ticksPerSecond, this.frameDt);
     const u = m.uniforms;
     let changed = false;
     let maxDelta = 0;
+    let maxDeltaPrev = 0;
     for (let k = 0; k < info.plates.length; k++) {
-      const rate = MAX_PLATE_RATE * this.plateRate * (info.plates[k]?.speed ?? 0) * ticksPerSecond;
-      const shown = extrapolateAngle(m.received[k] ?? 0, rate, since, m.shown[k] ?? 0);
+      // Ângulo é linear nos passos: o do último relógio + a taxa × (passo do desenho − passo recebido).
+      const ratePerTick = MAX_PLATE_RATE * this.plateRate * (info.plates[k]?.speed ?? 0);
+      const shown = (m.received[k] ?? 0) + ratePerTick * (m.displayTick - m.receivedTick);
       if (shown !== m.shown[k]) changed = true;
       m.shown[k] = shown;
       const base = m.baseAngles[k] ?? 0;
@@ -281,6 +297,7 @@ export class App {
       u.base[k * 2] = Math.cos(base);
       u.base[k * 2 + 1] = Math.sin(base);
       const prev = m.prevAngles[k] ?? base;
+      maxDeltaPrev = Math.max(maxDeltaPrev, Math.abs(shown - prev));
       u.basePrev[k * 2] = Math.cos(prev);
       u.basePrev[k * 2 + 1] = Math.sin(prev);
     }
@@ -291,6 +308,7 @@ export class App {
     if (moving !== u.moving) changed = true;
     u.moving = moving;
     u.maxDelta = maxDelta;
+    u.maxDeltaPrev = maxDeltaPrev;
     return changed;
   }
 
@@ -344,6 +362,7 @@ export class App {
     const workStart = performance.now();
     const dt = this.lastTime ? Math.min(0.1, (time - this.lastTime) / 1000) : 0;
     this.lastTime = time;
+    this.frameDt = dt;
     const renderer = this.renderer;
     if (!renderer) return;
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);

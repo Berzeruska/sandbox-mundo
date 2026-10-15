@@ -3,13 +3,13 @@ import { CubeSphere, type Vec3 } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
 import { Crust } from '../../src/world/plates';
 import { Tectonics } from '../../src/world/tectonics';
-import { extrapolateAngle, packPlateCell, rotate, sourcePoint } from '../../src/render/plate-motion';
+import { advanceDisplayTick, packPlateCell, rotate, sourcePoint } from '../../src/render/plate-motion';
 
 describe('movimento suave das placas (regra do shader)', () => {
   it('entre recomposições, o desenho interpolado bate com a recomposição completa (miolo das placas)', () => {
     const grid = new CubeSphere(64);
     const w = createWorld({ seedText: 'suave', seed: 11, n: 64, seaLevel: 0, landFraction: 0.3 }, grid);
-    const t = new Tectonics(w);
+    const t = new Tectonics(w, { relief: false });
     // Composição "base": placas num ângulo qualquer.
     for (let p = 0; p < t.angle.length; p++) t.angle[p] = 0.05 * (p % 3);
     t.recompose();
@@ -73,10 +73,29 @@ describe('movimento suave das placas (regra do shader)', () => {
     expect(src?.plate).toBe(0);
   });
 
-  it('extrapolação do ângulo: adianta pelo tempo, com limite, e nunca volta', () => {
-    expect(extrapolateAngle(1, 0.5, 0.1, 0)).toBeCloseTo(1.05, 12);
-    expect(extrapolateAngle(1, 0.5, 10, 0)).toBeCloseTo(1.15, 12); // no máximo 0,3 s à frente
-    expect(extrapolateAngle(1, 0.5, 0.1, 2)).toBe(2); // não volta para trás
-    expect(extrapolateAngle(1, 0, 5, 0)).toBe(1); // pausado
+  it('relógio do desenho: segue o ritmo, corrige aos poucos, nunca volta nem salta', () => {
+    const dt = 1 / 60;
+    const rate = 240; // 20×
+    // Em regime: alvo andando no mesmo ritmo -> anda exatamente o nominal.
+    expect(advanceDisplayTick(100, 100, rate, dt)).toBeCloseTo(104, 9);
+    // Worker parou de mandar (alvo congelado e já ultrapassado): desacelera, mas não volta.
+    let d = 100;
+    for (let k = 0; k < 120; k++) {
+      const next = advanceDisplayTick(d, 100, rate, dt);
+      expect(next).toBeGreaterThanOrEqual(d);
+      expect(next - d).toBeLessThanOrEqual(3 * rate * dt + 1e-9);
+      d = next;
+    }
+    // Ficou para trás: alcança, sem salto (no máximo 3× o passo nominal por quadro).
+    d = 0;
+    const target = 120;
+    const next = advanceDisplayTick(d, target, rate, dt);
+    expect(next - d).toBeLessThanOrEqual(3 * rate * dt + 1e-9);
+    for (let k = 0; k < 600; k++) d = advanceDisplayTick(d, target + rate * dt * k, rate, dt);
+    expect(Math.abs(d - (target + rate * dt * 599))).toBeLessThan(rate * 0.1);
+    // Pausado: espera se passou; alcança suavemente se ficou para trás.
+    expect(advanceDisplayTick(50, 40, 0, dt)).toBe(50);
+    expect(advanceDisplayTick(40, 50, 0, dt)).toBeGreaterThan(40);
+    expect(advanceDisplayTick(40, 50, 0, dt)).toBeLessThan(50);
   });
 });

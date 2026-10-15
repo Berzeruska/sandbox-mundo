@@ -102,17 +102,20 @@ export function sourcePoint(p: Vec3, m: PlateMotionInput): { point: Vec3; plate:
 }
 
 /**
- * Ângulo a mostrar agora, adiantando o último ângulo recebido do worker pelo tempo desde então
- * (o worker manda o relógio ~60×/s, mas pode atrasar durante uma recomposição). Nunca volta para
- * trás e nunca adianta mais que `maxAhead` segundos.
+ * Relógio do desenho, em passos (fracionários). Avança no ritmo nominal do tempo e é corrigido aos
+ * poucos na direção do passo estimado do worker: nunca anda para trás e nunca dá saltos. Quando o
+ * worker fica ocupado (uma recomposição) e para de mandar o relógio, o desenho segue no ritmo e,
+ * se o worker voltar atrasado, só desacelera um pouco. Função pura: o tempo entra como parâmetro.
  */
-export function extrapolateAngle(
-  received: number,
-  ratePerSecond: number,
-  secondsSince: number,
-  previousShown: number,
-  maxAhead = 0.3,
-): number {
-  const estimate = received + ratePerSecond * Math.min(Math.max(0, secondsSince), maxAhead);
-  return Math.max(previousShown, estimate);
+export function advanceDisplayTick(display: number, target: number, ticksPerSecond: number, dt: number): number {
+  if (dt <= 0) return display;
+  if (ticksPerSecond <= 0) {
+    // Pausado: se ficou para trás, alcança o worker suavemente; se passou, espera.
+    return target > display ? display + (target - display) * Math.min(1, 3 * dt) : display;
+  }
+  const nominal = ticksPerSecond * dt;
+  // Muito longe (ex.: mudou de "máximo" para pausa e volta): reposiciona de uma vez.
+  if (Math.abs(target - display) > ticksPerSecond * 3) return target;
+  const correction = Math.max(-0.9 * nominal, Math.min(2 * nominal, 1.5 * (target - display) * dt));
+  return display + nominal + correction;
 }
