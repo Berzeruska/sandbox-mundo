@@ -8,12 +8,12 @@ Marco atual: **Marco 0 → Marco 1**
 ---
 
 ## Marco 0 — Fundação do repositório
-- [ ] Projeto Vite + TypeScript estrito + Vitest + ESLint configurados
-- [ ] `npm run check` (tipos + lint + testes) funcionando
+- [x] Projeto Vite + TypeScript estrito + Vitest + ESLint configurados
+- [x] `npm run check` (tipos + lint + testes) funcionando
 - [ ] Repositório no GitHub criado e com o primeiro push
-- [ ] GitHub Actions: `check` em todo push; deploy de `main` no GitHub Pages
+- [x] GitHub Actions: `check` em todo push; deploy de `main` no GitHub Pages
 - [ ] Página publicada abrindo no celular (tela preta com "Sandbox Mundo" basta)
-- [ ] `CHANGELOG.md`, `docs/bugs.md` criados
+- [x] `CHANGELOG.md`, `docs/bugs.md` criados
 
 **Aceite:** o usuário abre o link do GitHub Pages no celular e no notebook.
 

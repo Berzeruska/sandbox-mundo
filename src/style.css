@@ -1,0 +1,33 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+  color: #e8e8e8;
+  font-family: system-ui, sans-serif;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-align: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 8vw, 4rem);
+  letter-spacing: 0.05em;
+}
+
+.version {
+  opacity: 0.5;
+  font-size: 0.9rem;
+}
