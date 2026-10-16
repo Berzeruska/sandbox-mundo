@@ -630,9 +630,15 @@ recomposição na faixa da frente, até 7.000 m, igual em toda colisão.
    concentrada.
 4. **Picos e passagens:** ao longo da frente, a crosta recebida varia com um ruído preso à placa.
    Saem picos, serras separadas por passagens e vales entre cadeias, não uma muralha contínua.
-5. **Montanha velha e montanha nova:** sem crosta nova entrando, a erosão (já existe) baixa a
-   cordilheira com o tempo. Cadeias antigas ficam baixas e arredondadas (como os Apalaches e os
-   Urais); cadeias novas ficam altas.
+5. **Montanha velha e montanha nova:** sem crosta nova entrando, a erosão que já existe baixa a
+   cordilheira com o tempo; cadeias novas ficam altas.
+   - **O que a erosão de hoje faz:** a cada recomposição, o que passa de 2.500 m perde 3,5%, e acima de
+     1.200 m o relevo se aproxima da média das vizinhas. Um pico de 7.000 m cai à metade do excesso
+     (~4.750 m) em ~19 recomposições (~1 min a 20× com placas 100%) e tende a ~2.500 m. Só roda quando
+     as placas andam (placas em zero congelam a geologia).
+   - **O limite dela:** abaixo de 2.500 m ela só arredonda, não baixa. Cadeias velhas ficam como
+     planaltos arredondados de 1.200 a 2.500 m, não baixas como os Apalaches (~1.000–2.000 m). Baixar
+     mais é erosão pelo clima: **T7**.
 6. **Escarpas de margem (ombreira de rifte):** quando um continente racha, as bordas da fenda sobem
    300–1.000 m (sorteado por trecho) e, quando a fenda vira mar, ficam como uma escarpa costeira, como
    a Serra do Mar e o Drakensberg. **Atenção:** isto é do módulo dos riftes (G3); proponho incluir no
@@ -654,7 +660,10 @@ planaltos você julga no celular.
 
 **Desempenho:** contas só nas células da frente de colisão e das bordas de rifte novas. O mapa de
 rigidez é ruído preso à placa, lido só nessas células. Estimativa: < 5 ms por recomposição no
-notebook, no ajudante 2. Geração: nada novo (o mapa é calculado na hora, pelo ruído).
+notebook, no ajudante 2.
+- **Geração:** as províncias não somam nada. O mapa não é guardado nem calculado na geração: é um
+  ruído lido na hora, só nas células da frente de colisão, no ajudante 2, depois que o mundo já
+  apareceu. A geração continua na estimativa do G3 (~2,9–3,0 s no celular); a meta de 3 s vale.
 
 **Fora do G4 (registrado onde entra):**
 - **Istmos** como o do Panamá nascem de arcos vulcânicos entre continentes → **T9 (vulcões e
