@@ -45,6 +45,39 @@ num projeto escrito majoritariamente por IA.
   Organização: `src/sim/core.ts` (núcleo, testável), `src/sim/worker.ts` (adaptador do worker),
   `src/sim/client.ts` (lado da thread principal) e `src/sim/protocol.ts` (mensagens e remendos).
   A thread principal só desenha a cópia das cores e manda comandos; nunca lê o mundo direto.
+
+### Plano de ajudantes (workers), M2 → M7 (aprovado pelo usuário em 2026-10-16)
+No máximo **3 ajudantes** além da thread principal. O aparelho tem só 2 núcleos fortes, e a tela e o
+relógio já ficam com eles; ajudante a mais só gasta memória e coordenação.
+
+| Thread | O que roda | Nasce em | Núcleo provável |
+|---|---|---|---|
+| Principal | desenho, toque, menus | já existe | forte |
+| Ajudante 1 "relógio" (`src/sim/worker.ts`) | avanço do tempo a cada passo: deriva, desastres, tudo que é individual perto da câmera (animais M3, pessoas M4, tropas e veículos M6–M7) | M2 (T2) | forte |
+| Ajudante 2 "Terra" | trabalhos grandes e raros: recomposição das placas, recálculo do clima; depois erosão, minerais, gelo (T6–T7); contaminação e aquecimento (M7) | M2 (correção 2) | fraco serve |
+| Ajudante 3 "vida e sociedade" | ecologia agregada (M3), economia e povoados (M4), política e crônica (M5), estratégia de guerra: frentes e logística (M6), árvore tecnológica (M7) | M3 | fraco serve |
+
+- **Regra:** os ajudantes 2 e 3 entregam resultados "para depois" (aplicados num passo fixo à frente,
+  para continuar determinístico); nunca fazem o relógio esperar.
+- **Núcleos fracos:** o jogo não escolhe o núcleo, o Android escolhe. Thread leve ou intermitente
+  tende a ficar num A55 (estimado 2–3× mais lento que um A75). Os ajudantes 2 e 3 têm de ter folga para
+  isso: com placas 100% a recomposição é pedida a cada ~3,6 s; num A55 ela levaria ~2–3,5 s hoje. Por
+  isso a recomposição mais barata (opção a) vem depois, como complemento.
+- **Memória compartilhada (SharedArrayBuffer)** entre os ajudantes, para não copiar o mundo. Exige
+  isolamento entre origens (cabeçalhos COOP/COEP), que o GitHub Pages não deixa configurar; o service
+  worker do jogo os acrescenta. Primeiro testar no aparelho; se não funcionar, perguntar ao usuário
+  antes de seguir com cópia (+45–48 MB em vez de ~+15–20 MB).
+
+### Teto de memória
+- **Dados do jogo ≤ 150 MB de RAM** no aparelho-alvo (Hot 50i com 4 GB), medido no fim de cada marco.
+  Não contam o próprio navegador (~100–150 MB) nem a memória de vídeo (~20–40 MB).
+- Estimativa por marco (N = 256, ~393 mil células): hoje 53 MB ao abrir → 66 aos 15 min (medido);
+  fim do M2 70–85; M3 85–115; M4 95–130; M5 100–140 (crônica com teto, a antiga resumida);
+  M6 105–155; M7 115–170. Os marcos que passam do teto na estimativa precisam caber no desenho
+  (tipos menores por célula, camadas só onde há algo).
+- Tamanho de instalação (separado da RAM; o mundo é gerado, não baixado): hoje 0,18 MB; M3–M4
+  0,3–1 MB; M5–M7 1–2 MB; M8 5–20 MB (imagens e sons). Mundo salvo: 2–5 MB por mundo no M2,
+  10–30 MB no M7 (estimativa).
 - Estado em **arrays tipados** (`Float32Array`, `Uint8Array`), não em milhares de objetos.
 
 ## Dois níveis de simulação (a partir do Marco 3)

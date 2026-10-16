@@ -405,3 +405,22 @@ Formato: data — decisão — motivo — alternativa descartada.
     manual.
   - **Alternativa descartada:** pasta local `project-conhecimento/` com script de cópia e upload
     manual dos arquivos para o Project (removida; dependia de o usuário lembrar de subir).
+
+- **2026-10-16 — Plano de 3 ajudantes (workers) do M2 ao M7 e teto de 150 MB (decisão do usuário).**
+  - **Decisão:** thread principal + ajudante 1 "relógio" + ajudante 2 "Terra" (M2) + ajudante 3 "vida
+    e sociedade" (M3); detalhes em `docs/01-arquitetura.md`. Dados do jogo ≤ 150 MB de RAM no Hot 50i
+    (4 GB), medido no fim de cada marco.
+  - **Motivo:** só 2 núcleos fortes; trabalho grande e raro sai do relógio para o tempo não parar, e
+    pode rodar num núcleo fraco.
+  - **Alternativa descartada:** um ajudante por sistema (mais memória, sem núcleo forte livre).
+
+- **2026-10-16 — Tempo travando com placas no máximo: recomposição no ajudante 2 com memória
+  compartilhada; recomposição mais barata depois (decisão do usuário).**
+  - **Decisão:** opção (b) completa com SharedArrayBuffer. Primeira tarefa: testar no celular se a
+    memória compartilhada funciona (isolamento entre origens pelo service worker). Se não funcionar,
+    perguntar antes de seguir com cópia. A opção (a) entra depois, como complemento.
+  - **Motivo:** o tempo não para enquanto o celular acompanhar, e o ajudante 2 serve aos marcos
+    seguintes. Compartilhar evita copiar o mundo (+45–48 MB → ~+15–20 MB, estimativa).
+  - **Alternativas descartadas:** (b) mínima (ainda para ~0,3–0,4 s e seria jogada fora); só (a)
+    (a data ainda para ~0,5 s).
+

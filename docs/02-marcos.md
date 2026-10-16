@@ -71,6 +71,8 @@ observação do usuário).
 Aldeias, agricultura, caça, fome, doença, domesticação, crescimento de povoados, comércio simples.
 **Uso econômico dos recursos minerais** gerados no M2; desmatamento com consequências ambientais;
 povoados bem pequenos no mapa. Ver `docs/05-civilizacao-politica.md` e `docs/04-ecologia.md`.
+Pedido do usuário (2026-10-16): os humanos **começam nômades**, com técnicas de caça, antes da
+agricultura.
 
 ## Marco 5 — Política e mente
 Evolução de regimes, botão divino de concessão, ideologias, sistemas econômicos, líderes com

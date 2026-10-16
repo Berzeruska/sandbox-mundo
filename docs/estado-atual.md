@@ -8,29 +8,40 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** o usuário testou o G2 no celular (`c0660ea5`). Os diagnósticos pedidos estão prontos
-  (seção "G2 — Teste no celular" da especificação). **Parado esperando aprovação** das propostas
-  abaixo.
+- **Agora:** decisões do usuário de 2026-10-16 registradas. Próxima tarefa: **correção 1 (vale de
+  rifte)**; depois correção 2 começando pelo teste de memória compartilhada no celular.
+- **Ordem aprovada:** correção 1 → correção 2 (ajudante 2) → G3 → G4 (continente amassa e vira
+  montanha, especificação antes) → T6 em diante.
 - **Direção do usuário (2026-10-16):** fechar o G3 dentro do que já foi especificado e seguir a lista
-  do marco (T6 em diante). Melhoria nova de placas que não seja bug vai para os docs, não para agora.
-  O mesmo vale para reclamações fora do módulo atual: registrar e seguir na prioridade.
+  do marco. Melhoria nova de placas que não seja bug vai para os docs, não para agora. O mesmo vale para
+  reclamações fora do módulo atual: registrar e seguir na prioridade.
 - **Prévia:** berzeruska.github.io/sandbox-mundo/previa/marco-2/ — a linha "versão" do painel Dados
-  tem que mostrar o último commit do `marco-2`. Versão mais antiga que `4a11cf8` = a aba ou o app
-  instalado não recarregou.
+  tem que mostrar o último commit do `marco-2` com mudança no jogo.
 - **Publicado em `main`:** v1.1.
 
-## Esperando decisão do usuário
-1. **Buraco ao Elevar na fronteira (bug):** aprovar a correção 1 — fenda entre dois continentes nasce
-   como vale de rifte (300–800 m abaixo das vizinhas) até ter 3 células de largura; depois o meio vira
-   mar como hoje.
-2. **Tempo travando com placas no máximo (bug):** escolher (a) baratear a recomposição (a data ainda
-   para ~0,5 s) ou (b) recomposição num segundo worker (o tempo não para; mudança maior). Em qualquer
-   uma, corrigir o "pior" do relatório para ser por cenário.
-3. **"Nenhuma placa come a outra":** a regra registrada (nada de comer alternadamente) é cumprida.
-   Acreção de continente pequeno, placa oceânica sumindo por subducção e continente apagado na faixa
-   de colisão são do desenho atual. Se a regra deve proibir isso, vira regra nova de placas → docs
-   (pela direção do usuário), não agora. Confirmar.
-4. **Ordem proposta:** correção 1 → correção 2 → G3 → T6 em diante.
+## Decidido em 2026-10-16
+1. Correção 1 aprovada: fenda entre continentes com menos de 3 células nasce como vale de rifte.
+2. Tempo travando: opção (b) completa, a recomposição vai para o ajudante 2 com memória compartilhada
+   (SharedArrayBuffer); a opção (a), recomposição mais barata, vem depois. Primeiro: testar no celular
+   se a memória compartilhada funciona; se não funcionar, perguntar antes de seguir com cópia. O "pior"
+   do relatório passa a ser por cenário.
+3. Plano de 3 ajudantes do M2 ao M7 e teto de 150 MB de RAM para os dados do jogo (Hot 50i com 4 GB),
+   medido no fim de cada marco: `docs/01-arquitetura.md`.
+4. Continente apagado na colisão vira G4 (amassar e virar montanha), especificação aprovada antes.
+5. Registrados para depois: nuvens, tempestades e furacões em redemoinho na T10; humanos nômades com
+   caça antes da agricultura no M4.
+
+## Perguntas respondidas (2026-10-16)
+- **Placas em zero liberam o ajudante 1?** Já liberam: sem deriva não há recomposição, e o ajudante 1
+  só trabalha quando há passo a dar; o núcleo fica para a tela (placas paradas 91 fps contra 82–85 em
+  100%). O plano não muda trabalho de ajudante conforme a velocidade das placas (o resultado
+  dependeria do momento, quebrando o determinismo). Com o ajudante 2, nem em 100% as placas pesam no
+  ajudante 1.
+- **Pré-calcular geologia ao gerar o mundo?** O futuro das placas não (o pincel e a ruptura forçada
+  mudam o rumo, e guardar estados futuros custa ~10 MB cada). Geometria e tabelas do clima já são
+  pré-calculadas. O ganho real é "recalcular só o que mudou": hoje, depois de cada recomposição, o
+  clima, a distância da água e as cores são refeitos no mundo inteiro, quando só a faixa das fronteiras
+  e o que fica a favor do vento mudam. Isso entra na opção (a).
 
 ## Feito no M2
 - T1 menu por categorias, T2 Web Worker, T3 placas, T4 movimento e controle "Placas",
@@ -45,9 +56,11 @@ sobre "onde estamos", vale este.
 - Etiqueta "PRÉVIA" não cobre mais o fps do painel Dados (`4a11cf8`): some com o painel aberto.
 
 ## Pendente no M2
-- [ ] Correções 1 e 2 (acima), depois de aprovadas.
+- [ ] Correção 1 (vale de rifte), correção 2 (teste de memória compartilhada, depois ajudante 2).
 - [ ] G3 — riftes traçados, junção tríplice, aulacógenos, microcontinentes, Pangeia nascendo soldada
   (geração v3), teste de formas aos 2, 5 e 10 min.
+- [ ] G4 — continente amassa e vira montanha na colisão (especificação antes).
+- [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
 - [ ] Antes de fechar o Bloco G: medir de novo latitude e grupos soldados em N = 256; se subir para
   32 placas, medir no Hot 50i.
 - [ ] Confirmar no celular: travamento em 92% e lagos retos (`docs/bugs.md`).
@@ -70,14 +83,15 @@ sobre "onde estamos", vale este.
 - Nas sementes `mundo` e `42`, às vezes o supercontinente volta em ~2 min.
 
 ## Decisões abertas (do usuário)
-- Os 4 itens de "Esperando decisão do usuário".
 - **"Tamanho fixo" das placas:** hoje ficam fixas a identidade e a forma; placas oceânicas podem
-  encolher até sumir (ver item 3). Falta confirmar se basta.
+  encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
 
 ## Ideias registradas para marcos futuros (não fazer agora)
 - M3: escala do planeta × tamanho dos humanos (sem humanos de 1 pixel; 3 opções em `docs/02-marcos.md`);
   base do feedback ambiental.
-- M4: uso econômico dos minerais; desmatamento; cidade sobre terreno que muda.
+- T10 (neste marco): nuvens translúcidas que somem ao aproximar; tempestades e furacões em redemoinho
+  alterando só o clima da região.
+- M4: humanos começam nômades, com caça, antes da agricultura; uso econômico dos minerais; desmatamento; cidade sobre terreno que muda.
 - M5: quatro classes sociais; crônica permanente.
 - M6/M7: doutrinas de guerra, recursos estratégicos, consequências ambientais da guerra.
 - M8: acabamento visual do menu de ferramentas.

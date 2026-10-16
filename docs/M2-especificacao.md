@@ -249,6 +249,9 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   com recuperação.
   Testes: furacão só nasce em oceano tropical quente e enfraquece em terra; incêndio só em floresta
   sob seca; frequências dentro da faixa esperada em 1.000 anos simulados.
+  Pedido do usuário (2026-10-16), especificar na T10: **nuvens** simples e translúcidas que somem ao
+  aproximar a câmera, formando tempestades e furacões em redemoinho; o evento altera só o clima da
+  região dele.
 
 - [ ] **T11 — Desastres na mão do jogador e frequência**
   Em Desastres: ferramenta para provocar cada desastre e controle de frequência (nenhum → muitos),
@@ -539,6 +542,16 @@ continua escura com tudo pausado (é crosta na simulação, não efeito de desen
 - Conclusão: não é bug da regra como está escrita. Se "nenhuma placa come a outra" quer dizer "nenhuma
   placa some e nenhum continente é apagado", é regra nova de placas → docs, pela direção do usuário.
 
+**Decisões do usuário (2026-10-16):**
+1. Correção 1 (vale de rifte com menos de 3 células) aprovada.
+2. Tempo travando: recomposição no ajudante 2 com memória compartilhada (opção b completa); a
+   recomposição mais barata (a) depois, como complemento. Primeiro passo: testar no celular se a
+   memória compartilhada funciona; se não, perguntar antes de seguir com cópia. O "pior" do relatório
+   passa a ser por cenário. Plano dos ajudantes em `docs/01-arquitetura.md`.
+3. Continente apagado na colisão vira **G4: continente amassa e vira montanha**, com especificação
+   aprovada antes de codar.
+4. Ordem: correção 1 → correção 2 → G3 → G4 → T6 em diante.
+
 ### G3 — Formas: de onde vem hoje o formato das costas
 1. **Costa da Pangeia inicial:** vem da geração v2. São lobos em volta de um centro, borda deformada
    por ruído, ruído fractal, 2 a 4 bacias internas e ruído fino só na faixa da costa.
@@ -625,17 +638,25 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
 - [x] **G2 — Ciclo de Wilson:** suturas explícitas; sutura sem contato some; supercontinente,
   mandato e ruptura por sutura e junção tríplice; teste de 15 min; cenário no "Medir desempenho".
   Resultado abaixo ("G2 — Resultado").
+- [ ] **Correção 1 — Vale de rifte:** fenda entre continentes com menos de 3 células nasce como vale
+  (vizinhas −300 a −800 m); com 3 ou mais, o meio vira fundo oceânico. Teste sintético de 2 placas.
+- [ ] **Correção 2 — Ajudante 2 "Terra":** (2a) teste de memória compartilhada no celular (linha no
+  painel Dados); (2b) recomposição e clima no ajudante 2, aplicados num passo fixo à frente; "pior" do
+  relatório por cenário.
 - [ ] **G3 — Riftes traçados e formas:** braços serpenteando com degraus, aulacógeno,
   microcontinentes, geração v3 (se aprovada), números de placa; critério de formas aos 2, 5 e 10 min;
   mapas antes/depois.
+- [ ] **G4 — Continente amassa e vira montanha** em vez de ser apagado na colisão. Especificação
+  aprovada antes de codar.
 
 ## Estado em 2026-10-15 (noite) e próximos passos
 Feito no `marco-2` (prévia em `/previa/marco-2/`): T1–T5, correção do travamento no celular, D1–D5 e
 a correção dos pedaços de placa (commit `d36c156`, confirmada no celular: a oscilação sumiu; o
 relatório do aparelho bateu todas as metas de fps e geração).
 
-Bloco G aprovado. **G1 e G2 feitos** (G1 aprovado pelo usuário com o relatório do aparelho; G2 testado no celular em 2026-10-16, diagnósticos na seção "G2 — Teste no celular"). G2
-aguardando o teste na prévia; depois G3. Ainda pendentes: confirmar no celular o travamento em 92% e os lagos retos
+Bloco G aprovado. **G1 e G2 feitos** (G1 aprovado pelo usuário com o relatório do aparelho; G2 testado
+no celular em 2026-10-16, diagnósticos e decisões na seção "G2 — Teste no celular"). Próximo:
+correção 1 → correção 2 → G3 → G4. Ainda pendentes: confirmar no celular o travamento em 92% e os lagos retos
 (`docs/bugs.md`), avaliar as imagens de formas e a T5. T6 (minerais) segue congelada.
 
 Questão em aberto que continua: **"tamanho fixo" das placas.** Ao pé da letra é impossível com placas
