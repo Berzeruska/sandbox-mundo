@@ -28,6 +28,8 @@ export interface DebugStats {
   /** Desenho completo ou simplificado (com o motivo). */
   drawing: string;
   version: string;
+  /** Ciclo de Wilson: fase, supercontinentes e rupturas (G2). */
+  cycle: string;
 }
 
 /** Painel durante a medição: escondido (só o andamento) ou aberto, com ou sem o desfoque antigo. */
@@ -132,6 +134,7 @@ export class DebugPanel {
       `geração ${s.generationTotalMs.toFixed(0)} ms (worker ${s.generationMs.toFixed(0)}): ${Object.entries(s.stagesMs).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(' · ')}`,
       `worker  ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms · ~${s.memoryMb.toFixed(0)} MB`,
       `placas  ${s.recompositions} recomposições · última ${s.geologyMs.toFixed(0)} ms`,
+      `ciclo   ${s.cycle}`,
       `desenho ${s.drawing} · versão ${s.version}`,
     ].join('\n');
   }

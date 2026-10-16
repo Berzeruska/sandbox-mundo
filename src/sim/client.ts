@@ -61,6 +61,10 @@ export class SimClient {
     this.send({ type: 'plateRate', rate });
   }
 
+  forceRupture(): void {
+    this.send({ type: 'forceRupture' });
+  }
+
   setLayers(layers: Layers): void {
     this.send({ type: 'layers', layers });
   }

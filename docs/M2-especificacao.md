@@ -428,6 +428,58 @@ de "bonito".
   - o número de grupos continentais nunca fica em 1 por mais que 1,5 mandato;
   - a velocidade relativa média nunca fica abaixo de 30% da inicial por mais de 2 min.
 
+### G2 — Resultado (2026-10-16)
+**Como funciona** (constantes em `src/world/tectonics.ts`, no bloco "Ciclo de Wilson"):
+- **Dispersão (50°, ~4,3 min):** os continentes só se afastam.
+  - Na primeira, a da Pangeia, nada muda em relação ao G1 até o G3.
+  - Depois de uma ruptura, cada troca de polo escolhe, entre os sorteios, o rumo que menos empurra
+    contra continentes vizinhos e não volta para o supercontinente antigo.
+- **Reunião (até 65°, ~5,6 min):** sorteia-se um ponto de reunião a 20–40° do último supercontinente,
+  sem passar de 35° de latitude. Os grupos com continente miram nele, com ±30° de desvio e
+  velocidade de 0,6 a 1,0.
+- **Supercontinente:** um grupo soldado com ≥ 70% da crosta continental. Ele é reconhecido em
+  qualquer fase, quase para (velocidade 0,15–0,35) e dura um mandato de 23° × 0,8–1,25 (~2–2,5 min).
+- **Ruptura:**
+  - Corta 1 a 3 suturas. Prefere as mais antigas, pedaços equilibrados (cada um com ≥ 20%) e nenhum
+    pedaço que continue com ≥ 70%.
+  - Cada pedaço gira em torno do **polo que abre a fenda continental inteira**: o oposto da soma de
+    p × n na divisa. Antes, "para longe do centro da fenda" deixava parte de uma fenda curva
+    fechando, e os pedaços se soldavam de novo.
+  - Entre sorteios que inclinam esse polo até 25°, fica o que passa na guarda polar e menos empurra
+    contra os vizinhos.
+  - Os outros continentes também saem da reunião.
+  - Não há "balão": os polos vêm da forma da fenda, não do centro do supercontinente.
+- **Regra secundária:** sem supercontinente até o fim da reunião, um bloco com ≥ 35% e ≥ 2 placas
+  continentais racha mesmo assim. Senão, começa uma reunião nova onde a terra está.
+- **Na tela:** linha "ciclo" no painel Dados (fase, supercontinentes, rupturas). O "Medir
+  desempenho" ganhou o cenário "ruptura forçada" e conta rupturas.
+
+Medido (placas 100%, 20×):
+
+| | Antes do G2 | G2 (N = 128, 5 sementes, 15 min) | G2 (N = 256, 15 min) | G2 (20 sementes, N = 128) |
+|---|---|---|---|---|
+| Sementes com supercontinente e ruptura | — | 5 de 5 | 5 de 5 | 20 de 20 com supercontinente |
+| Primeiro supercontinente | — | 7,9–11,4 min | 4,5–8,5 min | mediana 9 min |
+| Maior tempo com um grupo só | até 7,5 min (para sempre) | ≤ 2,6 min | ≤ 2,5 min | — |
+| Atividade nas fronteiras no fim | 0,05–0,24 | — | 0,29–0,51 | — |
+| Inclinação média da latitude | — | — | — | −0,14°/min |
+
+- **Ciclo** (do supercontinente ao seguinte): ~8,5 min na `terra` e na `ilha`. Na `mundo` e na `42`,
+  às vezes um pedaço bate num vizinho logo depois da ruptura e o supercontinente volta em ~2 min.
+  Isso é colisão de verdade, como a África contra a Europa.
+- **Mapas:** um ciclo da `terra` (7 a 16,5 min) em `docs/img/m2-g2-ciclo-terra.png`.
+
+O que **não** fica bom só com o G2:
+- **O "supercontinente" é um aglomerado** de continentes encostados e soldados entre si, e não uma
+  massa única e compacta. Os pedaços se afastam devagar, então o ciclo é sutil nos mapas.
+- **Junção tríplice:** não aconteceu nenhuma. Cortando só pelas suturas, quase nunca sai uma divisão
+  em 3 pedaços. Vem com os riftes traçados do G3, que também cortam dentro de uma placa.
+- **Oscilação no teste longo:** recomposições logo depois de uma troca de polo têm um teto próprio
+  (0,5%). Quando a placa inverte o rumo, devolve as células que tinha acabado de tomar; é um evento
+  único, não placas se comendo alternadamente.
+- **Custo:** a recomposição no notebook voltou para perto de antes do G1. Contato das suturas: 32 →
+  5 ms. Total: 354 → 261 ms, contra 239 antes do G1. O celular decide.
+
 ### G3 — Formas: de onde vem hoje o formato das costas
 1. **Costa da Pangeia inicial:** vem da geração v2. São lobos em volta de um centro, borda deformada
    por ruído, ruído fractal, 2 a 4 bacias internas e ruído fino só na faixa da costa.
@@ -511,8 +563,9 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
 - [x] **G1 — Latitude:** solda só com aproximação; solda à distância corrigida (sutura some sem
   contato); reorganização dos polos com guarda polar; testes de rigidez/costuras, de solda à
   distância e de tendência de latitude. Resultado abaixo ("G1 — Resultado").
-- [ ] **G2 — Ciclo de Wilson:** suturas explícitas; sutura sem contato some; supercontinente,
+- [x] **G2 — Ciclo de Wilson:** suturas explícitas; sutura sem contato some; supercontinente,
   mandato e ruptura por sutura e junção tríplice; teste de 15 min; cenário no "Medir desempenho".
+  Resultado abaixo ("G2 — Resultado").
 - [ ] **G3 — Riftes traçados e formas:** braços serpenteando com degraus, aulacógeno,
   microcontinentes, geração v3 (se aprovada), números de placa; critério de formas aos 2, 5 e 10 min;
   mapas antes/depois.
@@ -522,8 +575,8 @@ Feito no `marco-2` (prévia em `/previa/marco-2/`): T1–T5, correção do trava
 a correção dos pedaços de placa (commit `d36c156`, confirmada no celular: a oscilação sumiu; o
 relatório do aparelho bateu todas as metas de fps e geração).
 
-Bloco G aprovado. **G1 feito**, aguardando o teste do usuário na prévia; depois G2 e G3, cada um com
-teste no celular. Ainda pendentes: confirmar no celular o travamento em 92% e os lagos retos
+Bloco G aprovado. **G1 e G2 feitos** (G1 aprovado pelo usuário com o relatório do aparelho). G2
+aguardando o teste na prévia; depois G3. Ainda pendentes: confirmar no celular o travamento em 92% e os lagos retos
 (`docs/bugs.md`), avaliar as imagens de formas e a T5. T6 (minerais) segue congelada.
 
 Questão em aberto que continua: **"tamanho fixo" das placas.** Ao pé da letra é impossível com placas

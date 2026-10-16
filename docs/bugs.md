@@ -35,8 +35,10 @@ Formato: data — como reproduzir — causa — correção — commit.
   - Na `terra` (N = 128), a terra acima de 60° aos 10 min caiu de 26% para 9,5%.
   - No teste das costuras, 0 soldas.
   - Testes em `tests/world/drift-latitude.test.ts`.
-  - O ciclo de Wilson (deriva que não morre de vez) é o G2.
-- **Pendente:** confirmar no celular do usuário.
+  - O G1 foi aprovado pelo usuário no celular (relatório `bcfba4b2`).
+- **Correção (G2):** ciclo de Wilson. O supercontinente racha depois do mandato, e a deriva não
+  morre: em 15 min, nas 5 sementes, um grupo só dura no máximo ~2,5 min.
+- **Pendente:** confirmar o G2 no celular.
 
 ## 2026-10-15 — Lagos e costas com bordas retas, cantos de 90° e formas em V (celular)
 

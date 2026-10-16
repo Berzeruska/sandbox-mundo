@@ -73,7 +73,7 @@ describe('medir desempenho: worker e relatório', () => {
         {
           name: 'tempo 20×, placas 100%',
           frames,
-          work: { ...emptyWork(), ms: 500, ticks: 480, recompositions: 2, plates: 100, climate: 60, colors: 30, send: 10, worstGeology: 120, clockMessages: 120, welds: 1, fragments: 3 },
+          work: { ...emptyWork(), ms: 500, ticks: 480, recompositions: 2, plates: 100, climate: 60, colors: 30, send: 10, worstGeology: 120, clockMessages: 120, welds: 1, fragments: 3, ruptures: 1 },
           receiveAvgMs: 4,
           receiveMaxMs: 6,
         },
@@ -83,7 +83,7 @@ describe('medir desempenho: worker e relatório', () => {
     expect(text).toContain('Mali-G52');
     expect(text).toContain('pausado, parado');
     expect(text).toContain('worker parado');
-    expect(text).toContain('2 recomposições (1 soldas · 3 pedaços absorvidos): média 100 ms (placas 50 · clima 30 · cores 15 · envio 5) · pior 120 ms');
+    expect(text).toContain('2 recomposições (1 soldas · 1 rupturas · 3 pedaços absorvidos): média 100 ms (placas 50 · clima 30 · cores 15 · envio 5) · pior 120 ms');
     expect(text).toContain('240 passos/s');
     expect(text).toContain('geração: 4000 ms');
     expect(text).toContain('terreno 2000');

@@ -169,6 +169,17 @@ fragmento pequeno gruda na placa maior; nada oscilando, nada colidindo para semp
   geração, o rumo "para fora da Pangeia" é desviado o mínimo possível (até ±80°, sem sorteio novo).
   Antes, a dispersão em "balão" de uma Pangeia equatorial mandava continentes para os polos e a solda
   os prendia lá.
+- **Ciclo de Wilson (G2)**:
+  - Fases: dispersão → reunião (continentes rumo a um ponto de reunião perto do último
+    supercontinente, a até 35° de latitude) → supercontinente (≥ 70% do continente num grupo soldado,
+    quase parado, ~2–2,5 min) → ruptura.
+  - A ruptura corta as suturas mais antigas que dividem o bloco em pedaços equilibrados. Cada pedaço
+    gira em torno do polo que abre a fenda continental inteira, escolhido entre sorteios pela guarda
+    polar e por não empurrar os vizinhos.
+  - Tempos e limites são constantes em `tectonics.ts`.
+  - Teste `tests/world/wilson-cycle.test.ts`: 15 min, 5 sementes, cada uma forma e racha um
+    supercontinente; um grupo só por no máximo 1,5 mandato; atividade baixa por no máximo um mandato;
+    a fenda abre; o ciclo é determinístico.
 - Teste automático (`tests/world/drift-latitude.test.ts`): todas as placas com o mesmo eixo (o mapa
   gira rígido cruzando as costuras do cubo) sem nenhuma solda e com a latitude da conta exata; solda
   que some sem contato; latitude da terra em 10 min nas 5 sementes (20°–45°, ≤ 30% acima de 60° e

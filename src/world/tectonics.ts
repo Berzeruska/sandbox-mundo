@@ -82,6 +82,62 @@ export const STAGE_CONTINENT_SLOWDOWN = 0.4;
  */
 const STAGE_DRAWS = 8;
 
+// --- Ciclo de Wilson (G2). Tempos no relógio da deriva (rad a velocidade 1; ≈ 11,6° por minuto de
+// jogo a 20× com Placas 100%). Ajustáveis aqui. ---
+/** Supercontinente: um grupo soldado com pelo menos esta fração de toda a crosta continental. */
+export const SUPERCONTINENT_SHARE = 0.7;
+/** Mandato do supercontinente antes de rachar (~2 min), vezes um sorteio entre os dois fatores. */
+export const TENURE = 23 * DEG;
+export const TENURE_JITTER_MIN = 0.8;
+export const TENURE_JITTER_MAX = 1.25;
+/** Dispersão: depois de uma ruptura (e no começo), quanto tempo os continentes só se afastam (~4,3 min). */
+export const DISPERSAL_TIME = 50 * DEG;
+/** Reunião: tempo máximo para formar o supercontinente (~5,6 min); depois disso vale a regra secundária. */
+export const ASSEMBLY_MAX = 65 * DEG;
+/** Regra secundária: grupo com ≥ 2 placas continentais e esta fração do continente racha mesmo assim. */
+export const BIG_BLOCK_SHARE = 0.35;
+/** Ponto de reunião: a esta distância do centro do supercontinente anterior, sem passar desta latitude. */
+export const ASSEMBLY_DISTANCE_MIN = 20 * DEG;
+export const ASSEMBLY_DISTANCE_MAX = 40 * DEG;
+export const ASSEMBLY_LAT_MAX = 35 * DEG;
+/** Na reunião, o rumo de cada continente aponta para o ponto de reunião com até este desvio. */
+export const ASSEMBLY_TURN_MAX = 30 * DEG;
+export const ASSEMBLY_SPEED_MIN = 0.6;
+/** O supercontinente quase para enquanto dura. */
+export const SUPERCONTINENT_SPEED_MIN = 0.15;
+export const SUPERCONTINENT_SPEED_MAX = 0.35;
+/** Ruptura: cada pedaço fica com pelo menos esta fração do continente do grupo. */
+export const RUPTURE_MIN_PIECE = 0.2;
+/** Numa junção tríplice, chance de um dos braços falhar (fica soldado; vira vale no G3). */
+export const FAILED_ARM_CHANCE = 1 / 3;
+/**
+ * Pedaços novos giram em torno do polo que abre a fenda inteira (oposto da média de p × n na
+ * divisa); os sorteios inclinam esse polo até ~RIFT_TURN_MAX, sem deixar a fenda fechar.
+ */
+export const RIFT_TURN_MAX = 25 * DEG;
+export const RIFT_SPEED_MIN = 0.5;
+export const RIFT_SPEED_MAX = 1;
+
+/** Fase do ciclo de Wilson. */
+export type CyclePhase = 'dispersal' | 'assembly' | 'supercontinent';
+
+/** Como sortear o polo novo de um grupo: rumo de base (atual, para um ponto ou para longe de um ponto). */
+interface MotionPlan {
+  toward?: Vec3;
+  /** Polo de Euler já calculado (ruptura: o que abre a fenda); os sorteios só o inclinam um pouco. */
+  pole?: Vec3;
+  /**
+   * Divisas continentais com placas de fora (ponto p, normal n para fora, placa vizinha): entre os
+   * sorteios, fica o que menos empurra o pedaço contra outros continentes.
+   */
+  avoid?: { p: Vec3; n: Vec3; plate: number }[];
+  /** Dispersão depois de uma ruptura: rumos que aproximam o grupo deste ponto (o supercontinente antigo) são penalizados. */
+  awayFrom?: Vec3;
+  turnMax: number;
+  speedMin: number;
+  speedMax: number;
+}
+
 // --- Relevo nas fronteiras (T5). Valores por recomposição (cada uma = RECOMPOSE_CELLS de deriva). ---
 /** Idade (passos) em que o fundo oceânico chega à planície abissal. */
 export const AGE_FULL_TICKS = 40_000;
@@ -145,8 +201,18 @@ export class Tectonics {
    */
   private group: Int32Array;
   private collisions = new Map<number, number>();
-  /** Suturas (par de placas → passo em que nasceu e recomposições seguidas sem contato). */
-  private sutures = new Map<number, { born: number; miss: number }>();
+  /** Suturas (par de placas → passo e relógio da deriva em que nasceu, recomposições sem contato). */
+  private sutures = new Map<number, { born: number; bornDrift: number; miss: number }>();
+  /** Ciclo de Wilson (G2): fase, quando ela acaba, centro do último supercontinente e ponto de reunião. */
+  private phase: CyclePhase = 'dispersal';
+  private phaseEnd = DISPERSAL_TIME;
+  private cycleCenter: Vec3 = [0, 0, 1];
+  private assemblyPoint: Vec3 | null = null;
+  private superRoot = -1;
+  /** Quantos supercontinentes se formaram, quantas rupturas e braços que falharam (medir e testar). */
+  supercontinents = 0;
+  ruptures = 0;
+  failedArms: { a: number; b: number; drift: number }[] = [];
   /** Relógio da deriva (rad de giro a velocidade 1) e onde termina o estágio de cada placa. */
   private drift = 0;
   private stageEnd: Float64Array;
@@ -159,6 +225,8 @@ export class Tectonics {
   /** Quantas suturas sumiram por falta de contato e quantas reorganizações de polo houve. */
   suturesDissolved = 0;
   reorganizations = 0;
+  /** Quantas vezes algum grupo trocou de movimento (solda, polo novo, ruptura), para os testes. */
+  motionChanges = 0;
   /** Maior sequência de recomposições seguidas em que um par colidiu sem soldar (para testar). */
   longestCollision = 0;
   private collisionRuns = new Map<number, number>();
@@ -244,6 +312,20 @@ export class Tectonics {
     this.initialPlate = Uint8Array.from(world.plate);
     this.marginNoise = new Noise3D(createRng((world.params.seed ^ 0x2545f491) >>> 0));
     this.cellSample = new Int32Array(n);
+    // O ciclo começa na dispersão da Pangeia, a partir do centro da crosta continental.
+    {
+      let x = 0;
+      let y = 0;
+      let z = 0;
+      for (let c = 0; c < n; c++) {
+        if (world.crust[c] !== Crust.Continental) continue;
+        x += world.grid.positions[c * 3] as number;
+        y += world.grid.positions[c * 3 + 1] as number;
+        z += world.grid.positions[c * 3 + 2] as number;
+      }
+      const l = Math.hypot(x, y, z);
+      if (l > 1e-9) this.cycleCenter = [x / l, y / l, z / l];
+    }
     // No início, o referencial de cada placa coincide com o mundo.
     for (let c = 0; c < n; c++) {
       const i = this.addSample(world.plate[c] as number, c, world.elevation[c] as number, world.crust[c] as number, ANCIENT);
@@ -614,9 +696,9 @@ export class Tectonics {
       if (converging) doomed.push(intruder);
     }
     if (doomed.length) {
-      const shown = new Set<number>();
-      for (let c = 0; c < n; c++) if ((newSample[c] as number) >= 0) shown.add(newSample[c] as number);
-      for (const i of doomed) if (!shown.has(i)) this.kill(i);
+      const shown = new Uint8Array(this.count);
+      for (let c = 0; c < n; c++) if ((newSample[c] as number) >= 0) shown[newSample[c] as number] = 1;
+      for (const i of doomed) if (!shown[i]) this.kill(i);
     }
 
     // Buracos: dorsal (crosta oceânica nova) onde as placas se afastam; senão, cicatriza copiando.
@@ -698,7 +780,10 @@ export class Tectonics {
     const contact = this.continentalContacts(front);
     const sums = this.plateSums();
     this.updateSutures(contact, sums);
-    if (this.stagesEnabled) this.advanceStages(sums);
+    if (this.stagesEnabled) {
+      this.advanceCycle(sums);
+      this.advanceStages(sums);
+    }
     updateBoundaries(world);
     if (this.reliefEnabled) this.relief();
     // Depois do relevo: a recomposição que completa a colisão ainda ergue a cordilheira.
@@ -952,13 +1037,39 @@ export class Tectonics {
     }
     const contact = new Map<number, number>();
     if (!involved.some((v) => v)) return contact;
+    // Só células a até SUTURE_REACH de uma fronteira de placa podem ter contato com outra placa.
+    const near = new Uint8Array(n);
+    let ring: number[] = [];
+    for (let c = 0; c < n; c++) {
+      const p = world.plate[c] as number;
+      for (let d = 0; d < 4; d++) {
+        if (world.plate[neighbors[c * 4 + d] as number] !== p) {
+          near[c] = 1;
+          ring.push(c);
+          break;
+        }
+      }
+    }
+    for (let step = 1; step < SUTURE_REACH; step++) {
+      const out: number[] = [];
+      for (const c of ring) {
+        for (let d = 0; d < 4; d++) {
+          const k = neighbors[c * 4 + d] as number;
+          if (!near[k]) {
+            near[k] = 1;
+            out.push(k);
+          }
+        }
+      }
+      ring = out;
+    }
     const stamp = new Int32Array(n).fill(-1);
     const seenPairs: number[] = [];
     let frontier: number[] = [];
     let next: number[] = [];
     for (let c = 0; c < n; c++) {
       const p = world.plate[c] as number;
-      if (!involved[p] || world.crust[c] !== Crust.Continental) continue;
+      if (!near[c] || !involved[p] || world.crust[c] !== Crust.Continental) continue;
       seenPairs.length = 0;
       frontier.length = 0;
       frontier.push(c);
@@ -1048,12 +1159,409 @@ export class Tectonics {
     }
   }
 
-  /** Grupos cujo estágio acabou ganham polo de Euler novo. */
+  /** Grupos cujo estágio acabou ganham polo de Euler novo, conforme a fase do ciclo. */
   private advanceStages(sums: ReturnType<Tectonics['plateSums']>): void {
     for (let p = 0; p < this.angle.length; p++) {
       if (this.group[p] !== p || this.drift < (this.stageEnd[p] as number)) continue;
-      this.reorganize(this.members(p), sums);
+      const members = this.members(p);
+      this.reorganize(members, sums, this.planFor(members, sums));
     }
+  }
+
+  /** Plano de movimento de um grupo na fase atual do ciclo. */
+  private planFor(members: number[], sums: ReturnType<Tectonics['plateSums']>): MotionPlan {
+    const free: MotionPlan = { turnMax: STAGE_TURN_MAX, speedMin: STAGE_SPEED_MIN, speedMax: STAGE_SPEED_MAX };
+    // Dispersão depois de uma ruptura: entre os rumos sorteados, o que menos empurra contra outros
+    // continentes. A primeira dispersão (a da Pangeia) fica como no G1 até o G3 (riftes traçados).
+    if (this.phase === 'dispersal') {
+      return this.ruptures > 0 ? { ...free, avoid: this.outsideContacts(members), awayFrom: this.cycleCenter } : free;
+    }
+    if (this.phase === 'supercontinent' && members.includes(this.superRoot)) {
+      return { turnMax: STAGE_TURN_MAX, speedMin: SUPERCONTINENT_SPEED_MIN, speedMax: SUPERCONTINENT_SPEED_MAX };
+    }
+    // Reunião (ou continentes que ainda não entraram no supercontinente): rumo ao ponto de reunião.
+    let cont = 0;
+    for (const p of members) cont += sums.contCells[p] as number;
+    if (this.assemblyPoint && cont >= CONTINENT_SHARE * this.world.cellCount) {
+      return { toward: this.assemblyPoint, turnMax: ASSEMBLY_TURN_MAX, speedMin: ASSEMBLY_SPEED_MIN, speedMax: STAGE_SPEED_MAX };
+    }
+    return free;
+  }
+
+  /** Divisas continentais do grupo com placas de fora dele (ponto, normal para fora, placa vizinha). */
+  private outsideContacts(members: number[]): { p: Vec3; n: Vec3; plate: number }[] {
+    const world = this.world;
+    const { neighbors, positions } = world.grid;
+    const inGroup = new Uint8Array(this.angle.length);
+    for (const p of members) inGroup[p] = 1;
+    const out: { p: Vec3; n: Vec3; plate: number }[] = [];
+    for (let c = 0; c < world.cellCount; c++) {
+      if (!inGroup[world.plate[c] as number] || world.crust[c] !== Crust.Continental) continue;
+      for (let d = 0; d < 4; d++) {
+        const k = neighbors[c * 4 + d] as number;
+        const q = world.plate[k] as number;
+        if (inGroup[q] || world.crust[k] !== Crust.Continental) continue;
+        const px = positions[c * 3] as number;
+        const py = positions[c * 3 + 1] as number;
+        const pz = positions[c * 3 + 2] as number;
+        const nx = (positions[k * 3] as number) - px;
+        const ny = (positions[k * 3 + 1] as number) - py;
+        const nz = (positions[k * 3 + 2] as number) - pz;
+        const nl = Math.hypot(nx, ny, nz) || 1;
+        out.push({ p: [px, py, pz], n: [nx / nl, ny / nl, nz / nl], plate: q });
+      }
+    }
+    return out;
+  }
+
+  /** Crosta continental de cada grupo (raiz → células) e o maior grupo. */
+  private groupShares(sums: ReturnType<Tectonics['plateSums']>): { byRoot: Map<number, number>; best: number; bestCells: number } {
+    const byRoot = new Map<number, number>();
+    for (let p = 0; p < this.angle.length; p++) {
+      const r = this.group[p] as number;
+      byRoot.set(r, (byRoot.get(r) ?? 0) + (sums.contCells[p] as number));
+    }
+    let best = -1;
+    let bestCells = 0;
+    for (const [r, c] of byRoot) {
+      if (c > bestCells) {
+        best = r;
+        bestCells = c;
+      }
+    }
+    return { byRoot, best, bestCells };
+  }
+
+  /** Centro (unitário) da crosta continental de um conjunto de placas, ou null. */
+  private continentalCenter(members: number[], sums: ReturnType<Tectonics['plateSums']>): Vec3 | null {
+    let x = 0;
+    let y = 0;
+    let z = 0;
+    for (const p of members) {
+      x += sums.cont[p * 3] as number;
+      y += sums.cont[p * 3 + 1] as number;
+      z += sums.cont[p * 3 + 2] as number;
+    }
+    const l = Math.hypot(x, y, z);
+    return l > 1e-9 ? [x / l, y / l, z / l] : null;
+  }
+
+  /** Placas do grupo com continente de verdade (≥ CONTINENT_SHARE do planeta). */
+  private continentalMembers(members: number[], sums: ReturnType<Tectonics['plateSums']>): number {
+    let k = 0;
+    for (const p of members) if ((sums.contCells[p] as number) >= CONTINENT_SHARE * this.world.cellCount) k++;
+    return k;
+  }
+
+  /**
+   * Ciclo de Wilson (G2): dispersão → reunião (continentes rumo a um ponto de reunião) →
+   * supercontinente (≥ SUPERCONTINENT_SHARE do continente num grupo) → mandato → ruptura → dispersão.
+   */
+  private advanceCycle(sums: ReturnType<Tectonics['plateSums']>): void {
+    const total = sums.totalCont;
+    if (!total) return;
+    const { byRoot, best, bestCells } = this.groupShares(sums);
+    const frac = bestCells / total;
+    if (this.phase !== 'supercontinent') {
+      const members = best >= 0 ? this.members(best) : [];
+      // Supercontinente formado (na reunião ou já na dispersão, quando os pedaços batem em vizinhos):
+      // o mandato começa na hora.
+      if (frac >= SUPERCONTINENT_SHARE && this.continentalMembers(members, sums) >= 2) {
+        this.phase = 'supercontinent';
+        this.superRoot = best;
+        this.phaseEnd = this.drift + TENURE * this.rng.range(TENURE_JITTER_MIN, TENURE_JITTER_MAX);
+        this.cycleCenter = this.continentalCenter(members, sums) ?? this.cycleCenter;
+        this.supercontinents++;
+        // O supercontinente quase para (o resto continua vindo para ele).
+        this.reorganize(members, sums, this.planFor(members, sums));
+        return;
+      }
+      if (this.phase === 'dispersal') {
+        if (this.drift >= this.phaseEnd) this.startAssembly(sums);
+        return;
+      }
+      if (this.drift < this.phaseEnd) return;
+      // Regra secundária: sem supercontinente a tempo, um bloco grande racha mesmo assim; senão,
+      // nova reunião em volta de onde a terra está.
+      if (frac >= BIG_BLOCK_SHARE && this.continentalMembers(members, sums) >= 2 && this.rupture(members, sums)) return;
+      const all: number[] = [];
+      for (let p = 0; p < this.angle.length; p++) all.push(p);
+      this.cycleCenter = this.continentalCenter(all, sums) ?? this.cycleCenter;
+      this.startAssembly(sums);
+      return;
+    }
+    // Supercontinente: se perdeu a maior parte (sutura que sumiu), volta à reunião; no fim do
+    // mandato, racha.
+    const root = this.group[this.superRoot] as number;
+    if ((byRoot.get(root) ?? 0) / total < SUPERCONTINENT_SHARE * 0.75) {
+      this.phase = 'assembly';
+      this.phaseEnd = this.drift + ASSEMBLY_MAX;
+      return;
+    }
+    if (this.drift >= this.phaseEnd && !this.rupture(this.members(root), sums)) {
+      // Não achou como rachar (grupo sem suturas que dividam): tenta de novo no próximo estágio.
+      this.phaseEnd = this.drift + TENURE * 0.25;
+    }
+  }
+
+  /** Começa a reunião: sorteia o ponto de reunião perto do centro do último supercontinente. */
+  private startAssembly(sums: ReturnType<Tectonics['plateSums']>): void {
+    const c = this.cycleCenter;
+    const latC = Math.abs(Math.asin(Math.max(-1, Math.min(1, c[1]))));
+    // Base tangente em c.
+    const ref: Vec3 = Math.abs(c[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    const e1x = ref[1] * c[2] - ref[2] * c[1];
+    const e1y = ref[2] * c[0] - ref[0] * c[2];
+    const e1z = ref[0] * c[1] - ref[1] * c[0];
+    const l1 = Math.hypot(e1x, e1y, e1z);
+    const e1: Vec3 = [e1x / l1, e1y / l1, e1z / l1];
+    const e2: Vec3 = [c[1] * e1[2] - c[2] * e1[1], c[2] * e1[0] - c[0] * e1[2], c[0] * e1[1] - c[1] * e1[0]];
+    let point: Vec3 = c;
+    let bestLat = Infinity;
+    for (let k = 0; k < STAGE_DRAWS; k++) {
+      const b = this.rng.range(0, Math.PI * 2);
+      const d = this.rng.range(ASSEMBLY_DISTANCE_MIN, ASSEMBLY_DISTANCE_MAX);
+      const t: Vec3 = [
+        e1[0] * Math.cos(b) + e2[0] * Math.sin(b),
+        e1[1] * Math.cos(b) + e2[1] * Math.sin(b),
+        e1[2] * Math.cos(b) + e2[2] * Math.sin(b),
+      ];
+      const q: Vec3 = [c[0] * Math.cos(d) + t[0] * Math.sin(d), c[1] * Math.cos(d) + t[1] * Math.sin(d), c[2] * Math.cos(d) + t[2] * Math.sin(d)];
+      const lat = Math.abs(Math.asin(Math.max(-1, Math.min(1, q[1]))));
+      if (lat < bestLat) {
+        bestLat = lat;
+        point = q;
+      }
+      if (lat <= ASSEMBLY_LAT_MAX || lat <= latC) {
+        point = q;
+        break;
+      }
+    }
+    this.assemblyPoint = point;
+    this.phase = 'assembly';
+    this.phaseEnd = this.drift + ASSEMBLY_MAX;
+    // Todos os grupos continentais miram o ponto de reunião já.
+    const done = new Set<number>();
+    for (let p = 0; p < this.angle.length; p++) {
+      const g = this.group[p] as number;
+      if (done.has(g)) continue;
+      done.add(g);
+      const members = this.members(p);
+      const plan = this.planFor(members, sums);
+      if (plan.toward) this.reorganize(members, sums, plan);
+    }
+  }
+
+  /**
+   * Ruptura (G2) de um grupo soldado pelas suturas: escolhe o corte de 1 a 3 suturas que divide o
+   * grupo em 2 ou 3 pedaços com pelo menos RUPTURE_MIN_PIECE do continente cada, preferindo as suturas
+   * mais antigas e os pedaços equilibrados. Em 3 pedaços (junção tríplice), um braço pode falhar.
+   * Cada pedaço ganha polo novo para longe da fenda. Retorna se rachou.
+   */
+  private rupture(members: number[], sums: ReturnType<Tectonics['plateSums']>, forced = false): boolean {
+    const set = new Set(members);
+    const edges: { key: number; a: number; b: number; age: number }[] = [];
+    for (const [key, s] of this.sutures) {
+      const a = Math.floor(key / 256);
+      const b = key % 256;
+      if (set.has(a) && set.has(b)) edges.push({ key, a, b, age: this.drift - s.bornDrift });
+    }
+    if (!edges.length) return false;
+    const groupCont = members.reduce((acc, p) => acc + (sums.contCells[p] as number), 0) || 1;
+    const maxAge = Math.max(...edges.map((e) => e.age)) || 1;
+    // Componentes do grupo sem as suturas cortadas.
+    const pieces = (cut: Set<number>): number[][] => {
+      const parent = new Map<number, number>(members.map((p) => [p, p]));
+      const root = (p: number): number => {
+        while (parent.get(p) !== p) p = parent.get(p) as number;
+        return p;
+      };
+      for (const e of edges) {
+        if (cut.has(e.key)) continue;
+        const ra = root(e.a);
+        const rb = root(e.b);
+        if (ra !== rb) parent.set(Math.max(ra, rb), Math.min(ra, rb));
+      }
+      const byRoot = new Map<number, number[]>();
+      for (const p of members) {
+        const r = root(p);
+        const list = byRoot.get(r);
+        if (list) list.push(p);
+        else byRoot.set(r, [p]);
+      }
+      return [...byRoot.values()];
+    };
+    const tryCuts = (minPiece: number, maxPiece = 1): { cut: typeof edges; parts: number[][] } | null => {
+      let best: { cut: typeof edges; parts: number[][]; score: number } | null = null;
+      const consider = (cut: typeof edges) => {
+        const parts = pieces(new Set(cut.map((e) => e.key)));
+        if (parts.length < 2 || parts.length > 3) return;
+        // Corte mínimo: toda sutura cortada separa dois pedaços diferentes.
+        const pieceOf = new Map<number, number>();
+        parts.forEach((list, i) => list.forEach((p) => pieceOf.set(p, i)));
+        if (cut.some((e) => pieceOf.get(e.a) === pieceOf.get(e.b))) return;
+        const shares = parts.map((list) => list.reduce((acc, p) => acc + (sums.contCells[p] as number), 0) / groupCont);
+        const smallest = Math.min(...shares);
+        if (smallest < minPiece || Math.max(...shares) >= maxPiece) return;
+        const age = cut.reduce((acc, e) => acc + e.age, 0) / cut.length / maxAge;
+        const score = 0.5 * age + 0.5 * (smallest * parts.length);
+        if (!best || score > best.score) best = { cut, parts, score };
+      };
+      edges.forEach((ei, i) => {
+        consider([ei]);
+        edges.forEach((ej, j) => {
+          if (j <= i) return;
+          consider([ei, ej]);
+          if (edges.length > 12) return;
+          edges.forEach((ek, k) => {
+            if (k > j) consider([ei, ej, ek]);
+          });
+        });
+      });
+      return best;
+    };
+    // De preferência nenhum pedaço continua sendo um supercontinente (senão o mandato recomeçaria já).
+    const choice =
+      tryCuts(RUPTURE_MIN_PIECE, SUPERCONTINENT_SHARE) ??
+      tryCuts(RUPTURE_MIN_PIECE / 2, SUPERCONTINENT_SHARE) ??
+      tryCuts(RUPTURE_MIN_PIECE) ??
+      tryCuts(RUPTURE_MIN_PIECE / 2) ??
+      (forced ? tryCuts(0) : null);
+    if (!choice) return false;
+    let { cut, parts } = choice;
+    // Junção tríplice: um dos braços pode falhar (a sutura fica; o vale interior é o G3).
+    if (parts.length === 3 && this.rng.next() < FAILED_ARM_CHANCE) {
+      const kept = cut[Math.floor(this.rng.next() * cut.length)] as (typeof cut)[number];
+      cut = cut.filter((e) => e !== kept);
+      this.failedArms.push({ a: kept.a, b: kept.b, drift: this.drift });
+      parts = pieces(new Set(cut.map((e) => e.key)));
+    }
+    for (const e of cut) {
+      this.sutures.delete(e.key);
+      this.collisions.delete(e.key);
+    }
+    this.rebuildGroups();
+    // Polo que abre a fenda de cada pedaço. Na divisa com os outros pedaços (célula p, normal n
+    // apontando para fora), a velocidade normal é ω·(p × n): o polo oposto à soma de p × n afasta a
+    // divisa inteira, mesmo numa fenda curva (antes: "para longe do centro da fenda", e uma parte da
+    // fenda fechava e soldava de novo).
+    const world = this.world;
+    const { neighbors, positions } = world.grid;
+    const pieceOf = new Int32Array(this.angle.length).fill(-1);
+    parts.forEach((list, i) => list.forEach((p) => (pieceOf[p] = i)));
+    // Só a fenda continental (onde o bloco racha) entra no polo; a divisa oceânica do outro lado
+    // de uma placa que envolve outra não pode abrir inteira (lá vira subducção). Sem fenda
+    // continental, usa a divisa toda.
+    const m = parts.map(() => [0, 0, 0] as Vec3);
+    const mAll = parts.map(() => [0, 0, 0] as Vec3);
+    const avoid = parts.map(() => [] as { p: Vec3; n: Vec3; plate: number }[]);
+    for (let c = 0; c < world.cellCount; c++) {
+      const i = pieceOf[world.plate[c] as number] as number;
+      if (i < 0) continue;
+      const px = positions[c * 3] as number;
+      const py = positions[c * 3 + 1] as number;
+      const pz = positions[c * 3 + 2] as number;
+      for (let d = 0; d < 4; d++) {
+        const k = neighbors[c * 4 + d] as number;
+        const q = world.plate[k] as number;
+        const j = pieceOf[q] as number;
+        if (j === i) continue;
+        const nx = (positions[k * 3] as number) - px;
+        const ny = (positions[k * 3 + 1] as number) - py;
+        const nz = (positions[k * 3 + 2] as number) - pz;
+        const nl = Math.hypot(nx, ny, nz) || 1;
+        if (j < 0) {
+          // Divisa continental com uma placa de fora do grupo: não empurrar contra ela.
+          if (world.crust[c] === Crust.Continental && world.crust[k] === Crust.Continental) {
+            (avoid[i] as { p: Vec3; n: Vec3; plate: number }[]).push({ p: [px, py, pz], n: [nx / nl, ny / nl, nz / nl], plate: q });
+          }
+          continue;
+        }
+        const both = world.crust[c] === Crust.Continental && world.crust[k] === Crust.Continental;
+        for (const v of both ? [m[i] as Vec3, mAll[i] as Vec3] : [mAll[i] as Vec3]) {
+          v[0] += (py * nz - pz * ny) / nl;
+          v[1] += (pz * nx - px * nz) / nl;
+          v[2] += (px * ny - py * nx) / nl;
+        }
+      }
+    }
+    parts.forEach((list, i) => {
+      const v = Math.hypot(...(m[i] as Vec3)) > 1e-9 ? (m[i] as Vec3) : (mAll[i] as Vec3);
+      const l = Math.hypot(...v);
+      const plan: MotionPlan = { turnMax: RIFT_TURN_MAX, speedMin: RIFT_SPEED_MIN, speedMax: RIFT_SPEED_MAX, avoid: avoid[i] ?? [] };
+      if (l > 1e-9) plan.pole = [-v[0] / l, -v[1] / l, -v[2] / l];
+      this.reorganize(list, sums, plan);
+    });
+    this.cycleCenter = this.continentalCenter(members, sums) ?? this.cycleCenter;
+    this.phase = 'dispersal';
+    this.phaseEnd = this.drift + DISPERSAL_TIME;
+    this.assemblyPoint = null;
+    this.superRoot = -1;
+    this.ruptures++;
+    // Os outros continentes também param de vir para a reunião: rumo novo, para longe do
+    // supercontinente antigo (senão um pedaço batia num bloco que ainda vinha e tudo se soldava de novo).
+    const ruptured = new Set(members);
+    const done = new Set<number>();
+    for (let p = 0; p < this.angle.length; p++) {
+      const g = this.group[p] as number;
+      if (ruptured.has(p) || done.has(g)) continue;
+      done.add(g);
+      const others = this.members(p);
+      if (others.some((q) => ruptured.has(q)) || this.continentalMembers(others, sums) === 0) continue;
+      this.reorganize(others, sums, this.planFor(others, sums));
+    }
+    return true;
+  }
+
+  /**
+   * Racha agora o maior grupo soldado (só para o "Medir desempenho", que mede o caminho da ruptura).
+   * Se ainda não há grupo soldado, solda antes as duas placas continentais com mais contato, como
+   * numa colisão. Retorna se rachou.
+   */
+  forceRupture(): boolean {
+    let sums = this.plateSums();
+    // O maior grupo com 2 placas ou mais.
+    let best = -1;
+    let bestCells = 0;
+    for (const [root, cells] of this.groupShares(sums).byRoot) {
+      if (this.members(root).length >= 2 && cells > bestCells) {
+        best = root;
+        bestCells = cells;
+      }
+    }
+    if (best < 0) {
+      const contact = new Map<number, number>();
+      const { neighbors } = this.world.grid;
+      for (let c = 0; c < this.world.cellCount; c++) {
+        if (this.world.crust[c] !== Crust.Continental) continue;
+        const a = this.world.plate[c] as number;
+        for (let d = 0; d < 4; d++) {
+          const k = neighbors[c * 4 + d] as number;
+          const b = this.world.plate[k] as number;
+          if (b !== a && this.world.crust[k] === Crust.Continental) contact.set(pairKey(a, b), (contact.get(pairKey(a, b)) ?? 0) + 1);
+        }
+      }
+      let key = -1;
+      let most = 0;
+      for (const [k, v] of contact) {
+        if (v > most) {
+          most = v;
+          key = k;
+        }
+      }
+      if (key < 0) return false;
+      this.weld(Math.floor(key / 256), key % 256);
+      sums = this.plateSums();
+      best = this.group[Math.floor(key / 256)] as number;
+    }
+    const ok = this.rupture(this.members(best), sums, true);
+    if (ok) updateBoundaries(this.world);
+    return ok;
+  }
+
+  /** Estado do ciclo de Wilson (para o painel e os testes). */
+  get cycle(): { phase: CyclePhase; supercontinents: number; ruptures: number; failedArms: number } {
+    return { phase: this.phase, supercontinents: this.supercontinents, ruptures: this.ruptures, failedArms: this.failedArms.length };
   }
 
   /**
@@ -1061,7 +1569,11 @@ export class Tectonics {
    * velocidade é sorteada de novo (menor com muito continente) e o estágio recomeça. Rumo que levaria
    * o centro além de POLAR_GUARD, chegando mais perto do polo, é sorteado de novo.
    */
-  private reorganize(members: number[], sums: ReturnType<Tectonics['plateSums']>): void {
+  private reorganize(
+    members: number[],
+    sums: ReturnType<Tectonics['plateSums']>,
+    plan: MotionPlan = { turnMax: STAGE_TURN_MAX, speedMin: STAGE_SPEED_MIN, speedMax: STAGE_SPEED_MAX },
+  ): void {
     if (!members.length) return;
     const rng = this.rng;
     let contCells = 0;
@@ -1085,6 +1597,16 @@ export class Tectonics {
     const wy = (this.axis[p0 * 3 + 1] as number) * s0;
     const wz = (this.axis[p0 * 3 + 2] as number) * s0;
     let dir: Vec3 = [wy * g[2] - wz * g[1], wz * g[0] - wx * g[2], wx * g[1] - wy * g[0]];
+    // Rumo de base pelo plano: para o ponto de reunião.
+    let near = false;
+    const target = plan.toward;
+    if (target) {
+      const k = target[0] * g[0] + target[1] * g[1] + target[2] * g[2];
+      const t: Vec3 = [target[0] - k * g[0], target[1] - k * g[1], target[2] - k * g[2]];
+      if (Math.hypot(...t) > 1e-6) dir = t;
+      // Já em cima do ponto de reunião: anda devagar (não passa direto).
+      if (k > Math.cos(8 * DEG)) near = true;
+    }
     if (Math.hypot(...dir) < 1e-6) {
       const z = rng.range(-1, 1);
       const t = rng.range(0, Math.PI * 2);
@@ -1099,17 +1621,50 @@ export class Tectonics {
     const slow = 1 - STAGE_CONTINENT_SLOWDOWN * Math.min(1, share / 0.5);
     const latNow = Math.abs(Math.asin(Math.max(-1, Math.min(1, g[1]))));
     let best: { axis: Vec3; speed: number; stage: number; lat: number } | null = null;
-    for (let k = 0; k < STAGE_DRAWS; k++) {
-      const a = rng.range(-STAGE_TURN_MAX, STAGE_TURN_MAX);
-      const d: Vec3 = [
-        dir[0] * Math.cos(a) + side[0] * Math.sin(a),
-        dir[1] * Math.cos(a) + side[1] * Math.sin(a),
-        dir[2] * Math.cos(a) + side[2] * Math.sin(a),
-      ];
-      const ax: Vec3 = [g[1] * d[2] - g[2] * d[1], g[2] * d[0] - g[0] * d[2], g[0] * d[1] - g[1] * d[0]];
-      const al = Math.hypot(...ax) || 1;
-      const axis: Vec3 = [ax[0] / al, ax[1] / al, ax[2] / al];
-      const speed = rng.range(STAGE_SPEED_MIN, STAGE_SPEED_MAX) * slow;
+    // Ruptura: avalia todos os sorteios e fica com o que passa na guarda e menos aperta os vizinhos.
+    let bestPenalty = Infinity;
+    const penalty = (axis: Vec3, speed: number): number => {
+      let sum = 0;
+      for (const a of plan.avoid ?? []) {
+        const q = a.plate;
+        const s = this.speed[q] as number;
+        const ox = axis[0] * speed - (this.axis[q * 3] as number) * s;
+        const oy = axis[1] * speed - (this.axis[q * 3 + 1] as number) * s;
+        const oz = axis[2] * speed - (this.axis[q * 3 + 2] as number) * s;
+        // Velocidade normal: ω·(p × n).
+        const v = ox * (a.p[1] * a.n[2] - a.p[2] * a.n[1]) + oy * (a.p[2] * a.n[0] - a.p[0] * a.n[2]) + oz * (a.p[0] * a.n[1] - a.p[1] * a.n[0]);
+        if (v > 0) sum += v;
+      }
+      return sum;
+    };
+    const draws = plan.pole || plan.avoid ? STAGE_DRAWS * 2 : STAGE_DRAWS;
+    for (let k = 0; k < draws; k++) {
+      let axis: Vec3;
+      if (plan.pole) {
+        // Polo da fenda inclinado ao acaso (o primeiro sorteio é o polo puro).
+        const pole = plan.pole;
+        if (k === 0) axis = pole;
+        else {
+          const z = rng.range(-1, 1);
+          const th = rng.range(0, Math.PI * 2);
+          const r = Math.sqrt(1 - z * z);
+          const j = Math.tan(plan.turnMax);
+          const v: Vec3 = [pole[0] + j * r * Math.cos(th), pole[1] + j * r * Math.sin(th), pole[2] + j * z];
+          const vl = Math.hypot(...v) || 1;
+          axis = [v[0] / vl, v[1] / vl, v[2] / vl];
+        }
+      } else {
+        const a = rng.range(-plan.turnMax, plan.turnMax);
+        const d: Vec3 = [
+          dir[0] * Math.cos(a) + side[0] * Math.sin(a),
+          dir[1] * Math.cos(a) + side[1] * Math.sin(a),
+          dir[2] * Math.cos(a) + side[2] * Math.sin(a),
+        ];
+        const ax: Vec3 = [g[1] * d[2] - g[2] * d[1], g[2] * d[0] - g[0] * d[2], g[0] * d[1] - g[1] * d[0]];
+        const al = Math.hypot(...ax) || 1;
+        axis = [ax[0] / al, ax[1] / al, ax[2] / al];
+      }
+      const speed = rng.range(plan.speedMin, plan.speedMax) * slow * (near ? 0.3 : 1);
       const stage = rng.range(STAGE_MIN, STAGE_MAX);
       // Maior latitude do centro ao longo do estágio (giro de speed × stage em torno do eixo novo).
       let lat = 0;
@@ -1117,8 +1672,29 @@ export class Tectonics {
         const e = rotateAbout(g, axis, (speed * stage * q) / 4);
         lat = Math.max(lat, Math.abs(Math.asin(Math.max(-1, Math.min(1, e[1])))));
       }
+      const guarded = lat <= POLAR_GUARD || lat <= latNow;
+      if (plan.pole || plan.avoid) {
+        // Abre a fenda (o polo inclinado ainda tem componente no polo da fenda), passa na guarda e
+        // aperta os vizinhos o mínimo possível.
+        const opens = !plan.pole || axis[0] * plan.pole[0] + axis[1] * plan.pole[1] + axis[2] * plan.pole[2] > 0;
+        // Aproximar do supercontinente antigo: velocidade do centro (ω × g) na direção dele.
+        let back = 0;
+        if (plan.awayFrom) {
+          const f = plan.awayFrom;
+          const vx = axis[1] * g[2] - axis[2] * g[1];
+          const vy = axis[2] * g[0] - axis[0] * g[2];
+          const vz = axis[0] * g[1] - axis[1] * g[0];
+          back = Math.max(0, speed * (vx * f[0] + vy * f[1] + vz * f[2])) * 1e3;
+        }
+        const pen = penalty(axis, speed) + back + (guarded ? 0 : 1e6) + (opens ? 0 : 1e9);
+        if (pen < bestPenalty) {
+          bestPenalty = pen;
+          best = { axis, speed, stage, lat };
+        }
+        continue;
+      }
       if (!best || lat < best.lat) best = { axis, speed, stage, lat };
-      if (lat <= POLAR_GUARD || lat <= latNow) {
+      if (guarded) {
         best = { axis, speed, stage, lat };
         break;
       }
@@ -1131,6 +1707,7 @@ export class Tectonics {
 
   /** Congela a posição atual de cada placa em rot0 e passa a girar em torno do eixo novo. */
   private setMotion(members: number[], axis: Vec3, speed: number): void {
+    this.motionChanges++;
     const m = new Float64Array(9);
     for (const p of members) {
       this.rotation(p, m);
@@ -1225,7 +1802,7 @@ export class Tectonics {
   private weld(a: number, b: number): void {
     const world = this.world;
     const key = pairKey(a, b);
-    this.sutures.set(key, { born: this.tick, miss: 0 });
+    this.sutures.set(key, { born: this.tick, bornDrift: this.drift, miss: 0 });
     this.collisions.delete(key);
     this.rebuildGroups();
     const members = this.members(a);

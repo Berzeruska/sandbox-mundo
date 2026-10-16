@@ -17,7 +17,7 @@ import { Hud } from './ui/hud';
 import { activeBrush, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
-import { emptyWork, FrameRecorder, formatReport, workDelta, type FirstLoad, type GenerationResult, type ScenarioResult, type WorkCounters } from './ui/benchmark';
+import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, workDelta, type FirstLoad, type GenerationResult, type ScenarioResult, type WorkCounters } from './ui/benchmark';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
@@ -527,6 +527,7 @@ export class App {
       memoryMb: this.stats.memoryMb,
       drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
       version: __BUILD_ID__,
+      cycle: `${CYCLE_PHASES[this.work.cyclePhase] ?? '—'} · ${this.work.supercontinents} supercontinentes · ${this.work.ruptures} rupturas`,
     });
   }
 
@@ -542,7 +543,7 @@ export class App {
     this.bench = bench;
     this.hud.closeMenu();
     const startedAt = performance.now();
-    const steps = 9;
+    const steps = 10;
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
       this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
@@ -600,9 +601,11 @@ export class App {
       // Deriva longa: continua a mesma deriva por mais 1 min (o planeta passa de ~1,5 min de deriva
       // a 20×, quando os continentes começam a colidir e se soldar).
       await scenario(8, 'deriva longa c/ colisões', 60_000, () => undefined);
+      // Ruptura forçada (G2): o maior bloco soldado racha agora; mede a recomposição que vem junto.
+      await scenario(9, 'ruptura forçada', 10_000, () => this.sim.forceRupture());
       bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(9, 'geração de mundo');
+      status(10, 'geração de mundo');
       this.setSpeed(0);
       this.setPlateRate(before.plateRate);
       await wait(500);

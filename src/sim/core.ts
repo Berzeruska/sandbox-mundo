@@ -95,6 +95,14 @@ export class SimulationCore {
       case 'query':
         this.query(msg.id, msg.point);
         break;
+      case 'forceRupture':
+        // Racha e recompõe já: a tela recebe os eixos novos junto com a composição.
+        if (this.tectonics?.forceRupture()) {
+          const t0 = this.now();
+          this.tectonics.recompose();
+          this.afterRecompose(t0);
+        }
+        break;
     }
   }
 
@@ -278,6 +286,10 @@ export class SimulationCore {
     if (this.tectonics) {
       this.work.welds = this.tectonics.welds;
       this.work.fragments = this.tectonics.fragmentsAbsorbed;
+      const cycle = this.tectonics.cycle;
+      this.work.ruptures = cycle.ruptures;
+      this.work.supercontinents = cycle.supercontinents;
+      this.work.cyclePhase = cycle.phase === 'dispersal' ? 1 : cycle.phase === 'assembly' ? 2 : 3;
     }
     this.send({
       type: 'clock',

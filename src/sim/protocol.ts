@@ -47,6 +47,8 @@ export type ToWorker =
   | { type: 'speed'; speed: Speed }
   | { type: 'layers'; layers: Layers }
   | { type: 'plateRate'; rate: number }
+  /** "Medir desempenho": racha agora o maior bloco soldado (ciclo de Wilson, G2). */
+  | { type: 'forceRupture' }
   | { type: 'query'; id: number; point: Vec3 };
 
 export interface CellQuery {

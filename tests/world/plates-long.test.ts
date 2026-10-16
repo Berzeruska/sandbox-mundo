@@ -58,16 +58,24 @@ describe('placas em 5 minutos a 20× com o controle no máximo', () => {
     let prev: Uint8Array | null = null;
     let worstLoose = 0;
     let worstFlips = 0;
+    // Depois de uma troca de movimento (polo novo, solda, ruptura), as células que a placa tinha
+    // acabado de tomar voltam para a outra: é um evento único, não a oscilação de placas se comendo
+    // alternadamente. Essas recomposições têm um teto próprio.
+    let worstAfterChange = 0;
+    const changes: number[] = [];
     for (let k = 0; k < 5 * TICKS_PER_MINUTE; k++) {
       if (!t.step(1)) continue;
       // Pedaço pequeno solto: nenhum, em nenhuma recomposição.
       worstLoose = Math.max(worstLoose, loosePieces(w).filter((s) => s < limit).length);
       // Oscilação: células que voltam à dona de duas recomposições atrás.
       const cur = Uint8Array.from(w.plate);
+      changes.push(t.motionChanges);
       if (prev && prev2) {
         let flips = 0;
         for (let c = 0; c < cur.length; c++) if (cur[c] === prev2[c] && cur[c] !== prev[c]) flips++;
-        worstFlips = Math.max(worstFlips, flips);
+        const changed = changes.length >= 3 && changes[changes.length - 1] !== changes[changes.length - 3];
+        if (changed) worstAfterChange = Math.max(worstAfterChange, flips);
+        else worstFlips = Math.max(worstFlips, flips);
       }
       prev2 = prev;
       prev = cur;
@@ -80,6 +88,7 @@ describe('placas em 5 minutos a 20× com o controle no máximo', () => {
     // Só o arredondamento de 1 célula na linha das fronteiras (antes: ~0,15% por recomposição, com
     // placas se comendo alternadamente).
     expect(worstFlips / w.cellCount).toBeLessThan(0.0006);
+    expect(worstAfterChange / w.cellCount).toBeLessThan(0.005);
     // A crosta guardada não cresce sem limite (dorsais e cicatrizes de arredondamento entram, a
     // subducção tira; amostras mortas são compactadas).
     expect(t.sampleCount).toBeLessThan(1.3 * w.cellCount);

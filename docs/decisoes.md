@@ -376,3 +376,23 @@ Formato: data — decisão — motivo — alternativa descartada.
     linha só. Fica em ~20% da tela.
 
   Alternativa descartada: menu em gaveta lateral (mudaria a navegação aprovada na T1).
+
+- **2026-10-16 — G2: ciclo de Wilson.**
+  - **Fases:** dispersão de 50° (~4,3 min) → reunião de até 65° (~5,6 min), rumo a um ponto a
+    20–40° do último supercontinente e a até 35° de latitude → supercontinente (≥ 70% do continente
+    num grupo soldado, quase parado) por um mandato de 23° × 0,8–1,25 → ruptura.
+  - **Ruptura:** 1 a 3 suturas; as mais antigas e os pedaços mais equilibrados, nenhum com ≥ 70%.
+    Cada pedaço gira em torno do polo que abre a fenda continental (oposto da soma de p × n). Entre
+    os sorteios, fica o que passa na guarda polar e menos empurra os vizinhos.
+  - **Regra secundária:** um bloco com ≥ 35% racha no fim de uma reunião sem supercontinente.
+  - **Motivo:** decisões do usuário (ciclo de Wilson; ~2 min de supercontinente; ciclo de 8–12 min;
+    tempos em constantes).
+  - **Calibração:** com 60%, dois blocos grandes que se encostavam já "eram" supercontinente e o
+    ciclo caía para ~3 min. Com 75%, algumas sementes não formavam nenhum em 20 min. Com reunião de
+    50°, faltava tempo. A dispersão de 35° dava ciclos de 6–7 min.
+  - **Alternativas descartadas:**
+    - Pedaços "para longe do centro da fenda": numa fenda curva, parte fechava e soldava de novo.
+    - Ponto de reunião a 90° (ortoversão): a 11,6°/min no máximo, não cabe num ciclo de 8–12 min.
+    - Não reconhecer supercontinente durante a dispersão: o grupo único durava 4,5 min na `42`.
+  - **Teste de oscilação:** recomposições logo após uma troca de polo têm teto de 0,5%. Inverter o
+    rumo devolve as células recém-tomadas; é um evento único.
