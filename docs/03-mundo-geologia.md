@@ -121,24 +121,34 @@ Aplicado a cada recomposição, nas amostras das placas (o relevo viaja com elas
 - A fração de terra fica estável (~28–30% em 2 min no máximo).
 
 ### Como está implementado (M2, D3: placas com identidade fixa)
+Regras do usuário: placas com tamanho e identidade fixos; continentes se soldam e erguem cordilheira;
+fragmento pequeno gruda na placa maior; nada oscilando, nada colidindo para sempre.
 - **Polaridade da subducção por par**: entre duas placas oceânicas que se aproximam, decide-se uma
-  vez qual mergulha (fundo oceânico médio mais velho; empate, mais fundo; empate, número menor) e
-  isso vale para a fronteira inteira, para sempre. Antes era decidido célula a célula, e como a
-  crosta inicial tem toda a mesma idade, o desempate pela profundidade variava de célula para célula:
-  as placas se comiam alternadamente e células trocavam de dono a cada recomposição (a oscilação;
-  ~80–89% dessas trocas sumiram, sobra só o arredondamento de 1 célula na linha da fronteira).
-- **Solda continental**: dois continentes que colidem (frente de ~12 células em N = 256) por 8
-  recomposições erguem a cordilheira e então passam a girar juntos (vetor de rotação médio pesado
-  pela área). As placas mantêm a identidade; só param de se mover uma contra a outra. Antes giravam
-  em eixos fixos para sempre e continuavam empurrando, consumindo crosta.
+  vez qual mergulha (fundo oceânico médio mais velho; empate, mais fundo; empate, número menor), para
+  a fronteira inteira, para sempre. Antes era célula a célula, e como a crosta inicial tem toda a mesma
+  idade, o desempate pela profundidade variava de célula para célula: as placas se comiam
+  alternadamente e células trocavam de dono a cada recomposição.
+- **Histerese**: numa sobreposição sem aproximação de verdade (só arredondamento), a célula fica com
+  a dona de antes.
+- **Dentes de arredondamento**: se a célula mudou de dona só porque a busca da dona caiu fora da borda
+  dela (girar a grade arredonda), e 3 das 4 vizinhas continuam da dona (2, na frente de uma placa que
+  avança por cima da outra), ela fica com a dona. Menos vizinhas não: arrastaria tiras atrás de placas
+  que recuam.
+- **Solda continental**: duas placas com continente de verdade (≥ 1,5% do planeta em crosta
+  continental cada) que colidem em 8 recomposições erguem a cordilheira e então passam a girar juntas
+  (vetor de rotação médio pesado pela área). As placas mantêm a identidade.
+- **Acreção**: se um dos lados da colisão tem pouco continente (uma lasca numa placa quase toda
+  oceânica), a crosta continental dele ligada à frente passa para a outra placa e anda com ela. Antes
+  essas placas se soldavam (prendendo placas oceânicas a continentes) ou ficavam moendo para sempre.
 - **Pedaços soltos**: parte de placa separada do corpo dela (ou placa inteira) menor que 0,4% do
-  planeta passa para a placa vizinha com quem mais faz divisa; a crosta é regravada no referencial
-  da nova dona e anda com ela.
-- **Crosta enterrada**: além da aproximação pelos centros das placas, crosta que entrou fundo no
-  território que a outra placa já tinha (a célula e as 4 vizinhas) é consumida.
+  planeta passa para a vizinha com quem mais faz divisa; repete até não sobrar nenhum.
+- **Crosta enterrada**: crosta que entrou fundo no território que a outra placa já tinha (a célula e
+  as 4 vizinhas) é consumida, além do teste de aproximação pelos centros das placas.
 - O movimento de cada placa é a rotação acumulada até a última troca de eixo mais o giro em torno do
   eixo atual; o eixo só muda numa solda, e a tela recebe eixo, velocidade e centro novos junto com a
   recomposição.
+- Teste automático (`tests/world/plates-long.test.ts`): 5 min a 20× com placas em 100%, 3 sementes;
+  a cada recomposição nenhum pedaço solto, nenhuma colisão além da solda, trocas A→B→A < 0,06%.
 
 ### Geração v2 (M2): costas recortadas e mares internos
 Decisão do usuário: aceitar que a mesma semente gere um mundo inicial diferente do da v1.x.

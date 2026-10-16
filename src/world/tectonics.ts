@@ -35,14 +35,20 @@ const ANCIENT = -1_000_000;
 
 // --- Identidade das placas (D3). ---
 /**
- * Solda continental: dois continentes que colidem (frente de pelo menos WELD_FRONT_SHARE das
- * células, ~12 células em N = 256) por WELD_AFTER recomposições passam a andar juntos. A cordilheira
- * cresce durante essas recomposições e a colisão para (antes, empurravam um contra o outro para sempre).
+ * Solda continental: dois continentes que colidem (crosta continental consumida na frente) em
+ * WELD_AFTER recomposições passam a andar juntos. A cordilheira cresce durante essas recomposições e
+ * a colisão para (antes, empurravam um contra o outro para sempre). Qualquer frente conta: um pedaço
+ * pequeno que só raspava (frente de 1–2 células) ficava abaixo do mínimo antigo e nunca soldava.
  */
 export const WELD_AFTER = 8;
-const WELD_FRONT_SHARE = 12 / (6 * 256 * 256);
 /** Pedaço solto de placa menor que esta fração do planeta gruda na placa vizinha (~0,4%). */
 export const FRAGMENT_SHARE = 0.004;
+/**
+ * Só placas com pelo menos esta fração do planeta em crosta continental contam como "continente" na
+ * solda. Numa colisão em que um dos lados tem menos (uma lasca de continente numa placa quase toda
+ * oceânica), a lasca que está colidindo passa para a outra placa (acreção) em vez de soldar as duas.
+ */
+export const CONTINENT_SHARE = 0.015;
 
 // --- Relevo nas fronteiras (T5). Valores por recomposição (cada uma = RECOMPOSE_CELLS de deriva). ---
 /** Idade (passos) em que o fundo oceânico chega à planície abissal. */
@@ -106,6 +112,9 @@ export class Tectonics {
   private collisions = new Map<number, number>();
   /** Quantas soldas e pedaços absorvidos já houve (para medir e testar). */
   welds = 0;
+  /** Maior sequência de recomposições seguidas em que um par colidiu sem soldar (para testar). */
+  longestCollision = 0;
+  private collisionRuns = new Map<number, number>();
   fragmentsAbsorbed = 0;
   /**
    * Polaridade da subducção entre duas placas oceânicas, decidida uma vez por par: qual das duas
@@ -435,8 +444,8 @@ export class Tectonics {
       this.toPlate(p, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, inv, q);
       return world.grid.pointToCell(q[0], q[1], q[2]);
     };
-    // Frente de colisão continental de cada par nesta recomposição (para a solda).
-    const front = new Map<number, number>();
+    // Frente de colisão continental de cada par nesta recomposição: células onde houve consumo.
+    const front = new Map<number, number[]>();
     const deepInside = (c: number, owner: number): boolean => {
       if (prevPlate[c] !== owner) return false;
       for (let d = 0; d < 4; d++) if (prevPlate[neighbors[c * 4 + d] as number] !== owner) return false;
@@ -445,6 +454,8 @@ export class Tectonics {
 
     const gaps: number[] = [];
     const covering: number[] = [];
+    // Células que mudaram de dona porque a dona de antes não tinha amostra ali (ver "dentes" abaixo).
+    const switched: number[] = [];
     for (let c = 0; c < n; c++) {
       if (!band[c]) {
         const i = pull(prevPlate[c] as number, c);
@@ -464,6 +475,7 @@ export class Tectonics {
       }
       if (covering.length === 1) {
         newSample[c] = covering[0] as number;
+        if ((this.sPlate[covering[0] as number] as number) !== prevPlate[c]) switched.push(c);
         continue;
       }
       // Sobreposição: escolhe a vencedora; a perdedora só é consumida se for aproximação de verdade.
@@ -474,6 +486,13 @@ export class Tectonics {
       for (let k = 1; k < covering.length; k++) {
         const other = covering[k] as number;
         if (this.beats(other, win, prevPlate[c] as number)) win = other;
+      }
+      // Histerese: se a vencedora está entrando numa célula de outra placa sem aproximação de
+      // verdade (só arredondamento, ex.: falha transformante), a célula fica com a dona de antes.
+      // Sem isso, a dona trocava toda vez que o arredondamento trocava (oscilação de 1 célula).
+      const prevOwner = prevPlate[c] as number;
+      if ((this.sPlate[win] as number) !== prevOwner && this.closing(prevOwner, this.sPlate[win] as number, x, y, z) <= 0) {
+        for (const i of covering) if ((this.sPlate[i] as number) === prevOwner) win = i;
       }
       newSample[c] = win;
       for (const i of covering) {
@@ -489,9 +508,44 @@ export class Tectonics {
         this.kill(i);
         if (this.sCrust[i] === Crust.Continental && this.sCrust[win] === Crust.Continental && this.find_(loser) !== this.find_(winner)) {
           const key = pairKey(loser, winner);
-          front.set(key, (front.get(key) ?? 0) + 1);
+          const cells = front.get(key);
+          if (cells) cells.push(c);
+          else front.set(key, [c]);
         }
       }
+    }
+
+    // "Dentes" de arredondamento: a célula foi para outra placa só porque, girando a grade, a busca da
+    // dona de antes caiu numa célula do referencial fora da borda dela; na recomposição seguinte ela
+    // voltava (oscilação de 1 célula na frente das placas). Se 3 das 4 vizinhas continuam da dona de
+    // antes, é um dente: fica com ela, copiando a crosta da vizinha (e, se as placas se aproximam, a
+    // crosta da outra ali é consumida). Com menos vizinhas (placa recuando) não: isso arrastaria tiras.
+    for (const c of switched) {
+      const owner = prevPlate[c] as number;
+      let same = 0;
+      let from = -1;
+      for (let d = 0; d < 4; d++) {
+        const s = newSample[neighbors[c * 4 + d] as number] as number;
+        if (s >= 0 && this.sPlate[s] === owner) {
+          same++;
+          from = s;
+        }
+      }
+      if (same < 2 || from < 0) continue;
+      const intruder = newSample[c] as number;
+      const x = positions[c * 3] as number;
+      const y = positions[c * 3 + 1] as number;
+      const z = positions[c * 3 + 2] as number;
+      const converging = this.closing(this.sPlate[intruder] as number, owner, x, y, z) > 0;
+      // Na frente de uma placa que avança por cima da outra (aproximando e ela vence a sobreposição),
+      // 2 vizinhas bastam (degrau de borda diagonal à grade); fora disso, só dente de verdade (3).
+      const front = converging && this.beats(from, intruder, owner);
+      if (same < 3 && !front) continue;
+      const ref = refOf(owner, c);
+      let i = this.find(owner, ref);
+      if (i < 0) i = this.addSample(owner, ref, this.sElev[from] as number, this.sCrust[from] as number, this.sBirth[from] as number);
+      newSample[c] = i;
+      if (converging) this.kill(intruder);
     }
 
     // Buracos: dorsal (crosta oceânica nova) onde as placas se afastam; senão, cicatriza copiando.
@@ -563,7 +617,11 @@ export class Tectonics {
       const plate = world.plates[p];
       if (plate) this.centerNow(p, plate.center as Vec3);
     }
-    this.absorbFragments(inv);
+    const accreted = this.accrete(front, inv);
+    // Repete até não sobrar pedaço pequeno: dois pedaços de placas diferentes encostados trocam de
+    // dona ao mesmo tempo e isso podia deixar uma célula solta nova.
+    for (let pass = 0; pass < 4 && this.absorbFragments(inv); pass++);
+    for (const key of accreted) front.delete(key);
     updateBoundaries(world);
     if (this.reliefEnabled) this.relief();
     // Depois do relevo: a recomposição que completa a colisão ainda ergue a cordilheira.
@@ -830,12 +888,16 @@ export class Tectonics {
    * WELD_AFTER, os dois grupos passam a girar juntos (vetor de rotação médio, pesado pela área). As
    * placas continuam com a mesma identidade; só deixam de se mover uma contra a outra.
    */
-  private weldCollisions(front: Map<number, number>): boolean {
-    const world = this.world;
+  private weldCollisions(front: Map<number, number[]>): boolean {
     const before = this.welds;
-    const minFront = Math.max(3, Math.round(WELD_FRONT_SHARE * world.cellCount));
-    for (const [key, cells] of front) {
-      if (cells < minFront) continue;
+    // Sequências de colisão seguidas de cada par (só para medir: a solda conta o total).
+    for (const key of [...this.collisionRuns.keys()]) if (!front.has(key)) this.collisionRuns.delete(key);
+    for (const key of front.keys()) {
+      const run = (this.collisionRuns.get(key) ?? 0) + 1;
+      this.collisionRuns.set(key, run);
+      this.longestCollision = Math.max(this.longestCollision, run);
+    }
+    for (const key of front.keys()) {
       const a = Math.floor(key / 256);
       const b = key % 256;
       if (this.find_(a) === this.find_(b)) continue;
@@ -891,9 +953,9 @@ export class Tectonics {
    * FRAGMENT_SHARE do planeta passa para a placa vizinha com quem mais faz divisa: a crosta é
    * regravada no referencial da nova dona e passa a andar com ela.
    */
-  private absorbFragments(inv: Float64Array): void {
+  private absorbFragments(inv: Float64Array): boolean {
     const world = this.world;
-    const { neighbors, positions } = world.grid;
+    const { neighbors } = world.grid;
     const n = world.cellCount;
     const limit = Math.max(4, Math.round(FRAGMENT_SHARE * n));
     const comp = new Int32Array(n).fill(-1);
@@ -944,29 +1006,95 @@ export class Tectonics {
       for (const [q, k] of m) if (k > bestCount || (k === bestCount && q < best)) [best, bestCount] = [q, k];
       if (best >= 0) target.set(id, best);
     }
-    if (!target.size) return;
-    const q: Vec3 = [0, 0, 0];
+    if (!target.size) return false;
     for (let c = 0; c < n; c++) {
       const id = comp[c] as number;
       const to = id >= 0 ? target.get(id) : undefined;
-      if (to === undefined) continue;
-      const old = this.cellSample[c] as number;
-      this.toPlate(to, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, inv, q);
-      const ref = world.grid.pointToCell(q[0], q[1], q[2]);
-      // Se a nova dona já tem amostra ali (escondida sob o pedaço), ela recebe a crosta do pedaço.
-      let i = this.find(to, ref);
-      if (i >= 0) {
-        this.sElev[i] = this.sElev[old] as number;
-        this.sCrust[i] = this.sCrust[old] as number;
-        this.sBirth[i] = this.sBirth[old] as number;
-      } else {
-        i = this.addSample(to, ref, this.sElev[old] as number, this.sCrust[old] as number, this.sBirth[old] as number);
-      }
-      this.kill(old);
-      this.cellSample[c] = i;
-      world.plate[c] = to;
+      if (to !== undefined) this.transferCell(c, to, inv);
     }
     this.fragmentsAbsorbed += target.size;
+    return true;
+  }
+
+  /** Passa a crosta da célula para a placa `to`: regravada no referencial dela, anda com ela. */
+  private transferCell(c: number, to: number, inv: Float64Array): void {
+    const world = this.world;
+    const { positions } = world.grid;
+    const q: Vec3 = [0, 0, 0];
+    const old = this.cellSample[c] as number;
+    this.toPlate(to, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, inv, q);
+    const ref = world.grid.pointToCell(q[0], q[1], q[2]);
+    // Se a nova dona já tem amostra ali (escondida sob o pedaço), ela recebe a crosta do pedaço.
+    let i = this.find(to, ref);
+    if (i >= 0) {
+      this.sElev[i] = this.sElev[old] as number;
+      this.sCrust[i] = this.sCrust[old] as number;
+      this.sBirth[i] = this.sBirth[old] as number;
+    } else {
+      i = this.addSample(to, ref, this.sElev[old] as number, this.sCrust[old] as number, this.sBirth[old] as number);
+    }
+    this.kill(old);
+    this.cellSample[c] = i;
+    world.plate[c] = to;
+  }
+
+  /** Crosta continental de cada placa, em células. */
+  private continentalArea(): Float64Array {
+    const world = this.world;
+    const area = new Float64Array(this.angle.length);
+    for (let c = 0; c < world.cellCount; c++) {
+      if (world.crust[c] === Crust.Continental) area[world.plate[c] as number] = (area[world.plate[c] as number] as number) + 1;
+    }
+    return area;
+  }
+
+  /**
+   * Acreção: numa colisão continental em que uma das placas tem pouco continente (< CONTINENT_SHARE),
+   * a crosta continental dela ligada à frente de colisão passa para a outra placa ("fragmento pequeno
+   * gruda na placa maior"). O contato acaba ali: nem solda as placas, nem fica moendo para sempre.
+   * Retorna os pares resolvidos assim.
+   */
+  private accrete(front: Map<number, number[]>, inv: Float64Array): number[] {
+    if (!front.size) return [];
+    const world = this.world;
+    const { neighbors } = world.grid;
+    const limit = CONTINENT_SHARE * world.cellCount;
+    const area = this.continentalArea();
+    const done: number[] = [];
+    for (const [key, cells] of front) {
+      const a = Math.floor(key / 256);
+      const b = key % 256;
+      if ((area[a] as number) >= limit && (area[b] as number) >= limit) continue;
+      const small = (area[a] as number) <= (area[b] as number) ? a : b;
+      const big = small === a ? b : a;
+      // Continente da placa pequena encostado na frente (a célula da frente e as vizinhas).
+      const seen = new Set<number>();
+      const stack: number[] = [];
+      for (const c of cells) {
+        for (const k of [c, neighbors[c * 4] as number, neighbors[c * 4 + 1] as number, neighbors[c * 4 + 2] as number, neighbors[c * 4 + 3] as number]) {
+          if (!seen.has(k) && world.plate[k] === small && world.crust[k] === Crust.Continental) {
+            seen.add(k);
+            stack.push(k);
+          }
+        }
+      }
+      while (stack.length) {
+        const k = stack.pop() as number;
+        for (let d = 0; d < 4; d++) {
+          const nb = neighbors[k * 4 + d] as number;
+          if (!seen.has(nb) && world.plate[nb] === small && world.crust[nb] === Crust.Continental) {
+            seen.add(nb);
+            stack.push(nb);
+          }
+        }
+      }
+      for (const k of seen) if (this.cellSample[k] !== -1) this.transferCell(k, big, inv);
+      area[big] = (area[big] as number) + seen.size;
+      area[small] = (area[small] as number) - seen.size;
+      if (seen.size) this.fragmentsAbsorbed++;
+      done.push(key);
+    }
+    return done;
   }
 
   /** Depois de uma pincelada: grava nas amostras o que foi pintado nas células (anda com a placa). */

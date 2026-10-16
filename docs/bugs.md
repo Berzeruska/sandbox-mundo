@@ -66,3 +66,39 @@ Formato: data — como reproduzir — causa — correção — commit.
   Movimento suave sem regressão (0 saltos, máximo 0,45% dos pixels por quadro).
 - **Pendente:** confirmar no celular do usuário. Se ainda falhar, o texto da tela de erro (ou o
   "desenho: simplificado (motivo)") diz a causa exata.
+
+## 2026-10-15 — Pedaços de placa que se soltam e colidem para sempre (celular caía a 5 fps)
+
+- **Como reproduzir:** placas em 100%, tempo 20×, deixar 2–5 min. Pedaços de continente se soltam e
+  ficam batendo uns nos outros sem parar; na vista "Ver placas", as fronteiras no oceano ficam cheias
+  de fiapos e as placas mudam de forma. No celular o fps caía a 5–10 (somado ao desfoque atrás do
+  painel Dados, ver D2).
+- **Medição (sonda de 5 min, 5 sementes):** ~10% das trocas de dono de célula voltavam ao dono de duas
+  recomposições antes (A→B→A), quase todas em fronteiras entre duas placas oceânicas; pares de placas
+  colidindo por 11–14 recomposições seguidas sem soldar; pedaços de 1–4 células soltos.
+- **Causas:**
+  1. Entre duas oceânicas que se aproximam, quem mergulhava era decidido célula a célula (mais
+     velha; empate, mais funda). A crosta inicial tem toda a mesma idade, então o desempate pela
+     profundidade mudava de célula para célula: cada placa comia a outra num trecho e era comida no
+     vizinho, trocando a cada recomposição (a oscilação).
+  2. Cada placa girava em eixo fixo para sempre: continentes que se encontravam continuavam
+     empurrando um contra o outro sem fim.
+  3. A solda (1ª versão) só contava frentes de colisão de 3+ células: lascas pequenas que só raspavam
+     nunca soldavam. Contando qualquer frente, placas quase só oceânicas com uma lasca de continente
+     passavam a se soldar a continentes inteiros.
+  4. Rotacionar a grade arredonda: a frente das placas tinha "dentes" de 1 célula que iam e voltavam,
+     e a sobreposição sem aproximação real trocava de dona junto com o arredondamento.
+  5. Pedaços pequenos eram absorvidos numa passada só; dois pedaços encostados trocavam de dona ao
+     mesmo tempo e deixavam uma célula solta nova.
+- **Correção:** polaridade da subducção por par de placas; solda só entre continentes de verdade
+  (≥ 1,5% do planeta cada) depois de 8 recomposições de colisão; acreção da lasca continental da placa
+  pequena na outra placa; histerese e preenchimento dos dentes de arredondamento; absorção de pedaços
+  repetida até não sobrar nenhum. Detalhes em `docs/03-mundo-geologia.md` (D3).
+- **Depois (mesma sonda):** zero pedaços soltos em qualquer recomposição; nenhuma colisão passa de 8
+  recomposições; trocas A→B→A no pior caso 0,02–0,08% das células (arredondamento de 1 célula na linha
+  da fronteira). Critério de "bonito" mantido em N = 256 aos 2 min: 5–7 continentes, o maior com no
+  máximo 37% da terra. Teste automático de 5 min no CI. "Medir desempenho" ganhou o cenário "deriva
+  longa c/ colisões" (60 s), com soldas e pedaços absorvidos no relatório.
+- **Imagem:** `docs/img/m2-placas-antes-depois.png` (semente "mundo", 2 min; esquerda antes, direita
+  depois; em cima o mapa, embaixo a vista de placas).
+- **Pendente:** confirmar no celular do usuário.

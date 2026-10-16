@@ -275,6 +275,10 @@ export class SimulationCore {
     this.lastPostedAt = t;
     this.lastPostedTick = this.clock.tick;
     this.work.clockMessages++;
+    if (this.tectonics) {
+      this.work.welds = this.tectonics.welds;
+      this.work.fragments = this.tectonics.fragmentsAbsorbed;
+    }
     this.send({
       type: 'clock',
       tick: this.clock.tick,

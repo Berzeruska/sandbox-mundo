@@ -187,8 +187,9 @@ pausado 91 fps; tempo rodando com placas paradas ~48; placas se afastando 27–3
 colisões pior 5; geração 4.000 ms no painel (6–7 s percebidos). Metas: pausado ≥ 85; tempo
 rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opção de qualidade.
 
-- [x] **D1 — Botão "Medir desempenho"** (painel Dados): roda sozinho, em ~55 s, pausado parado,
-  pausado girando, tempo 20× com placas paradas, tempo 20× com placas 100% e geração de mundo.
+- [x] **D1 — Botão "Medir desempenho"** (painel Dados): roda sozinho, em ~2 min, pausado parado,
+  pausado girando, tempo 20× com placas paradas, tempo 20× com placas 100% (também com o painel aberto, com e sem o desfoque antigo), deriva
+  longa com colisões (60 s) e geração de mundo.
   Relatório em texto com botão de copiar: fps médio, mínimo (pior janela de 1 s), pior quadro e
   quadros acima de 50 ms por cenário; trabalho da tela por quadro; worker (passos/s, ms por passo,
   ocupação, recomposições divididas em placas/clima/cores/envio); geração por etapa; GPU detectada.
@@ -201,8 +202,9 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   sem o desfoque antigo, para confirmar no aparelho, e o tempo da primeira abertura.
 - [x] **D3 — Placas com tamanho e identidade fixos:** continentes que colidem se soldam e erguem
   cordilheira; fragmento pequeno gruda na placa maior; nada de pedaços colidindo para sempre
-  (achar a causa da oscilação). *Causa:* desempate da subducção célula a célula entre oceânicas de
-  mesma idade (ver 03-mundo-geologia, D3).
+  (achar a causa da oscilação). *Causas e correção:* ver `docs/bugs.md` (2026-10-15, pedaços de
+  placa) e 03-mundo-geologia (D3). Teste automático de 5 min a 20× e 100% sem pedaços soltos;
+  "Medir desempenho" com cenário de deriva longa com colisões.
 - [x] **D4 — Shader de deriva mais leve para a Mali-G52.** Candidatas na textura de placas, atan por
   polinômio, texturas reaproveitadas. Encerrada pelo usuário: o relatório já bate as metas.
 - [x] **D5 — Geração ≤ 3 s no aparelho.** Relatório: 2,7 s (sem mudança necessária).

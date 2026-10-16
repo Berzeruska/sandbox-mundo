@@ -313,3 +313,11 @@ Formato: data — decisão — motivo — alternativa descartada.
   recomposição (D4: no notebook, o custo de GPU somado pela deriva caiu de 0,33 para 0,19 ms por
   quadro; pior quadro 3,69 → 3,24 ms). As quedas a 5–10 fps vistas jogando vinham das colisões sem
   fim (ver D3) e do desfoque atrás do painel Dados.
+
+- **2026-10-15 — Solda só entre continentes; lasca pequena gruda na placa maior (acreção).**
+  Contar qualquer frente de colisão na solda acabava com a moagem sem fim, mas soldava placas quase só
+  oceânicas a continentes logo na abertura da Pangeia (na semente "mundo", o maior continente ia a 57%
+  da terra aos 2 min). Agora a solda exige ≥ 1,5% do planeta em crosta continental nas duas placas;
+  senão a lasca continental do lado pequeno passa para a outra placa. Junto: histerese nas
+  sobreposições sem aproximação e preenchimento dos "dentes" de arredondamento na frente das placas.
+  Alternativa descartada: exigir frente mínima para soldar (deixava lascas moendo para sempre).

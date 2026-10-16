@@ -531,7 +531,7 @@ export class App {
   }
 
   /**
-   * "Medir desempenho" (~60 s): roda sozinho os cenários e mostra o relatório para copiar.
+   * "Medir desempenho" (~2 min): roda sozinho os cenários e mostra o relatório para copiar.
    * Globo sempre do mesmo jeito (terra no centro, zoom 1) para comparar uma medição com a outra.
    */
   async runBenchmark(): Promise<void> {
@@ -542,7 +542,7 @@ export class App {
     this.bench = bench;
     this.hud.closeMenu();
     const startedAt = performance.now();
-    const steps = 8;
+    const steps = 9;
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
       this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
@@ -597,9 +597,12 @@ export class App {
       await scenario(5, 'tempo 20×, placas 100%', 12_000, () => this.setPlateRate(1));
       await scenario(6, '  idem, painel c/ desfoque', 10_000, () => undefined, 'blur');
       await scenario(7, '  idem, painel s/ desfoque', 10_000, () => undefined, 'plain');
+      // Deriva longa: continua a mesma deriva por mais 1 min (o planeta passa de ~1,5 min de deriva
+      // a 20×, quando os continentes começam a colidir e se soldar).
+      await scenario(8, 'deriva longa c/ colisões', 60_000, () => undefined);
       bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(8, 'geração de mundo');
+      status(9, 'geração de mundo');
       this.setSpeed(0);
       this.setPlateRate(before.plateRate);
       await wait(500);

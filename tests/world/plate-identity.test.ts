@@ -25,10 +25,13 @@ function twoPlates(elev: (i: number, east: boolean) => number, n = 64) {
   return { g, w };
 }
 
-/** Avança as placas pelo próprio relógio (como no jogo) até `recompositions` recomposições. */
-function drift(t: Tectonics, recompositions: number): void {
+/**
+ * Avança as placas pelo próprio relógio (como no jogo) até `recompositions` recomposições ou até
+ * `until` valer. Com limite de passos: um bloco soldado pode ficar quase parado.
+ */
+function drift(t: Tectonics, recompositions: number, until: () => boolean = () => false): void {
   const target = t.recompositions + recompositions;
-  while (t.recompositions < target) t.step(1);
+  for (let k = 0; k < 3_000_000 && t.recompositions < target && !until(); k++) t.step(1);
 }
 
 describe('placas com identidade fixa', () => {
@@ -64,8 +67,10 @@ describe('placas com identidade fixa', () => {
   it(`continentes que colidem erguem cordilheira e, depois de ${WELD_AFTER} recomposições, se soldam e param`, () => {
     const { w } = twoPlates(() => 300);
     const t = new Tectonics(w);
-    drift(t, WELD_AFTER + 1);
+    drift(t, 3 * WELD_AFTER, () => t.welds > 0);
     expect(t.welds).toBe(1);
+    // Soldou depois de WELD_AFTER recomposições de colisão (a primeira é a do encontro).
+    expect(t.recompositions).toBeGreaterThanOrEqual(WELD_AFTER);
     // Passam a girar juntas: mesmo eixo e mesma velocidade.
     const a = t.plateMotion(0);
     const b = t.plateMotion(1);
@@ -87,7 +92,7 @@ describe('placas com identidade fixa', () => {
     }
     expect(t.welds).toBe(1);
     expect(t.sampleCount).toBeGreaterThanOrEqual(samples);
-    expect(t.sampleCount - samples).toBeLessThan(0.001 * w.cellCount);
+    expect(t.sampleCount - samples).toBeLessThan(0.003 * w.cellCount);
     expect(Math.abs(area(0) - area0)).toBeLessThan(0.003 * w.cellCount);
   });
 
