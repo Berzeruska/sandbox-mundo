@@ -3,7 +3,8 @@ import { CubeSphere, type Vec3 } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
 import { Crust } from '../../src/world/plates';
 import { Tectonics } from '../../src/world/tectonics';
-import { advanceDisplayTick, packPlateCell, rotate, sourcePoint } from '../../src/render/plate-motion';
+import { advanceDisplayTick, candidatesOf, LINE_BIT, NEAR_CELLS, packPlateCell, PLATE_MASK, rotate, sourcePoint } from '../../src/render/plate-motion';
+import { packPlates } from '../../src/sim/core';
 
 describe('movimento suave das placas (regra do shader)', () => {
   it('entre recomposições, o desenho interpolado bate com a recomposição completa (miolo das placas)', () => {
@@ -54,6 +55,69 @@ describe('movimento suave das placas (regra do shader)', () => {
     }
     expect(rightPlate / interior).toBeGreaterThan(0.99);
     expect(withinOneCell / interior).toBeGreaterThan(0.97);
+  });
+
+  it('candidatas guardadas na textura dão o mesmo resultado que sondar em volta (miolo das placas)', () => {
+    const grid = new CubeSphere(64);
+    const w = createWorld({ seedText: 'suave', seed: 11, n: 64, seaLevel: 0, landFraction: 0.3 }, grid);
+    const t = new Tectonics(w, { relief: false });
+    t.recompose();
+    const packed = packPlates(w);
+    const valueAt = (p: Vec3) => {
+      const c = grid.pointToCell(p[0], p[1], p[2]);
+      return packed[c * 2]! | (packed[c * 2 + 1]! << 8);
+    };
+    const axis = w.plates.map((pl) => {
+      const s = Math.hypot(...pl.omega);
+      return [pl.omega[0] / s, pl.omega[1] / s, pl.omega[2] / s] as Vec3;
+    });
+    const step = grid.cellAngle * 1.8; // quase uma recomposição inteira
+    const delta = axis.map(() => step);
+    let same = 0;
+    let total = 0;
+    for (let c = 0; c < w.cellCount; c++) {
+      const p: Vec3 = [grid.positions[c * 3]!, grid.positions[c * 3 + 1]!, grid.positions[c * 3 + 2]!];
+      const probe = sourcePoint(p, { plateAt: valueAt, axis, delta, maxDelta: step });
+      const stored = sourcePoint(p, { plateAt: valueAt, axis, delta, maxDelta: step, cellAngle: grid.cellAngle });
+      total++;
+      if ((probe?.plate ?? -1) === (stored?.plate ?? -1)) same++;
+    }
+    // As sondas olham só 4 direções; as guardadas cobrem tudo em volta: quase sempre concordam e,
+    // quando não, a guardada achou uma placa que as sondas perderam.
+    expect(same / total).toBeGreaterThan(0.995);
+  });
+
+  it('textura de placas: outras placas por perto (até NEAR_CELLS passos) e marca de "encosta"', () => {
+    const grid = new CubeSphere(64);
+    const w = createWorld({ seedText: 'x', seed: 2, n: 64, seaLevel: 0, landFraction: 0.3 }, grid);
+    const packed = packPlates(w);
+    // Distância (passos) de cada célula até a placa vizinha mais próxima, por busca em largura.
+    for (const target of [0, 1]) {
+      const dist = new Int32Array(w.cellCount).fill(99);
+      let frontier: number[] = [];
+      for (let c = 0; c < w.cellCount; c++) if (w.plate[c] === target) { dist[c] = 0; frontier.push(c); }
+      for (let d = 1; d <= NEAR_CELLS + 2 && frontier.length; d++) {
+        const next: number[] = [];
+        for (const c of frontier) for (let k = 0; k < 4; k++) {
+          const nb = grid.neighbor(c, k);
+          if (dist[nb]! > d) { dist[nb] = d; next.push(nb); }
+        }
+        frontier = next;
+      }
+      let checked = 0;
+      for (let c = 0; c < w.cellCount; c++) {
+        if (w.plate[c] === target) continue;
+        const v = packed[c * 2]! | (packed[c * 2 + 1]! << 8);
+        expect(v & PLATE_MASK).toBe(w.plate[c]);
+        const has = candidatesOf(v).includes(target);
+        // Perto: a placa-alvo está entre as candidatas (salvo cruzamento com 3+ placas, só 2 cabem).
+        if (dist[c]! <= NEAR_CELLS && candidatesOf(v).length < 3) expect(has).toBe(true);
+        if (dist[c]! > NEAR_CELLS) expect(has).toBe(false);
+        if (dist[c] === 1) expect(v & LINE_BIT).toBe(LINE_BIT);
+        checked++;
+      }
+      expect(checked).toBeGreaterThan(0);
+    }
   });
 
   it('fenda aberta entre placas que se afastam vira "sem crosta" (o shader pinta oceano novo)', () => {

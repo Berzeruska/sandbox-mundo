@@ -144,16 +144,19 @@ export class GlobeRenderer {
    */
   recomposed(plateCells: Uint8Array): void {
     if (this.lost) return;
-    const gl = this.gl;
-    if (this.prevTexture) gl.deleteTexture(this.prevTexture);
-    if (this.prevPlateTexture) gl.deleteTexture(this.prevPlateTexture);
+    // Reaproveita as texturas da composição de duas recomposições atrás (sem uso há segundos): criar
+    // e apagar textura na GPU a cada recomposição pode travar um quadro no celular.
+    const spareColors = this.prevTexture;
+    const sparePlates = this.prevPlateTexture;
     this.prevTexture = this.texture;
     this.prevPlateTexture = this.plateTexture;
-    this.texture = null;
-    this.plateTexture = null;
     this.plateCells = plateCells;
-    this.createTexture();
-    this.createPlateTexture();
+    this.texture = spareColors;
+    this.plateTexture = sparePlates;
+    if (this.texture) this.fillColorTexture();
+    else this.createTexture();
+    if (this.plateTexture) this.fillPlateTexture();
+    else this.createPlateTexture();
   }
 
   /** Placa de cada célula (bits 0–3) e crosta continental (bit 4), para o movimento suave. */
@@ -167,12 +170,19 @@ export class GlobeRenderer {
     if (this.plateTexture) gl.deleteTexture(this.plateTexture);
     this.plateTexture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.plateTexture);
-    gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.R8UI, this.n, this.n, 6);
+    gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RG8UI, this.n, this.n, 6);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    this.fillPlateTexture();
+  }
+
+  private fillPlateTexture(): void {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.plateTexture);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    const data = this.plateCells && this.plateCells.length === this.n * this.n * 6 ? this.plateCells : new Uint8Array(this.n * this.n * 6);
-    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, 0, this.n, this.n, 6, gl.RED_INTEGER, gl.UNSIGNED_BYTE, data);
+    const size = this.n * this.n * 6 * 2;
+    const data = this.plateCells && this.plateCells.length === size ? this.plateCells : new Uint8Array(size);
+    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, 0, this.n, this.n, 6, gl.RG_INTEGER, gl.UNSIGNED_BYTE, data);
   }
 
   private createNoiseTexture(): void {
@@ -198,6 +208,12 @@ export class GlobeRenderer {
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.fillColorTexture();
+  }
+
+  private fillColorTexture(): void {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texture);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, 0, this.n, this.n, 6, gl.RGBA, gl.UNSIGNED_BYTE, this.colors);
   }

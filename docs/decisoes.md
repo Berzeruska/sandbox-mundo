@@ -302,3 +302,14 @@ Formato: data — decisão — motivo — alternativa descartada.
   continentes tendem a se juntar (ciclo de supercontinente). "Tamanho fixo" ao pé da letra não é
   possível com placas rígidas cobrindo a esfera (dorsais fazem crescer, subducção encolhe); o que
   ficou fixo é a identidade e a forma: nada de placas comendo umas às outras alternadamente.
+
+- **2026-10-15 — Resultado da rodada de desempenho no aparelho-alvo (Infinix Hot 50i, Mali-G52).**
+  Relatório do botão "Medir desempenho" (versão 5d83bca), rodado pelo usuário: tempo 20× com placas
+  paradas 91 fps; placas em 100% 82 fps (mínimo 66, pior quadro 44 ms); geração 2,7 s do pedido ao
+  globo. Bate as metas (tempo rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s). O
+  usuário encerrou aqui as otimizações de shader. Entraram depois disso, já prontas e verificadas:
+  painéis sem desfoque, worker dormindo pausado e relógio até 10×/s (D2), e o shader de deriva com
+  candidatas guardadas na textura de placas, atan por polinômio e texturas reaproveitadas a cada
+  recomposição (D4: no notebook, o custo de GPU somado pela deriva caiu de 0,33 para 0,19 ms por
+  quadro; pior quadro 3,69 → 3,24 ms). As quedas a 5–10 fps vistas jogando vinham das colisões sem
+  fim (ver D3) e do desfoque atrás do painel Dados.

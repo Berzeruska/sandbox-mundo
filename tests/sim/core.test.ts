@@ -154,7 +154,7 @@ describe('placas no worker', () => {
     expect(core.world!.elevation).not.toEqual(before);
     const recomposed = lastOf(inbox, 'recomposed')!;
     expect(recomposed.patches.length).toBe(6);
-    expect(recomposed.plateCells.length).toBe(core.world!.cellCount);
+    expect(recomposed.plateCells.length).toBe(core.world!.cellCount * 2); // 2 canais por célula
     expect(recomposed.angles.length).toBe(core.world!.plates.length);
     expect(recomposed.angles.some((a) => a > 0)).toBe(true);
     // O relógio manda os ângulos atuais para o desenho suave.

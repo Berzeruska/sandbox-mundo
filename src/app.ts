@@ -149,10 +149,7 @@ export class App {
           this.brushSize = size;
           this.requestDraw();
         },
-        onPlateRate: (percent) => {
-          this.plateRate = percent / 100;
-          this.sim.setPlateRate(this.plateRate);
-        },
+        onPlateRate: (percent) => this.setPlateRate(percent / 100),
         onSpeed: (speed) => this.setSpeed(speed),
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
@@ -406,6 +403,13 @@ export class App {
     this.sim.setSpeed(speed);
   }
 
+  /** Controle "Placas" (0 a 1): a tela guarda uma cópia para o desenho suave do movimento. */
+  setPlateRate(rate: number): void {
+    this.plateRate = rate;
+    this.sim.setPlateRate(rate);
+    this.requestDraw();
+  }
+
   setMode(mode: InputMode): void {
     this.mode = mode;
     this.paintGate.cancel();
@@ -586,18 +590,18 @@ export class App {
       await scenario(2, 'pausado, girando', 6000, () => spin(true));
       await scenario(3, 'tempo 20×, placas paradas', 8000, () => {
         spin(false);
-        this.sim.setPlateRate(0);
+        this.setPlateRate(0);
         this.setSpeed(20);
       });
       await scenario(4, '  idem, painel c/ desfoque', 8000, () => undefined, 'blur');
-      await scenario(5, 'tempo 20×, placas 100%', 12_000, () => this.sim.setPlateRate(1));
+      await scenario(5, 'tempo 20×, placas 100%', 12_000, () => this.setPlateRate(1));
       await scenario(6, '  idem, painel c/ desfoque', 10_000, () => undefined, 'blur');
       await scenario(7, '  idem, painel s/ desfoque', 10_000, () => undefined, 'plain');
       bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
       status(8, 'geração de mundo');
       this.setSpeed(0);
-      this.sim.setPlateRate(before.plateRate);
+      this.setPlateRate(before.plateRate);
       await wait(500);
       const receiveMs = await new Promise<number>((resolve) => {
         bench.onWorld = resolve;
@@ -607,7 +611,7 @@ export class App {
       gen = { totalMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs, receiveMs };
     } finally {
       spin(before.spin);
-      this.sim.setPlateRate(before.plateRate);
+      this.setPlateRate(before.plateRate);
       this.setSpeed(before.speed);
       this.bench = null;
       this.debug.setBenchmarkRunning(null);

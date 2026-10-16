@@ -9,19 +9,40 @@ import type { Vec3 } from '../world/cubesphere';
  */
 
 /**
- * Valor da textura de placas: bits 0–3 = placa; bit 4 = crosta continental; bit 5 = perto de uma
- * fronteira (até NEAR_BOUNDARY_CELLS células). Longe da fronteira só pode estar a própria placa,
- * e o shader pula a busca completa (é a maior parte do planeta).
+ * Textura de placas (2 canais por célula, D4):
+ * - canal R: bits 0–3 = placa; bit 4 = crosta continental; bit 6 = a célula encosta em outra placa
+ *   (vizinhança 3×3): só aí a tolerância de arredondamento do shader pode achar outra dona;
+ * - canal G: até duas OUTRAS placas a até NEAR_CELLS passos de vizinhança (bits 0–3 e 4–7; "nenhuma"
+ *   = a própria placa). São as candidatas a ter chegado na célula: o shader as lê numa consulta só,
+ *   em vez de sondar 4 pontos em volta; sem outras perto (a maior parte do planeta), é a própria placa.
+ * No código da CPU, o valor empacotado é R | G << 8.
  */
 export const CONTINENTAL_BIT = 16;
-export const NEAR_BOUNDARY_BIT = 32;
-export const NEAR_BOUNDARY_CELLS = 3;
+export const LINE_BIT = 64;
 export const PLATE_MASK = 15;
+/** Alcance (passos de vizinhança) das candidatas guardadas no canal G. */
+export const NEAR_CELLS = 5;
+/** Distância (em células, em linha reta) garantida por NEAR_CELLS passos: até onde as candidatas valem. */
+export const NEAR_REACH_CELLS = 3.5;
 /** Máximo de placas que o shader aceita (o jogo usa até 14). */
 export const MAX_SHADER_PLATES = 16;
 
-export function packPlateCell(plate: number, continental: boolean, nearBoundary = false): number {
-  return (plate & PLATE_MASK) | (continental ? CONTINENTAL_BIT : 0) | (nearBoundary ? NEAR_BOUNDARY_BIT : 0);
+export function packPlateCell(plate: number, continental: boolean, line = false, others: readonly number[] = []): number {
+  const r = (plate & PLATE_MASK) | (continental ? CONTINENTAL_BIT : 0) | (line ? LINE_BIT : 0);
+  const o1 = (others[0] ?? plate) & PLATE_MASK;
+  const o2 = (others[1] ?? plate) & PLATE_MASK;
+  return r | ((o1 | (o2 << 4)) << 8);
+}
+
+/** Placas candidatas guardadas num valor empacotado: a própria e as até duas outras por perto. */
+export function candidatesOf(v: number): number[] {
+  const own = v & PLATE_MASK;
+  const out = [own];
+  const o1 = (v >> 8) & PLATE_MASK;
+  const o2 = (v >> 12) & PLATE_MASK;
+  if (o1 !== own) out.push(o1);
+  if (o2 !== own && o2 !== o1) out.push(o2);
+  return out;
 }
 
 /** Gira v pelo ângulo a em torno do eixo unitário k (Rodrigues). */
@@ -44,6 +65,8 @@ export interface PlateMotionInput {
   delta: readonly number[];
   /** Maior rotação entre as placas (raio de busca de placas vizinhas que podem ter chegado em p). */
   maxDelta: number;
+  /** Ângulo de uma célula: com ele, as candidatas vêm do próprio valor da célula (como no shader). */
+  cellAngle?: number;
   /**
    * As placas a e b, em p, estão se aproximando (> 0) ou se afastando (< 0)? Usado para decidir uma
    * fenda: afastando = fundo oceânico novo; senão é só arredondamento e fica com a placa de antes.
@@ -79,8 +102,12 @@ export function probePoints(p: Vec3, dist: number): Vec3[] {
  * (sobreposição), a continental fica por cima, como na recomposição; empate fica com a de p.
  */
 export function sourcePoint(p: Vec3, m: PlateMotionInput): { point: Vec3; plate: number } | null {
-  const candidates: number[] = [m.plateAt(p) & PLATE_MASK];
-  if (m.maxDelta > 0) {
+  const v0 = m.plateAt(p);
+  const candidates: number[] = [v0 & PLATE_MASK];
+  if (m.cellAngle !== undefined && m.maxDelta * 1.5 <= NEAR_REACH_CELLS * m.cellAngle) {
+    // Candidatas guardadas na célula (todas as placas a até NEAR_CELLS passos).
+    candidates.push(...candidatesOf(v0).slice(1));
+  } else if (m.maxDelta > 0) {
     for (const q of probePoints(p, m.maxDelta * 1.5)) {
       const pl = m.plateAt(q) & PLATE_MASK;
       if (!candidates.includes(pl)) candidates.push(pl);

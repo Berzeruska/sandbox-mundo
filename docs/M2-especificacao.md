@@ -203,8 +203,9 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   cordilheira; fragmento pequeno gruda na placa maior; nada de pedaços colidindo para sempre
   (achar a causa da oscilação). *Causa:* desempate da subducção célula a célula entre oceânicas de
   mesma idade (ver 03-mundo-geologia, D3).
-- [ ] **D4 — Shader de deriva mais leve para a Mali-G52.**
-- [ ] **D5 — Geração ≤ 3 s no aparelho.**
+- [x] **D4 — Shader de deriva mais leve para a Mali-G52.** Candidatas na textura de placas, atan por
+  polinômio, texturas reaproveitadas. Encerrada pelo usuário: o relatório já bate as metas.
+- [x] **D5 — Geração ≤ 3 s no aparelho.** Relatório: 2,7 s (sem mudança necessária).
 
 - [ ] **T6 — Recursos minerais e petróleo** (`src/world/resources.ts`)
   Depósitos de ferro, cobre, ouro, nióbio, petróleo, carvão (e outros) gerados pela geologia real:

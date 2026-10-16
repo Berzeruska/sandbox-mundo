@@ -1,6 +1,6 @@
 import { BIOME_COUNT, BIOME_INFO } from '../world/biomes';
 import { FACES, type Vec3 } from '../world/cubesphere';
-import { CONTINENTAL_BIT, MAX_SHADER_PLATES, NEAR_BOUNDARY_BIT, NEAR_BOUNDARY_CELLS, PLATE_MASK } from './plate-motion';
+import { CONTINENTAL_BIT, LINE_BIT, MAX_SHADER_PLATES, NEAR_REACH_CELLS, PLATE_MASK } from './plate-motion';
 
 const vec = (v: Vec3): string => `vec3(${v.map((c) => c.toFixed(1)).join(', ')})`;
 
@@ -45,9 +45,10 @@ vec4 cellAt${sfx}(vec3 p) {
   return texelFetch(${cells}, t, 0);
 }
 
-uint plateAt${sfx}(vec3 p) {
+// Canal R: placa, crosta continental, encosta em outra placa. Canal G: outras placas por perto.
+uvec2 plateAt${sfx}(vec3 p) {
   ivec3 t = texelOf(p);
-  return texelFetch(${plates}, t, 0).r;
+  return texelFetch(${plates}, t, 0).rg;
 }
 
 // Do referencial da placa para a textura (aplica o ângulo da composição).
@@ -62,18 +63,19 @@ vec3 toTexture${sfx}(int pl, vec3 a) {
 // Escrito sem arrays locais nem laços: alguns compiladores de GPU de celular falham com isso.
 void tryPlate${sfx}(int pl, vec3 p, inout int best, inout bool bestCont, inout vec3 bestFix) {
   vec3 s = toTexture${sfx}(pl, toPlate(pl, p));
-  uint v = plateAt${sfx}(s);
+  uint v = plateAt${sfx}(s).x;
   vec3 thisFix = vec3(0.0);
   bool mine = int(v & ${PLATE_MASK}u) == pl;
-  if (!mine) {
+  // Tolerância só onde ela pode achar outra dona: célula que encosta em outra placa.
+  if (!mine && (v & ${LINE_BIT}u) != 0u) {
     float tol = uCellAngle * 0.7;
     vec3 es = normalize(vec3(s.z, 0.0, -s.x) + vec3(1e-6, 0.0, 0.0)) * tol;
     vec3 ns = cross(s, es);
-    uint w = plateAt${sfx}(s + es);
+    uint w = plateAt${sfx}(s + es).x;
     if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = es; }
-    if (!mine) { w = plateAt${sfx}(s - es); if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = -es; } }
-    if (!mine) { w = plateAt${sfx}(s + ns); if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = ns; } }
-    if (!mine) { w = plateAt${sfx}(s - ns); if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = -ns; } }
+    if (!mine) { w = plateAt${sfx}(s - es).x; if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = -es; } }
+    if (!mine) { w = plateAt${sfx}(s + ns).x; if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = ns; } }
+    if (!mine) { w = plateAt${sfx}(s - ns).x; if (int(w & ${PLATE_MASK}u) == pl) { mine = true; v = w; thisFix = -ns; } }
   }
   if (!mine) return;
   bool cont = (v & ${CONTINENTAL_BIT}u) != 0u;
@@ -85,20 +87,29 @@ void tryPlate${sfx}(int pl, vec3 p, inout int best, inout bool bestCont, inout v
 // afastamento (só arredondamento) fica com a placa que estava em p, como a recomposição faz.
 int plateNow${sfx}(vec3 p, out vec3 fix) {
   fix = vec3(0.0);
-  uint v0 = plateAt${sfx}(p);
-  int pl0 = int(v0 & ${PLATE_MASK}u);
-  // Atalho para o miolo da placa (a maior parte do planeta): longe de fronteira e com as placas
-  // tendo andado menos que essa distância, só pode ser a própria placa.
-  if ((v0 & ${NEAR_BOUNDARY_BIT}u) == 0u && ${maxDelta} < ${(NEAR_BOUNDARY_CELLS - 0.5).toFixed(1)} * uCellAngle) return pl0;
-  vec3 e = vec3(p.z, 0.0, -p.x);
-  e = dot(e, e) < 1e-12 ? vec3(1.0, 0.0, 0.0) : normalize(e);
+  uvec2 v0 = plateAt${sfx}(p);
+  int pl0 = int(v0.x & ${PLATE_MASK}u);
   float dist = ${maxDelta} * 1.5;
-  vec3 de = e * dist;
-  vec3 dn = cross(p, e) * dist;
-  int c1 = int(plateAt${sfx}(p + de) & ${PLATE_MASK}u);
-  int c2 = int(plateAt${sfx}(p - de) & ${PLATE_MASK}u);
-  int c3 = int(plateAt${sfx}(p + dn) & ${PLATE_MASK}u);
-  int c4 = int(plateAt${sfx}(p - dn) & ${PLATE_MASK}u);
+  int c1; int c2; int c3; int c4;
+  if (dist <= ${NEAR_REACH_CELLS.toFixed(1)} * uCellAngle) {
+    // Candidatas guardadas na própria célula (placas a até alguns passos). Sem nenhuma (o miolo das
+    // placas, a maior parte do planeta), só pode ser a própria placa: nem testa.
+    c1 = int(v0.y & 15u);
+    c2 = int(v0.y >> 4u);
+    if (c1 == pl0 && c2 == pl0) return pl0;
+    c3 = pl0;
+    c4 = pl0;
+  } else {
+    // As placas andaram mais que o alcance guardado (raro): sonda 4 pontos em volta.
+    vec3 e = vec3(p.z, 0.0, -p.x);
+    e = dot(e, e) < 1e-12 ? vec3(1.0, 0.0, 0.0) : normalize(e);
+    vec3 de = e * dist;
+    vec3 dn = cross(p, e) * dist;
+    c1 = int(plateAt${sfx}(p + de).x & ${PLATE_MASK}u);
+    c2 = int(plateAt${sfx}(p - de).x & ${PLATE_MASK}u);
+    c3 = int(plateAt${sfx}(p + dn).x & ${PLATE_MASK}u);
+    c4 = int(plateAt${sfx}(p - dn).x & ${PLATE_MASK}u);
+  }
   int best = -1;
   bool bestCont = false;
   vec3 bestFix = vec3(0.0);
@@ -195,7 +206,7 @@ uniform float uFade; // 1 = só a atual; de 0 a 1 logo depois de uma recomposiç
 // ---- Movimento suave das placas entre recomposições (mesma regra de src/render/plate-motion.ts) ----
 // A textura mostra o mundo composto com as placas nos ângulos "base"; cada placa é rígida, então o
 // conteúdo de p agora é o que estava no ponto desgirado pela rotação que a placa fez desde então.
-uniform highp usampler2DArray uPlates; // bits 0–3 = placa; bit 4 = crosta continental
+uniform highp usampler2DArray uPlates; // R: placa e marcas; G: outras placas por perto (plate-motion.ts)
 uniform int uMoving;                    // 1 = há placas fora do ângulo base
 uniform vec4 uPlateAxis[${MAX_SHADER_PLATES}];   // eixo (xyz) e velocidade relativa (w)
 uniform vec3 uPlateCenter[${MAX_SHADER_PLATES}]; // centro atual de cada placa
@@ -265,12 +276,21 @@ vec3 noise3(vec3 p) {
   return texture(uNoise, p * (1.0 / 64.0)).rgb * 2.0 - 1.0;
 }
 
+// atan(x)/(π/4) para |x| ≤ 1 (dentro de uma face sempre é): polinômio ímpar de grau 11 (Abramowitz
+// & Stegun 4.4.49, erro ≤ 1e-5 rad ≈ 0,2% de uma célula). Na Mali-G52 o atan nativo é bem mais caro, e
+// cada consulta de textura faz dois.
+vec2 atanQuarter(vec2 x) {
+  vec2 x2 = x * x;
+  vec2 r = x * (0.99997726 + x2 * (-0.33262347 + x2 * (0.19354346 + x2 * (-0.11643287 + x2 * (0.05265332 + x2 * -0.01172120)))));
+  return r * (1.0 / QUARTER_PI);
+}
+
 // Texel (x, y, face) da célula que contém o ponto p da esfera.
 ivec3 texelOf(vec3 p) {
   int face; vec3 n; vec3 u; vec3 v;
   faceFrame(p, face, n, u, v);
   float dn = dot(p, n);
-  vec2 ab = atan(vec2(dot(p, u), dot(p, v)) / dn) / QUARTER_PI;
+  vec2 ab = atanQuarter(vec2(dot(p, u), dot(p, v)) / dn);
   ivec2 texel = clamp(ivec2(floor((ab + 1.0) * 0.5 * float(uN))), ivec2(0), ivec2(uN - 1));
   return ivec3(texel, face);
 }
