@@ -340,6 +340,43 @@ congelamento pela solda, e não um empurrão contínuo para os polos.
     42° e no máximo 22% da terra acima de 60°. Os limites são proposta e serão calibrados contra as
     5 sementes antes de travar o teste.
 
+### G1 — Resultado (2026-10-15)
+Mudanças:
+- Frente de colisão só com aproximação de verdade (≥ 0,05).
+- Contador de colisão que desce sem frente.
+- Suturas que somem sem contato continental (até 2 células, 3 recomposições de tolerância).
+- Estágios com polo de Euler novo.
+- Guarda polar também na dispersão inicial, que agora dura 20–25°, os ~2 min da decisão 1.
+- Correção de um defeito antigo: crosta consumida que ainda aparecia em outra célula era morta, e a
+  vizinha virava buraco preenchido com a crosta da outra placa ("vazamento" de continente pela
+  divisa).
+
+Medido (placas 100%, 20×, 10 min):
+
+| | Antes (N = 128) | G1 (N = 128) | G1 (N = 256) |
+|---|---|---|---|
+| Teste das costuras (mesmo eixo para todas): soldas | 6 | 0 | — |
+| `terra`: terra acima de 60° aos 10 min | 26% | 9,5% | 17% |
+| `terra`: latitude média aos 10 min | 36,2° | 30,2° | 36,7° |
+| Maior fração acima de 60° depois de 4 min (5 sementes) | 33% | 18,5% | 25% |
+| Inclinação média da latitude (5 sementes) | — | −0,29°/min | +0,19°/min |
+| Velocidade relativa nas fronteiras aos 10 min | 0,05–0,24 | 0,10–0,50 | 0,25–0,50 |
+| Grupos continentais aos 10 min | 1 nas 5 | 1–2 | 1–2 |
+
+Mapas depois do G1: `docs/img/m2-g1-deriva-10min-terra.png` e `-42.png` (mesmo formato dos de antes).
+
+Em 20 sementes (N = 128): a latitude média vai de 32,7° no início a 37,7° aos 3 min, quando a Pangeia
+termina de se espalhar, e volta a 34,9° aos 10 min. Depois de 4 min, fica entre 25,6° e 45,9°, com no
+máximo 26% da terra acima de 60°.
+
+O que **não** some no G1:
+- Uma Pangeia equatorial (`terra`, `ilha`) sobe de ~24° para ~37° ao se espalhar pelo globo. Terra
+  espalhada por igual dá 32,7°, então espalhar já sobe a média; não há acúmulo nos polos.
+- Os continentes ainda acabam num grupo só em 2 das 5 sementes (N = 256): é o G2.
+- O critério de formas passou a ser medido aos 3 min, com o critério de verdade (4 a 7 continentes,
+  nenhum acima de 40%). Aos 2 min a quebra ainda está no meio. `terra`, `mundo` e `7` passam (maior:
+  27%, 31%, 24%). `42` (44%) e `ilha` (61%) já estavam fora antes do G1: é o G3.
+
 ### G2 — Deriva morre: diagnóstico
 Confirmado. Número de grupos soldados entre as placas com ≥ 1,5% de crosta continental, e atividade
 nas fronteiras (velocidade relativa média entre placas vizinhas):
@@ -375,10 +412,17 @@ de "bonito".
   - Se 3 suturas se encontram num ponto, a ruptura começa ali (**junção tríplice**). Com chance de
     1/3, um dos 3 braços **falha**: não abre, mas vira um vale de rifte interior (aulacógeno; ver
     G3).
-  - Os pedaços recebem polos novos, afastando-se do centro do grupo com ±30° de desvio e velocidade
-    de 0,5 a 1,0. Logo depois entra a reorganização da G1.
-- **Ritmo do ciclo** (a confirmar): dispersão ~2 min (decisão 1), reaproximação e solda de ~4 a 6
-  min, supercontinente ~2 min. Ciclo completo de ~8 a 12 min a 20× com Placas 100%.
+  - **Polos novos a cada ruptura (confirmado pelo usuário):** os pedaços recebem polos de Euler
+    novos, sorteados para **não repetir o "balão"**. Cada pedaço se afasta **da fenda vizinha**
+    (perpendicular à linha do rifte, ±45°), e não do centro do supercontinente. Os grandes círculos
+    não se cruzam mais todos num mesmo ponto, e vale a guarda polar do G1: nenhum rumo leva o centro
+    da terra do pedaço além de 65°, ficando mais perto do polo. Velocidade de 0,5 a 1,0. Depois, os
+    estágios do G1.
+  - **Tempos em constantes** fáceis de ajustar em `tectonics.ts`: mandato do supercontinente,
+    fração que define supercontinente, regra secundária, chance do braço que falha, alcance e
+    tolerância das suturas, estágio.
+- **Ritmo do ciclo** (aprovado pelo usuário): dispersão ~2 min (decisão 1), reaproximação e solda
+  de ~4 a 6 min, supercontinente ~2 min. Ciclo completo de ~8 a 12 min a 20× com Placas 100%.
 - **Teste (CI):** em 15 min a 20× com Placas 100%, nas 5 sementes:
   - pelo menos um supercontinente se forma e se parte;
   - o número de grupos continentais nunca fica em 1 por mais que 1,5 mandato;
@@ -440,7 +484,18 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
   as placas.
 - O "Medir desempenho" ganha um cenário com ruptura forçada, e o relatório do aparelho decide.
 
-### Decisões que preciso de você antes de codar
+### Decisões do usuário (2026-10-15, noite)
+1. (a) Pangeia como está, mas os polos de Euler novos a cada ruptura não repetem o "balão" (acima).
+2. Ritmo aprovado; tempos em constantes fáceis de ajustar.
+3. Sim: a Pangeia nasce soldada e a primeira quebra usa os riftes traçados (geração v3).
+4. Sem prints agora; as formas são avaliadas depois do G3.
+- O G1 corrige explicitamente a solda à distância e a falsa colisão por arredondamento, cada uma com
+  teste.
+- Antes de fechar o bloco G, repetir as medições de latitude e de grupos soldados em N = 256. Se
+  subir para 32 placas, medir no Hot 50i antes de aceitar.
+- Parar ao fim de cada G com algo visível na prévia.
+
+### Perguntas que foram feitas antes de codar
 1. **Latitude inicial da Pangeia:**
    - **(a, recomendada)** continua como está (centro entre ±34°). A dispersão sobe a latitude média
      até o equilíbrio (~33°) nos 2 primeiros minutos, e o teste mede a tendência daí em diante.
@@ -453,8 +508,9 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
    vieram.
 
 ### Tarefas (depois da aprovação, nesta ordem; cada uma = um commit)
-- [ ] **G1 — Latitude:** solda só com aproximação; reorganização dos polos; testes de rigidez/costuras
-  e de tendência de latitude.
+- [x] **G1 — Latitude:** solda só com aproximação; solda à distância corrigida (sutura some sem
+  contato); reorganização dos polos com guarda polar; testes de rigidez/costuras, de solda à
+  distância e de tendência de latitude. Resultado abaixo ("G1 — Resultado").
 - [ ] **G2 — Ciclo de Wilson:** suturas explícitas; sutura sem contato some; supercontinente,
   mandato e ruptura por sutura e junção tríplice; teste de 15 min; cenário no "Medir desempenho".
 - [ ] **G3 — Riftes traçados e formas:** braços serpenteando com degraus, aulacógeno,
@@ -466,8 +522,8 @@ Feito no `marco-2` (prévia em `/previa/marco-2/`): T1–T5, correção do trava
 a correção dos pedaços de placa (commit `d36c156`, confirmada no celular: a oscilação sumiu; o
 relatório do aparelho bateu todas as metas de fps e geração).
 
-Aguardando o usuário: as 4 decisões do **Bloco G** (acima). Depois, G1 → G2 → G3, cada uma com teste
-no celular. Ainda pendentes: confirmar no celular o travamento em 92% e os lagos retos
+Bloco G aprovado. **G1 feito**, aguardando o teste do usuário na prévia; depois G2 e G3, cada um com
+teste no celular. Ainda pendentes: confirmar no celular o travamento em 92% e os lagos retos
 (`docs/bugs.md`), avaliar as imagens de formas e a T5. T6 (minerais) segue congelada.
 
 Questão em aberto que continua: **"tamanho fixo" das placas.** Ao pé da letra é impossível com placas

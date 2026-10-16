@@ -1,7 +1,7 @@
 import type { Vec3 } from './cubesphere';
-import { createRng } from '../core/rng';
+import { createRng, type Rng } from '../core/rng';
 import { Noise3D } from './noise';
-import { Boundary, CONTINENTAL_DEPTH, Crust, updateBoundaries } from './plates';
+import { Boundary, CONTINENTAL_DEPTH, Crust, DISPERSAL_STAGE, DISPERSAL_STAGE_MIN, POLAR_GUARD, rotateAbout, updateBoundaries } from './plates';
 import type { WorldState } from './state';
 
 /**
@@ -49,6 +49,38 @@ export const FRAGMENT_SHARE = 0.004;
  * oceânica), a lasca que está colidindo passa para a outra placa (acreção) em vez de soldar as duas.
  */
 export const CONTINENT_SHARE = 0.015;
+/**
+ * Frente de colisão só conta onde as placas se aproximam de verdade (velocidade relativa na direção
+ * entre os centros, na escala da velocidade relativa 1). Antes, crosta consumida só por
+ * arredondamento contava como colisão e soldava placas sem movimento relativo nenhum (G1).
+ */
+export const COLLISION_CLOSING_MIN = 0.05;
+/**
+ * Sutura (G1): duas placas soldadas continuam soldadas enquanto houver crosta continental de uma a
+ * até SUTURE_REACH células de crosta continental da outra. Sem contato por SUTURE_GRACE recomposições
+ * seguidas, a sutura some (acaba a "solda à distância").
+ */
+export const SUTURE_REACH = 2;
+export const SUTURE_GRACE = 3;
+
+// --- Reorganização das placas (G1). Ângulos em rad de giro a velocidade relativa 1 (o "relógio da
+// deriva": anda com o controle Placas, para em 0). 1 min de jogo a 20× com Placas 100% ≈ 11,6°. ---
+const DEG = Math.PI / 180;
+/** Duração de um estágio: ao fim dele, o grupo de placas ganha polo de Euler novo. */
+export const STAGE_MIN = 30 * DEG;
+export const STAGE_MAX = 45 * DEG;
+/** O rumo novo fica a até este ângulo do rumo atual (sem zigue-zague). */
+export const STAGE_TURN_MAX = 60 * DEG;
+/** Velocidade relativa sorteada para o estágio novo. */
+export const STAGE_SPEED_MIN = 0.4;
+export const STAGE_SPEED_MAX = 1;
+/** Grupo com muito continente anda mais devagar: até −40% com metade ou mais da crosta continental. */
+export const STAGE_CONTINENT_SLOWDOWN = 0.4;
+/**
+ * Guarda polar (POLAR_GUARD, em plates.ts): um rumo que levaria o centro do grupo, ao longo do
+ * estágio, além dela (e mais perto do polo do que está) é sorteado de novo, até STAGE_DRAWS vezes.
+ */
+const STAGE_DRAWS = 8;
 
 // --- Relevo nas fronteiras (T5). Valores por recomposição (cada uma = RECOMPOSE_CELLS de deriva). ---
 /** Idade (passos) em que o fundo oceânico chega à planície abissal. */
@@ -107,11 +139,26 @@ export class Tectonics {
    */
   private rot0: Float64Array;
   private angle0: Float64Array;
-  /** Solda: grupo de cada placa (união-busca) e recomposições de colisão de cada par. */
+  /**
+   * Solda: grupo de cada placa (a menor placa do grupo), refeito a partir das suturas; e o contador de
+   * colisão de cada par (sobe a cada recomposição com frente, desce sem frente).
+   */
   private group: Int32Array;
   private collisions = new Map<number, number>();
+  /** Suturas (par de placas → passo em que nasceu e recomposições seguidas sem contato). */
+  private sutures = new Map<number, { born: number; miss: number }>();
+  /** Relógio da deriva (rad de giro a velocidade 1) e onde termina o estágio de cada placa. */
+  private drift = 0;
+  private stageEnd: Float64Array;
+  /** Sorteios dos eventos da tectônica (estágios), separados dos da geração. */
+  private rng: Rng;
+  /** Liga a reorganização por estágios (os testes de movimento puro desligam). */
+  readonly stagesEnabled: boolean;
   /** Quantas soldas e pedaços absorvidos já houve (para medir e testar). */
   welds = 0;
+  /** Quantas suturas sumiram por falta de contato e quantas reorganizações de polo houve. */
+  suturesDissolved = 0;
+  reorganizations = 0;
   /** Maior sequência de recomposições seguidas em que um par colidiu sem soldar (para testar). */
   longestCollision = 0;
   private collisionRuns = new Map<number, number>();
@@ -155,9 +202,11 @@ export class Tectonics {
   /** Relevo nas fronteiras (T5). Os testes de movimento puro desligam para comparar alturas exatas. */
   readonly reliefEnabled: boolean;
 
-  constructor(world: WorldState, options: { relief?: boolean } = {}) {
+  constructor(world: WorldState, options: { relief?: boolean; stages?: boolean } = {}) {
     this.world = world;
     this.reliefEnabled = options.relief ?? true;
+    this.stagesEnabled = options.stages ?? true;
+    this.rng = createRng((world.params.seed ^ 0x6c8e9cf5) >>> 0);
     const n = world.cellCount;
     const plates = world.plates.length;
     this.angle = new Float64Array(plates);
@@ -168,9 +217,12 @@ export class Tectonics {
     this.rot0 = new Float64Array(plates * 9);
     this.angle0 = new Float64Array(plates);
     this.group = new Int32Array(plates);
+    this.stageEnd = new Float64Array(plates);
     for (let k = 0; k < plates; k++) {
       this.rot0[k * 9] = this.rot0[k * 9 + 4] = this.rot0[k * 9 + 8] = 1;
       this.group[k] = k;
+      // O primeiro estágio é o da dispersão da Pangeia (eixos da geração), mais curto.
+      this.stageEnd[k] = this.rng.range(DISPERSAL_STAGE_MIN, DISPERSAL_STAGE);
     }
     world.plates.forEach((p, k) => {
       const s = Math.hypot(p.omega[0], p.omega[1], p.omega[2]);
@@ -294,6 +346,7 @@ export class Tectonics {
     this.tick++;
     if (rate <= 0) return false;
     const plates = this.angle.length;
+    this.drift += MAX_PLATE_RATE * rate;
     let maxMove = 0;
     for (let p = 0; p < plates; p++) {
       this.angle[p] = (this.angle[p] as number) + MAX_PLATE_RATE * rate * (this.speed[p] as number);
@@ -454,6 +507,11 @@ export class Tectonics {
 
     const gaps: number[] = [];
     const covering: number[] = [];
+    // Crosta consumida nesta recomposição. Só morre no fim da composição e se não estiver aparecendo
+    // em outra célula: duas células do mundo podem cair na mesma célula do referencial da placa, e
+    // matar a amostra deixava a vizinha apontando para crosta morta (virava buraco na recomposição
+    // seguinte, preenchido com a crosta da outra placa: continente "vazando" pela divisa).
+    const doomed: number[] = [];
     // Células que mudaram de dona porque a dona de antes não tinha amostra ali (ver "dentes" abaixo).
     const switched: number[] = [];
     for (let c = 0; c < n; c++) {
@@ -504,9 +562,17 @@ export class Tectonics {
         // que a vencedora já tinha (a célula e as 4 vizinhas eram dela): isso não é arredondamento.
         // Antes só valia o primeiro teste (direção entre os centros, grosseira na borda), e crosta
         // ficava escondida sob a outra placa, acumulando e reaparecendo depois como pedaços soltos.
-        if (this.closing(loser, winner, x, y, z) <= 0 && !deepInside(c, winner)) continue;
-        this.kill(i);
-        if (this.sCrust[i] === Crust.Continental && this.sCrust[win] === Crust.Continental && this.find_(loser) !== this.find_(winner)) {
+        const closing = this.closing(loser, winner, x, y, z);
+        if (closing <= 0 && !deepInside(c, winner)) continue;
+        doomed.push(i);
+        // Só aproximação de verdade é frente de colisão: o consumo por arredondamento (deepInside sem
+        // aproximação) limpa a crosta escondida, mas não conta para a solda.
+        if (
+          closing > COLLISION_CLOSING_MIN &&
+          this.sCrust[i] === Crust.Continental &&
+          this.sCrust[win] === Crust.Continental &&
+          this.find_(loser) !== this.find_(winner)
+        ) {
           const key = pairKey(loser, winner);
           const cells = front.get(key);
           if (cells) cells.push(c);
@@ -545,7 +611,12 @@ export class Tectonics {
       let i = this.find(owner, ref);
       if (i < 0) i = this.addSample(owner, ref, this.sElev[from] as number, this.sCrust[from] as number, this.sBirth[from] as number);
       newSample[c] = i;
-      if (converging) this.kill(intruder);
+      if (converging) doomed.push(intruder);
+    }
+    if (doomed.length) {
+      const shown = new Set<number>();
+      for (let c = 0; c < n; c++) if ((newSample[c] as number) >= 0) shown.add(newSample[c] as number);
+      for (const i of doomed) if (!shown.has(i)) this.kill(i);
     }
 
     // Buracos: dorsal (crosta oceânica nova) onde as placas se afastam; senão, cicatriza copiando.
@@ -622,10 +693,16 @@ export class Tectonics {
     // dona ao mesmo tempo e isso podia deixar uma célula solta nova.
     for (let pass = 0; pass < 4 && this.absorbFragments(inv); pass++);
     for (const key of accreted) front.delete(key);
+    // Suturas sem contato somem; grupos no fim do estágio ganham polo novo (antes das fronteiras,
+    // que leem o movimento novo).
+    const contact = this.continentalContacts(front);
+    const sums = this.plateSums();
+    this.updateSutures(contact, sums);
+    if (this.stagesEnabled) this.advanceStages(sums);
     updateBoundaries(world);
     if (this.reliefEnabled) this.relief();
     // Depois do relevo: a recomposição que completa a colisão ainda ergue a cordilheira.
-    if (this.weldCollisions(front)) updateBoundaries(world);
+    if (this.weldCollisions(front, contact)) updateBoundaries(world);
     this.recompositions++;
     this.compact();
   }
@@ -830,11 +907,242 @@ export class Tectonics {
     return pa === prevOwner && pb !== prevOwner;
   }
 
-  /** Raiz do grupo de solda da placa. */
+  /** Grupo de solda da placa (a menor placa ligada a ela por suturas). */
   private find_(p: number): number {
-    let r = p;
-    while (this.group[r] !== r) r = this.group[r] as number;
-    return r;
+    return this.group[p] as number;
+  }
+
+  /** Refaz os grupos a partir das suturas (componentes ligadas). */
+  private rebuildGroups(): void {
+    const plates = this.angle.length;
+    const parent = Int32Array.from({ length: plates }, (_, k) => k);
+    const root = (p: number): number => {
+      while (parent[p] !== p) p = parent[p] as number;
+      return p;
+    };
+    for (const key of this.sutures.keys()) {
+      const ra = root(Math.floor(key / 256));
+      const rb = root(key % 256);
+      if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb);
+    }
+    for (let p = 0; p < plates; p++) this.group[p] = root(p);
+  }
+
+  /** Placas do grupo de `p`. */
+  private members(p: number): number[] {
+    const g = this.group[p];
+    const out: number[] = [];
+    for (let k = 0; k < this.angle.length; k++) if (this.group[k] === g) out.push(k);
+    return out;
+  }
+
+  /**
+   * Contato continental de cada par de placas: quantas células de crosta continental de uma têm
+   * crosta continental da outra a até SUTURE_REACH células. Só para as placas em suturas ou numa
+   * frente de colisão desta recomposição.
+   */
+  private continentalContacts(front: Map<number, number[]>): Map<number, number> {
+    const world = this.world;
+    const { neighbors } = world.grid;
+    const n = world.cellCount;
+    const involved = new Uint8Array(this.angle.length);
+    for (const key of [...this.sutures.keys(), ...front.keys()]) {
+      involved[Math.floor(key / 256)] = 1;
+      involved[key % 256] = 1;
+    }
+    const contact = new Map<number, number>();
+    if (!involved.some((v) => v)) return contact;
+    const stamp = new Int32Array(n).fill(-1);
+    const seenPairs: number[] = [];
+    let frontier: number[] = [];
+    let next: number[] = [];
+    for (let c = 0; c < n; c++) {
+      const p = world.plate[c] as number;
+      if (!involved[p] || world.crust[c] !== Crust.Continental) continue;
+      seenPairs.length = 0;
+      frontier.length = 0;
+      frontier.push(c);
+      stamp[c] = c;
+      for (let step = 0; step < SUTURE_REACH; step++) {
+        next.length = 0;
+        for (const k of frontier) {
+          for (let d = 0; d < 4; d++) {
+            const nb = neighbors[k * 4 + d] as number;
+            if (stamp[nb] === c) continue;
+            stamp[nb] = c;
+            next.push(nb);
+            const q = world.plate[nb] as number;
+            if (q !== p && world.crust[nb] === Crust.Continental && !seenPairs.includes(q)) seenPairs.push(q);
+          }
+        }
+        [frontier, next] = [next, frontier];
+      }
+      for (const q of seenPairs) {
+        const key = pairKey(p, q);
+        contact.set(key, (contact.get(key) ?? 0) + 1);
+      }
+    }
+    return contact;
+  }
+
+  /** Soma das posições (todas e só as continentais) e área continental de cada placa. */
+  private plateSums(): { all: Float64Array; cont: Float64Array; contCells: Float64Array; totalCont: number } {
+    const world = this.world;
+    const { positions } = world.grid;
+    const plates = this.angle.length;
+    const all = new Float64Array(plates * 3);
+    const cont = new Float64Array(plates * 3);
+    const contCells = new Float64Array(plates);
+    let totalCont = 0;
+    for (let c = 0; c < world.cellCount; c++) {
+      const p = world.plate[c] as number;
+      const x = positions[c * 3] as number;
+      const y = positions[c * 3 + 1] as number;
+      const z = positions[c * 3 + 2] as number;
+      all[p * 3] = (all[p * 3] as number) + x;
+      all[p * 3 + 1] = (all[p * 3 + 1] as number) + y;
+      all[p * 3 + 2] = (all[p * 3 + 2] as number) + z;
+      if (world.crust[c] !== Crust.Continental) continue;
+      cont[p * 3] = (cont[p * 3] as number) + x;
+      cont[p * 3 + 1] = (cont[p * 3 + 1] as number) + y;
+      cont[p * 3 + 2] = (cont[p * 3 + 2] as number) + z;
+      contCells[p] = (contCells[p] as number) + 1;
+      totalCont++;
+    }
+    return { all, cont, contCells, totalCont };
+  }
+
+  /**
+   * Suturas: com contato, zera a contagem; sem contato por SUTURE_GRACE recomposições, a sutura
+   * some. Se um grupo se divide, cada pedaço ganha polo novo (antes, as placas ficavam soldadas à
+   * distância para sempre).
+   */
+  private updateSutures(contact: Map<number, number>, sums: ReturnType<Tectonics['plateSums']>): void {
+    let changed = false;
+    for (const [key, s] of this.sutures) {
+      if ((contact.get(key) ?? 0) > 0) {
+        s.miss = 0;
+        continue;
+      }
+      s.miss++;
+      if (s.miss >= SUTURE_GRACE) {
+        this.sutures.delete(key);
+        this.suturesDissolved++;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    const before = Int32Array.from(this.group);
+    this.rebuildGroups();
+    const done = new Set<number>();
+    for (let p = 0; p < this.angle.length; p++) {
+      const g = this.group[p] as number;
+      if (done.has(g)) continue;
+      done.add(g);
+      const members = this.members(p);
+      // O grupo mudou se alguém do grupo antigo ficou de fora.
+      const old = before[p] as number;
+      let split = false;
+      for (let k = 0; k < this.angle.length; k++) if (before[k] === old && this.group[k] !== g) split = true;
+      if (split) this.reorganize(members, sums);
+    }
+  }
+
+  /** Grupos cujo estágio acabou ganham polo de Euler novo. */
+  private advanceStages(sums: ReturnType<Tectonics['plateSums']>): void {
+    for (let p = 0; p < this.angle.length; p++) {
+      if (this.group[p] !== p || this.drift < (this.stageEnd[p] as number)) continue;
+      this.reorganize(this.members(p), sums);
+    }
+  }
+
+  /**
+   * Polo de Euler novo para um grupo (G1): o rumo do centro do grupo vira até ±STAGE_TURN_MAX, a
+   * velocidade é sorteada de novo (menor com muito continente) e o estágio recomeça. Rumo que levaria
+   * o centro além de POLAR_GUARD, chegando mais perto do polo, é sorteado de novo.
+   */
+  private reorganize(members: number[], sums: ReturnType<Tectonics['plateSums']>): void {
+    if (!members.length) return;
+    const rng = this.rng;
+    let contCells = 0;
+    for (const p of members) contCells += sums.contCells[p] as number;
+    const src = contCells > 0 ? sums.cont : sums.all;
+    let gx = 0;
+    let gy = 0;
+    let gz = 0;
+    for (const p of members) {
+      gx += src[p * 3] as number;
+      gy += src[p * 3 + 1] as number;
+      gz += src[p * 3 + 2] as number;
+    }
+    const gl = Math.hypot(gx, gy, gz);
+    if (gl < 1e-9) return;
+    const g: Vec3 = [gx / gl, gy / gl, gz / gl];
+    // Rumo atual do centro: ω × g (ou um rumo qualquer, se o grupo está parado).
+    const p0 = members[0] as number;
+    const s0 = this.speed[p0] as number;
+    const wx = (this.axis[p0 * 3] as number) * s0;
+    const wy = (this.axis[p0 * 3 + 1] as number) * s0;
+    const wz = (this.axis[p0 * 3 + 2] as number) * s0;
+    let dir: Vec3 = [wy * g[2] - wz * g[1], wz * g[0] - wx * g[2], wx * g[1] - wy * g[0]];
+    if (Math.hypot(...dir) < 1e-6) {
+      const z = rng.range(-1, 1);
+      const t = rng.range(0, Math.PI * 2);
+      const r = Math.sqrt(1 - z * z);
+      const u: Vec3 = [r * Math.cos(t), r * Math.sin(t), z];
+      dir = [g[1] * u[2] - g[2] * u[1], g[2] * u[0] - g[0] * u[2], g[0] * u[1] - g[1] * u[0]];
+    }
+    const dl = Math.hypot(...dir) || 1;
+    dir = [dir[0] / dl, dir[1] / dl, dir[2] / dl];
+    const side: Vec3 = [g[1] * dir[2] - g[2] * dir[1], g[2] * dir[0] - g[0] * dir[2], g[0] * dir[1] - g[1] * dir[0]];
+    const share = sums.totalCont > 0 ? contCells / sums.totalCont : 0;
+    const slow = 1 - STAGE_CONTINENT_SLOWDOWN * Math.min(1, share / 0.5);
+    const latNow = Math.abs(Math.asin(Math.max(-1, Math.min(1, g[1]))));
+    let best: { axis: Vec3; speed: number; stage: number; lat: number } | null = null;
+    for (let k = 0; k < STAGE_DRAWS; k++) {
+      const a = rng.range(-STAGE_TURN_MAX, STAGE_TURN_MAX);
+      const d: Vec3 = [
+        dir[0] * Math.cos(a) + side[0] * Math.sin(a),
+        dir[1] * Math.cos(a) + side[1] * Math.sin(a),
+        dir[2] * Math.cos(a) + side[2] * Math.sin(a),
+      ];
+      const ax: Vec3 = [g[1] * d[2] - g[2] * d[1], g[2] * d[0] - g[0] * d[2], g[0] * d[1] - g[1] * d[0]];
+      const al = Math.hypot(...ax) || 1;
+      const axis: Vec3 = [ax[0] / al, ax[1] / al, ax[2] / al];
+      const speed = rng.range(STAGE_SPEED_MIN, STAGE_SPEED_MAX) * slow;
+      const stage = rng.range(STAGE_MIN, STAGE_MAX);
+      // Maior latitude do centro ao longo do estágio (giro de speed × stage em torno do eixo novo).
+      let lat = 0;
+      for (let q = 1; q <= 4; q++) {
+        const e = rotateAbout(g, axis, (speed * stage * q) / 4);
+        lat = Math.max(lat, Math.abs(Math.asin(Math.max(-1, Math.min(1, e[1])))));
+      }
+      if (!best || lat < best.lat) best = { axis, speed, stage, lat };
+      if (lat <= POLAR_GUARD || lat <= latNow) {
+        best = { axis, speed, stage, lat };
+        break;
+      }
+    }
+    if (!best) return;
+    this.setMotion(members, best.axis, best.speed);
+    for (const p of members) this.stageEnd[p] = this.drift + best.stage;
+    this.reorganizations++;
+  }
+
+  /** Congela a posição atual de cada placa em rot0 e passa a girar em torno do eixo novo. */
+  private setMotion(members: number[], axis: Vec3, speed: number): void {
+    const m = new Float64Array(9);
+    for (const p of members) {
+      this.rotation(p, m);
+      this.rot0.set(m, p * 9);
+      this.angle0[p] = this.angle[p] as number;
+      this.speed[p] = speed;
+      this.axis[p * 3] = axis[0];
+      this.axis[p * 3 + 1] = axis[1];
+      this.axis[p * 3 + 2] = axis[2];
+      const plate = this.world.plates[p];
+      if (plate) plate.omega = [axis[0] * speed, axis[1] * speed, axis[2] * speed];
+    }
   }
 
   /** Idade média e profundidade média do fundo oceânico de cada placa (para decidir a polaridade). */
@@ -884,18 +1192,24 @@ export class Tectonics {
   }
 
   /**
-   * Solda: pares de placas com colisão continental nesta recomposição somam uma; ao chegar em
-   * WELD_AFTER, os dois grupos passam a girar juntos (vetor de rotação médio, pesado pela área). As
-   * placas continuam com a mesma identidade; só deixam de se mover uma contra a outra.
+   * Solda: o contador de colisão de cada par sobe a cada recomposição com frente e desce sem frente
+   * (antes acumulava para sempre, e toques esporádicos ao longo de minutos soldavam placas que mal se
+   * encostavam). Ao chegar em WELD_AFTER, com contato continental, nasce uma sutura e os dois grupos
+   * passam a girar juntos (vetor de rotação médio, pesado pela área).
    */
-  private weldCollisions(front: Map<number, number[]>): boolean {
+  private weldCollisions(front: Map<number, number[]>, contact: Map<number, number>): boolean {
     const before = this.welds;
-    // Sequências de colisão seguidas de cada par (só para medir: a solda conta o total).
+    // Sequências de colisão seguidas de cada par (só para medir).
     for (const key of [...this.collisionRuns.keys()]) if (!front.has(key)) this.collisionRuns.delete(key);
     for (const key of front.keys()) {
       const run = (this.collisionRuns.get(key) ?? 0) + 1;
       this.collisionRuns.set(key, run);
       this.longestCollision = Math.max(this.longestCollision, run);
+    }
+    for (const [key, k] of [...this.collisions]) {
+      if (front.has(key)) continue;
+      if (k <= 1) this.collisions.delete(key);
+      else this.collisions.set(key, k - 1);
     }
     for (const key of front.keys()) {
       const a = Math.floor(key / 256);
@@ -903,26 +1217,24 @@ export class Tectonics {
       if (this.find_(a) === this.find_(b)) continue;
       const k = (this.collisions.get(key) ?? 0) + 1;
       this.collisions.set(key, k);
-      if (k >= WELD_AFTER) this.weld(a, b);
+      if (k >= WELD_AFTER && (contact.get(key) ?? 0) > 0) this.weld(a, b);
     }
     return this.welds !== before;
   }
 
   private weld(a: number, b: number): void {
     const world = this.world;
-    const plates = this.angle.length;
-    const ra = this.find_(a);
-    const rb = this.find_(b);
-    this.group[rb] = ra;
+    const key = pairKey(a, b);
+    this.sutures.set(key, { born: this.tick, miss: 0 });
+    this.collisions.delete(key);
+    this.rebuildGroups();
+    const members = this.members(a);
     // Área de cada placa agora.
-    const area = new Float64Array(plates);
+    const area = new Float64Array(this.angle.length);
     for (let c = 0; c < world.cellCount; c++) area[world.plate[c] as number] = (area[world.plate[c] as number] as number) + 1;
-    const members: number[] = [];
     const omega: Vec3 = [0, 0, 0];
     let total = 0;
-    for (let p = 0; p < plates; p++) {
-      if (this.find_(p) !== ra) continue;
-      members.push(p);
+    for (const p of members) {
       const w = area[p] as number;
       const s = this.speed[p] as number;
       omega[0] += (this.axis[p * 3] as number) * s * w;
@@ -932,20 +1244,22 @@ export class Tectonics {
     }
     if (total > 0) for (let d = 0; d < 3; d++) omega[d] = (omega[d] as number) / total;
     const speed = Math.hypot(omega[0], omega[1], omega[2]);
-    const m = new Float64Array(9);
-    for (const p of members) {
-      // Congela a posição atual em rot0 e recomeça o giro em torno do eixo comum.
-      this.rotation(p, m);
-      this.rot0.set(m, p * 9);
-      this.angle0[p] = this.angle[p] as number;
-      this.speed[p] = speed;
-      this.axis[p * 3] = speed > 0 ? omega[0] / speed : 0;
-      this.axis[p * 3 + 1] = speed > 0 ? omega[1] / speed : 1;
-      this.axis[p * 3 + 2] = speed > 0 ? omega[2] / speed : 0;
-      const plate = world.plates[p];
-      if (plate) plate.omega = [omega[0], omega[1], omega[2]];
-    }
+    const axis: Vec3 = speed > 0 ? [omega[0] / speed, omega[1] / speed, omega[2] / speed] : [0, 1, 0];
+    this.setMotion(members, axis, speed);
+    // Estágio novo para o grupo soldado (o polo novo vem no fim dele).
+    const stage = this.rng.range(STAGE_MIN, STAGE_MAX);
+    for (const p of members) this.stageEnd[p] = this.drift + stage;
     this.welds++;
+  }
+
+  /** Suturas atuais (par de placas e passo em que nasceram), para medir e testar. */
+  sutureList(): { a: number; b: number; born: number }[] {
+    return [...this.sutures].map(([key, s]) => ({ a: Math.floor(key / 256), b: key % 256, born: s.born }));
+  }
+
+  /** Grupo de solda de cada placa (a menor placa do grupo), para medir e testar. */
+  groupOf(p: number): number {
+    return this.find_(p);
   }
 
   /**

@@ -135,8 +135,16 @@ fragmento pequeno gruda na placa maior; nada oscilando, nada colidindo para semp
   avança por cima da outra), ela fica com a dona. Menos vizinhas não: arrastaria tiras atrás de placas
   que recuam.
 - **Solda continental**: duas placas com continente de verdade (≥ 1,5% do planeta em crosta
-  continental cada) que colidem em 8 recomposições erguem a cordilheira e então passam a girar juntas
-  (vetor de rotação médio pesado pela área). As placas mantêm a identidade.
+  continental cada) que colidem erguem a cordilheira e, quando o contador de colisão do par chega a 8,
+  passam a girar juntas (vetor de rotação médio pesado pela área). O contador sobe a cada recomposição
+  com frente de colisão e desce a cada uma sem frente (G1; antes acumulava para sempre, e toques
+  esporádicos soldavam placas que mal se encostavam). Só conta como frente a crosta consumida onde as
+  placas se aproximam de verdade (≥ 0,05 de velocidade relativa); o consumo por arredondamento não
+  solda nada (G1). As placas mantêm a identidade.
+- **Suturas (G1)**: cada solda é uma sutura entre duas placas; o grupo soldado é o conjunto de placas
+  ligadas por suturas. A sutura vive enquanto houver crosta continental de uma placa a até 2 células
+  da outra; sem contato por 3 recomposições seguidas, ela some e cada pedaço do grupo ganha polo de
+  Euler novo (acabou a "solda à distância"). Solda nova também exige esse contato.
 - **Acreção**: se um dos lados da colisão tem pouco continente (uma lasca numa placa quase toda
   oceânica), a crosta continental dele ligada à frente passa para a outra placa e anda com ela. Antes
   essas placas se soldavam (prendendo placas oceânicas a continentes) ou ficavam moendo para sempre.
@@ -144,9 +152,27 @@ fragmento pequeno gruda na placa maior; nada oscilando, nada colidindo para semp
   planeta passa para a vizinha com quem mais faz divisa; repete até não sobrar nenhum.
 - **Crosta enterrada**: crosta que entrou fundo no território que a outra placa já tinha (a célula e
   as 4 vizinhas) é consumida, além do teste de aproximação pelos centros das placas.
+- **Crosta consumida que ainda aparece**: duas células do mundo podem cair na mesma célula do
+  referencial da placa. A crosta consumida numa delas só morre se não estiver aparecendo em outra
+  (antes, a vizinha ficava apontando para crosta morta, virava buraco e era preenchida com a crosta da
+  outra placa: continente "vazando" pela divisa).
 - O movimento de cada placa é a rotação acumulada até a última troca de eixo mais o giro em torno do
-  eixo atual; o eixo só muda numa solda, e a tela recebe eixo, velocidade e centro novos junto com a
-  recomposição.
+  eixo atual; o eixo muda numa solda, numa divisão de grupo e no fim de cada estágio, sempre numa
+  recomposição, e a tela recebe eixo, velocidade e centro novos junto com ela.
+- **Estágios e polos de Euler novos (G1)**: o "relógio da deriva" anda com o controle Placas (rad de
+  giro a velocidade 1; 1 min de jogo a 20× com Placas 100% ≈ 11,6°). O primeiro estágio é a dispersão
+  da Pangeia (20–25°, ~2 min); depois, cada grupo ganha polo novo a cada 30–45°: o rumo do centro do
+  grupo vira até ±60°, a velocidade é sorteada de novo (0,4–1,0, até 40% mais lenta com metade ou
+  mais da crosta continental) e o estágio recomeça. Sorteios com semente própria da tectônica.
+- **Guarda polar (G1)**: nenhum rumo (nem na dispersão da Pangeia, nem num polo novo) pode levar o
+  centro da terra da placa/grupo além de 65° ao longo do estágio, ficando mais perto do polo; na
+  geração, o rumo "para fora da Pangeia" é desviado o mínimo possível (até ±80°, sem sorteio novo).
+  Antes, a dispersão em "balão" de uma Pangeia equatorial mandava continentes para os polos e a solda
+  os prendia lá.
+- Teste automático (`tests/world/drift-latitude.test.ts`): todas as placas com o mesmo eixo (o mapa
+  gira rígido cruzando as costuras do cubo) sem nenhuma solda e com a latitude da conta exata; solda
+  que some sem contato; latitude da terra em 10 min nas 5 sementes (20°–45°, ≤ 30% acima de 60° e
+  ≤ 25% depois de 4 min, inclinação média < 0,75°/min).
 - Teste automático (`tests/world/plates-long.test.ts`): 5 min a 20× com placas em 100%, 3 sementes;
   a cada recomposição nenhum pedaço solto, nenhuma colisão além da solda, trocas A→B→A < 0,06%.
 

@@ -345,3 +345,24 @@ Formato: data — decisão — motivo — alternativa descartada.
 
   Alternativa descartada: só limitar a latitude à força (empurrar a terra de volta para os trópicos).
   Esconderia a causa e não tem base física.
+
+- **2026-10-15 — G1: suturas, estágios com polo novo e guarda polar.**
+  - **Solda:** só com aproximação de verdade (≥ 0,05 de velocidade relativa) e com contato
+    continental (até 2 células). O contador de colisão desce sem frente. A sutura some depois de 3
+    recomposições sem contato.
+  - **Estágios:** a cada estágio (30–45° de giro a velocidade 1; o primeiro, a dispersão da Pangeia,
+    20–25° ≈ 2 min), cada grupo ganha polo novo. O rumo vira até ±60°, e a velocidade é 0,4–1,0, mais
+    lenta com muito continente.
+  - **Guarda polar a 65°**, inclusive na dispersão inicial, onde o desvio é escolhido sem sorteio novo
+    para não mudar o resto da geração.
+  - **Defeito antigo corrigido:** crosta consumida só morre se não aparece em outra célula.
+  - **Teste de formas aos 3 min**, com o critério do usuário (4–7, ≤ 40%). Antes era aos 2 min, com
+    folga de 8 e 45%.
+  - **Motivo:** o diagnóstico do Bloco G (balão + eixos fixos + solda permanente e transitiva) e as
+    medições em N = 128 e N = 256 (tabela em `M2-especificacao.md`, "G1 — Resultado").
+  - **Alternativas descartadas:**
+    - Rumo totalmente aleatório a cada estágio: zigue-zague sem física.
+    - Guarda só no fim do estágio: a trajetória cruzava o polo e voltava.
+    - Guarda pelo centro da placa inteira: inclui oceano, e a terra da placa passava do limite.
+    - Primeiro estágio de 30–45°: com a guarda desviando mais, a `terra` ficava com um continente de
+      48% aos 2 min.

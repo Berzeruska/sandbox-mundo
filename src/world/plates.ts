@@ -21,6 +21,21 @@ export const LAND_SEEDS_MAX = 8;
 export const PANGEA_PLATE_SHARE = 0.03;
 /** Nenhuma placa com mais que esta fração da terra (senão ela ganha mais uma semente). */
 export const MAX_LAND_SHARE = 0.35;
+/**
+ * Guarda polar (G1): nenhum rumo de placa (na dispersão da Pangeia ou num polo novo da tectônica)
+ * pode levar o centro dela, ao fim de um estágio, além desta latitude ficando mais perto do polo.
+ * Sem isso, a dispersão em "balão" de uma Pangeia tropical mandava os continentes para os polos.
+ */
+export const POLAR_GUARD = (65 * Math.PI) / 180;
+/**
+ * Primeiro estágio (dispersão da Pangeia), em rad de giro a velocidade 1: ~2 min de jogo a 20× com
+ * Placas 100% (decisão 1 do usuário: a Pangeia se parte em ~2 min). Depois dele, os polos se
+ * reorganizam (tectonics.ts). A guarda polar prevê a placa até o fim do estágio mais longo.
+ */
+export const DISPERSAL_STAGE_MIN = (20 * Math.PI) / 180;
+export const DISPERSAL_STAGE = (25 * Math.PI) / 180;
+/** Desvios tentados (rad) em volta do rumo "para fora" da Pangeia, do menor para o maior. */
+const DISPERSAL_DEVIATIONS = [0, 20, -20, 40, -40, 60, -60, 80, -80].map((d) => (d * Math.PI) / 180);
 
 export const Crust = { Oceanic: 0, Continental: 1 } as const;
 export type Crust = (typeof Crust)[keyof typeof Crust];
@@ -204,7 +219,14 @@ export function generatePlates(world: WorldState): void {
   // quase parada. Um desvio aleatório pequeno evita que pareça simétrico.
   const land = landCentroid(world);
   const landShare = new Float64Array(plates);
-  for (const c of landCells) landShare[world.plate[c] as number] = (landShare[world.plate[c] as number] as number) + 1;
+  // Centro da terra de cada placa: é ela que a guarda polar protege (o centro da placa inteira inclui
+  // oceano e pode estar longe da terra).
+  const landSum = new Float64Array(plates * 3);
+  for (const c of landCells) {
+    const p = world.plate[c] as number;
+    landShare[p] = (landShare[p] as number) + 1;
+    for (let d = 0; d < 3; d++) landSum[p * 3 + d] = (landSum[p * 3 + d] as number) + (positions[c * 3 + d] as number);
+  }
   world.plates = [];
   for (let p = 0; p < plates; p++) {
     const c = normalize([center[p * 3] as number, center[p * 3 + 1] as number, center[p * 3 + 2] as number]);
@@ -224,8 +246,9 @@ export function generatePlates(world: WorldState): void {
         d[1] * Math.cos(a) + side[1] * Math.sin(a),
         d[2] * Math.cos(a) + side[2] * Math.sin(a),
       ]);
-      const axis = normalize(cross(c, dir));
       const speed = Math.min(1, 0.25 + 1.2 * dist) * rng.range(0.9, 1.1);
+      const landC = normalize([landSum[p * 3] as number, landSum[p * 3 + 1] as number, landSum[p * 3 + 2] as number]);
+      const axis = guardedAxis(c, dir, speed, landC);
       omega = [axis[0] * speed, axis[1] * speed, axis[2] * speed];
     } else if (inPangea) {
       // Bem no centro: quase parada (as vizinhas é que se afastam dela).
@@ -241,6 +264,48 @@ export function generatePlates(world: WorldState): void {
 
   // Classificação das fronteiras (para a camada e, depois, para montanhas e terremotos).
   updateBoundaries(world);
+}
+
+/** Gira o ponto `p` pelo ângulo `a` em torno do eixo unitário `k` (Rodrigues). */
+export function rotateAbout(p: Vec3, k: Vec3, a: number): Vec3 {
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  const d = dot(k, p);
+  const x = cross(k, p);
+  return [p[0] * c + x[0] * s + k[0] * d * (1 - c), p[1] * c + x[1] * s + k[1] * d * (1 - c), p[2] * c + x[2] * s + k[2] * d * (1 - c)];
+}
+
+/**
+ * Eixo da placa com centro `c` andando no rumo `dir` (tangente), girando o rumo o mínimo possível
+ * (DISPERSAL_DEVIATIONS) para o ponto `guard` (centro da terra da placa) não passar de POLAR_GUARD,
+ * rumo ao polo, num estágio.
+ * Sem sorteio: não muda o resto da geração.
+ */
+function guardedAxis(c: Vec3, dir: Vec3, speed: number, guard: Vec3): Vec3 {
+  const side = normalize(cross(c, dir));
+  const latNow = Math.abs(Math.asin(Math.max(-1, Math.min(1, guard[1]))));
+  let best: Vec3 | null = null;
+  let bestLat = Infinity;
+  for (const a of DISPERSAL_DEVIATIONS) {
+    const d = normalize([
+      dir[0] * Math.cos(a) + side[0] * Math.sin(a),
+      dir[1] * Math.cos(a) + side[1] * Math.sin(a),
+      dir[2] * Math.cos(a) + side[2] * Math.sin(a),
+    ]);
+    const axis = normalize(cross(c, d));
+    // Maior latitude que o centro atinge ao longo do estágio (amostrado), não só a do fim.
+    let lat = 0;
+    for (let k = 1; k <= 4; k++) {
+      const e = rotateAbout(guard, axis, (speed * DISPERSAL_STAGE * k) / 4);
+      lat = Math.max(lat, Math.abs(Math.asin(Math.max(-1, Math.min(1, e[1])))));
+    }
+    if (lat <= POLAR_GUARD || lat <= latNow) return axis;
+    if (lat < bestLat) {
+      bestLat = lat;
+      best = axis;
+    }
+  }
+  return best ?? normalize(cross(c, dir));
 }
 
 /** Reclassifica todas as fronteiras (depois de gerar ou de mover as placas). */

@@ -23,8 +23,20 @@ Formato: data — como reproduzir — causa — correção — commit.
   - A solda é permanente e transitiva e congela a terra no meio da dispersão.
   - Achado junto: placas sem movimento relativo nenhum se soldam (6 soldas em 3 min no teste das
     costuras), porque o consumo de crosta por arredondamento conta como frente de colisão.
-- **Correção:** proposta G1 e G2 (reorganização dos polos, solda só com aproximação, ciclo de Wilson),
-  aguardando aprovação do usuário.
+- **Correção (G1):**
+  - A frente de colisão só conta com aproximação de verdade.
+  - O contador de colisão desce sem frente.
+  - Suturas somem sem contato continental.
+  - Os grupos ganham polo de Euler novo a cada estágio.
+  - Guarda polar a 65°, também na dispersão inicial (que encurtou para 20–25°).
+  - Crosta consumida que ainda aparece em outra célula não morre mais (o "vazamento" de continente
+    pela divisa).
+- **Resultado:**
+  - Na `terra` (N = 128), a terra acima de 60° aos 10 min caiu de 26% para 9,5%.
+  - No teste das costuras, 0 soldas.
+  - Testes em `tests/world/drift-latitude.test.ts`.
+  - O ciclo de Wilson (deriva que não morre de vez) é o G2.
+- **Pendente:** confirmar no celular do usuário.
 
 ## 2026-10-15 — Lagos e costas com bordas retas, cantos de 90° e formas em V (celular)
 
