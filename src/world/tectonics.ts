@@ -175,8 +175,34 @@ const TRENCH_RATE = 900;
 /** Quantas células de oceano antes da fossa já vão afundando (a crosta é consumida na fronteira). */
 const TRENCH_REACH = 3;
 /** Colisão continental: elevação perto da fronteira por recomposição (m) e teto. */
-const COLLISION_UPLIFT = 480;
 const COLLISION_MAX = 7000;
+/**
+ * G4: a crosta continental consumida numa colisão vira montanha na placa de cima. A "espessura" de cada
+ * célula consumida é a altura dela acima desta base (m); ela é repartida em sino na faixa da frente.
+ */
+export const COLLISION_BASE = -3500;
+/** Largura do sino (células) numa colisão de frente; numa oblíqua, até o dobro (mais baixa e larga). */
+export const COLLISION_SIGMA = 4;
+/** Alcance máximo do planalto a partir da frente (células): salvaguarda, a medida fica bem abaixo. */
+const COLLISION_REACH_MAX = 40;
+/**
+ * Províncias de crosta (G4): rigidez fixa no referencial da placa, de 0 (faixa móvel, fraca) a 1
+ * (cráton). Acima de CRATON_RIGID a crosta não engrossa: a cordilheira para na frente dela (escarpa).
+ */
+export const CRATON_RIGID = 0.7;
+const PROVINCE_FREQ = 2.2;
+/** Picos e passagens ao longo da frente: ruído preso à placa, escala de ~6 células. */
+const STRIKE_CELLS = 6;
+/**
+ * Ombreira de rifte (G4): as bordas de uma fenda nova sobem até SHOULDER_MIN–SHOULDER_MAX m (sorteado
+ * por trecho), de SHOULDER_RATE por recomposição, de SHOULDER_NEAR a SHOULDER_FAR células da fenda.
+ * A faixa mais perto da fenda é a margem passiva (afunda): a ombreira vira escarpa costeira.
+ */
+export const SHOULDER_MIN = 600;
+export const SHOULDER_MAX = 1600;
+const SHOULDER_RATE = 150;
+const SHOULDER_NEAR = 3;
+const SHOULDER_FAR = 6;
 /** Cordilheira vulcânica (oceano sob continente) e arco de ilhas (oceano sob oceano). */
 const ARC_UPLIFT = 300;
 const ARC_MAX = 4800;
@@ -301,11 +327,32 @@ export class Tectonics {
 
   /** Relevo nas fronteiras (T5). Os testes de movimento puro desligam para comparar alturas exatas. */
   readonly reliefEnabled: boolean;
+  readonly erosionEnabled: boolean;
+  private rigidityOverride: ((plate: number, ref: number) => number) | null;
+  /** Províncias de crosta (G4): ruído fixo no referencial das placas. */
+  private provinceNoise: Noise3D;
+  /** Crosta consumida nas frentes de colisão desta recomposição, à espera de virar montanha (G4). */
+  private deposits = new Map<number, { plate: number; mass: number; normal: number; count: number }>();
+  /** Espessura recebida das colisões e a que virou montanha (m × células), para medir e testar. */
+  collisionMassIn = 0;
+  collisionMassOut = 0;
 
-  constructor(world: WorldState, options: { relief?: boolean; stages?: boolean } = {}) {
+  constructor(
+    world: WorldState,
+    options: {
+      relief?: boolean;
+      stages?: boolean;
+      /** Erosão leve (os testes de massa da colisão desligam). */
+      erosion?: boolean;
+      /** Rigidez da crosta por placa e ponto do referencial (testes); senão, as províncias. */
+      rigidity?: (plate: number, ref: number) => number;
+    } = {},
+  ) {
     this.world = world;
     this.reliefEnabled = options.relief ?? true;
     this.stagesEnabled = options.stages ?? true;
+    this.erosionEnabled = options.erosion ?? true;
+    this.rigidityOverride = options.rigidity ?? null;
     this.rng = createRng((world.params.seed ^ 0x6c8e9cf5) >>> 0);
     const n = world.cellCount;
     const plates = world.plates.length;
@@ -344,6 +391,7 @@ export class Tectonics {
     this.sMargin = new Uint8Array(cap);
     this.initialPlate = Uint8Array.from(world.plate);
     this.marginNoise = new Noise3D(createRng((world.params.seed ^ 0x2545f491) >>> 0));
+    this.provinceNoise = new Noise3D(createRng((world.params.seed ^ 0x51ed270b) >>> 0));
     this.cellSample = new Int32Array(n);
     // O ciclo começa na dispersão da Pangeia, a partir do centro da crosta continental.
     {
@@ -595,6 +643,16 @@ export class Tectonics {
    * As placas a e b, neste ponto, estão se aproximando (> 0) ou se afastando (< 0)?
    * Compara as velocidades na direção que vai do centro de a para o de b.
    */
+  /** Velocidade relativa entre as placas a e b no ponto (módulo). */
+  private relativeSpeed(a: number, b: number, x: number, y: number, z: number): number {
+    const sa = this.speed[a] as number;
+    const sb = this.speed[b] as number;
+    const wx = (this.axis[a * 3] as number) * sa - (this.axis[b * 3] as number) * sb;
+    const wy = (this.axis[a * 3 + 1] as number) * sa - (this.axis[b * 3 + 1] as number) * sb;
+    const wz = (this.axis[a * 3 + 2] as number) * sa - (this.axis[b * 3 + 2] as number) * sb;
+    return Math.hypot(wy * z - wz * y, wz * x - wx * z, wx * y - wy * x);
+  }
+
   private closing(a: number, b: number, x: number, y: number, z: number): number {
     const ca: Vec3 = [0, 0, 0];
     const cb: Vec3 = [0, 0, 0];
@@ -756,6 +814,17 @@ export class Tectonics {
           const cells = front.get(key);
           if (cells) cells.push(c);
           else front.set(key, [c]);
+          // G4: a crosta que entra por baixo vira montanha na placa de cima (a que venceu).
+          const mass = Math.max(0, (this.sElev[i] as number) - COLLISION_BASE);
+          const rel = this.relativeSpeed(loser, winner, x, y, z);
+          const normal = rel > 1e-12 ? Math.min(1, closing / rel) : 1;
+          const d = this.deposits.get(c);
+          if (d && d.plate === winner) {
+            d.mass += mass;
+            d.normal += normal;
+            d.count++;
+          } else this.deposits.set(c, { plate: winner, mass, normal, count: 1 });
+          this.collisionMassIn += mass;
         }
       }
     }
@@ -892,6 +961,7 @@ export class Tectonics {
     updateBoundaries(world);
     this.unzipRifts();
     if (this.reliefEnabled) this.relief();
+    else this.deposits.clear();
     // Depois do relevo: a recomposição que completa a colisão ainda ergue a cordilheira.
     if (this.weldCollisions(front, contact)) updateBoundaries(world);
     this.recompositions++;
@@ -946,6 +1016,165 @@ export class Tectonics {
             done[k] = 1;
             next.push(k);
           }
+        }
+      }
+      frontier = next;
+    }
+  }
+
+  /** Rigidez da crosta na célula (0 faixa móvel … 1 cráton), presa ao referencial da placa (G4). */
+  private rigidity(c: number): number {
+    const i = this.cellSample[c] as number;
+    if (i < 0) return 0;
+    const ref = this.sRef[i] as number;
+    const plate = this.sPlate[i] as number;
+    if (this.rigidityOverride) return this.rigidityOverride(plate, ref);
+    const p = this.world.grid.positions;
+    const v = this.provinceNoise.sample(
+      (p[ref * 3] as number) * PROVINCE_FREQ + plate * 7.3,
+      (p[ref * 3 + 1] as number) * PROVINCE_FREQ,
+      (p[ref * 3 + 2] as number) * PROVINCE_FREQ,
+    );
+    // Crátons onde o ruído é alto (núcleos), faixas móveis no resto; transição suave.
+    const t = Math.min(1, Math.max(0, (v - 0.05) / 0.4));
+    return t * t * (3 - 2 * t);
+  }
+
+  /**
+   * G4: a crosta consumida em cada célula de frente de colisão vira montanha na placa de cima.
+   * - Sino em volta da frente, mais largo (e mais baixo) quanto mais oblíqua a colisão.
+   * - Ao longo da frente, a parte de cada célula varia com um ruído preso à placa: picos e passagens.
+   * - Crosta rígida (cráton) não engrossa nem deixa passar: a cordilheira para na frente dela (escarpa).
+   * - Acima do teto, o excesso vai para a faixa seguinte, mais para dentro: a cordilheira vira planalto.
+   */
+  private collisionMountains(elev: Float32Array): void {
+    if (!this.deposits.size) return;
+    const world = this.world;
+    const { neighbors, positions, cellAngle } = world.grid;
+    const n = world.cellCount;
+    const dist = new Int32Array(n).fill(-1);
+    const strikeFreq = 1 / (STRIKE_CELLS * cellAngle);
+    const strike = (c: number): number => {
+      const i = this.cellSample[c] as number;
+      const ref = i >= 0 ? (this.sRef[i] as number) : c;
+      return 0.4 + 1.2 * (0.5 + 0.5 * this.marginNoise.sample((positions[ref * 3] as number) * strikeFreq + 57, (positions[ref * 3 + 1] as number) * strikeFreq, (positions[ref * 3 + 2] as number) * strikeFreq));
+    };
+    for (const [c0, dep] of [...this.deposits].sort((a, b) => a[0] - b[0])) {
+      if (world.plate[c0] !== dep.plate || dep.mass <= 0) continue;
+      const normal = dep.normal / dep.count;
+      const sigma = COLLISION_SIGMA * (2 - normal);
+      const reach = Math.ceil(2.5 * sigma);
+      // Células da placa de cima em volta da frente, por distância (sem atravessar cráton nem oceano).
+      const layers: number[][] = [[c0]];
+      const touched: number[] = [c0];
+      dist[c0] = 0;
+      const open = (k: number) =>
+        dist[k] === -1 && world.plate[k] === dep.plate && world.crust[k] === Crust.Continental && this.rigidity(k) < CRATON_RIGID;
+      for (let d = 1; d <= COLLISION_REACH_MAX; d++) {
+        const next: number[] = [];
+        for (const c of layers[d - 1] as number[]) {
+          for (let e = 0; e < 4; e++) {
+            const k = neighbors[c * 4 + e] as number;
+            if (!open(k)) continue;
+            dist[k] = d;
+            touched.push(k);
+            next.push(k);
+          }
+        }
+        if (!next.length) break;
+        layers.push(next);
+        if (d >= reach && layers.length > reach + 1) break;
+      }
+      // Sino nas camadas até o alcance; o que bater no teto passa para as camadas seguintes.
+      let weights = 0;
+      const share: number[][] = layers.map((layer, d) =>
+        layer.map((c) => {
+          if (d > reach) return 0;
+          const w = Math.exp(-((d / sigma) ** 2)) * strike(c) * (1 - this.rigidity(c));
+          weights += w;
+          return w;
+        }),
+      );
+      let left = dep.mass;
+      if (weights > 0) {
+        let overflow = 0;
+        layers.forEach((layer, d) => {
+          layer.forEach((c, k) => {
+            const want = (dep.mass * (share[d]?.[k] ?? 0)) / weights;
+            const e = elev[c] as number;
+            const put = Math.max(0, Math.min(want, COLLISION_MAX - e));
+            elev[c] = e + put;
+            overflow += want - put;
+            left -= want;
+          });
+        });
+        left += overflow;
+      }
+      // Planalto: o excesso enche as camadas seguintes até o teto, da frente para dentro.
+      for (let d = 0; d < layers.length && left > 1e-6; d++) {
+        for (const c of layers[d] as number[]) {
+          const e = elev[c] as number;
+          const put = Math.max(0, Math.min(left, COLLISION_MAX - e));
+          elev[c] = e + put;
+          left -= put;
+          if (left <= 1e-6) break;
+        }
+        // Acabaram as camadas: cresce mais uma (o planalto alarga).
+        if (d === layers.length - 1 && left > 1e-6 && layers.length <= COLLISION_REACH_MAX) {
+          const next: number[] = [];
+          for (const c of layers[d] as number[]) {
+            for (let e = 0; e < 4; e++) {
+              const k = neighbors[c * 4 + e] as number;
+              if (!open(k)) continue;
+              dist[k] = d + 1;
+              touched.push(k);
+              next.push(k);
+            }
+          }
+          if (next.length) layers.push(next);
+        }
+      }
+      this.collisionMassOut += dep.mass - Math.max(0, left);
+      for (const c of touched) dist[c] = -1;
+    }
+    this.deposits.clear();
+  }
+
+  /**
+   * G4: ombreira de rifte. As bordas de uma fenda nova (vale de rifte ou fundo oceânico jovem) sobem de
+   * SHOULDER_NEAR a SHOULDER_FAR células dela, até SHOULDER_MIN–SHOULDER_MAX m conforme o trecho. Mais
+   * perto da fenda, a margem passiva afunda: quando a fenda vira mar, sobra uma escarpa costeira.
+   */
+  private riftShoulders(elev: Float32Array): void {
+    const world = this.world;
+    const { neighbors, positions, cellAngle } = world.grid;
+    const n = world.cellCount;
+    const dist = new Uint8Array(n).fill(255);
+    let frontier: number[] = [];
+    for (let c = 0; c < n; c++) {
+      const i = this.cellSample[c] as number;
+      if (i < 0 || (this.sBirth[i] as number) <= ANCIENT || this.tick - (this.sBirth[i] as number) >= MARGIN_AGE) continue;
+      dist[c] = 0;
+      frontier.push(c);
+    }
+    if (!frontier.length) return;
+    const freq = 1 / (8 * cellAngle);
+    for (let d = 1; d <= SHOULDER_FAR && frontier.length; d++) {
+      const next: number[] = [];
+      for (const c of frontier) {
+        for (let e = 0; e < 4; e++) {
+          const k = neighbors[c * 4 + e] as number;
+          if (dist[k] !== 255 || world.crust[k] !== Crust.Continental) continue;
+          dist[k] = d;
+          next.push(k);
+          // Só em terra (a ombreira não faz plataforma submersa virar terra).
+          if (d < SHOULDER_NEAR || (elev[k] as number) <= world.seaLevel) continue;
+          const i = this.cellSample[k] as number;
+          const ref = i >= 0 ? (this.sRef[i] as number) : k;
+          const v = 0.5 + 0.5 * this.marginNoise.sample((positions[ref * 3] as number) * freq - 13, (positions[ref * 3 + 1] as number) * freq, (positions[ref * 3 + 2] as number) * freq);
+          const target = SHOULDER_MIN + (SHOULDER_MAX - SHOULDER_MIN) * Math.min(1, Math.max(0, v));
+          const h = elev[k] as number;
+          if (h < target) elev[k] = Math.min(target, h + SHOULDER_RATE);
         }
       }
       frontier = next;
@@ -1134,9 +1363,7 @@ export class Tectonics {
         const kind = orogenKind[c];
         const e = elev[c] as number;
         if (kind === KIND_COLLISION) {
-          // Faixa larga em sino a partir da frente de colisão.
-          const f = Math.exp(-((od / 4) ** 2));
-          elev[c] = Math.min(COLLISION_MAX, e + COLLISION_UPLIFT * f);
+          // G4: a cordilheira de colisão vem da crosta consumida (collisionMountains), não daqui.
         } else if (kind === KIND_ARC) {
           // Cordilheira vulcânica com o pico a 3–4 células da costa (como os Andes).
           const f = Math.exp(-(((od - 3.5) / 2.2) ** 2));
@@ -1170,8 +1397,12 @@ export class Tectonics {
       }
     }
 
+    // G4: crosta consumida vira cordilheira e planalto; bordas de fenda nova sobem (ombreira).
+    this.collisionMountains(elev);
+    this.riftShoulders(elev);
+
     // 4) Erosão leve: picos cedem e o relevo alto suaviza com as vizinhas.
-    for (let c = 0; c < n; c++) {
+    for (let c = 0; c < n && this.erosionEnabled; c++) {
       const e = elev[c] as number;
       if (e <= SMOOTH_START) continue;
       let mean = 0;

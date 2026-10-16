@@ -678,6 +678,50 @@ notebook, no ajudante 2.
 1. Aprova as fontes de variedade 1 a 5?
 2. A ombreira de rifte (item 6) entra no G4, ou fica para depois?
 
+### G4 — Andamento (2026-10-16): feito, parado na erosão (decisão do usuário)
+**Decisões do usuário:** fontes de variedade 1 a 5 aprovadas; ombreira de rifte (6) entra no G4; se a
+erosão atual apagar a variedade antes do teste dos 10 min, avisar antes de mexer nela.
+
+**Feito (código em `src/world/tectonics.ts`, testes em `tests/world/collision-mountains.test.ts`):**
+crosta consumida vira montanha na placa de cima (sino, planalto no teto); colisão oblíqua mais baixa
+e larga; picos e passagens ao longo da frente; províncias de crosta (crátons param a cordilheira em
+escarpa); ombreira de rifte (600–1.600 m, de 3 a 6 células da fenda, só em terra). Todos os testes
+passam (252).
+
+**Medido (N = 256, 5 sementes, aos 10 min; % da terra acima de 2.000 / 4.000 / 6.000 m):**
+
+| Erosão (por recomposição) | > 2.000 m | > 4.000 m | > 6.000 m | pico |
+|---|---|---|---|---|
+| Antes do G4 (3,5%, alisamento 25%) | 4,3–11,2% | 0,00–0,45% | 0% | ~4.730 m |
+| **G4 com a erosão de hoje** (3,5%, 25%) | 4,1–11,7% | **0,03–0,74%** | 0% | ~4.730 m |
+| G4, erosão 1% (alisamento 25%) | 4,4–12,0% | 0,03–0,96% | 0% | 4,8–6,0 km |
+| G4, erosão 1,5%, alisamento 8% | 6,7–13,2% | 0,08–1,12% | 0% | 4,8–5,9 km |
+| **G4, erosão 0,5%, alisamento 3%** | 7,6–13,8% | **0,44–1,46%** | 0–0,15% | 5,7–6,6 km |
+| G4 sem erosão nenhuma | 8,1–14,3% | 1,24–2,72% | 0,24–1,56% | 7.000 m |
+| Alvo (Terra, aproximado) | 5–15% | 0,5–4% | < 0,3% | — |
+
+- **Sim, a erosão de hoje apaga a variedade:** a crosta chega (82–97% vira montanha), mas aos 10 min
+  só a `terra` fica no alvo de 4.000 m. Os picos param em ~4.730 m (equilíbrio da erosão).
+- **Quem achata mais é o alisamento** (acima de 1.200 m, 25% em direção à média das vizinhas a cada
+  recomposição), não só a erosão dos picos.
+- **A causa de fundo:** a colisão só ergue até a solda (8 recomposições); depois disso não entra
+  crosta nova e qualquer erosão baixa a cordilheira. Na Terra, a Índia continua empurrando a Ásia.
+- **Planalto (decisão 2): o primeiro caso, medido.** A faixa acima de 4.000 m chega no máximo a 17
+  células (~660 km), menor que o Tibete (~1.000 km). Sem limite extra.
+- **Custo:** recomposição no ajudante igual à de antes (pior 300–640 ms, como sem o G4); a geração
+  não muda.
+
+**Opções para a erosão (decisão do usuário):**
+- **(a) Erosão 0,5% e alisamento 3% (recomendada).** Medido: 4 das 5 sementes no alvo de 4.000 m (a
+  `7` fica em 0,44%), todas no de 2.000 m e no de 6.000 m. Efeito no jogo: montanhas duram ~7 vezes
+  mais (uma cadeia velha baixa em ~8 min em vez de ~1 min, a 20× com placas 100%) e o relevo alto fica
+  mais áspero. A erosão pelo clima da T7 entra por cima disso.
+- **(b) A colisão continua empurrando depois da solda** por um tempo (Himalaia em andamento), com a
+  erosão de hoje. É mudança na regra de placas, maior e com mais risco nos testes de solda e
+  oscilação.
+- **(c) Deixar a erosão como está até a T7.** A variedade aparece nos primeiros minutos de cada
+  colisão e some em ~1 min; o teste de 10 min do G4 fica de fora.
+
 ### G3 — Resultado (2026-10-16)
 **Como funciona** (detalhes em `docs/03-mundo-geologia.md`, constantes em `src/world/rifts.ts` e
 `src/world/tectonics.ts`):
@@ -859,8 +903,8 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
   mapas antes/depois.
   Os testes de formas de `terra` e `mundo` voltaram a passar como teste normal (resultado abaixo).
 - [ ] **G4 — Continente amassa e vira montanha** em vez de ser apagado na colisão, com variedade de
-  relevo (províncias de crosta, escarpas, colisão oblíqua, picos e passagens). Especificação (versão 2)
-  esperando aprovação.
+  relevo (províncias de crosta, escarpas, colisão oblíqua, picos e passagens, ombreira de rifte).
+  Código feito; parado na decisão da erosão (ver "G4 — Andamento").
 
 ## Estado em 2026-10-15 (noite) e próximos passos
 Feito no `marco-2` (prévia em `/previa/marco-2/`): T1–T5, correção do travamento no celular, D1–D5 e
