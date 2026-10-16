@@ -14,6 +14,7 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 - Ele testa no celular e no notebook. Toda mudança precisa funcionar nos dois.
 
 ## Ordem de leitura antes de qualquer trabalho
+0. `docs/estado-atual.md` — onde paramos, o que está pendente.
 1. `docs/02-marcos.md` — em qual marco estamos e o que falta.
 2. A especificação do marco atual (ex.: `docs/M1-especificacao.md`).
 3. `docs/01-arquitetura.md` — regras técnicas.
@@ -68,6 +69,10 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 - Nunca use `git push --force` em `main`. Nunca apague histórico.
 
 ## Documentação viva
+- **Ao fim de cada tarefa, reescreva `docs/estado-atual.md`** (marco e tarefa atuais, feito, pendente,
+  últimas medições do celular, decisões abertas, ideias para marcos futuros) no mesmo commit.
+  O usuário sobe esse arquivo num Project do Claude que o orienta; se ele envelhecer, o orientador
+  responde com informação velha.
 - Mudou comportamento? Atualize o documento de sistema correspondente no mesmo commit.
 - Decisão técnica relevante? Nova entrada em `docs/decisoes.md` (data, decisão, motivo, alternativa descartada).
 - Bug encontrado pelo usuário? Registre em `docs/bugs.md` com: como reproduzir, causa, correção.
