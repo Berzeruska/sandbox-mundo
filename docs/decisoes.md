@@ -321,3 +321,27 @@ Formato: data — decisão — motivo — alternativa descartada.
   senão a lasca continental do lado pequeno passa para a outra placa. Junto: histerese nas
   sobreposições sem aproximação e preenchimento dos "dentes" de arredondamento na frente das placas.
   Alternativa descartada: exigir frente mínima para soldar (deixava lascas moendo para sempre).
+
+- **2026-10-15 (noite) — Ciclo de Wilson, prioridades do Bloco G e desempenho só no aparelho (usuário).**
+  Depois de testar a `d36c156b` no celular (oscilação resolvida), o usuário decidiu:
+  1. **Ciclo de Wilson:** o supercontinente se forma, fica um tempo e racha de novo, de preferência
+     pelas suturas antigas. A solda deixa de ser permanente.
+  2. **Riftes inspirados na Terra:** nascem em junções tríplices, às vezes com um braço que falha e
+     vira vale interior; costas que se encaixam dos dois lados; margens recortadas;
+     microcontinentes de vez em quando. Continua valendo o critério de 4 a 7 continentes variados,
+     com penínsulas, golfos e mares internos, e nenhum com mais de ~40% da terra.
+  3. **Latitude sem tendência:** a latitude média da terra deve flutuar sem ir para os polos, com
+     teste automático de 10 min simulados.
+  4. **Prioridade:** G1 (latitude, provável bug), depois G2 (ciclo), depois G3 (formas).
+     Diagnóstico medido e especificação aprovados antes de codar.
+  5. **Desempenho:** só vale medido no Hot 50i.
+
+  Diagnóstico (Bloco G em `M2-especificacao.md`): o movimento já é rotação rígida em torno de um polo
+  de Euler, e as costuras do cubo não criam nem perdem crosta (medido). A ida aos polos vem de três
+  coisas juntas: os eixos iniciais em "balão" (grandes círculos que saem do centro da Pangeia e passam
+  pelos polos quando ela está no equador), os eixos que nunca mudam e a solda permanente e transitiva,
+  que congela a terra no meio da dispersão. A deriva morre porque todas as placas continentais acabam
+  num grupo só, entre 6 e 10 min nas 5 sementes.
+
+  Alternativa descartada: só limitar a latitude à força (empurrar a terra de volta para os trópicos).
+  Esconderia a causa e não tem base física.

@@ -2,6 +2,30 @@
 
 Formato: data — como reproduzir — causa — correção — commit.
 
+## 2026-10-15 — Continentes migram dos trópicos para os polos e a deriva morre (celular, `d36c156b`)
+
+- **Como reproduzir:**
+  - Semente `terra`, placas 100%, tempo 20×, 10 min de jogo.
+  - A terra acima de 60° vai de 1% para 26%; a latitude média, de 23,5° para 36,2°.
+  - Entre 6 e 10 min, todas as placas continentais entram num único grupo soldado.
+  - A velocidade relativa média nas fronteiras cai de ~0,7 para 0,05–0,24.
+  - Números das 5 sementes no Bloco G de `M2-especificacao.md`; mapas em
+    `docs/img/m2-deriva-10min-*.png`.
+- **Investigação (descartado):**
+  - Movimento em lat/lon ou em coordenada de face: o movimento é rotação rígida em torno de um polo
+    de Euler, e a latitude segue a conta exata com menos de 1° de diferença até as primeiras soldas.
+  - Costuras do cubo: com todas as placas no mesmo eixo, cruzando várias faces, a fração de terra fica
+    constante e a latitude bate com a conta em 3 min.
+- **Causa:**
+  - Os eixos iniciais em "balão" mandam as placas por grandes círculos que, com a Pangeia no equador,
+    passam pelos polos.
+  - Os eixos nunca mudam.
+  - A solda é permanente e transitiva e congela a terra no meio da dispersão.
+  - Achado junto: placas sem movimento relativo nenhum se soldam (6 soldas em 3 min no teste das
+    costuras), porque o consumo de crosta por arredondamento conta como frente de colisão.
+- **Correção:** proposta G1 e G2 (reorganização dos polos, solda só com aproximação, ciclo de Wilson),
+  aguardando aprovação do usuário.
+
 ## 2026-10-15 — Lagos e costas com bordas retas, cantos de 90° e formas em V (celular)
 
 - **Como reproduzir:** no celular do usuário, usar Rebaixar com pincel 29 (perto das bordas entre

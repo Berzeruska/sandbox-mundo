@@ -267,25 +267,212 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   condições da linha de base da v1.1 (`docs/decisoes.md`) e comparar. Medir também quantos passos por
   segundo o worker aguenta. Registrar em `docs/decisoes.md`.
 
-## Estado em 2026-10-15 (fim do dia) e próximos passos
+## Bloco G — Deriva viva, latitude e formas (pedido do usuário em 2026-10-15, noite)
+Teste da `d36c156b` no celular: a oscilação sumiu, mas sobraram três problemas de design. Pedido:
+diagnóstico medido e especificação **antes** de codar. Prioridade: G1 (latitude), G2 (ciclo de
+Wilson), G3 (formas). Desempenho só vale medido no Hot 50i. T6 segue congelada.
+
+**Como foi medido:** sonda fora do repositório (vitest no scratchpad), 5 sementes (`terra`, `mundo`,
+`7`, `42`, `ilha`), N = 128, placas 100%, tempo 20×, 10 min de jogo (144.000 passos), amostra a cada
+7,5 s. Médias de latitude **pesadas pela área da célula** (as células equiangulares não têm área
+igual). "Linha de base rígida": a crosta continental inicial girada só pelo eixo inicial da sua
+placa, sem colisão nem solda. Mapas: `docs/img/m2-deriva-10min-terra.png` e `-42.png` (0, 1, 2, 4, 7
+e 10 min; terra tingida pela placa, branco = montanha, vermelho = fronteira convergente, linhas em
+±30° e ±60°).
+
+### G1 — Continentes indo para os polos: diagnóstico
+1. **O movimento É rotação rígida em torno de um polo de Euler** (fórmula de Rodrigues sobre um eixo
+   fixo, crosta guardada no referencial da placa). Não é vetor em lat/lon nem em coordenada de face.
+   Conferido de dois jeitos:
+   - até as primeiras soldas, a latitude simulada segue a linha de base rígida com menos de 1° de
+     diferença (`terra` aos 3 min: 33,1° simulado × 33,1° rígido);
+   - teste de costuras: todas as placas com o MESMO eixo, inclinado para cruzar várias faces do
+     cubo: em 3 min a latitude seguiu a conta exata (27,0° × 27,2°) e a fração de terra ficou em
+     30,1% do começo ao fim. **As costuras entre faces não criam nem perdem crosta.**
+2. **A tendência vem do desenho do movimento, não de erro numérico:**
+   - **Eixos iniciais:** toda placa da Pangeia anda num grande círculo que sai do centro da Pangeia
+     (o "balão"). Todos esses círculos se cruzam de novo no ponto oposto. Os continentes se espalham
+     até um anel a 90° do centro e depois voltariam a se juntar do outro lado do planeta. Quando a
+     Pangeia nasce perto do equador (`terra` 2°, `ilha` 6°), **esse anel passa pelos dois polos**.
+   - **Os eixos nunca mudam** (só numa solda): nenhuma placa muda de rumo no meio do caminho.
+   - **A solda é para sempre e congela os continentes onde eles estão.** Na `terra`, aos 4 min a
+     terra está no anel (24% dela acima de 60°); as soldas a congelam lá. De 4 a 10 min a linha de
+     base rígida voltaria a 21°, mas a simulação fica parada em 36°, com 26% da terra acima de 60°.
+3. **Soma do movimento na solda:** o grupo soldado recebe a média dos vetores de rotação, pesada pela
+   área. É uma aproximação razoável (falta o momento de inércia), mas dois continentes que batem de
+   frente se anulam e o grupo quase para. Isso ajuda a "matar" a deriva (G2).
+4. **Bug achado de quebra:** no teste de costuras (nenhum movimento relativo entre placas) houve **6
+   soldas em 3 min**. A regra que consome crosta "que entrou fundo no território da outra" dispara só
+   por arredondamento e conta como colisão. Placas que só se encostam acabam soldadas.
+
+| Semente | Centro da Pangeia | Latitude média: início → máx → 10 min | Rígida aos 10 min | Terra acima de 60°: início → máx → 10 min |
+|---|---|---|---|---|
+| terra | 2° | 23,5° → 36,2° → 36,2° | 21,1° | 1% → 26% → 26% |
+| mundo | 31° | 34,7° → 35,4° → 31,9° | 34,9° | 18% → 18% → 12% |
+| 7 | 25° | 32,5° → 38,2° → 37,0° | 21,5° | 15% → 17% → 14% |
+| 42 | −9° | 37,0° → 42,3° → 37,2° | 18,1° | 17% → 33% → 19% |
+| ilha | 6° | 23,6° → 28,8° → 25,5° | 16,4° | 1% → 16% → 8% |
+
+Referência: com terra espalhada por igual no globo, a latitude média é 32,7° e 13,4% fica acima de
+60°. A subida forte acontece nos 4 primeiros minutos, na dispersão. Dos 2 aos 10 min, a inclinação da
+reta fica entre −0,8° e +0,6° por minuto. Ou seja, o problema é a dispersão "balão" somada ao
+congelamento pela solda, e não um empurrão contínuo para os polos.
+
+### G1 — Proposta
+- **Reorganização das placas:** cada grupo de placas ganha polo de Euler novo (sempre numa
+  recomposição, porque o desenho conta com eixo fixo entre elas) em três situações:
+  - quando gira 30–45° (sorteado pela semente) desde a última troca;
+  - numa solda;
+  - num rifte.
+
+  O rumo novo fica a até ±60° do rumo atual (sem zigue-zague) e a velocidade é sorteada de novo. Os
+  grupos com muito continente andam mais devagar (como na Terra). Rumos sorteados não têm latitude
+  preferida, então a terra flutua em volta do equilíbrio em vez de ir para um lado.
+- **Dispersão "balão" só no primeiro estágio:** depois do primeiro giro de 30–45°, as placas se
+  reorganizam e acaba a reconvergência no ponto oposto.
+- **Solda só com aproximação de verdade** (corrige o bug do item 4): o consumo por arredondamento não
+  conta como frente de colisão.
+- **Testes (CI, N = 128, 5 sementes, 10 min a 20×, placas 100%):**
+  - *rigidez e costuras:* todas as placas com o mesmo eixo; em 3 min, nenhuma solda, nenhuma crosta
+    nova, latitude igual à conta (±0,5°). Hoje falha: 6 soldas.
+  - *sem tendência de latitude:* latitude média continental (pesada pela área) a cada 7,5 s. Da
+    dispersão (2 min) em diante: inclinação da reta de no máximo ±0,5°/min, valor sempre entre 22° e
+    42° e no máximo 22% da terra acima de 60°. Os limites são proposta e serão calibrados contra as
+    5 sementes antes de travar o teste.
+
+### G2 — Deriva morre: diagnóstico
+Confirmado. Número de grupos soldados entre as placas com ≥ 1,5% de crosta continental, e atividade
+nas fronteiras (velocidade relativa média entre placas vizinhas):
+
+| Semente | Grupos continentais: início → 10 min | Um grupo só a partir de | Velocidade relativa média | Células de fronteira convergente |
+|---|---|---|---|---|
+| terra | 7 → 1 | 7,4 min | 0,65 → 0,10 | 1.248 → 272 |
+| mundo | 8 → 1 | 9,8 min | 0,74 → 0,12 | 1.622 → 413 |
+| 7 | 6 → 1 | 6,3 min | 0,66 → 0,24 | 1.389 → 496 |
+| 42 | 8 → 1 | 9,4 min | 0,69 → 0,05 | 1.342 → 103 |
+| ilha | 6 → 1 | 8,3 min | 0,70 → 0,13 | 1.496 → 505 |
+
+A solda também é **transitiva e permanente**: A soldou com B e B com C, então A, B e C giram juntos
+para sempre, mesmo que já não se toquem. Aos 10 min, a `terra` tem 6 massas de terra separadas por
+oceano e todas as placas continentais no mesmo grupo rígido. Não chega a ser um supercontinente: é
+um arranjo congelado. A `42` termina com 3 continentes e o maior com 44% da terra, fora do critério
+de "bonito".
+
+### G2 — Proposta: ciclo de Wilson
+- **Suturas explícitas:** cada solda guarda par de placas, passo em que nasceu e comprimento do
+  contato. O grupo é o conjunto de placas ligadas por suturas. **Sutura sem contato desaparece**
+  (acaba a solda à distância).
+- **Supercontinente:** um grupo soldado com ≥ 60% de toda a crosta continental.
+- **Critério de ruptura (proposta):** o supercontinente se parte depois de um "mandato" medido em
+  **giro de placa**, e não em passos. Assim o controle "Placas" em 0 congela o relógio do ciclo.
+  - Mandato: ~23° de giro a velocidade 1 (≈ 2 min de jogo a 20× com Placas 100%), × 0,8–1,25
+    sorteado pela semente. Motivo físico: o manto esquenta embaixo do supercontinente.
+  - Regra secundária, para a deriva não morrer sem supercontinente: grupo com ≥ 2 placas
+    continentais e ≥ 35% da crosta continental se parte depois de 2 mandatos.
+- **Onde racha:**
+  - As suturas candidatas ganham pontos por **idade** (as mais antigas primeiro) e por
+    **equilíbrio** (cada pedaço fica com pelo menos 20% do continente do grupo).
+  - Se 3 suturas se encontram num ponto, a ruptura começa ali (**junção tríplice**). Com chance de
+    1/3, um dos 3 braços **falha**: não abre, mas vira um vale de rifte interior (aulacógeno; ver
+    G3).
+  - Os pedaços recebem polos novos, afastando-se do centro do grupo com ±30° de desvio e velocidade
+    de 0,5 a 1,0. Logo depois entra a reorganização da G1.
+- **Ritmo do ciclo** (a confirmar): dispersão ~2 min (decisão 1), reaproximação e solda de ~4 a 6
+  min, supercontinente ~2 min. Ciclo completo de ~8 a 12 min a 20× com Placas 100%.
+- **Teste (CI):** em 15 min a 20× com Placas 100%, nas 5 sementes:
+  - pelo menos um supercontinente se forma e se parte;
+  - o número de grupos continentais nunca fica em 1 por mais que 1,5 mandato;
+  - a velocidade relativa média nunca fica abaixo de 30% da inicial por mais de 2 min.
+
+### G3 — Formas: de onde vem hoje o formato das costas
+1. **Costa da Pangeia inicial:** vem da geração v2. São lobos em volta de um centro, borda deformada
+   por ruído, ruído fractal, 2 a 4 bacias internas e ruído fino só na faixa da costa.
+2. **Costas novas, abertas pela deriva:** são as **fronteiras de placa da geração**. É um
+   crescimento de regiões a partir de 5 a 8 sementes na terra, com custo por ruído de baixa
+   frequência. Cada continente é a terra de uma placa, então os continentes saem como pedaços de
+   Voronoi: compactos, de tamanhos parecidos, com bordas longas e quase retas. Nos mapas, as bordas
+   retas e os blocos "recortados a faca" vêm daí.
+3. **Margem passiva:** a borda que se abre afunda até virar plataforma (alcance de 3 células, ruído de
+   frequência 14). Isso só arranha a borda; não cria golfo nem península.
+4. **Encaixe:** os dois lados da fenda já se encaixam por construção (placas rígidas). Mas a linha da
+   fenda é a fronteira lisa da geração, então o encaixe não tem a forma "dente e reentrância" de
+   África e América do Sul.
+
+### G3 — Proposta: riftes traçados na hora
+O mesmo mecanismo serve à G2 e à G3. Dentro de um grupo soldado as placas não se movem umas contra as
+outras, então dá para **recortar o bloco por uma linha nova antes de abrir**: as células de cada lado
+passam para a placa daquele lado. A transferência de crosta entre placas já existe (acreção).
+- **Junção tríplice:**
+  - Um ponto sobre o continente (de preferência numa junção de suturas). Saem 3 braços a ~120°
+    (±25°), cada um traçado por busca de caminho com custo baixo em suturas antigas e terreno baixo e
+    custo alto em montanha nova.
+  - Ruído no custo faz o caminho serpentear na escala de 2 a 6 células, com **degraus de falha
+    transformante** (trechos perpendiculares à abertura, como no Atlântico Equatorial). É isso que
+    faz as duas costas se encaixarem com dentes e reentrâncias.
+- **Braço que falha (aulacógeno):** com chance de 1/3, um braço não abre. Ao longo dele o terreno
+  afunda 300 a 800 m numa faixa de 1 a 2 células: vira vale comprido, lago ou golfo estreito, conforme
+  o nível do mar.
+- **Microcontinentes:** com chance de ~25% por ruptura, a fenda "pula". Abre-se um segundo braço
+  paralelo, a 3 a 8 células da costa, e solta-se uma lasca de 0,5 a 2% do planeta (como Madagascar).
+  A lasca vira placa própria, mais lenta.
+- **Primeira quebra da Pangeia:**
+  - A Pangeia passa a nascer como **um bloco soldado** e se parte pelo mesmo mecanismo. As fronteiras
+    de Voronoi viram as "suturas antigas" que os braços preferem seguir, sem ser obrigados.
+  - Muda as placas iniciais de toda semente ("geração v3"). O terreno inicial continua igual.
+- **Margens:** a margem passiva continua, mas fica igual dos dois lados, para não apagar o encaixe.
+- **Limite técnico:** o desenho aceita no máximo 16 placas (`MAX_SHADER_PLATES`; 4 bits por
+  candidata na textura). Hoje há de 8 a 14. Microcontinentes e braços novos pedem números de placa
+  novos. Plano: reaproveitar o número de placas que somem e, se não bastar, subir para 32 e medir no
+  Hot 50i.
+- **Medida e teste:** o critério combinado (4 a 7 continentes variados, nenhum com mais de ~40% da
+  terra) é testado aos 2, 5 e 10 min, **fora da fase de supercontinente** (lá, por definição, um
+  passa de 40%). Somam-se:
+  - um índice de recorte (células de costa ÷ √área, por continente), comparado antes e depois;
+  - o número de mares internos.
+
+  Penínsulas e golfos são julgados por você nos mapas e no celular.
+
+### Desempenho (só vale medido no Hot 50i)
+- Reorganização e solda são contas por placa: custo desprezível.
+- O rifte é um evento raro, com uma busca de caminho dentro do bloco no worker. Estimativa: dezenas de
+  ms em N = 256, medir.
+- Mais placas deixam a recomposição mais cara na faixa de fronteira, porque cada célula testa todas
+  as placas.
+- O "Medir desempenho" ganha um cenário com ruptura forçada, e o relatório do aparelho decide.
+
+### Decisões que preciso de você antes de codar
+1. **Latitude inicial da Pangeia:**
+   - **(a, recomendada)** continua como está (centro entre ±34°). A dispersão sobe a latitude média
+     até o equilíbrio (~33°) nos 2 primeiros minutos, e o teste mede a tendência daí em diante.
+   - **(b)** sortear o centro para que a terra já comece perto do equilíbrio. Isso muda o mundo
+     inicial das sementes.
+2. **Ritmo do ciclo:** mandato do supercontinente ~2 min e ciclo de 8 a 12 min (a 20×, Placas 100%)?
+3. **Geração v3:** a Pangeia nasce como bloco soldado e a primeira quebra usa os riftes traçados
+   (muda as placas iniciais de toda semente)?
+4. **Prints** das formas que você achou feias: a mensagem dizia "[anexar prints]", mas eles não
+   vieram.
+
+### Tarefas (depois da aprovação, nesta ordem; cada uma = um commit)
+- [ ] **G1 — Latitude:** solda só com aproximação; reorganização dos polos; testes de rigidez/costuras
+  e de tendência de latitude.
+- [ ] **G2 — Ciclo de Wilson:** suturas explícitas; sutura sem contato some; supercontinente,
+  mandato e ruptura por sutura e junção tríplice; teste de 15 min; cenário no "Medir desempenho".
+- [ ] **G3 — Riftes traçados e formas:** braços serpenteando com degraus, aulacógeno,
+  microcontinentes, geração v3 (se aprovada), números de placa; critério de formas aos 2, 5 e 10 min;
+  mapas antes/depois.
+
+## Estado em 2026-10-15 (noite) e próximos passos
 Feito no `marco-2` (prévia em `/previa/marco-2/`): T1–T5, correção do travamento no celular, D1–D5 e
-a correção dos pedaços de placa (commit `d36c156`).
+a correção dos pedaços de placa (commit `d36c156`, confirmada no celular: a oscilação sumiu; o
+relatório do aparelho bateu todas as metas de fps e geração).
 
-Aguardando o usuário, nesta ordem:
-1. Testar no celular a correção das placas (placas 100%, tempo 20×, 3–5 min com "Ver placas") e
-   colar o relatório do "Medir desempenho" (agora com painel aberto e deriva longa).
-2. Confirmar no celular as correções ainda pendentes em `docs/bugs.md` (travamento em 92%, lagos
-   retos) e a D2 com o painel aberto.
-3. Avaliar as imagens de formas (`docs/img/m2-formas-*.png`, `docs/img/m2-placas-antes-depois.png`)
-   e a T5 (relevo nas fronteiras).
-4. Só então seguir para a T6 (minerais), que está congelada.
+Aguardando o usuário: as 4 decisões do **Bloco G** (acima). Depois, G1 → G2 → G3, cada uma com teste
+no celular. Ainda pendentes: confirmar no celular o travamento em 92% e os lagos retos
+(`docs/bugs.md`), avaliar as imagens de formas e a T5. T6 (minerais) segue congelada.
 
-Questões de design em aberto (perguntar ao usuário quando chegar a hora):
-- **Rifte / ciclo de supercontinente:** com a solda, continentes que se encontram ficam juntos para
-  sempre; jogando muitos minutos, tendem a formar um supercontinente. Haverá rifte que parte de novo?
-  (Afeta também a T13, que pede ≥ 3 continentes grandes depois de X passos.)
-- **"Tamanho fixo" das placas:** ao pé da letra é impossível com placas rígidas cobrindo a esfera
-  (dorsais fazem crescer, subducção encolhe). Ficou fixa a identidade e a forma; confirmar se basta.
+Questão em aberto que continua: **"tamanho fixo" das placas.** Ao pé da letra é impossível com placas
+rígidas cobrindo a esfera, porque as dorsais fazem crescer e a subducção encolhe. Ficaram fixas a
+identidade e a forma; confirmar se basta. A questão do rifte foi decidida: ciclo de Wilson (Bloco G).
 
 ## Critérios de aceite do usuário
 1. Ligo as placas e acelero o tempo: a Pangeia se parte em continentes, e a tela não trava.
