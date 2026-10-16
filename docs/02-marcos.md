@@ -94,3 +94,5 @@ contaminação, inverno nuclear) e do combustível fóssil (aquecimento).
 Inclui o acabamento visual do menu de ferramentas (decidido no M2) e a escala visual pequena de
 pessoas e cidades.
 Sprites melhores, animações, possível pseudo-3D, som.
+Pedido do usuário (2026-10-16): formações de erosão vistas de perto (pilares de arenito como os da
+China, grandes "braços" de pedra); a erosão pelo clima em si é da T7 do M2.

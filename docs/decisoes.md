@@ -471,3 +471,13 @@ Formato: data — decisão — motivo — alternativa descartada.
     pedaço inteiro para o vizinho).
   - **Custo:** geração +67 ms de mediana no notebook (~+0,2 s no celular, ~2,9–3,0 s no total).
 
+- **2026-10-16 — G4: montanha na placa de cima; planalto sem limite extra (se a medida confirmar).**
+  - **Decisão do usuário:** a crosta consumida na colisão vira montanha toda na placa que fica por
+    cima (como o Himalaia). O planalto não ganha limite extra se a colisão terminar sozinha na solda num
+    tamanho realista (estimativa: 300–470 km de cordilheira, menor que o Himalaia–Tibete com ~1.000 km);
+    se passar disso na medida, limite baseado no Tibete.
+  - **Pedido junto:** relevo variado com base no mundo real (proposta na especificação, versão 2).
+  - **Registro de método:** mecanismo novo com efeito de jogo, mesmo para fazer um critério passar,
+    é decisão de design: perguntar antes (o "rifte que abre como zíper" do G3 foi feito sem perguntar;
+    o usuário aprovou depois).
+

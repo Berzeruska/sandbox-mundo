@@ -8,10 +8,12 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** Bloco G. Correção 2 e G3 feitos. **Parado numa decisão de design:** a especificação do
-  G4 (continente amassa e vira montanha) está pronta e espera aprovação, com 2 perguntas
-  (`docs/M2-especificacao.md`, "G4 — Proposta"). Depois do G4, fim do Bloco G: prévia e lista do que
-  testar.
+- **Agora:** Bloco G. Correção 2 e G3 feitos. **Parado numa decisão de design:** especificação do G4,
+  versão 2 (montanha na placa de cima, planalto, e de onde vem a variedade do relevo), com 2 perguntas
+  (`docs/M2-especificacao.md`, "G4 — Proposta ... versão 2"). Depois do G4, fim do Bloco G: prévia e
+  lista do que testar.
+- **Regra reforçada pelo usuário (2026-10-16):** mecanismo novo com efeito de jogo, mesmo para fazer
+  um critério passar, é decisão de design: perguntar antes.
 - **Método (regra do usuário, 2026-10-16):** teste por bloco. Sigo de tarefa em tarefa e só paro no
   fim do bloco, com prévia e lista numerada do que testar; paradas obrigatórias: decisão de design,
   teste de portão, meta de desempenho quebrada na estimativa. Blocos do M2: G (correção 2, G3, G4);
@@ -77,8 +79,12 @@ sobre "onde estamos", vale este.
 - [ ] Confirmar no celular, no fim do Bloco G: "relógio esperou" perto de 0 com placas 100%; recarga ao
   reabrir (contador "recargas p/ isolar").
 - [ ] Teste da correção 1 no celular (na lista do fim do Bloco G).
-- [ ] T7: vale de rifte entre montanhas com neve (`docs/bugs.md`), registrado para a T7.
-- [ ] G4 — continente amassa e vira montanha (especificação esperando aprovação).
+- [ ] T7: vale de rifte entre montanhas com neve (`docs/bugs.md`); nem toda montanha com neve; erosão
+  pelo clima (lado chuvoso vira escarpa, planalto seco sobrevive).
+- [ ] G4 — continente amassa e vira montanha, com variedade de relevo (especificação versão 2 esperando
+  aprovação).
+- [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
+  depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
 - [ ] Antes de fechar o Bloco G: medir de novo latitude e grupos soldados em N = 256; se subir para
   32 placas, medir no Hot 50i.
@@ -115,4 +121,5 @@ sobre "onde estamos", vale este.
 - M4: humanos começam nômades, com caça, antes da agricultura; uso econômico dos minerais; desmatamento; cidade sobre terreno que muda.
 - M5: quatro classes sociais; crônica permanente.
 - M6/M7: doutrinas de guerra, recursos estratégicos, consequências ambientais da guerra.
-- M8: acabamento visual do menu de ferramentas.
+- M8: acabamento visual do menu de ferramentas; formações de erosão vistas de perto (pilares de
+  arenito, "braços" de pedra).

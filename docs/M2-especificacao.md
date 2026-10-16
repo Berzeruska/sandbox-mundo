@@ -241,6 +241,10 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   antes.
   **Também (2026-10-16, `9d5f101`):** o vale de rifte entre duas montanhas pintadas fica com neve e
   parece estranho (`docs/bugs.md`). Tratar aqui, não antes.
+  **Também (2026-10-16, pedido do usuário):** nem toda montanha deve ter neve (depende da altura, da
+  latitude e da chuva). E a erosão pelo clima: o lado chuvoso de uma cordilheira desgasta mais e vira
+  escarpa; planalto seco sobrevive. Formações de erosão de perto (pilares de arenito, "braços" de
+  pedra) são do Marco 8.
 
 - [ ] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa
@@ -581,41 +585,89 @@ continua escura com tudo pausado (é crosta na simulação, não efeito de desen
   marcados como falha conhecida (`it.fails`), sem apagar e sem afrouxar o critério. **Têm de voltar a
   passar no fim do G3**; o G3 só fecha com eles como teste normal de novo.
 
-### G4 — Proposta: continente amassa e vira montanha (esperando aprovação)
+### G4 — Proposta: continente amassa e vira montanha (versão 2, esperando aprovação)
 **Hoje:** numa colisão entre dois continentes, até a solda (8 recomposições), a crosta continental da
-faixa sobreposta é apagada. Medido em 10 min: 10–16% da crosta continental some assim. A cordilheira
-sobe 480 m por recomposição na faixa da frente, até 7.000 m, não importa quanta crosta foi apagada.
+faixa sobreposta é apagada (10–16% da crosta continental em 10 min). A cordilheira sobe 480 m por
+recomposição na faixa da frente, até 7.000 m, igual em toda colisão.
 
-**Proposta:** a crosta que entra por baixo não some; vira altura na placa que fica por cima.
-- Cada célula continental consumida numa colisão entrega a "espessura" dela (a altura acima de uma
-  base de −3.500 m) à cordilheira da placa que venceu.
-- Essa espessura é repartida na faixa da frente em forma de sino (até 8 células, como hoje). A
-  cordilheira passa a crescer conforme a crosta que entra: colisão longa e rápida faz montanha maior,
-  e encostada de leve faz pouca.
-- **Planalto:** onde a montanha bate no teto (7.000 m), o que sobra vai para a célula seguinte, mais
-  para dentro da placa. Colisão longa alarga a cordilheira num planalto (como o Tibete), em vez de
-  jogar a crosta fora.
-- A área de terra ainda diminui um pouco: placas rígidas não encolhem. A crosta dessa área vira
-  altura em vez de sumir.
-- **Fica igual:** solda depois de 8 recomposições, acreção de continente pequeno, subducção de crosta
-  oceânica, erosão.
+**Decisões do usuário (2026-10-16):**
+1. A montanha nasce toda na placa que fica por cima (como o Himalaia).
+2. Planalto sem limite extra se a colisão já termina sozinha na solda e o planalto fica num tamanho
+   realista (referência: Tibete); senão, limite baseado no mundo real.
+3. Variedade baseada no mundo real: nem toda montanha extrema; planaltos, escarpas, istmos e cadeias
+   variadas; cada região com caráter próprio conforme a sua história geológica.
 
-**Teste (pelo desenho):**
-- Colisão sintética de 2 continentes, sem erosão: a soma da espessura continental (área × altura
-  acima da base) antes e depois da colisão bate em ±2%. Hoje ela cai.
-- Colisão longa: a faixa acima de 6.000 m fica mais larga que numa colisão curta (planalto).
-- Medida em N = 256, 5 sementes, 10 min: "crosta continental apagada" cai de 10–16% para ~0. Os
-  testes de oscilação, de pedaços soltos e de formas continuam passando.
+#### 1. Crosta vira montanha (base do G4)
+- Cada célula continental consumida numa colisão entrega a "espessura" dela (altura acima de uma base de
+  −3.500 m) à placa que fica por cima, na faixa da frente (sino de até 8 células).
+- Onde a montanha bate no teto, o que sobra vai para a célula seguinte, mais para dentro: a cordilheira
+  alarga e vira planalto.
+- **Qual dos dois casos é (resposta à decisão 2): o primeiro, pela estimativa.** A colisão termina
+  sozinha na solda: são 8 recomposições com frente, e em cada uma as placas se aproximam ~1–2 células.
+  Entram ~8–16 células de crosta por trecho de frente. Isso enche uma faixa de ~4–8 células no teto,
+  e a cordilheira inteira fica com ~8–12 células: 300–470 km em N = 256. O conjunto Himalaia–Tibete
+  tem ~1.000 km de largura, então o planalto fica menor que o Tibete, sem limite extra.
+  - Depois de codar eu meço em N = 256, nas 5 sementes, em 10 min.
+  - Só se alguma cordilheira passar de ~25 células (~1.000 km, o Tibete) eu proponho um limite.
 
-**Desempenho:** é conta só nas células da frente de colisão. Estimativa: < 5 ms por recomposição no
-notebook, no ajudante 2 (não para o relógio).
+#### 2. De onde vem a variedade (tudo no G4, menos o que está na lista "fora do G4")
+1. **Tamanho conforme a colisão:** a altura vem da crosta que entrou. Encostada curta ou lenta faz
+   morros e serras baixas. Colisão longa e rápida entre continentes grossos faz cordilheira alta e
+   planalto. Sem regra de "toda montanha vai a 7.000 m".
+2. **Províncias de crosta (caráter de cada região):** cada placa ganha, na geração, um mapa fixo de
+   rigidez, preso ao referencial dela como as margens e as amostras: núcleos rígidos e antigos
+   (crátons, como o Escudo Brasileiro) e faixas fracas entre eles.
+   - **Na colisão:** a crosta fraca engrossa e vira planalto; o cráton quase não deforma. Onde a
+     cordilheira encosta num cráton, a frente vira uma **escarpa** (subida abrupta), e atrás dele o
+     terreno fica plano e baixo.
+   - Como o mapa anda com a placa, cada região guarda o seu caráter pela vida toda.
+   - **Hemisférios e regiões diferentes:** o relevo de cada lugar depende de que províncias estão ali
+     e de que colisões já aconteceram ali (o ciclo de Wilson junta e separa os continentes em lugares
+     diferentes a cada volta). O mundo não fica homogêneo: um hemisfério pode ter planaltos jovens e o
+     outro, escudos antigos e baixos.
+3. **Colisão oblíqua:** quando as placas se encontram de lado, a crosta se espalha ao longo da frente.
+   A cordilheira sai mais baixa, mais comprida e em fileiras escalonadas; de frente, sai alta e
+   concentrada.
+4. **Picos e passagens:** ao longo da frente, a crosta recebida varia com um ruído preso à placa.
+   Saem picos, serras separadas por passagens e vales entre cadeias, não uma muralha contínua.
+5. **Montanha velha e montanha nova:** sem crosta nova entrando, a erosão (já existe) baixa a
+   cordilheira com o tempo. Cadeias antigas ficam baixas e arredondadas (como os Apalaches e os
+   Urais); cadeias novas ficam altas.
+6. **Escarpas de margem (ombreira de rifte):** quando um continente racha, as bordas da fenda sobem
+   300–1.000 m (sorteado por trecho) e, quando a fenda vira mar, ficam como uma escarpa costeira, como
+   a Serra do Mar e o Drakensberg. **Atenção:** isto é do módulo dos riftes (G3); proponho incluir no
+   G4 porque é parte da variedade pedida.
+
+**Como medir (referência real, aproximada):** na Terra, ~10% da terra fica acima de 2.000 m, ~2–3%
+acima de 4.000 m (quase tudo Tibete e Andes) e uma fração mínima acima de 6.000 m. Teste em N = 256,
+5 sementes, aos 10 min: terra acima de 2.000 m entre 5% e 15%; acima de 4.000 m entre 0,5% e 4%;
+acima de 6.000 m abaixo de 0,3%. Os mapas antes/depois vão para `docs/img/`; penínsulas, escarpas e
+planaltos você julga no celular.
+
+**Testes (pelo desenho):**
+- Colisão sintética de 2 continentes, sem erosão: a espessura continental total bate em ±2%.
+- Colisão longa e rápida dá faixa acima de 6.000 m mais larga que colisão curta.
+- Contra um cráton, a altura sobe mais de 2.000 m em até 2 células (escarpa).
+- Colisão oblíqua dá pico mais baixo que a frontal com a mesma crosta.
+- Rifte novo: as bordas sobem e continuam altas quando a fenda vira mar.
+- Continuam passando: oscilação, pedaços soltos, formas, latitude e ciclo de Wilson.
+
+**Desempenho:** contas só nas células da frente de colisão e das bordas de rifte novas. O mapa de
+rigidez é ruído preso à placa, lido só nessas células. Estimativa: < 5 ms por recomposição no
+notebook, no ajudante 2. Geração: nada novo (o mapa é calculado na hora, pelo ruído).
+
+**Fora do G4 (registrado onde entra):**
+- **Istmos** como o do Panamá nascem de arcos vulcânicos entre continentes → **T9 (vulcões e
+  arcos)**. No G4 só saem os istmos de colisão (dois continentes que acabam de se tocar).
+- **Erosão pelo clima** (lado chuvoso desgasta mais e faz escarpa; planalto seco sobrevive) e
+  **formações de erosão** (pilares de arenito como os da China, grandes "braços" de pedra) → não há
+  tarefa de erosão no M2. Proponho que a erosão pelo clima entre na **T7** (clima que acompanha a
+  deriva), e o detalhe visual de perto no **Marco 8**. Registrado nos dois.
+- **Neve:** nem toda montanha tem neve → **T7**, junto com o defeito da neve no vale do rifte.
 
 **Perguntas antes de codar:**
-1. **Onde nasce a montanha:**
-   - (a, recomendada) toda na placa que fica por cima (como o Himalaia, do lado da Ásia);
-   - (b) metade de cada lado da sutura.
-2. **Planalto:** pode alargar sem limite enquanto a colisão durar (até a solda, ~8 recomposições), ou
-   prefere um limite de largura (ex.: 12 células)?
+1. Aprova as fontes de variedade 1 a 5?
+2. A ombreira de rifte (item 6) entra no G4, ou fica para depois?
 
 ### G3 — Resultado (2026-10-16)
 **Como funciona** (detalhes em `docs/03-mundo-geologia.md`, constantes em `src/world/rifts.ts` e
@@ -654,6 +706,10 @@ notebook, no ajudante 2 (não para o relógio).
 **Medido:**
 - **Falha conhecida resolvida:** os testes de formas de `terra` e `mundo` voltaram a ser testes normais
   e passam, com o mesmo critério (aos 3 min, N = 128: `terra` 34%, `mundo` 30%, `7` 28%).
+- **Falha conhecida (registrada a pedido do usuário, 2026-10-16):** 8 de 20 sementes ficam fora do
+  critério de formas aos 3 min (N = 128): `42`, `ilha`, `s1`, `s3`, `s6`, `s7`, `s12`, `s13` (sementes de
+  teste `s0`–`s14` mais as 5 de sempre). Causa principal: dois continentes que colidem e se soldam logo
+  depois da quebra (dinâmica de dispersão do G1/G2). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - **20 sementes, N = 128, 3 min:** 12 de 20 no critério (antes do G3: 8 de 20). As que falham têm, em
   geral, dois continentes que colidem e se soldam logo depois da quebra (dinâmica da dispersão do
   G1/G2), não vale de rifte.
@@ -793,8 +849,9 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
   microcontinentes, geração v3 (se aprovada), números de placa; critério de formas aos 2, 5 e 10 min;
   mapas antes/depois.
   Os testes de formas de `terra` e `mundo` voltaram a passar como teste normal (resultado abaixo).
-- [ ] **G4 — Continente amassa e vira montanha** em vez de ser apagado na colisão. Especificação
-  aprovada antes de codar.
+- [ ] **G4 — Continente amassa e vira montanha** em vez de ser apagado na colisão, com variedade de
+  relevo (províncias de crosta, escarpas, colisão oblíqua, picos e passagens). Especificação (versão 2)
+  esperando aprovação.
 
 ## Estado em 2026-10-15 (noite) e próximos passos
 Feito no `marco-2` (prévia em `/previa/marco-2/`): T1–T5, correção do travamento no celular, D1–D5 e
