@@ -512,7 +512,13 @@ body {
   font: 600 11px/1.4 system-ui, sans-serif;
   letter-spacing: 0.04em;
   pointer-events: none;
-  z-index: 5;
+  z-index: 3;
+}
+
+/* No mesmo canto do painel Dados, a etiqueta cobria a linha do fps (e, por baixo, ainda vazava pelo
+   fundo do painel). Com o painel aberto ela some: a linha "versão" dele já diz qual build é. */
+#app:has(.debug-panel:not(.hidden)) .preview-badge {
+  display: none;
 }
 
 .error-screen {
