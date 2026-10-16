@@ -424,3 +424,13 @@ Formato: data — decisão — motivo — alternativa descartada.
   - **Alternativas descartadas:** (b) mínima (ainda para ~0,3–0,4 s e seria jogada fora); só (a)
     (a data ainda para ~0,5 s).
 
+- **2026-10-16 — Rifte que para de abrir fica como vale em terra (decisão do usuário, correção 1).**
+  - **Decisão:** fenda entre dois continentes nasce como vale de rifte (300–800 m abaixo das bordas);
+    com 3 células de largura, o meio vira dorsal. Se parar de abrir antes disso, o vale fica (aulacógeno).
+  - **Motivo:** o morro pintado numa fronteira não ganha mais um rasgo de fundo oceânico; é o que a
+    Terra faz (riftes abortados).
+  - **Consequência aceita:** istmos de vale ligam continentes; os testes de formas de `terra` e `mundo`
+    aos 3 min viram falha conhecida até o fim do G3, com o critério intacto.
+  - **Alternativas descartadas:** vale sempre abaixo do mar (volta o corte no morro); vale parado vira
+    mar com o tempo (regra nova).
+

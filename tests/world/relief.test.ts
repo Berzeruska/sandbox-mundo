@@ -86,11 +86,13 @@ describe('relevo nas fronteiras (T5)', () => {
   it('continente que se rasga: a borda vira plataforma rasa, com recorte irregular', () => {
     const { w, g, run } = twoPlates(400, 400);
     run(4);
-    // Margens do rifte: crosta continental encostada no oceano novo, perto de (0,0,1).
+    // Margens do rifte: crosta continental a até 2 células do oceano novo, perto de (0,0,1). A
+    // primeira é o vale de rifte que ficou na borda quando o meio virou mar (correção 1).
     const margin: number[] = [];
+    const nearOcean = (i: number) => [0, 1, 2, 3].some((d) => w.elevation[g.neighbor(i, d)]! < -1500);
     for (let i = 0; i < w.cellCount; i++) {
       if (w.crust[i] !== Crust.Continental || g.positions[i * 3 + 2]! < 0.9) continue;
-      if ([0, 1, 2, 3].some((d) => w.elevation[g.neighbor(i, d)]! < -1500)) margin.push(i);
+      if (nearOcean(i) || [0, 1, 2, 3].some((d) => w.crust[g.neighbor(i, d)] === Crust.Continental && nearOcean(g.neighbor(i, d)))) margin.push(i);
     }
     expect(margin.length).toBeGreaterThan(10);
     // Parte afundou para plataforma (abaixo do mar, rasa) e parte segue terra: costa irregular.

@@ -564,10 +564,12 @@ continua escura com tudo pausado (é crosta na simulação, não efeito de desen
   aos 3 min (4–7 continentes, maior < 40%) falha: N = 128 `terra` 44% e `mundo` 40%; N = 256 `mundo` 47%.
   Sem contar o vale como terra: 22%, 31% e 29%. Em N = 256 `terra` (35%) e `7` (29%) continuam passando;
   `42` e `ilha` já estavam fora antes (G3).
-- **Decisão do usuário:** (1) aceitar: rifte parado fica como vale em terra (é o aulacógeno do G3), e o
-  critério de formas aos 3 min volta a ser cobrado no G3; (2) fundo do vale sempre abaixo do mar: separa
-  os continentes, mas volta a ser um corte estreito no morro, só que raso; (3) vale que para de abrir vira
-  mar depois de um tempo (regra nova de placas).
+- **Decisão do usuário (2026-10-16): opção 1.** Rifte parado fica como vale em terra (o aulacógeno).
+  Descartadas: fundo do vale sempre abaixo do mar (volta o corte no morro) e vale parado virando mar
+  (regra nova).
+- **Falha conhecida:** os testes de formas de `terra` e `mundo` (`tests/world/shapes.test.ts`) ficam
+  marcados como falha conhecida (`it.fails`), sem apagar e sem afrouxar o critério. **Têm de voltar a
+  passar no fim do G3**; o G3 só fecha com eles como teste normal de novo.
 
 ### G3 — Formas: de onde vem hoje o formato das costas
 1. **Costa da Pangeia inicial:** vem da geração v2. São lobos em volta de um centro, borda deformada
@@ -655,7 +657,7 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
 - [x] **G2 — Ciclo de Wilson:** suturas explícitas; sutura sem contato some; supercontinente,
   mandato e ruptura por sutura e junção tríplice; teste de 15 min; cenário no "Medir desempenho".
   Resultado abaixo ("G2 — Resultado").
-- [ ] **Correção 1 — Vale de rifte:** fenda entre continentes com menos de 3 células nasce como vale
+- [x] **Correção 1 — Vale de rifte:** fenda entre continentes com menos de 3 células nasce como vale
   (vizinhas −300 a −800 m); com 3 ou mais, o meio vira fundo oceânico. Teste sintético de 2 placas.
 - [ ] **Correção 2 — Ajudante 2 "Terra":** (2a) teste de memória compartilhada no celular (linha no
   painel Dados); (2b) recomposição e clima no ajudante 2, aplicados num passo fixo à frente; "pior" do
@@ -663,6 +665,8 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
 - [ ] **G3 — Riftes traçados e formas:** braços serpenteando com degraus, aulacógeno,
   microcontinentes, geração v3 (se aprovada), números de placa; critério de formas aos 2, 5 e 10 min;
   mapas antes/depois.
+  **Para fechar o G3:** os testes de formas de `terra` e `mundo` voltam a passar como teste normal
+  (falha conhecida desde a correção 1; ver "Correção 1 — resultado").
 - [ ] **G4 — Continente amassa e vira montanha** em vez de ser apagado na colisão. Especificação
   aprovada antes de codar.
 

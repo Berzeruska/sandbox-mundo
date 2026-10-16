@@ -6,7 +6,7 @@ import { CubeSphere, type Vec3 } from '../../src/world/cubesphere';
 import { landComponents } from '../../src/world/generation';
 import { Crust } from '../../src/world/plates';
 import { WorldState } from '../../src/world/state';
-import { MAX_PLATE_RATE, RIDGE_DEPTH, Tectonics } from '../../src/world/tectonics';
+import { MAX_PLATE_RATE, RIDGE_DEPTH, RIFT_DROP_MAX, RIFT_DROP_MIN, Tectonics } from '../../src/world/tectonics';
 
 /** Gira v pelo ângulo a em torno do eixo unitário k (Rodrigues). */
 function rotate(v: Vec3, k: Vec3, a: number): Vec3 {
@@ -103,6 +103,53 @@ describe('tectônica: movimento das placas', () => {
       // Houve consumo: menos amostras vivas do que células + dorsal nova.
       const ridgeCells = [...w.elevation].filter((e) => e === RIDGE_DEPTH).length;
       expect(t.sampleCount).toBeLessThan(w.cellCount + ridgeCells);
+    });
+  });
+
+  describe('dois continentes se afastando devagar (correção 1: vale de rifte)', () => {
+    // Placas 0 (x > 0) e 1 (x < 0), as duas continentais a 500 m, girando em sentidos opostos em
+    // torno de Y: perto de (0,0,1) a fenda abre ~0,5 célula por recomposição (N = 48).
+    const run = (recompositions: number) => {
+      const w = synthetic(48, (p) => (p[0] > 0 ? 0 : 1), () => 500, [plate(0, [0, 1, 0], [1, 0, 0]), plate(1, [0, -1, 0], [-1, 0, 0])]);
+      const t = new Tectonics(w, { relief: false, stages: false });
+      for (let k = 1; k <= recompositions; k++) {
+        t.angle[0] = 0.008 * k;
+        t.angle[1] = 0.008 * k;
+        t.recompose();
+      }
+      // Células da fenda: perto da abertura, com crosta nova (fora dos 500 m iniciais).
+      const rift: number[] = [];
+      for (let i = 0; i < w.cellCount; i++) {
+        if (w.grid.positions[i * 3 + 2]! < 0.97 || w.elevation[i] === 500) continue;
+        rift.push(i);
+      }
+      return { w, rift };
+    };
+
+    it('no começo a fenda é terra mais baixa que as bordas, sem nenhum fundo oceânico', () => {
+      // A fenda abre aos saltos (arredondamento na grade): ~2 células na 3ª recomposição, mais ~2
+      // na 7ª. Até a 6ª ela tem menos de 3 células de largura.
+      for (const k of [1, 2, 3, 4, 5, 6]) {
+        const { w, rift } = run(k);
+        if (k >= 3) expect(rift.length).toBeGreaterThan(0);
+        for (const i of rift) {
+          expect(w.crust[i]).toBe(Crust.Continental);
+          expect(w.elevation[i]).toBeLessThanOrEqual(500 - RIFT_DROP_MIN);
+          expect(w.elevation[i]).toBeGreaterThanOrEqual(500 - RIFT_DROP_MAX);
+        }
+      }
+    });
+
+    it('com 3 células ou mais de largura, o meio vira fundo oceânico e o vale fica nas bordas', () => {
+      const { w, rift } = run(14);
+      const ocean = rift.filter((i) => w.crust[i] === Crust.Oceanic);
+      const valley = rift.filter((i) => w.crust[i] === Crust.Continental);
+      expect(ocean.length).toBeGreaterThan(0);
+      expect(valley.length).toBeGreaterThan(0);
+      for (const i of ocean) expect(w.elevation[i]).toBe(RIDGE_DEPTH);
+      // O oceano está no meio: mais perto da linha x = 0 que o vale, em média.
+      const meanAbsX = (list: number[]) => list.reduce((a, i) => a + Math.abs(w.grid.positions[i * 3]!), 0) / list.length;
+      expect(meanAbsX(ocean)).toBeLessThan(meanAbsX(valley));
     });
   });
 

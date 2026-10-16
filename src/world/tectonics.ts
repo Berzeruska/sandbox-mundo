@@ -32,6 +32,16 @@ export const RECOMPOSE_CELLS = 2;
 export const RIDGE_DEPTH = -2500;
 /** Nascimento atribuído à crosta inicial (bem antiga). */
 const ANCIENT = -1_000_000;
+/**
+ * Vale de rifte (correção 1): fenda entre dois continentes com menos desta largura (células) nasce
+ * como terra afundada, não como fundo oceânico. Com esta largura ou mais, o meio vira dorsal.
+ * A amostra do vale é continental com nascimento (`sBirth`) recente; a crosta continental antiga
+ * nasce em ANCIENT.
+ */
+export const RIFT_VALLEY_WIDTH = 3;
+/** O fundo do vale fica entre estes metros abaixo das bordas (varia por célula, sem sorteio). */
+export const RIFT_DROP_MIN = 300;
+export const RIFT_DROP_MAX = 800;
 
 // --- Identidade das placas (D3). ---
 /**
@@ -701,7 +711,8 @@ export class Tectonics {
       for (const i of doomed) if (!shown[i]) this.kill(i);
     }
 
-    // Buracos: dorsal (crosta oceânica nova) onde as placas se afastam; senão, cicatriza copiando.
+    // Buracos: dorsal (crosta oceânica nova) onde as placas se afastam, ou vale de rifte se a fenda entre
+    // dois continentes ainda é estreita; senão, cicatriza copiando.
     // Processa de fora para dentro, para cada buraco ter um vizinho já resolvido.
     let pending = gaps;
     for (let guard = 0; pending.length && guard < 1000; guard++) {
@@ -747,9 +758,16 @@ export class Tectonics {
           newSample[c] = existing;
           continue;
         }
-        const i = opening || !isolatedHole
-          ? this.addSample(owner, ref, RIDGE_DEPTH, Crust.Oceanic, this.tick)
-          : this.addSample(owner, ref, this.sElev[fromSample] as number, this.sCrust[fromSample] as number, this.sBirth[fromSample] as number);
+        let i: number;
+        if (opening || !isolatedHole) {
+          // Fenda estreita entre dois continentes: vale de rifte; senão, dorsal como antes.
+          const floor = this.riftFloor(c, owner, ref, newSample);
+          i = Number.isNaN(floor)
+            ? this.addSample(owner, ref, RIDGE_DEPTH, Crust.Oceanic, this.tick)
+            : this.addSample(owner, ref, floor, Crust.Continental, this.tick);
+        } else {
+          i = this.addSample(owner, ref, this.sElev[fromSample] as number, this.sCrust[fromSample] as number, this.sBirth[fromSample] as number);
+        }
         newSample[c] = i;
       }
       if (still.length === pending.length) break;
@@ -790,6 +808,59 @@ export class Tectonics {
     if (this.weldCollisions(front, contact)) updateBoundaries(world);
     this.recompositions++;
     this.compact();
+  }
+
+  /** Amostra de vale de rifte: continental nascida durante o jogo (ver RIFT_VALLEY_WIDTH). */
+  private isRiftValley(i: number): boolean {
+    return this.sCrust[i] === Crust.Continental && (this.sBirth[i] as number) > ANCIENT;
+  }
+
+  /**
+   * Altura do fundo do vale de rifte numa fenda `c`, ou NaN se ali deve nascer dorsal.
+   * Procura, atravessando a fenda (células ainda sem crosta e vale já aberto), a borda continental
+   * de uma placa e a de outra. Se as duas existem e a fenda inteira tem menos de RIFT_VALLEY_WIDTH
+   * células, o fundo fica entre RIFT_DROP_MIN e RIFT_DROP_MAX abaixo da média das bordas.
+   * Fundo oceânico no caminho (o rifte já virou mar) ou um dos lados oceânico: dorsal.
+   */
+  private riftFloor(c: number, owner: number, ref: number, newSample: Int32Array): number {
+    const { neighbors } = this.world.grid;
+    const seen = [c];
+    let ring = [c];
+    let plateA = -1;
+    let distA = 0;
+    let elevA = 0;
+    let distB = 0;
+    let elevB = 0;
+    for (let dist = 1; dist < RIFT_VALLEY_WIDTH && !distB && ring.length; dist++) {
+      const next: number[] = [];
+      for (const k of ring) {
+        for (let d = 0; d < 4; d++) {
+          const nb = neighbors[k * 4 + d] as number;
+          if (seen.includes(nb)) continue;
+          seen.push(nb);
+          const s = newSample[nb] as number;
+          if (s < 0 || this.isRiftValley(s)) {
+            next.push(nb);
+            continue;
+          }
+          if (this.sCrust[s] !== Crust.Continental) continue;
+          const p = this.sPlate[s] as number;
+          if (plateA < 0) {
+            plateA = p;
+            distA = dist;
+            elevA = this.sElev[s] as number;
+          } else if (p !== plateA && !distB) {
+            distB = dist;
+            elevB = this.sElev[s] as number;
+          }
+        }
+      }
+      ring = next;
+    }
+    if (!distB || distA + distB - 1 >= RIFT_VALLEY_WIDTH) return NaN;
+    // Variação por célula do referencial da placa: determinística e presa à crosta.
+    const h = (Math.imul(ref ^ Math.imul(owner + 1, 0x9e3779b1), 0x85ebca6b) >>> 0) / 4294967296;
+    return (elevA + elevB) / 2 - (RIFT_DROP_MIN + (RIFT_DROP_MAX - RIFT_DROP_MIN) * h);
   }
 
   /**

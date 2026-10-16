@@ -8,15 +8,15 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** correção 1 (vale de rifte) com código pronto e testado, **parada numa decisão de design**:
-  rifte que para de abrir fica como vale em terra e liga continentes; o critério de formas aos 3 min
-  falha em `terra` e `mundo`. Opções na especificação ("Correção 1 — resultado"). O código só entra no
-  git depois da decisão (o commit tem de passar no `npm run check`).
+- **Agora:** correção 1 (vale de rifte) feita e publicada na prévia; **esperando o teste no
+  celular**. Depois: correção 2, começando pelo teste de memória compartilhada.
 - **Ordem aprovada:** correção 1 → correção 2 (ajudante 2) → G3 → G4 (continente amassa e vira
   montanha, especificação antes) → T6 em diante.
-- **Direção do usuário (2026-10-16):** fechar o G3 dentro do que já foi especificado e seguir a lista
-  do marco. Melhoria nova de placas que não seja bug vai para os docs, não para agora. O mesmo vale para
-  reclamações fora do módulo atual: registrar e seguir na prioridade.
+- **Direção do usuário (2026-10-16, corrigida por ele):** uma coisa por vez, bem feita, cada módulo
+  respeitando o seu limite, sem virar bagunça. Não é "não mexer mais em placas": é não misturar.
+  Fechar o G3 dentro do que já foi especificado e seguir a lista do marco. Melhoria nova (de placas ou
+  de outro módulo) que não seja bug vai para os docs e entra na sua vez; reclamação fora do módulo atual:
+  registrar e seguir na prioridade.
 - **Prévia:** berzeruska.github.io/sandbox-mundo/previa/marco-2/ — a linha "versão" do painel Dados
   tem que mostrar o último commit do `marco-2` com mudança no jogo.
 - **Publicado em `main`:** v1.1.
@@ -56,9 +56,14 @@ sobre "onde estamos", vale este.
 - G1 latitude (`bcfba4b`), aprovado no celular.
 - G2 ciclo de Wilson (`c0660ea`), testado no celular: "bem mais liso".
 - Etiqueta "PRÉVIA" não cobre mais o fps do painel Dados (`4a11cf8`): some com o painel aberto.
+- Correção 1, vale de rifte: fenda entre continentes nasce como vale; com 3 células de largura o meio
+  vira mar; rifte parado fica como vale em terra (aulacógeno, opção 1 do usuário).
 
 ## Pendente no M2
-- [ ] Correção 1 (vale de rifte), correção 2 (teste de memória compartilhada, depois ajudante 2).
+- [ ] Teste da correção 1 no celular.
+- [ ] Correção 2 (teste de memória compartilhada no celular, depois ajudante 2).
+- [ ] **Falha conhecida:** testes de formas de `terra` e `mundo` (maior continente 44% e 40% aos 3 min,
+  por istmos de vale). Têm de voltar a passar no fim do G3.
 - [ ] G3 — riftes traçados, junção tríplice, aulacógenos, microcontinentes, Pangeia nascendo soldada
   (geração v3), teste de formas aos 2, 5 e 10 min.
 - [ ] G4 — continente amassa e vira montanha na colisão (especificação antes).
