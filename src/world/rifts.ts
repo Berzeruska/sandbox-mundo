@@ -694,6 +694,9 @@ export function sliverAlong(grid: CubeSphere, region: Uint8Array, path: readonly
       for (let d = 0; d < 4; d++) {
         const k = neighbors[c * 4 + d] as number;
         if (!region[k] || onPath[k] || depth[k] !== 0xffff) continue;
+        // Sempre do mesmo lado (sem contornar a ponta do braço).
+        const p = pointOf(grid, k);
+        if (Math.sign(p[0] * nrm[0] + p[1] * nrm[1] + p[2] * nrm[2]) !== side) continue;
         depth[k] = step;
         next.push(k);
         out.push(k);
