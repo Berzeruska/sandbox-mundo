@@ -527,6 +527,7 @@ export class App {
       memoryMb: this.stats.memoryMb,
       drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
       version: __BUILD_ID__,
+      sharedMemory: this.sim.sharedMemory,
       cycle: `${CYCLE_PHASES[this.work.cyclePhase] ?? '—'} · ${this.work.supercontinents} supercontinentes · ${this.work.ruptures} rupturas`,
     });
   }
@@ -631,6 +632,7 @@ export class App {
         gpu: renderer?.gpuName() ?? '—',
         drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
         cores: navigator.hardwareConcurrency || 0,
+        sharedMemory: this.sim.sharedMemory,
         screen: `tela ${screen.width}×${screen.height} @${(window.devicePixelRatio || 1).toFixed(2)} · desenho ${canvas.width}×${canvas.height} · ~${this.stats.lastMinGap > 0 ? Math.round(1000 / this.stats.lastMinGap) : 0} Hz`,
         userAgent: navigator.userAgent,
       },

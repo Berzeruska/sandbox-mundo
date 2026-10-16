@@ -48,11 +48,15 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 9. **Dúvida de design é do usuário.** Se a especificação não decide algo que muda a experiência de
    jogo, pergunte em uma frase com opções. Se for detalhe técnico, decida, registre e siga.
 10. **Nunca diga que está pronto sem ter rodado.** "Deve funcionar" não é relato.
-11. **Quando parar para o usuário testar** (regra do usuário, 2026-10-15): tarefas sem mudança que
-    ele veja ou sinta no jogo (infraestrutura, refatoração, testes, documentação) seguem direto para
-    a próxima, sem parar para aprovação, mas sempre com commit e relato. Pare e peça teste só quando
-    houver algo visível ou sentido no jogo, ou uma decisão de design. Ao parar, publique a prévia do
-    branch (`/previa/<branch>/`) e passe o link.
+11. **Teste por bloco, não por tarefa** (regra do usuário, 2026-10-16; substitui a de 2026-10-15).
+    - Siga direto de tarefa em tarefa (commit, push e `docs/estado-atual.md` a cada uma) e só pare
+      no **fim de cada bloco** do marco. Os blocos estão na especificação do marco.
+    - No fim do bloco: publique a prévia do branch (`/previa/<branch>/`), passe o link e uma **lista
+      completa e numerada do que testar no celular, tarefa por tarefa**: o que fazer, o que deve
+      aparecer e o que seria defeito. Inclua o "Medir desempenho".
+    - **Paradas obrigatórias, mesmo no meio do bloco:** decisão de design (regra 9); teste de
+      portão, que muda o caminho conforme o resultado (ex.: um recurso do navegador funcionar no
+      celular); meta de desempenho quebrada na estimativa no notebook.
 12. **Nenhum teste depende do relógio real** (regra do usuário): lógica com tempo vira função pura
     com tempos sintéticos. Medições de desempenho não são testes de aprovação.
 13. **Desempenho a cada marco** (regra do usuário): ao fim de cada marco, medir de novo nas condições

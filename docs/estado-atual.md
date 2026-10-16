@@ -8,8 +8,14 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** correção 1 (vale de rifte) feita e publicada na prévia; **esperando o teste no
-  celular**. Depois: correção 2, começando pelo teste de memória compartilhada.
+- **Agora:** Bloco G, correção 2. **Parado no teste de portão:** a memória compartilhada funciona no
+  celular? (linha "memória compartilhada" no painel Dados). "sim" → sigo com o ajudante 2 até o fim do
+  bloco (correção 2, G3, G4). "não" → paro e pergunto antes de seguir com cópia.
+- **Método (regra do usuário, 2026-10-16):** teste por bloco. Sigo de tarefa em tarefa e só paro no
+  fim do bloco, com prévia e lista numerada do que testar; paradas obrigatórias: decisão de design,
+  teste de portão, meta de desempenho quebrada na estimativa. Blocos do M2: G (correção 2, G3, G4);
+  minerais e clima (T6, T7); desastres (T8–T12); final (T13, T14).
+- **Correção 1** (`9d5f101`) está na prévia; o teste dela entra na lista do fim do Bloco G.
 - **Ordem aprovada:** correção 1 → correção 2 (ajudante 2) → G3 → G4 (continente amassa e vira
   montanha, especificação antes) → T6 em diante.
 - **Direção do usuário (2026-10-16, corrigida por ele):** uma coisa por vez, bem feita, cada módulo
@@ -60,8 +66,10 @@ sobre "onde estamos", vale este.
   vira mar; rifte parado fica como vale em terra (aulacógeno, opção 1 do usuário).
 
 ## Pendente no M2
-- [ ] Teste da correção 1 no celular.
-- [ ] Correção 2 (teste de memória compartilhada no celular, depois ajudante 2).
+- [ ] Correção 2: teste de memória compartilhada no celular (portão, agora); depois ajudante 2 e "pior"
+  por cenário.
+- [ ] Teste da correção 1 no celular (na lista do fim do Bloco G).
+- [ ] T7: vale de rifte entre montanhas com neve (`docs/bugs.md`), registrado para a T7.
 - [ ] **Falha conhecida:** testes de formas de `terra` e `mundo` (maior continente 44% e 40% aos 3 min,
   por istmos de vale). Têm de voltar a passar no fim do G3.
 - [ ] G3 — riftes traçados, junção tríplice, aulacógenos, microcontinentes, Pangeia nascendo soldada

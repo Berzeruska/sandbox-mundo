@@ -3,7 +3,7 @@ import type { Tool } from '../input/tools';
 import type { Layers } from '../render/colors';
 import type { Vec3 } from '../world/cubesphere';
 import type { WorkCounters } from '../ui/benchmark';
-import type { CellQuery, FromWorker, Patch, PlateMotionInfo, ToWorker, WorldInfo } from './protocol';
+import { SHARED_PROBE_VALUE, sharedMemoryLabel, type CellQuery, type FromWorker, type Patch, type PlateMotionInfo, type ToWorker, type WorldInfo } from './protocol';
 
 export interface SimEvents {
   onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array): void;
@@ -28,6 +28,8 @@ export class SimClient {
   private pendingBrush: { tool: Tool; point: Vec3; radius: number; dt: number } | null = null;
   private queries = new Map<number, (cell: CellQuery) => void>();
   private nextQuery = 1;
+  private sharedBuffer: SharedArrayBuffer | null = null;
+  private sharedProbe: boolean | null = null;
 
   constructor(private events: SimEvents) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -45,6 +47,22 @@ export class SimClient {
       this.events.onError(`Erro ao carregar ou rodar o simulador: ${e.message || 'sem detalhes'}`);
     };
     this.worker.onmessageerror = () => this.events.onError('Mensagem do simulador ilegível (versões diferentes?)', true);
+    this.probeSharedMemory();
+  }
+
+  /**
+   * Teste de portão da correção 2: a tela e o worker conseguem usar a mesma memória? Só com a página
+   * isolada entre origens (cabeçalhos postos pelo service worker) o navegador libera isso.
+   */
+  private probeSharedMemory(): void {
+    if (!globalThis.crossOriginIsolated || typeof SharedArrayBuffer === 'undefined') return;
+    this.sharedBuffer = new SharedArrayBuffer(4);
+    this.send({ type: 'sharedProbe', buffer: this.sharedBuffer });
+  }
+
+  /** "sim", "não (motivo)" ou "testando…", para o painel Dados e o relatório. */
+  get sharedMemory(): string {
+    return sharedMemoryLabel(globalThis.crossOriginIsolated === true, typeof SharedArrayBuffer !== 'undefined', this.sharedProbe);
   }
 
   private send(msg: ToWorker): void {
@@ -129,6 +147,9 @@ export class SimClient {
       case 'query':
         this.queries.get(msg.id)?.(msg.cell);
         this.queries.delete(msg.id);
+        break;
+      case 'sharedProbe':
+        this.sharedProbe = msg.ok && !!this.sharedBuffer && Atomics.load(new Int32Array(this.sharedBuffer), 0) === SHARED_PROBE_VALUE;
         break;
     }
   }

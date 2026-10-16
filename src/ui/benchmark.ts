@@ -152,6 +152,8 @@ export interface DeviceInfo {
   gpu: string;
   drawing: string;
   cores: number;
+  /** Memória compartilhada entre a tela e o worker (teste da correção 2). */
+  sharedMemory: string;
   screen: string;
   userAgent: string;
 }
@@ -182,7 +184,7 @@ export function formatReport(device: DeviceInfo, scenarios: readonly ScenarioRes
     'Sandbox Mundo — medição de desempenho',
     `versão ${device.version} · ${device.date}`,
     `GPU: ${device.gpu}`,
-    `desenho: ${device.drawing} · núcleos: ${device.cores} · ${device.screen}`,
+    `desenho: ${device.drawing} · núcleos: ${device.cores} · memória compartilhada: ${device.sharedMemory} · ${device.screen}`,
     `navegador: ${device.userAgent}`,
     '',
     `${pad('cenário', 26)}${lpad('fps méd', 8)}${lpad('mín', 6)}${lpad('pior quadro', 13)}${lpad('>50ms', 7)}${lpad('tela ms', 9)}`,

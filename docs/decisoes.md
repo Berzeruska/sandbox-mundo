@@ -434,3 +434,13 @@ Formato: data — decisão — motivo — alternativa descartada.
   - **Alternativas descartadas:** vale sempre abaixo do mar (volta o corte no morro); vale parado vira
     mar com o tempo (regra nova).
 
+- **2026-10-16 — Teste por bloco, não por tarefa (regra do usuário, vale para os próximos marcos).**
+  - **Decisão:** o Claude Code segue de tarefa em tarefa (commit, push e `estado-atual.md` a cada uma)
+    e só para no fim de cada bloco, com a prévia e uma lista numerada do que testar no celular, tarefa
+    por tarefa (o que fazer, o que deve aparecer, o que seria defeito, e o "Medir desempenho"). Blocos
+    do M2: G (correção 2, G3, G4); minerais e clima (T6, T7); desastres (T8–T12); final (T13, T14).
+  - **Paradas obrigatórias no meio do bloco:** decisão de design; teste de portão; meta de desempenho
+    quebrada na estimativa no notebook.
+  - **Motivo:** menos idas e vindas; o usuário testa um conjunto que faz sentido junto.
+  - **Alternativa descartada:** parar a cada tarefa com mudança visível (regra de 2026-10-15).
+

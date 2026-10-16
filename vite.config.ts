@@ -46,7 +46,9 @@ const BUILD_ID = (process.env.GITHUB_SHA ?? '').slice(0, 8) || Date.now().toStri
 export default defineConfig({
   base: './',
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
-  server: { host: true },
+  // Os mesmos cabeçalhos que o service worker põe no site publicado (memória compartilhada).
+  server: { host: true, headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
+  preview: { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
   plugins: [serviceWorker()],
   test: {
     include: ['tests/**/*.test.ts'],

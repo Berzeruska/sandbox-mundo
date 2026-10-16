@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPatch, makePatches, transferables } from '../../src/sim/protocol';
+import { applyPatch, makePatches, sharedMemoryLabel, transferables } from '../../src/sim/protocol';
 
 describe('protocolo do worker: remendos de cor', () => {
   const n = 8;
@@ -40,5 +40,15 @@ describe('protocolo do worker: remendos de cor', () => {
     expect(buffers.length).toBe(2);
     expect(buffers[0]).not.toBe(buffers[1]);
     expect(buffers[0]).not.toBe(source.buffer);
+  });
+});
+
+describe('teste de memória compartilhada (correção 2)', () => {
+  it('diz "sim" só com página isolada, SharedArrayBuffer e o valor lido de volta', () => {
+    expect(sharedMemoryLabel(true, true, true)).toBe('sim');
+    expect(sharedMemoryLabel(true, true, null)).toBe('testando…');
+    expect(sharedMemoryLabel(true, true, false)).toMatch(/^não/);
+    expect(sharedMemoryLabel(false, true, null)).toBe('não (página sem isolamento)');
+    expect(sharedMemoryLabel(true, false, null)).toBe('não (navegador sem SharedArrayBuffer)');
   });
 });

@@ -67,7 +67,7 @@ describe('medir desempenho: worker e relatório', () => {
   it('relatório traz cenários, worker, geração e a GPU', () => {
     const frames = record(Array(120).fill(1000 / 60)).summary();
     const text = formatReport(
-      { version: 'abc123', date: 'hoje', gpu: 'Mali-G52 MC2 (ARM)', drawing: 'completo', cores: 8, screen: 'tela 720×1600', userAgent: 'UA' },
+      { version: 'abc123', date: 'hoje', gpu: 'Mali-G52 MC2 (ARM)', drawing: 'completo', cores: 8, sharedMemory: 'sim', screen: 'tela 720×1600', userAgent: 'UA' },
       [
         { name: 'pausado, parado', frames, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 },
         {
@@ -81,6 +81,7 @@ describe('medir desempenho: worker e relatório', () => {
       { totalMs: 4000, workerMs: 3500, stagesMs: { grade: 300, terreno: 2000 }, receiveMs: 120 },
     );
     expect(text).toContain('Mali-G52');
+    expect(text).toContain('memória compartilhada: sim');
     expect(text).toContain('pausado, parado');
     expect(text).toContain('worker parado');
     expect(text).toContain('2 recomposições (1 soldas · 1 rupturas · 3 pedaços absorvidos): média 100 ms (placas 50 · clima 30 · cores 15 · envio 5) · pior 120 ms');

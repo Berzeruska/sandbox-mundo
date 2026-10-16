@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { SimulationCore } from './core';
-import type { ToWorker } from './protocol';
+import { SHARED_PROBE_VALUE, type ToWorker } from './protocol';
 
 /**
  * Web Worker da simulação: só liga o núcleo (`SimulationCore`) às mensagens e roda o laço do
@@ -18,8 +18,21 @@ function report(err: unknown): void {
 scope.postMessage({ type: 'hello', version: __BUILD_ID__ });
 
 scope.onmessage = (e: MessageEvent<ToWorker>) => {
+  const msg = e.data;
+  if (msg.type === 'sharedProbe') {
+    // Teste de memória compartilhada: a tela lê o valor no mesmo buffer, sem cópia.
+    let ok: boolean;
+    try {
+      Atomics.store(new Int32Array(msg.buffer), 0, SHARED_PROBE_VALUE);
+      ok = true;
+    } catch {
+      ok = false;
+    }
+    scope.postMessage({ type: 'sharedProbe', ok });
+    return;
+  }
   try {
-    core.handle(e.data);
+    core.handle(msg);
   } catch (err) {
     report(err);
   }

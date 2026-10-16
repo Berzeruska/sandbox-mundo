@@ -27,4 +27,21 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch((err: unknown) => console.warn('Service worker não registrado:', err));
   });
+  // Memória compartilhada (correção 2): a página só fica isolada quando o service worker que põe os
+  // cabeçalhos já a controla. Na primeira visita (ou ao trocar de versão) ele assume depois de a
+  // página abrir: recarrega uma vez. A marca na sessão impede recarregar em laço se o navegador não
+  // isolar mesmo assim.
+  const reloadKey = 'sandbox-mundo:isolamento';
+  const reloadOnce = (): void => {
+    if (window.crossOriginIsolated) return;
+    try {
+      if (sessionStorage.getItem(reloadKey)) return;
+      sessionStorage.setItem(reloadKey, '1');
+    } catch {
+      return;
+    }
+    window.location.reload();
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
+  if (navigator.serviceWorker.controller) reloadOnce();
 }

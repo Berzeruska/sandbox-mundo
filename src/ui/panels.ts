@@ -28,6 +28,8 @@ export interface DebugStats {
   /** Desenho completo ou simplificado (com o motivo). */
   drawing: string;
   version: string;
+  /** Memória compartilhada entre a tela e o worker (teste da correção 2). */
+  sharedMemory: string;
   /** Ciclo de Wilson: fase, supercontinentes e rupturas (G2). */
   cycle: string;
 }
@@ -136,6 +138,7 @@ export class DebugPanel {
       `placas  ${s.recompositions} recomposições · última ${s.geologyMs.toFixed(0)} ms`,
       `ciclo   ${s.cycle}`,
       `desenho ${s.drawing} · versão ${s.version}`,
+      `memória compartilhada ${s.sharedMemory}`,
     ].join('\n');
   }
 }

@@ -49,7 +49,24 @@ export type ToWorker =
   | { type: 'plateRate'; rate: number }
   /** "Medir desempenho": racha agora o maior bloco soldado (ciclo de Wilson, G2). */
   | { type: 'forceRupture' }
-  | { type: 'query'; id: number; point: Vec3 };
+  | { type: 'query'; id: number; point: Vec3 }
+  /** Teste de memória compartilhada (correção 2): o worker escreve SHARED_PROBE_VALUE no buffer. */
+  | { type: 'sharedProbe'; buffer: SharedArrayBuffer };
+
+/** Valor que o worker grava no teste de memória compartilhada. */
+export const SHARED_PROBE_VALUE = 42;
+
+/**
+ * Resultado do teste de memória compartilhada, em texto para o painel Dados e o relatório.
+ * `isolated`: a página está isolada entre origens (crossOriginIsolated); `available`: existe
+ * SharedArrayBuffer; `probe`: o que o worker escreveu foi lido aqui (null = ainda testando).
+ */
+export function sharedMemoryLabel(isolated: boolean, available: boolean, probe: boolean | null): string {
+  if (!isolated) return 'não (página sem isolamento)';
+  if (!available) return 'não (navegador sem SharedArrayBuffer)';
+  if (probe === null) return 'testando…';
+  return probe ? 'sim' : 'não (o simulador não escreveu)';
+}
 
 export interface CellQuery {
   elevation: number;
@@ -69,7 +86,8 @@ export type FromWorker =
   | { type: 'progress'; stage: string; fraction: number }
   | { type: 'patch'; patches: Patch[]; brushMs: number }
   | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number; geologyMs: number; memoryMb: number; angles: number[]; work: WorkCounters }
-  | { type: 'query'; id: number; cell: CellQuery };
+  | { type: 'query'; id: number; cell: CellQuery }
+  | { type: 'sharedProbe'; ok: boolean };
 
 /** Empacota os retângulos alterados (cada um no seu próprio buffer, para transferir). */
 export function makePatches(colors: Uint8Array, n: number, rects: readonly DirtyRect[]): Patch[] {

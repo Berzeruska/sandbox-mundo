@@ -141,6 +141,14 @@ mundos evoluem.
 
 ## Tarefas (fazer em ordem; cada uma = um commit)
 
+**Blocos de teste (regra do usuário, 2026-10-16):** sigo de tarefa em tarefa e só paro no fim de
+cada bloco, com a prévia e a lista numerada do que testar no celular (paradas obrigatórias no meio:
+decisão de design, teste de portão, meta de desempenho quebrada na estimativa).
+1. **Bloco G:** correção 2, G3, G4.
+2. **Minerais e clima:** T6, T7.
+3. **Desastres:** T8 a T12.
+4. **Final:** T13, T14 (medição contra a linha de base da v1.1).
+
 - [x] **T1 — Menu de ferramentas por categorias** (`src/ui/`)
   Um botão abre um menu por categorias e o jogador escolhe o que fica ativo:
   - **Tempo:** pausa e velocidades;
@@ -231,6 +239,8 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   **Observado pelo usuário no celular (2026-10-16, `c0660ea`), para tratar nesta tarefa:**
   terra em latitude alta sem gelo; polos simplificados demais; neve fraca. Diagnosticar na T7, não
   antes.
+  **Também (2026-10-16, `9d5f101`):** o vale de rifte entre duas montanhas pintadas fica com neve e
+  parece estranho (`docs/bugs.md`). Tratar aqui, não antes.
 
 - [ ] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa
@@ -662,6 +672,13 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
 - [ ] **Correção 2 — Ajudante 2 "Terra":** (2a) teste de memória compartilhada no celular (linha no
   painel Dados); (2b) recomposição e clima no ajudante 2, aplicados num passo fixo à frente; "pior" do
   relatório por cenário.
+  - **2a feito, esperando o celular (teste de portão):** o service worker acrescenta os cabeçalhos de
+    isolamento (COOP `same-origin`, COEP `require-corp`) às respostas do jogo; na primeira visita a
+    página recarrega uma vez sozinha (marca na sessão evita laço). A tela cria um SharedArrayBuffer, o
+    worker grava 42 nele e a tela lê de volta: linha "memória compartilhada" no painel Dados e no
+    relatório do "Medir desempenho". No notebook (Chromium, build servido sem cabeçalhos em
+    `/previa/marco-2/`): isolada, "sim", uma recarga só na primeira visita, nenhuma ao reabrir, abre
+    offline. **Se no celular der "não", parar e perguntar antes de seguir com cópia.**
 - [ ] **G3 — Riftes traçados e formas:** braços serpenteando com degraus, aulacógeno,
   microcontinentes, geração v3 (se aprovada), números de placa; critério de formas aos 2, 5 e 10 min;
   mapas antes/depois.
