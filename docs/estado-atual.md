@@ -8,9 +8,12 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** Bloco G. G4 com código feito e testado. **Parado numa decisão pedida pelo usuário:** a
-  erosão de hoje apaga a variedade antes dos 10 min (terra acima de 4.000 m: 0,03–0,74%, alvo
-  0,5–4%). Opções medidas em `docs/M2-especificacao.md`, "G4 — Andamento". Depois disso, fim do Bloco G.
+- **Agora:** **Bloco G fechado** (correção 2, G3, G4). Esperando o teste do usuário no celular com a
+  lista do fim do bloco. Depois: bloco Minerais e clima (T6, T7).
+- **Decisão aberta:** a semente `42` passa do critério de latitude do G1 em N = 256 (33% da terra acima
+  de 60° aos 10 min; antes do G3, 22%). Ver "Fim do Bloco G" na especificação.
+- **Direção geral do usuário (2026-10-16):** o mundo real é a base, não uma cópia exata; o que precisar
+  mudar para o jogo funcionar bem pode mudar, com o usuário decidindo o que tiver efeito de jogo.
 - **Regra reforçada pelo usuário (2026-10-16):** mecanismo novo com efeito de jogo, mesmo para fazer
   um critério passar, é decisão de design: perguntar antes.
 - **Método (regra do usuário, 2026-10-16):** teste por bloco. Sigo de tarefa em tarefa e só paro no
@@ -69,6 +72,9 @@ sobre "onde estamos", vale este.
   abre como zíper); geração v3 (a Pangeia nasce soldada e se parte por riftes). Os testes de formas de
   `terra` e `mundo` voltaram a ser testes normais e passam. Geração ~+0,2 s no celular (estimativa
   ~2,9–3,0 s, no limite da meta).
+- G4, colisão vira montanha: cordilheira e planalto na placa de cima, crátons com escarpa, oblíqua
+  mais baixa e larga, picos e passagens, ombreira de rifte; erosão 0,5% e alisamento 3% (decisão do
+  usuário). Altitudes aos 10 min no alvo do mundo real em 4 de 5 sementes.
 - Correção 2, ajudante 2 "Terra": memória compartilhada "sim" no Hot 50i; recomposição, clima e cores
   em outro worker, aparecendo 480 passos depois; "pior" do relatório por cenário; "relógio esperou".
 - Correção 1, vale de rifte: fenda entre continentes nasce como vale; com 3 células de largura o meio
@@ -80,7 +86,9 @@ sobre "onde estamos", vale este.
 - [ ] Teste da correção 1 no celular (na lista do fim do Bloco G).
 - [ ] T7: vale de rifte entre montanhas com neve (`docs/bugs.md`); nem toda montanha com neve; erosão
   pelo clima (lado chuvoso vira escarpa, planalto seco sobrevive).
-- [ ] G4 — código feito; falta a decisão da erosão e o teste de altitudes aos 10 min.
+- [ ] Teste do Bloco G no celular (lista do fim do bloco).
+- [ ] Decidir a latitude da `42` em N = 256.
+- [ ] **Falha conhecida:** semente `7` com 0,44% da terra acima de 4.000 m aos 10 min (alvo 0,5%).
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).

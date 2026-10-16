@@ -481,3 +481,16 @@ Formato: data — decisão — motivo — alternativa descartada.
     é decisão de design: perguntar antes (o "rifte que abre como zíper" do G3 foi feito sem perguntar;
     o usuário aprovou depois).
 
+- **2026-10-16 — Erosão mais lenta (decisão do usuário, G4).**
+  - **Decisão:** erosão de 0,5% (antes 3,5%) do que passa de 2.500 m e alisamento de 3% (antes 25%)
+    acima de 1.200 m, por recomposição.
+  - **Motivo:** com os valores antigos a cordilheira de colisão sumia ~1 min depois de a colisão parar
+    (na solda) e quase nada ficava acima de 4.000 m aos 10 min. Agora 4 de 5 sementes ficam no alvo
+    do mundo real (2.000 / 4.000 / 6.000 m); a `7` é falha conhecida.
+  - **Alternativas descartadas:** colisão que continua empurrando depois da solda (regra de placas,
+    mais risco); deixar como estava até a T7.
+
+- **2026-10-16 — Direção geral do usuário: o mundo real é a base, não uma cópia exata.**
+  O que precisar mudar para o jogo funcionar bem pode mudar, desde que o usuário decida as mudanças com
+  efeito de jogo.
+

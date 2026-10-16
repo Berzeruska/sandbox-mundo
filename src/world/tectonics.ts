@@ -215,12 +215,16 @@ const MARGIN_RATE = 260;
 const MARGIN_REACH = 3;
 /** Enquanto o oceano novo encostado tem menos que esta idade (passos), a margem segue afundando. */
 const MARGIN_AGE = 30_000;
-/** Erosão: acima desta altura (m) o relevo cede um pouco a cada recomposição. */
+/**
+ * Erosão: acima desta altura (m) o relevo cede um pouco a cada recomposição. 0,5% e alisamento de 3%
+ * (decisão do usuário no G4): com 3,5% e 25%, a cordilheira sumia ~1 min depois da colisão e quase
+ * nada ficava acima de 4.000 m; agora uma cadeia velha baixa em ~8 min (20×, placas 100%).
+ */
 const EROSION_START = 2500;
-const EROSION_RATE = 0.035;
+const EROSION_RATE = 0.005;
 /** Acima desta altura (m) o relevo suaviza com as vizinhas (cordilheiras viram faixas, não riscos). */
 const SMOOTH_START = 1200;
-const SMOOTH_RATE = 0.25;
+const SMOOTH_RATE = 0.03;
 
 /** Profundidade do fundo oceânico pela idade: dorsal rasa, afunda com a raiz da idade. */
 /** Chave de um par de placas (sem ordem). */

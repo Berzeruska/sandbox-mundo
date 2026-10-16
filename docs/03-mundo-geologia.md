@@ -116,7 +116,7 @@ Aplicado a cada recomposição, nas amostras das placas (o relevo viaja com elas
   fixo na placa): ilhas soltas, não um risco.
 - **Margem passiva**: continente encostado em fundo oceânico jovem afunda até virar plataforma, com
   intensidade variando ao longo da costa (ruído fixo na placa): baías e penínsulas nas costas de rifte.
-- **Erosão leve**: acima de 2.500 m os picos cedem; acima de 1.200 m o relevo suaviza com as vizinhas
+- **Erosão leve** (valores do G4: 0,5% e 3% por recomposição): acima de 2.500 m os picos cedem; acima de 1.200 m o relevo suaviza com as vizinhas
   (cordilheiras viram faixas).
 - A fração de terra fica estável (~28–30% em 2 min no máximo).
 
@@ -207,6 +207,13 @@ fragmento pequeno gruda na placa maior; nada oscilando, nada colidindo para semp
   - Rifte que abre como zíper: onde a fenda já virou mar, o mar avança até 3 células por recomposição
     pelo vale que ainda liga as duas margens, se as placas ali ainda se afastam.
   - Placas novas usam o número de uma placa que sumiu ou um novo, até 16 (limite do desenho).
+- **Colisão vira montanha (G4)**: a crosta continental consumida numa colisão (a altura dela acima de
+  −3.500 m) vira cordilheira na placa de cima, num sino de ~4 células (até 8, se oblíqua: mais baixa e
+  larga), variando ao longo da frente (picos e passagens). No teto de 7.000 m, o excesso vai para a
+  faixa seguinte: planalto. Províncias de crosta presas à placa: cráton (rígido) não engrossa e a
+  cordilheira para na frente dele em escarpa. Ombreira de rifte: bordas de fenda nova sobem a
+  600–1.600 m de 3 a 6 células da fenda (só em terra). Erosão: 0,5% do que passa de 2.500 m e
+  alisamento de 3% acima de 1.200 m por recomposição.
 - **Geração v3 (G3)**: a Pangeia nasce soldada e se parte já no nascimento pelo mesmo mecanismo:
   as divisas entre as placas da Pangeia viram riftes traçados; em cada junção tríplice, com chance
   de 1/3, um braço falha (as duas placas viram uma, até 35% da terra, e o vale aparece quando as

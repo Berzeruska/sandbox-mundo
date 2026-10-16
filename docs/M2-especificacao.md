@@ -678,6 +678,29 @@ notebook, no ajudante 2.
 1. Aprova as fontes de variedade 1 a 5?
 2. A ombreira de rifte (item 6) entra no G4, ou fica para depois?
 
+### G4 — Resultado (2026-10-16)
+- **Erosão (decisão do usuário): opção (a)**, erosão de 0,5% e alisamento de 3% por recomposição.
+- **Teste de altitudes aos 10 min (N = 256, `tests/world/hypsometry.test.ts`):** `terra`, `mundo`, `42` e
+  `ilha` no alvo. **Falha conhecida:** a `7` fica com 0,44% da terra acima de 4.000 m (alvo 0,5%);
+  marcada sem afrouxar o critério.
+- **Desempenho:** igual ao de antes do G4 (recomposição no ajudante 414–557 ms, relógio a 240
+  passos/s, "relógio esperou 0 ms"); geração sem mudança.
+- **Mapa:** `docs/img/m2-g4-montanhas-terra.png` (3, 6 e 10 min).
+
+### Fim do Bloco G (2026-10-16): latitude e grupos soldados em N = 256
+| Semente | Latitude média da terra (2 → 10 min) | Terra acima de 60° (10 min) | Maior tempo com 1 grupo continental |
+|---|---|---|---|
+| `terra` | 31,3° → 33,7° | 9% | 2,4 min |
+| `mundo` | 33,7° → 30,1° | 7% | 0,5 min |
+| `7` | 32,9° → 30,0° | 7% | 1,1 min |
+| `42` | 37,5° → 41,1° | **33%** | 0,9 min |
+| `ilha` | 34,1° → 33,6° | 10% | 0,6 min |
+- Critério do G1: 20°–45° e no máximo 25% da terra acima de 60° depois de 4 min. Critério do G2: um
+  grupo só por no máximo ~2,9 min. **Só a `42` sai:** 29% aos 8 min e 33% aos 10 min. Antes do G3, com
+  o mesmo teste, ela ficava em 22%: a mudança veio da geração v3 (placas iniciais novas), não do G4. O
+  teste de CI (N = 128) passa. **Decisão aberta do usuário** (mexer seria regra de placas).
+- Máximo de placas: até 16 (não subiu para 32); não precisa da medição extra no Hot 50i.
+
 ### G4 — Andamento (2026-10-16): feito, parado na erosão (decisão do usuário)
 **Decisões do usuário:** fontes de variedade 1 a 5 aprovadas; ombreira de rifte (6) entra no G4; se a
 erosão atual apagar a variedade antes do teste dos 10 min, avisar antes de mexer nela.
@@ -902,9 +925,9 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
   microcontinentes, geração v3 (se aprovada), números de placa; critério de formas aos 2, 5 e 10 min;
   mapas antes/depois.
   Os testes de formas de `terra` e `mundo` voltaram a passar como teste normal (resultado abaixo).
-- [ ] **G4 — Continente amassa e vira montanha** em vez de ser apagado na colisão, com variedade de
+- [x] **G4 — Continente amassa e vira montanha** em vez de ser apagado na colisão, com variedade de
   relevo (províncias de crosta, escarpas, colisão oblíqua, picos e passagens, ombreira de rifte).
-  Código feito; parado na decisão da erosão (ver "G4 — Andamento").
+  Resultado em "G4 — Resultado".
 
 ## Estado em 2026-10-15 (noite) e próximos passos
 Feito no `marco-2` (prévia em `/previa/marco-2/`): T1–T5, correção do travamento no celular, D1–D5 e
