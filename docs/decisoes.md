@@ -396,3 +396,12 @@ Formato: data — decisão — motivo — alternativa descartada.
     - Não reconhecer supercontinente durante a dispersão: o grupo único durava 4,5 min na `42`.
   - **Teste de oscilação:** recomposições logo após uma troca de polo têm teto de 0,5%. Inverter o
     rumo devolve as células recém-tomadas; é um evento único.
+
+- **2026-10-16 — Fluxo: o Project de orientação lê os docs direto do GitHub (regra do usuário).**
+  - **Decisão:** o usuário discute cada relato com um Project do claude.ai que lê os docs no branch
+    mais recente do marco atual. Ao fim de cada tarefa, commit e push nesse branch, com
+    `docs/estado-atual.md` atualizado. Todo conhecimento que importa fica no git.
+  - **Motivo:** os dois lados (Claude Code e orientador) trabalham sobre os mesmos fatos, sem cópia
+    manual.
+  - **Alternativa descartada:** pasta local `project-conhecimento/` com script de cópia e upload
+    manual dos arquivos para o Project (removida; dependia de o usuário lembrar de subir).

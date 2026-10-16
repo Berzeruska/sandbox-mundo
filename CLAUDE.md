@@ -69,10 +69,11 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 - Nunca use `git push --force` em `main`. Nunca apague histórico.
 
 ## Documentação viva
-- **Ao fim de cada tarefa, reescreva `docs/estado-atual.md`** (marco e tarefa atuais, feito, pendente,
-  últimas medições do celular, decisões abertas, ideias para marcos futuros) no mesmo commit.
-  O usuário sobe esse arquivo num Project do Claude que o orienta; se ele envelhecer, o orientador
-  responde com informação velha.
+- **Ao fim de cada tarefa: commit e push no branch do marco**, com `docs/estado-atual.md` reescrito
+  no mesmo commit (marco e tarefa atuais, feito, pendente, últimas medições do celular, decisões
+  abertas, ideias para marcos futuros). O Project de orientação do usuário (claude.ai) lê os docs
+  direto do GitHub, no branch mais recente do marco atual: o que não está no git não existe para ele.
+  Nada de conhecimento só local no notebook (scratchpad, pastas fora do repositório, memória da sessão).
 - Mudou comportamento? Atualize o documento de sistema correspondente no mesmo commit.
 - Decisão técnica relevante? Nova entrada em `docs/decisoes.md` (data, decisão, motivo, alternativa descartada).
 - Bug encontrado pelo usuário? Registre em `docs/bugs.md` com: como reproduzir, causa, correção.
