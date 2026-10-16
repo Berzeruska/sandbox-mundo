@@ -108,7 +108,7 @@ body {
   left: calc(var(--gap) + env(safe-area-inset-left));
   right: calc(var(--gap) + env(safe-area-inset-right));
   bottom: calc(var(--gap) + env(safe-area-inset-bottom));
-  height: 64px;
+  height: 52px;
   display: flex;
   gap: 8px;
   z-index: 3;
@@ -134,7 +134,7 @@ body {
 }
 
 .hud-card-icon {
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .hud-card-name {
@@ -157,7 +157,7 @@ body {
 
 .hud-speed {
   flex: 1;
-  height: 44px;
+  height: 38px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
   font-weight: 600;
@@ -188,7 +188,7 @@ body {
 }
 
 .hud-big {
-  width: 64px;
+  width: 52px;
   border-radius: 16px;
   background: var(--hud-bg);
   display: flex;
@@ -200,7 +200,7 @@ body {
 }
 
 .hud-big-icon {
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1;
 }
 
@@ -228,7 +228,7 @@ body {
   bottom: 0;
   width: min(100%, 580px);
   box-sizing: border-box;
-  padding: 8px 10px calc(84px + env(safe-area-inset-bottom));
+  padding: 4px 8px calc(70px + env(safe-area-inset-bottom));
   background: rgba(12, 16, 32, 0.96);
   border-radius: 22px 22px 0 0;
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
@@ -247,7 +247,7 @@ body {
   height: 5px;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.3);
-  margin: 2px auto 10px;
+  margin: 2px auto 6px;
 }
 
 .hud-tabs {
@@ -259,6 +259,7 @@ body {
   .hud-tabs {
     gap: 4px;
   }
+
   .hud-tab {
     letter-spacing: -0.3px;
   }
@@ -268,15 +269,15 @@ body {
   /* Largura proporcional ao rótulo: "Desastres" ganha mais espaço que "Clima". */
   flex: 1 1 auto;
   min-width: 0;
-  height: 58px;
-  border-radius: 12px;
+  height: 42px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.07);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  font-size: clamp(9px, 2.5vw, 12px);
+  gap: 1px;
+  font-size: clamp(9px, 2.5vw, 11px);
   padding: 0 3px;
   overflow: hidden;
   white-space: nowrap;
@@ -287,28 +288,32 @@ body {
 }
 
 .hud-tab-icon {
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1;
 }
 
 .hud-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .hud-tile {
-  height: 70px;
-  border-radius: 12px;
+  /* Ícone ao lado do nome: o menu ocupa menos da tela no celular (pedido do usuário, 2026-10-15). */
+  height: 40px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
   border: 2px solid transparent !important;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  font-size: 11.5px;
+  padding: 0 2px;
+  font-size: clamp(9.5px, 2.9vw, 11.5px);
+  white-space: nowrap;
+  overflow: hidden;
   position: relative;
 }
 
@@ -318,7 +323,7 @@ body {
 }
 
 .hud-tile-icon {
-  font-size: 22px;
+  font-size: 15px;
   line-height: 1;
 }
 
@@ -337,8 +342,8 @@ body {
 
 .hud-row {
   grid-column: 1 / -1;
-  min-height: 52px;
-  border-radius: 12px;
+  min-height: 40px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;
@@ -366,19 +371,32 @@ body {
 
 .debug-panel {
   left: 10px;
-  top: calc(52px + env(safe-area-inset-top));
+  top: calc(48px + env(safe-area-inset-top));
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: calc(100vw - 20px);
-  max-height: calc(100% - 150px - env(safe-area-inset-top));
+  gap: 6px;
+  padding: 8px 10px;
+  max-width: min(calc(100vw - 20px), 520px);
+  max-height: calc(100% - 130px - env(safe-area-inset-top));
   overflow-y: auto;
 }
 
 .debug-panel pre {
   margin: 0;
-  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
   white-space: pre-wrap;
+}
+
+/* Botões do painel Dados: pequenos e numa linha só. */
+.debug-panel .panel-btn {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.debug-panel .panel-row {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
 }
 
 /* Medindo: só a linha de andamento, sem desfoque por trás (não pesa na GPU durante a medição). */
@@ -564,4 +582,11 @@ body {
 
 .panel-btn:disabled {
   opacity: 0.5;
+}
+
+/* Celular: 3 colunas, para nomes como "Temperatura" e "Novo mundo" caberem ao lado do ícone. */
+@media (max-width: 420px) {
+  .hud-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }

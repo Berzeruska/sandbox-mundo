@@ -366,3 +366,13 @@ Formato: data — decisão — motivo — alternativa descartada.
     - Guarda pelo centro da placa inteira: inclui oceano, e a terra da placa passava do limite.
     - Primeiro estágio de 30–45°: com a guarda desviando mais, a `terra` ficava com um continente de
       48% aos 2 min.
+
+- **2026-10-15 — Menu e painel Dados compactos (pedido do usuário).**
+  No celular, o menu cobria ~48% da altura da tela e o painel Dados ~44%. Agora:
+  - **Menu:** botões de baixo com 52 px (eram 64), abas com 42 px (eram 58) e ferramentas com
+    40 px, com o ícone ao lado do nome (eram 70 px, com o ícone em cima). Em telas com até 420 px de
+    largura são 3 colunas, para os nomes caberem sem corte. O menu fica entre ~30% e 35% da tela.
+  - **Painel Dados:** 7 linhas curtas (eram 14) em fonte de 10 px, e os dois botões pequenos numa
+    linha só. Fica em ~20% da tela.
+
+  Alternativa descartada: menu em gaveta lateral (mudaria a navegação aprovada na T1).

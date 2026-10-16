@@ -119,24 +119,20 @@ export class DebugPanel {
   }
 
   setSpinning(on: boolean): void {
-    this.spinBtn.textContent = on ? 'Parar giro de teste' : 'Girar sem parar (medir fps)';
+    this.spinBtn.textContent = on ? 'Parar giro' : 'Girar (fps)';
   }
 
   update(s: DebugStats): void {
+    // Linhas curtas: o painel não pode cobrir o globo no celular (pedido do usuário, 2026-10-15).
+    const hz = s.minGapMs > 0 ? Math.round(1000 / s.minGapMs) : 0;
     this.body.textContent = [
-      `fps          ${s.fps.toFixed(0)}   (tela ~${s.minGapMs > 0 ? Math.round(1000 / s.minGapMs) : 0} Hz)`,
-      `ms/quadro    ${s.frameMs.toFixed(2)}`,
-      `intervalo    mín ${s.minGapMs.toFixed(1)} · máx ${s.maxGapMs.toFixed(1)} ms`,
-      `células      ${s.cells.toLocaleString('pt-BR')} (6 × ${s.n}²)`,
-      `semente      ${s.seedText} (${s.seed})`,
-      `geração      ${s.generationTotalMs.toFixed(0)} ms total (worker ${s.generationMs.toFixed(0)})`,
-      `  etapas     ${Object.entries(s.stagesMs).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(' · ')}`,
-      `zoom         ${s.zoom.toFixed(2)}× · célula ${s.cellPixels.toFixed(1)} px`,
-      `worker       ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms`,
-      `placas       ${s.recompositions} recomposições · última ${s.geologyMs.toFixed(0)} ms`,
-      `memória      ~${s.memoryMb.toFixed(0)} MB no worker`,
-      `desenho      ${s.drawing}`,
-      `versão       ${s.version}`,
+      `fps     ${s.fps.toFixed(0)} (tela ~${hz} Hz) · ${s.frameMs.toFixed(2)} ms/quadro`,
+      `quadros ${s.minGapMs.toFixed(1)}–${s.maxGapMs.toFixed(1)} ms · zoom ${s.zoom.toFixed(2)}× · célula ${s.cellPixels.toFixed(1)} px`,
+      `mundo   ${s.seedText} (${s.seed}) · ${s.cells.toLocaleString('pt-BR')} células, N ${s.n}`,
+      `geração ${s.generationTotalMs.toFixed(0)} ms (worker ${s.generationMs.toFixed(0)}): ${Object.entries(s.stagesMs).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(' · ')}`,
+      `worker  ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms · ~${s.memoryMb.toFixed(0)} MB`,
+      `placas  ${s.recompositions} recomposições · última ${s.geologyMs.toFixed(0)} ms`,
+      `desenho ${s.drawing} · versão ${s.version}`,
     ].join('\n');
   }
 }
