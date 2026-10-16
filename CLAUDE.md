@@ -54,6 +54,8 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
     branch (`/previa/<branch>/`) e passe o link.
 12. **Nenhum teste depende do relógio real** (regra do usuário): lógica com tempo vira função pura
     com tempos sintéticos. Medições de desempenho não são testes de aprovação.
+13. **Desempenho a cada marco** (regra do usuário): ao fim de cada marco, medir de novo nas condições
+    da linha de base da v1.1 (`docs/decisoes.md`) e comparar; o relatório do aparelho-alvo decide.
 
 ## Git e GitHub
 - Branch `main` sempre jogável. Trabalho de cada marco em `marco-N` (ex.: `marco-1`).

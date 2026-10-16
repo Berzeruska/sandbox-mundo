@@ -4,6 +4,7 @@ Cada marco termina jogável e testável no celular. Só se começa o próximo co
 pelo usuário.
 
 Marco atual: **Marco 2** — especificação aprovada em 2026-10-15 (`docs/M2-especificacao.md`).
+Onde paramos e o que vem depois: seção "Estado" da especificação do M2.
 Marco 0 aceito em 2026-10-14. Marco 1 aceito em 2026-10-15 (`v1.0`).
 
 ---
@@ -35,8 +36,8 @@ Pedidos do usuário após testar a v1.0 no celular.
 - [x] **T14 — Pincéis com queda suave:** Elevar/Rebaixar fortes no centro e zero na borda, sem platô
 
 **Aceite:** sem visual de "prisma" perto dos cantos do cubo; morro pintado tem forma de morro.
-Fecha com PR para `main` e tag `v1.1`. **Publicado em 2026-10-15 (`v1.1`)**; validação no celular
-pendente com o usuário.
+Fecha com PR para `main` e tag `v1.1`. **Publicado em 2026-10-15 (`v1.1`)** e validado pelo usuário no
+celular (os números viraram a linha de base de desempenho, em `docs/decisoes.md`).
 
 ## Marco 2 — Geologia viva
 Placas tectônicas, deriva continental com velocidade controlada pelo jogador (inclusive zero),

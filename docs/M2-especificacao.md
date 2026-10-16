@@ -91,7 +91,10 @@ nunca trava, nem em velocidade máxima, nem no celular.
   Vegetação e vida de verdade só chegam no M3.
 - Toda aleatoriedade vem da semente do mundo: mesma semente + mesmos comandos = mesmos desastres.
 
-## Proposta: costas recortadas pela geologia (aguardando aprovação do usuário)
+## Proposta: costas recortadas pela geologia (geração v2 aceita pelo usuário em 2026-10-15, opção a)
+Decisão: entrou a geração v2 (ruído costeiro + bacias internas); a mesma semente passa a gerar um
+mundo inicial diferente do da v1.1. O recorte pela geologia segue com as placas (T5 e D3).
+
 Pedido do usuário (2026-10-15): baías, penínsulas, arquipélagos e ilhas pequenas, no estilo de Europa
 e Ásia. A ideia é que o recorte **nasça da geologia** ao longo do tempo, e não de enfeite.
 
@@ -263,6 +266,26 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   Placas no máximo + tempo no máximo: tela ≥ 30 fps no celular (≥ 60 no notebook). Medir nas mesmas
   condições da linha de base da v1.1 (`docs/decisoes.md`) e comparar. Medir também quantos passos por
   segundo o worker aguenta. Registrar em `docs/decisoes.md`.
+
+## Estado em 2026-10-15 (fim do dia) e próximos passos
+Feito no `marco-2` (prévia em `/previa/marco-2/`): T1–T5, correção do travamento no celular, D1–D5 e
+a correção dos pedaços de placa (commit `d36c156`).
+
+Aguardando o usuário, nesta ordem:
+1. Testar no celular a correção das placas (placas 100%, tempo 20×, 3–5 min com "Ver placas") e
+   colar o relatório do "Medir desempenho" (agora com painel aberto e deriva longa).
+2. Confirmar no celular as correções ainda pendentes em `docs/bugs.md` (travamento em 92%, lagos
+   retos) e a D2 com o painel aberto.
+3. Avaliar as imagens de formas (`docs/img/m2-formas-*.png`, `docs/img/m2-placas-antes-depois.png`)
+   e a T5 (relevo nas fronteiras).
+4. Só então seguir para a T6 (minerais), que está congelada.
+
+Questões de design em aberto (perguntar ao usuário quando chegar a hora):
+- **Rifte / ciclo de supercontinente:** com a solda, continentes que se encontram ficam juntos para
+  sempre; jogando muitos minutos, tendem a formar um supercontinente. Haverá rifte que parte de novo?
+  (Afeta também a T13, que pede ≥ 3 continentes grandes depois de X passos.)
+- **"Tamanho fixo" das placas:** ao pé da letra é impossível com placas rígidas cobrindo a esfera
+  (dorsais fazem crescer, subducção encolhe). Ficou fixa a identidade e a forma; confirmar se basta.
 
 ## Critérios de aceite do usuário
 1. Ligo as placas e acelero o tempo: a Pangeia se parte em continentes, e a tela não trava.

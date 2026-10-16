@@ -80,4 +80,21 @@ docs/
 - Estimativa antes de pedir medição ao usuário: navegador com CPU desacelerada 6× (emulação).
   O relatório do botão "Medir desempenho" (painel Dados), rodado no aparelho, é a verdade.
 - Um painel de depuração (fps, ms por tick, células) acessível por botão, desde o Marco 1.
-- Se o orçamento estourar, reduzir resolução antes de cortar mecânica.
+- Se o orçamento estourar, reduzir resolução antes de cortar mecânica (mas sem opção de qualidade:
+  o que valer, vale para todos).
+
+### Como medir (o que funciona e o que engana)
+- **Verdade:** o relatório do botão "Medir desempenho" (Mundo → Dados), rodado no aparelho-alvo.
+  ~2 min: pausado, girando, tempo 20× com placas paradas (também com o painel aberto com e sem o
+  desfoque antigo), placas 100%, deriva longa com colisões e geração; mostra GPU, fps médio/mínimo/
+  pior quadro, trabalho da tela, worker por passo e por parte da recomposição, soldas e pedaços.
+- **CPU lenta 6× no Chrome** (Emulation.setCPUThrottlingRate) desacelera só a thread principal, não o
+  worker: serve para estimar o custo da tela; o worker se estima pelos números do relatório.
+- **Custo do shader:** consultas de tempo de GPU (EXT_disjoint_timer_query_webgl2) em volta do desenho
+  do globo, com a tela no tamanho do celular (360×664 a 2×). No notebook (Radeon 610M) o globo custa
+  ~1,5 ms parado e ~1,8 ms em deriva; a Mali-G52 MP2 é ~5–8× mais lenta. O SwiftShader (GPU por
+  software) não serve para medir desempenho: os quadros travam em ~83 ms qualquer que seja o shader.
+- **Suavidade do movimento:** medir quadro a quadro dentro da página (ler os pixels a cada desenho e
+  contar quadros com > 2% dos pixels mudando de uma vez), nunca por capturas de tela.
+- **Placas:** sondas no Vitest com N = 128 (5 sementes, 5 min a 20× e 100%): trocas A→B→A, pedaços
+  soltos, colisões sem soldar; mapas equirretangulares de 5 sementes aos 0/1/2 min para as formas.
