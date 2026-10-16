@@ -8,8 +8,10 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** decisões do usuário de 2026-10-16 registradas. Próxima tarefa: **correção 1 (vale de
-  rifte)**; depois correção 2 começando pelo teste de memória compartilhada no celular.
+- **Agora:** correção 1 (vale de rifte) com código pronto e testado, **parada numa decisão de design**:
+  rifte que para de abrir fica como vale em terra e liga continentes; o critério de formas aos 3 min
+  falha em `terra` e `mundo`. Opções na especificação ("Correção 1 — resultado"). O código só entra no
+  git depois da decisão (o commit tem de passar no `npm run check`).
 - **Ordem aprovada:** correção 1 → correção 2 (ajudante 2) → G3 → G4 (continente amassa e vira
   montanha, especificação antes) → T6 em diante.
 - **Direção do usuário (2026-10-16):** fechar o G3 dentro do que já foi especificado e seguir a lista

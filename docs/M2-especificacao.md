@@ -552,6 +552,23 @@ continua escura com tudo pausado (é crosta na simulação, não efeito de desen
    aprovada antes de codar.
 4. Ordem: correção 1 → correção 2 → G3 → G4 → T6 em diante.
 
+**Correção 1 — resultado (2026-10-16, código pronto, não publicado: falta uma decisão):**
+- No cenário do relato (`terra`, Elevar na célula 49682, placas 100%, 6 recomposições), o fundo oceânico
+  novo dentro do morro caiu de 153 células para 3. A fenda nasce como vale (vizinhas −300 a −800 m) e,
+  com 3 células de largura, o meio vira mar; o vale fica nas duas bordas e afunda como margem.
+- Teste sintético de 2 continentes se afastando: até a 6ª recomposição só vale, nenhum fundo oceânico;
+  na 14ª, mar no meio e vale nas bordas. Tiras, oscilação, ciclo de Wilson e o resto passam.
+- **Efeito colateral:** rifte que abre devagar ou para de abrir (perto do polo de rotação, ou depois de
+  uma mudança de rumo) fica como vale em terra para sempre (~30% das células de vale acima do mar). Isso
+  liga continentes que antes eram separados por um rasgo oceânico de 1–2 células. O critério de formas
+  aos 3 min (4–7 continentes, maior < 40%) falha: N = 128 `terra` 44% e `mundo` 40%; N = 256 `mundo` 47%.
+  Sem contar o vale como terra: 22%, 31% e 29%. Em N = 256 `terra` (35%) e `7` (29%) continuam passando;
+  `42` e `ilha` já estavam fora antes (G3).
+- **Decisão do usuário:** (1) aceitar: rifte parado fica como vale em terra (é o aulacógeno do G3), e o
+  critério de formas aos 3 min volta a ser cobrado no G3; (2) fundo do vale sempre abaixo do mar: separa
+  os continentes, mas volta a ser um corte estreito no morro, só que raso; (3) vale que para de abrir vira
+  mar depois de um tempo (regra nova de placas).
+
 ### G3 — Formas: de onde vem hoje o formato das costas
 1. **Costa da Pangeia inicial:** vem da geração v2. São lobos em volta de um centro, borda deformada
    por ruído, ruído fractal, 2 a 4 bacias internas e ruído fino só na faixa da costa.
