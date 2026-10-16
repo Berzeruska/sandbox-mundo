@@ -1,7 +1,18 @@
 import type { Vec3 } from './cubesphere';
 import { createRng, type Rng } from '../core/rng';
 import { Noise3D } from './noise';
-import { Boundary, CONTINENTAL_DEPTH, Crust, DISPERSAL_STAGE, DISPERSAL_STAGE_MIN, POLAR_GUARD, rotateAbout, updateBoundaries } from './plates';
+import { Boundary, CONTINENTAL_DEPTH, Crust, DISPERSAL_STAGE, DISPERSAL_STAGE_MIN, MAX_PLATE_IDS, plateColor, POLAR_GUARD, rotateAbout, updateBoundaries } from './plates';
+import {
+  FAILED_ARM_CHANCE,
+  MICRO_SHARE_FLOOR,
+  MICRO_SHARE_MAX,
+  MICRO_SHARE_MIN,
+  MICROCONTINENT_CHANCE,
+  retraceBorders,
+  sliverAlong,
+  stepDistance,
+  traceArm,
+} from './rifts';
 import type { WorldState } from './state';
 
 /**
@@ -42,6 +53,11 @@ export const RIFT_VALLEY_WIDTH = 3;
 /** O fundo do vale fica entre estes metros abaixo das bordas (varia por célula, sem sorteio). */
 export const RIFT_DROP_MIN = 300;
 export const RIFT_DROP_MAX = 800;
+/**
+ * Rifte que abre como zíper (G3): onde a fenda já virou mar, o mar avança por até tantas células por
+ * recomposição ao longo do vale que ainda liga as duas margens, se as placas ali ainda se afastam.
+ */
+export const RIFT_UNZIP_CELLS = 3;
 
 // --- Identidade das placas (D3). ---
 /**
@@ -119,7 +135,7 @@ export const SUPERCONTINENT_SPEED_MAX = 0.35;
 /** Ruptura: cada pedaço fica com pelo menos esta fração do continente do grupo. */
 export const RUPTURE_MIN_PIECE = 0.2;
 /** Numa junção tríplice, chance de um dos braços falhar (fica soldado; vira vale no G3). */
-export const FAILED_ARM_CHANCE = 1 / 3;
+export { FAILED_ARM_CHANCE };
 /**
  * Pedaços novos giram em torno do polo que abre a fenda inteira (oposto da média de p × n na
  * divisa); os sorteios inclinam esse polo até ~RIFT_TURN_MAX, sem deixar a fenda fechar.
@@ -193,7 +209,7 @@ export function oceanDepthAt(age: number): number {
 export class Tectonics {
   readonly world: WorldState;
   /** Ângulo acumulado de cada placa (rad) e o ângulo na última recomposição. */
-  readonly angle: Float64Array;
+  angle: Float64Array;
   private lastAngle: Float64Array;
   private axis: Float64Array;
   private speed: Float64Array;
@@ -264,6 +280,12 @@ export class Tectonics {
   private sCrust: Uint8Array;
   private sBirth: Int32Array;
   private sAlive: Uint8Array;
+  /**
+   * Ruído da margem passiva gravado no rifte (G3), 1–255; 0 = usar o ruído do referencial da placa.
+   * Gravado na posição do mundo na hora em que o continente racha, então os dois lados da fenda (que
+   * ali estavam encostados) afundam igual e o encaixe das costas não se apaga.
+   */
+  private sMargin: Uint8Array;
   private count = 0;
   private dead = 0;
   /**
@@ -319,6 +341,7 @@ export class Tectonics {
     this.sCrust = new Uint8Array(cap);
     this.sBirth = new Int32Array(cap);
     this.sAlive = new Uint8Array(cap);
+    this.sMargin = new Uint8Array(cap);
     this.initialPlate = Uint8Array.from(world.plate);
     this.marginNoise = new Noise3D(createRng((world.params.seed ^ 0x2545f491) >>> 0));
     this.cellSample = new Int32Array(n);
@@ -341,6 +364,28 @@ export class Tectonics {
       const i = this.addSample(world.plate[c] as number, c, world.elevation[c] as number, world.crust[c] as number, ANCIENT);
       this.cellSample[c] = i;
     }
+    // Braços que falharam na quebra da Pangeia (geração v3): o vale aparece quando as placas andam.
+    for (const path of world.aulacogens) this.carveAulacogen(path);
+  }
+
+  /**
+   * Aulacógeno (G3): ao longo do braço que falhou, o terreno afunda RIFT_DROP_MIN a RIFT_DROP_MAX numa
+   * faixa de 1 a 2 células e vira vale de rifte (lago ou golfo estreito, conforme o nível do mar).
+   */
+  private carveAulacogen(path: readonly number[]): void {
+    const { neighbors } = this.world.grid;
+    const band = new Set<number>(path);
+    // Um lado a mais em metade do caminho: a faixa tem 1 ou 2 células.
+    path.forEach((c, k) => {
+      if (Math.floor(k / 6) % 2 === 0) band.add(neighbors[c * 4 + (k % 4)] as number);
+    });
+    for (const c of band) {
+      const i = this.cellSample[c] as number;
+      if (i < 0 || this.sCrust[i] !== Crust.Continental) continue;
+      const h = (Math.imul(c ^ 0x2c1b3c6d, 0x297a2d39) >>> 0) / 4294967296;
+      this.sElev[i] = (this.sElev[i] as number) - (RIFT_DROP_MIN + (RIFT_DROP_MAX - RIFT_DROP_MIN) * h);
+      this.sBirth[i] = this.tick;
+    }
   }
 
   get sampleCount(): number {
@@ -356,6 +401,7 @@ export class Tectonics {
     this.sCrust[i] = crust;
     this.sBirth[i] = birth;
     this.sAlive[i] = 1;
+    this.sMargin[i] = 0;
     if (i >= this.world.cellCount) this.extra.set(plate * this.world.cellCount + ref, i);
     return i;
   }
@@ -369,7 +415,7 @@ export class Tectonics {
 
   /** Memória aproximada usada pela tectônica (bytes), para o painel Dados. */
   get bytes(): number {
-    const perSample = 1 + 4 + 4 + 1 + 4 + 1;
+    const perSample = 1 + 4 + 4 + 1 + 4 + 1 + 1;
     return this.sPlate.length * perSample + this.cellSample.byteLength + this.initialPlate.byteLength + this.extra.size * 40;
   }
 
@@ -396,6 +442,7 @@ export class Tectonics {
     this.sCrust = g(this.sCrust, (k) => new Uint8Array(k));
     this.sBirth = g(this.sBirth, (k) => new Int32Array(k));
     this.sAlive = g(this.sAlive, (k) => new Uint8Array(k));
+    this.sMargin = g(this.sMargin, (k) => new Uint8Array(k));
   }
 
   /**
@@ -418,6 +465,7 @@ export class Tectonics {
       this.sElev[w] = this.sElev[i] as number;
       this.sCrust[w] = this.sCrust[i] as number;
       this.sBirth[w] = this.sBirth[i] as number;
+      this.sMargin[w] = this.sMargin[i] as number;
       this.sAlive[w] = 1;
       w++;
     }
@@ -842,11 +890,66 @@ export class Tectonics {
       this.advanceStages(sums);
     }
     updateBoundaries(world);
+    this.unzipRifts();
     if (this.reliefEnabled) this.relief();
     // Depois do relevo: a recomposição que completa a colisão ainda ergue a cordilheira.
     if (this.weldCollisions(front, contact)) updateBoundaries(world);
     this.recompositions++;
     this.compact();
+  }
+
+  /**
+   * Rifte que abre como zíper (G3). Vale de rifte que ainda encosta na outra placa (a ponte entre as
+   * duas margens), numa fronteira em que as placas se afastam, vira fundo oceânico novo quando o mar
+   * da mesma fenda já chegou a ele: o oceano avança RIFT_UNZIP_CELLS células por recomposição pelo
+   * eixo do vale. Rifte parado (fronteira que não afasta) fica vale em terra (aulacógeno, decisão do
+   * usuário); as bordas do vale, que já não encostam na outra placa, também ficam.
+   */
+  private unzipRifts(): void {
+    const world = this.world;
+    const { neighbors } = world.grid;
+    const n = world.cellCount;
+    const youngOcean = (c: number): boolean => {
+      const i = this.cellSample[c] as number;
+      return i >= 0 && this.sCrust[i] === Crust.Oceanic && (this.sBirth[i] as number) > ANCIENT;
+    };
+    const bridge = (c: number): boolean => {
+      const i = this.cellSample[c] as number;
+      if (i < 0 || !this.isRiftValley(i) || world.boundary[c] !== Boundary.Divergent) return false;
+      for (let d = 0; d < 4; d++) if (world.plate[neighbors[c * 4 + d] as number] !== world.plate[c]) return true;
+      return false;
+    };
+    let frontier: number[] = [];
+    const done = new Uint8Array(n);
+    for (let c = 0; c < n; c++) {
+      if (!bridge(c)) continue;
+      for (let d = 0; d < 4; d++) {
+        if (youngOcean(neighbors[c * 4 + d] as number)) {
+          frontier.push(c);
+          done[c] = 1;
+          break;
+        }
+      }
+    }
+    for (let step = 0; step < RIFT_UNZIP_CELLS && frontier.length; step++) {
+      const next: number[] = [];
+      for (const c of frontier) {
+        const i = this.cellSample[c] as number;
+        this.sCrust[i] = Crust.Oceanic;
+        this.sElev[i] = RIDGE_DEPTH;
+        this.sBirth[i] = this.tick;
+        world.crust[c] = Crust.Oceanic;
+        world.elevation[c] = RIDGE_DEPTH;
+        for (let d = 0; d < 4; d++) {
+          const k = neighbors[c * 4 + d] as number;
+          if (!done[k] && bridge(k)) {
+            done[k] = 1;
+            next.push(k);
+          }
+        }
+      }
+      frontier = next;
+    }
   }
 
   /** Amostra de vale de rifte: continental nascida durante o jogo (ver RIFT_VALLEY_WIDTH). */
@@ -1059,7 +1162,8 @@ export class Tectonics {
         const x = positions[ref * 3] as number;
         const y = positions[ref * 3 + 1] as number;
         const z = positions[ref * 3 + 2] as number;
-        const v = 0.5 + 0.5 * this.marginNoise.sample(x * 14, y * 14, z * 14);
+        const saved = i >= 0 ? (this.sMargin[i] as number) : 0;
+        const v = saved ? (saved - 1) / 254 : 0.5 + 0.5 * this.marginNoise.sample(x * 14, y * 14, z * 14);
         const target = md === 0 ? -160 : md === 1 ? -60 : 40;
         const e = elev[c] as number;
         if (e > target) elev[c] = Math.max(target, e - MARGIN_RATE * (0.2 + 1.6 * v * v) * (1 - md / (MARGIN_REACH + 1)));
@@ -1282,7 +1386,8 @@ export class Tectonics {
   private planFor(members: number[], sums: ReturnType<Tectonics['plateSums']>): MotionPlan {
     const free: MotionPlan = { turnMax: STAGE_TURN_MAX, speedMin: STAGE_SPEED_MIN, speedMax: STAGE_SPEED_MAX };
     // Dispersão depois de uma ruptura: entre os rumos sorteados, o que menos empurra contra outros
-    // continentes. A primeira dispersão (a da Pangeia) fica como no G1 até o G3 (riftes traçados).
+    // continentes. A primeira dispersão (a da Pangeia) fica como no G1: medido no G3 em 20 sementes,
+    // usar a mesma regra nela não melhorou o critério de formas (11 contra 12 de 20 aos 3 min).
     if (this.phase === 'dispersal') {
       return this.ruptures > 0 ? { ...free, avoid: this.outsideContacts(members), awayFrom: this.cycleCenter } : free;
     }
@@ -1539,13 +1644,19 @@ export class Tectonics {
       (forced ? tryCuts(0) : null);
     if (!choice) return false;
     let { cut, parts } = choice;
-    // Junção tríplice: um dos braços pode falhar (a sutura fica; o vale interior é o G3).
-    if (parts.length === 3 && this.rng.next() < FAILED_ARM_CHANCE) {
-      const kept = cut[Math.floor(this.rng.next() * cut.length)] as (typeof cut)[number];
-      cut = cut.filter((e) => e !== kept);
-      this.failedArms.push({ a: kept.a, b: kept.b, drift: this.drift });
-      parts = pieces(new Set(cut.map((e) => e.key)));
+    // G3: a fenda é traçada célula a célula (riftes traçados, junção tríplice, braço que falha,
+    // microcontinente). Braço que falha mantém as suturas daquele par; braço novo pode criar placa.
+    const traced = this.traceRupture(parts);
+    if (traced.kept.length) {
+      const pieceOf = new Map<number, number>();
+      parts.forEach((list, i) => list.forEach((p) => pieceOf.set(p, i)));
+      const keptPair = (a: number, b: number) =>
+        traced.kept.some(([x, y]) => (pieceOf.get(a) === x && pieceOf.get(b) === y) || (pieceOf.get(a) === y && pieceOf.get(b) === x));
+      cut = cut.filter((e) => !keptPair(e.a, e.b));
     }
+    parts = traced.parts;
+    // Placas novas (braço que cortou uma placa, microcontinente): somas refeitas.
+    const after = traced.created ? this.plateSums() : sums;
     for (const e of cut) {
       this.sutures.delete(e.key);
       this.collisions.delete(e.key);
@@ -1600,9 +1711,50 @@ export class Tectonics {
       const l = Math.hypot(...v);
       const plan: MotionPlan = { turnMax: RIFT_TURN_MAX, speedMin: RIFT_SPEED_MIN, speedMax: RIFT_SPEED_MAX, avoid: avoid[i] ?? [] };
       if (l > 1e-9) plan.pole = [-v[0] / l, -v[1] / l, -v[2] / l];
-      this.reorganize(list, sums, plan);
+      this.reorganize(list, after, plan);
     });
-    this.cycleCenter = this.continentalCenter(members, sums) ?? this.cycleCenter;
+    // Braço novo: a placa nova anda com o pedaço de onde saiu, mais um giro que abre o braço em relação
+    // a ele (polo oposto à soma de p × n na divisa dos dois). Com o polo próprio de cada pedaço, uma
+    // junção de 3 pedaços não abria os 3 braços ao mesmo tempo.
+    if (traced.arm) {
+      const { id, from } = traced.arm;
+      const host = from[0] as number;
+      const fromSet = new Set(from);
+      const v: Vec3 = [0, 0, 0];
+      for (let c = 0; c < world.cellCount; c++) {
+        if (world.plate[c] !== id) continue;
+        const px = positions[c * 3] as number;
+        const py = positions[c * 3 + 1] as number;
+        const pz = positions[c * 3 + 2] as number;
+        for (let d = 0; d < 4; d++) {
+          const k = neighbors[c * 4 + d] as number;
+          if (!fromSet.has(world.plate[k] as number)) continue;
+          const nx = (positions[k * 3] as number) - px;
+          const ny = (positions[k * 3 + 1] as number) - py;
+          const nz = (positions[k * 3 + 2] as number) - pz;
+          const nl = Math.hypot(nx, ny, nz) || 1;
+          v[0] += (py * nz - pz * ny) / nl;
+          v[1] += (pz * nx - px * nz) / nl;
+          v[2] += (px * ny - py * nx) / nl;
+        }
+      }
+      const vl = Math.hypot(...v);
+      const open = this.rng.range(RIFT_SPEED_MIN, RIFT_SPEED_MAX) * 0.6;
+      const hs = this.speed[host] as number;
+      const w: Vec3 = [0, 1, 2].map((k) => (this.axis[host * 3 + k] as number) * hs - (vl > 1e-9 ? ((v[k] as number) / vl) * open : 0)) as Vec3;
+      const speed = Math.hypot(...w);
+      if (speed > 1e-9) this.setMotion([id], [w[0] / speed, w[1] / speed, w[2] / speed], speed);
+      this.stageEnd[id] = this.stageEnd[host] as number;
+    }
+    // Microcontinente: anda com a média das duas placas da fenda (as duas se afastam dele).
+    if (traced.micro) {
+      const { id, a, b } = traced.micro;
+      const w: Vec3 = [0, 1, 2].map((k) => ((this.axis[a * 3 + k] as number) * (this.speed[a] as number) + (this.axis[b * 3 + k] as number) * (this.speed[b] as number)) / 2) as Vec3;
+      const speed = Math.hypot(...w);
+      if (speed > 1e-9) this.setMotion([id], [w[0] / speed, w[1] / speed, w[2] / speed], speed);
+      this.stageEnd[id] = this.drift + this.rng.range(STAGE_MIN, STAGE_MAX);
+    }
+    this.cycleCenter = this.continentalCenter(members, after) ?? this.cycleCenter;
     this.phase = 'dispersal';
     this.phaseEnd = this.drift + DISPERSAL_TIME;
     this.assemblyPoint = null;
@@ -1617,10 +1769,363 @@ export class Tectonics {
       if (ruptured.has(p) || done.has(g)) continue;
       done.add(g);
       const others = this.members(p);
-      if (others.some((q) => ruptured.has(q)) || this.continentalMembers(others, sums) === 0) continue;
-      this.reorganize(others, sums, this.planFor(others, sums));
+      if (others.some((q) => ruptured.has(q)) || this.continentalMembers(others, after) === 0) continue;
+      this.reorganize(others, after, this.planFor(others, after));
     }
     return true;
+  }
+
+  /** Matrizes inversas da posição de cada placa (mundo → referencial dela), para `transferCell`. */
+  private inverses(): Float64Array {
+    const plates = this.angle.length;
+    const inv = new Float64Array(plates * 9);
+    const m = new Float64Array(9);
+    for (let p = 0; p < plates; p++) {
+      this.rotation(p, m);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) inv[p * 9 + i * 3 + j] = m[j * 3 + i] as number;
+    }
+    return inv;
+  }
+
+  /** Aumenta os arrays por placa para `count` placas. */
+  private growPlates(count: number): void {
+    const grow = (a: Float64Array, per: number): Float64Array => {
+      const b = new Float64Array(count * per);
+      b.set(a);
+      return b;
+    };
+    this.angle = grow(this.angle, 1);
+    this.lastAngle = grow(this.lastAngle, 1);
+    this.axis = grow(this.axis, 3);
+    this.speed = grow(this.speed, 1);
+    this.center0 = grow(this.center0, 3);
+    this.rot0 = grow(this.rot0, 9);
+    this.angle0 = grow(this.angle0, 1);
+    this.stageEnd = grow(this.stageEnd, 1);
+    const group = new Int32Array(count);
+    group.set(this.group);
+    this.group = group;
+  }
+
+  /**
+   * Número para uma placa nova (G3: braço que corta uma placa, microcontinente): o de uma placa que
+   * sumiu ou um novo, até MAX_PLATE_IDS (o desenho guarda a placa em 4 bits). -1 se não há.
+   * O referencial da placa nova é o mundo agora; ela fica parada até ganhar polo.
+   */
+  private allocPlate(center: Vec3): number {
+    const world = this.world;
+    const cells = new Uint32Array(this.angle.length);
+    for (let c = 0; c < world.cellCount; c++) cells[world.plate[c] as number] = (cells[world.plate[c] as number] as number) + 1;
+    let id = -1;
+    for (let p = 0; p < this.angle.length && id < 0; p++) if (!cells[p]) id = p;
+    if (id < 0) {
+      if (this.angle.length >= MAX_PLATE_IDS) return -1;
+      id = this.angle.length;
+      this.growPlates(id + 1);
+    }
+    // O que sobrou da placa antiga com este número (crosta escondida, suturas, colisões) some.
+    for (let i = 0; i < this.count; i++) if (this.sAlive[i] && this.sPlate[i] === id) this.kill(i);
+    const involves = (key: number) => Math.floor(key / 256) === id || key % 256 === id;
+    for (const key of [...this.sutures.keys()]) if (involves(key)) this.sutures.delete(key);
+    for (const key of [...this.collisions.keys()]) if (involves(key)) this.collisions.delete(key);
+    for (const key of [...this.collisionRuns.keys()]) if (involves(key)) this.collisionRuns.delete(key);
+    for (const key of [...this.polarity.keys()]) if (involves(key)) this.polarity.delete(key);
+    this.rot0.set([1, 0, 0, 0, 1, 0, 0, 0, 1], id * 9);
+    this.angle[id] = 0;
+    this.lastAngle[id] = 0;
+    this.angle0[id] = 0;
+    this.axis.set([0, 1, 0], id * 3);
+    this.speed[id] = 0;
+    this.center0.set(center, id * 3);
+    this.stageEnd[id] = this.drift + STAGE_MIN;
+    world.plates[id] = { id, seed: center, center: [...center] as Vec3, omega: [0, 0, 0], continental: 1, color: plateColor(id) };
+    this.rebuildGroups();
+    return id;
+  }
+
+  /**
+   * Passa as células para a placa `to` e, das placas de onde elas saíram, também o oceano que fica
+   * mais perto delas que da terra que continua na placa (a placa nova não fica só com a terra).
+   */
+  private moveWithOcean(cells: readonly number[], to: number, inv: Float64Array): void {
+    const world = this.world;
+    const { neighbors } = world.grid;
+    const n = world.cellCount;
+    const from = new Set<number>();
+    for (const c of cells) from.add(world.plate[c] as number);
+    from.delete(to);
+    const owner = new Int8Array(n).fill(-1);
+    let frontier: number[] = [];
+    for (const c of cells) {
+      owner[c] = 1;
+      frontier.push(c);
+    }
+    for (let c = 0; c < n; c++) {
+      if (owner[c] === -1 && from.has(world.plate[c] as number) && world.crust[c] === Crust.Continental) {
+        owner[c] = 0;
+        frontier.push(c);
+      }
+    }
+    while (frontier.length) {
+      const next: number[] = [];
+      for (const c of frontier) {
+        for (let d = 0; d < 4; d++) {
+          const k = neighbors[c * 4 + d] as number;
+          if (owner[k] !== -1 || !from.has(world.plate[k] as number)) continue;
+          owner[k] = owner[c] as number;
+          next.push(k);
+        }
+      }
+      frontier = next;
+    }
+    for (let c = 0; c < n; c++) if (owner[c] === 1 && this.cellSample[c] !== -1 && world.plate[c] !== to) this.transferCell(c, to, inv);
+  }
+
+  /** Margem passiva igual dos dois lados (G3): grava o ruído na posição de agora, perto da fenda. */
+  private markMargins(paths: readonly (readonly number[])[]): void {
+    const world = this.world;
+    const { positions } = world.grid;
+    const sources: number[] = [];
+    for (const path of paths) sources.push(...path);
+    if (!sources.length) return;
+    const all = new Uint8Array(world.cellCount).fill(1);
+    const dist = stepDistance(world.grid, sources, all, MARGIN_REACH + 2);
+    for (let c = 0; c < world.cellCount; c++) {
+      if ((dist[c] as number) > MARGIN_REACH + 2) continue;
+      const i = this.cellSample[c] as number;
+      if (i < 0) continue;
+      const v = 0.5 + 0.5 * this.marginNoise.sample((positions[c * 3] as number) * 14, (positions[c * 3 + 1] as number) * 14, (positions[c * 3 + 2] as number) * 14);
+      this.sMargin[i] = 1 + Math.round(254 * Math.min(1, Math.max(0, v)));
+    }
+  }
+
+  /**
+   * Ruptura traçada (G3). Entra com os pedaços (conjuntos de placas) escolhidos pelas suturas e:
+   * - retraça cada divisa continental entre pedaços como braço de rifte (serpenteia, degraus de falha
+   *   transformante, braços que se encontram em junção tríplice); a terra de cada lado passa para o
+   *   pedaço daquele lado;
+   * - numa junção de 3 pedaços, com chance FAILED_ARM_CHANCE um braço falha (aulacógeno);
+   * - com só 2 pedaços, sai um terceiro braço do meio da fenda para dentro do pedaço maior: com chance
+   *   FAILED_ARM_CHANCE falha (aulacógeno); senão corta o pedaço e o lado menor vira placa nova;
+   * - com chance MICROCONTINENT_CHANCE, uma lasca ao lado da fenda vira placa própria;
+   * - grava o ruído da margem passiva dos dois lados da fenda.
+   */
+  private traceRupture(parts: number[][]): {
+    parts: number[][];
+    kept: [number, number][];
+    micro: { id: number; a: number; b: number } | null;
+    /** Braço novo que cortou um pedaço: a placa nova e as placas do pedaço de onde ela saiu. */
+    arm: { id: number; from: number[] } | null;
+    created: boolean;
+  } {
+    const world = this.world;
+    const grid = world.grid;
+    const n = world.cellCount;
+    const { neighbors, positions } = grid;
+    const pieceOfPlate = new Map<number, number>();
+    parts.forEach((list, i) => list.forEach((p) => pieceOfPlate.set(p, i)));
+    const region = new Uint8Array(n);
+    const label = new Int32Array(n).fill(-1);
+    for (let c = 0; c < n; c++) {
+      const i = pieceOfPlate.get(world.plate[c] as number);
+      if (i === undefined || world.crust[c] !== Crust.Continental || this.cellSample[c] === -1) continue;
+      region[c] = 1;
+      label[c] = i;
+    }
+    const height = (c: number) => world.heightAboveSea(c);
+    const res = retraceBorders({ grid, region, label, height, rng: this.rng, failChance: parts.length >= 3 ? FAILED_ARM_CHANCE : 0 });
+    // Pedaços juntados por braço que falhou.
+    const kept: [number, number][] = res.kept.map((k) => [k.a, k.b]);
+    const rootOf = new Map<number, number>();
+    const root = (i: number): number => {
+      while (rootOf.has(i) && rootOf.get(i) !== i) i = rootOf.get(i) as number;
+      return i;
+    };
+    for (const [a, b] of kept) {
+      const ra = root(a);
+      const rb = root(b);
+      if (ra !== rb) rootOf.set(Math.max(ra, rb), Math.min(ra, rb));
+    }
+    for (const { a, b, path } of res.kept) {
+      this.carveAulacogen(path);
+      this.failedArms.push({ a, b, drift: this.drift });
+    }
+    const merged = new Map<number, number[]>();
+    parts.forEach((list, i) => {
+      const r = root(i);
+      merged.set(r, [...(merged.get(r) ?? []), ...list]);
+    });
+    const pieceIds = [...merged.keys()].sort((x, y) => x - y);
+    const plateRoot = (p: number): number => root(pieceOfPlate.get(p) ?? -1);
+    let inv = this.inverses();
+
+    // Terra que trocou de lado: passa para uma placa do pedaço novo dela (a vizinha mais perto).
+    let pending: number[] = [];
+    for (let c = 0; c < n; c++) if (region[c] && plateRoot(world.plate[c] as number) !== root(label[c] as number)) pending.push(c);
+    for (let pass = 0; pass < 30 && pending.length; pass++) {
+      const still: number[] = [];
+      for (const c of pending) {
+        const want = root(label[c] as number);
+        let to = -1;
+        for (let d = 0; d < 4 && to < 0; d++) {
+          const q = world.plate[neighbors[c * 4 + d] as number] as number;
+          if (plateRoot(q) === want) to = q;
+        }
+        if (to >= 0) this.transferCell(c, to, inv);
+        else still.push(c);
+      }
+      if (still.length === pending.length) break;
+      pending = still;
+    }
+    const opened: number[][] = res.cuts.map((k) => k.path);
+    const out = pieceIds.map((r) => merged.get(r) as number[]);
+    let micro: { id: number; a: number; b: number } | null = null;
+    let newArm: { id: number; from: number[] } | null = null;
+    const main = [...res.cuts].sort((x, y) => y.path.length - x.path.length)[0];
+
+    // Terceiro braço: só 2 pedaços, do meio da fenda para dentro do maior.
+    if (out.length === 2 && main && main.path.length >= 16) {
+      const path = main.path;
+      const j = Math.floor(path.length / 2);
+      const J = path[j] as number;
+      const P = (c: number): Vec3 => [positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number];
+      const pa = P(path[Math.max(0, j - 4)] as number);
+      const pb = P(path[Math.min(path.length - 1, j + 4)] as number);
+      const pj = P(J);
+      const t: Vec3 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
+      const tl = Math.hypot(...t) || 1;
+      const tu: Vec3 = [t[0] / tl, t[1] / tl, t[2] / tl];
+      const side: Vec3 = [pj[1] * tu[2] - pj[2] * tu[1], pj[2] * tu[0] - pj[0] * tu[2], pj[0] * tu[1] - pj[1] * tu[0]];
+      // Pedaço maior (em terra) e de que lado da fenda ele fica.
+      const landOf = (list: number[]) => {
+        let k = 0;
+        for (let c = 0; c < n; c++) if (region[c] && list.includes(world.plate[c] as number)) k++;
+        return k;
+      };
+      const big = landOf(out[0] as number[]) >= landOf(out[1] as number[]) ? 0 : 1;
+      const bigPlates = out[big] as number[];
+      const probe = (sign: number) => grid.pointToCell(pj[0] + sign * side[0] * 4 * grid.cellAngle, pj[1] + sign * side[1] * 4 * grid.cellAngle, pj[2] + sign * side[2] * 4 * grid.cellAngle);
+      const sign = bigPlates.includes(world.plate[probe(1)] as number) ? 1 : -1;
+      const turn = this.rng.range(-25, 25) * DEG;
+      const dir: Vec3 = [0, 1, 2].map((k) => sign * (side[k] as number) * Math.cos(turn) + (tu[k] as number) * Math.sin(turn)) as Vec3;
+      const allowed = new Uint8Array(n);
+      const onMain = new Uint8Array(n);
+      for (const c of path) onMain[c] = 1;
+      for (let c = 0; c < n; c++) if (region[c] && !onMain[c] && bigPlates.includes(world.plate[c] as number)) allowed[c] = 1;
+      allowed[J] = 1;
+      const coast = (c: number) => {
+        for (let d = 0; d < 4; d++) if (!region[neighbors[c * 4 + d] as number]) return true;
+        return false;
+      };
+      const arm = traceArm({ grid, allowed, start: J, direction: dir, goal: coast, height, rng: this.rng, noise: this.marginNoise });
+      if (arm && arm.length >= 8) {
+        let split = false;
+        if (this.rng.next() >= FAILED_ARM_CHANCE) {
+          // Os dois lados do braço dentro do pedaço maior: o menor vira placa nova.
+          const blocked = new Uint8Array(n);
+          for (const c of arm) blocked[c] = 1;
+          for (const c of path) blocked[c] = 1;
+          const sideA: number[] = [];
+          const seen = new Uint8Array(n);
+          const comps: number[][] = [];
+          for (let c = 0; c < n; c++) {
+            if (!allowed[c] || blocked[c] || seen[c]) continue;
+            const comp: number[] = [];
+            const stack = [c];
+            seen[c] = 1;
+            while (stack.length) {
+              const k = stack.pop() as number;
+              comp.push(k);
+              for (let d = 0; d < 4; d++) {
+                const m = neighbors[k * 4 + d] as number;
+                if (allowed[m] && !blocked[m] && !seen[m]) {
+                  seen[m] = 1;
+                  stack.push(m);
+                }
+              }
+            }
+            comps.push(comp);
+          }
+          comps.sort((x, y) => y.length - x.length);
+          const piece = comps[1];
+          if (piece && piece.length >= CONTINENT_SHARE * n && piece.length >= 0.15 * (comps[0] as number[]).length) {
+            sideA.push(...piece);
+            let x = 0;
+            let y = 0;
+            let z = 0;
+            for (const c of sideA) {
+              x += positions[c * 3] as number;
+              y += positions[c * 3 + 1] as number;
+              z += positions[c * 3 + 2] as number;
+            }
+            const l = Math.hypot(x, y, z) || 1;
+            const id = this.allocPlate([x / l, y / l, z / l]);
+            if (id >= 0) {
+              inv = this.inverses();
+              this.moveWithOcean(sideA, id, inv);
+              for (const list of out) {
+                const k = list.indexOf(id);
+                if (k >= 0) list.splice(k, 1);
+              }
+              out.push([id]);
+              opened.push(arm);
+              newArm = { id, from: bigPlates.filter((q) => q !== id) };
+              split = true;
+            }
+          }
+        }
+        if (!split) {
+          this.carveAulacogen(arm);
+          this.failedArms.push({ a: bigPlates[0] as number, b: bigPlates[0] as number, drift: this.drift });
+        }
+      }
+    }
+
+    // Microcontinente: lasca ao lado da fenda principal.
+    if (main && main.path.length >= 20 && this.rng.next() < MICROCONTINENT_CHANCE) {
+      const sideSign: 1 | -1 = this.rng.next() < 0.5 ? 1 : -1;
+      const land = new Uint8Array(n);
+      for (let c = 0; c < n; c++) if (world.crust[c] === Crust.Continental && pieceOfPlate.has(world.plate[c] as number)) land[c] = 1;
+      let width = this.rng.int(3, 8);
+      let cells = sliverAlong(grid, land, main.path, sideSign, width);
+      if (cells.length < MICRO_SHARE_MIN * n) cells = sliverAlong(grid, land, main.path, sideSign, (width = 8));
+      while (cells.length > MICRO_SHARE_MAX * n && width > 3) cells = sliverAlong(grid, land, main.path, sideSign, --width);
+      const from = cells.length ? (world.plate[cells[0] as number] as number) : -1;
+      const across = world.plate[main.path[0] as number] === from ? (world.plate[main.path[main.path.length - 1] as number] as number) : (world.plate[main.path[0] as number] as number);
+      if (cells.length >= MICRO_SHARE_FLOOR * n && from >= 0) {
+        let x = 0;
+        let y = 0;
+        let z = 0;
+        for (const c of cells) {
+          x += positions[c * 3] as number;
+          y += positions[c * 3 + 1] as number;
+          z += positions[c * 3 + 2] as number;
+        }
+        const l = Math.hypot(x, y, z) || 1;
+        const id = this.allocPlate([x / l, y / l, z / l]);
+        if (id >= 0) {
+          inv = this.inverses();
+          for (const c of cells) if (this.cellSample[c] !== -1) this.transferCell(c, id, inv);
+          for (const list of out) {
+            const k = list.indexOf(id);
+            if (k >= 0) list.splice(k, 1);
+          }
+          // Lado de lá da fenda: uma placa de outro pedaço encostada no braço.
+          let b = across;
+          for (const c of main.path) {
+            const q = world.plate[c] as number;
+            if (q !== from && q !== id) {
+              b = q;
+              break;
+            }
+          }
+          micro = { id, a: from, b };
+          opened.push(main.path);
+        }
+      }
+    }
+    this.markMargins(opened);
+    return { parts: out.filter((list) => list.length), kept, micro, arm: newArm, created: out.length > merged.size || micro !== null };
   }
 
   /**
@@ -2034,6 +2539,7 @@ export class Tectonics {
     } else {
       i = this.addSample(to, ref, this.sElev[old] as number, this.sCrust[old] as number, this.sBirth[old] as number);
     }
+    this.sMargin[i] = this.sMargin[old] as number;
     this.kill(old);
     this.cellSample[c] = i;
     world.plate[c] = to;

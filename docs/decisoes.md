@@ -455,3 +455,19 @@ Formato: data — decisão — motivo — alternativa descartada.
   - **Alternativas descartadas:** aplicar quando o ajudante terminar (o mundo dependeria da velocidade
     do aparelho); recompor mais vezes com menos deslize (dobra o trabalho do ajudante).
 
+- **2026-10-16 — G3: riftes traçados por busca de caminho; geração v3; rifte que abre como zíper.**
+  - **Decisão:** toda fenda continental (na quebra da Pangeia, já na geração, e em toda ruptura) é
+    traçada célula a célula (`src/world/rifts.ts`), com junção tríplice, braço que falha (aulacógeno),
+    terceiro braço que corta um pedaço, microcontinente e margem passiva igual dos dois lados. Onde a
+    fenda já virou mar, o mar avança pelo vale que ainda liga as margens enquanto as placas se afastam.
+  - **Motivo:** costas que se encaixam com dentes e degraus, em vez de cortes retos de Voronoi; e o fim
+    dos istmos de vale que ligavam continentes (falha conhecida da correção 1).
+  - **Detalhes decididos no caminho:** placa com mais de 35% da terra é cortada na geração;
+    microcontinente anda com a média das duas placas da fenda (com metade da velocidade da placa-mãe,
+    era engolido de volta); a primeira dispersão fica como no G1 (a regra das seguintes não melhorou
+    as formas: 11 contra 12 de 20 sementes).
+  - **Alternativas descartadas:** deformar a fronteira antiga com ruído (não traça braços novos dentro
+    de uma placa); votação por componente para dividir os lados (uma brecha entre braços passava um
+    pedaço inteiro para o vizinho).
+  - **Custo:** geração +67 ms de mediana no notebook (~+0,2 s no celular, ~2,9–3,0 s no total).
+

@@ -1,6 +1,7 @@
 import { createRng, type Rng } from '../core/rng';
 import type { Vec3 } from './cubesphere';
 import { fbm, Noise3D } from './noise';
+import { FAILED_ARM_CHANCE, MICROCONTINENT_CHANCE, MICRO_SHARE_MAX, MICRO_SHARE_MIN, MICRO_SHARE_FLOOR, retraceBorders, sliverAlong, traceArm } from './rifts';
 import type { WorldState } from './state';
 
 /**
@@ -34,6 +35,11 @@ export const POLAR_GUARD = (65 * Math.PI) / 180;
  */
 export const DISPERSAL_STAGE_MIN = (20 * Math.PI) / 180;
 export const DISPERSAL_STAGE = (25 * Math.PI) / 180;
+/**
+ * Maior número de placas (o desenho guarda a placa em 4 bits: `MAX_SHADER_PLATES` em
+ * render/plate-motion.ts). Microcontinentes e braços novos usam números livres até aqui.
+ */
+export const MAX_PLATE_IDS = 16;
 /** Desvios tentados (rad) em volta do rumo "para fora" da Pangeia, do menor para o maior. */
 const DISPERSAL_DEVIATIONS = [0, 20, -20, 40, -40, 60, -60, 80, -80].map((d) => (d * Math.PI) / 180);
 
@@ -86,7 +92,7 @@ function randomUnit(rng: Rng): Vec3 {
 }
 
 /** Cor distinta por placa (matizes espaçados pela razão áurea). */
-function plateColor(i: number): [number, number, number] {
+export function plateColor(i: number): [number, number, number] {
   const h = (i * 0.618034) % 1;
   const s = 0.55;
   const l = 0.55;
@@ -198,6 +204,9 @@ export function generatePlates(world: WorldState): void {
     growRegions(world, seeds, weights, cost);
   }
 
+  // Geração v3 (G3): a Pangeia nasce soldada e se parte já no nascimento por riftes traçados.
+  const split = splitPangea(world, seeds);
+
   // Centros e fração continental.
   const plates = seeds.length;
   const center = new Float64Array(plates * 3);
@@ -261,9 +270,310 @@ export function generatePlates(world: WorldState): void {
     }
     world.plates.push({ id: p, seed: seeds[p] as Vec3, center: c, omega, continental: contFraction, color: plateColor(p) });
   }
+  // A lasca anda com a média das duas placas do rifte: as duas se afastam dela (a placa de onde ela
+  // saiu de um lado, a do outro lado da fenda do outro), e ela fica para trás no oceano que se abre.
+  if (split.micro) {
+    const a = world.plates[split.micro.parent];
+    const b = world.plates[split.micro.across];
+    const micro = world.plates[split.micro.id];
+    if (a && b && micro) micro.omega = [0, 1, 2].map((k) => ((a.omega[k] as number) + (b.omega[k] as number)) / 2) as Vec3;
+  }
 
   // Classificação das fronteiras (para a camada e, depois, para montanhas e terremotos).
   updateBoundaries(world);
+}
+
+/**
+ * Geração v3 (G3): as divisas entre as placas da Pangeia viram riftes traçados (serpenteiam, andam em
+ * degraus de falha transformante e se encontram em junções tríplices). Em cada junção, com chance
+ * FAILED_ARM_CHANCE, um braço falha: as duas placas viram uma só e o traçado fica guardado como
+ * aulacógeno (a tectônica cava o vale quando as placas começam a andar). Com chance
+ * MICROCONTINENT_CHANCE, uma lasca ao lado de um braço vira placa própria (microcontinente).
+ * Sorteio próprio: o terreno e o resto da geração não mudam. Os números das placas ficam seguidos.
+ */
+function splitPangea(world: WorldState, seeds: Vec3[]): { micro: { id: number; parent: number; across: number } | null } {
+  const rng = createRng((world.params.seed ^ 0x3c6ef372) >>> 0);
+  const grid = world.grid;
+  const n = world.cellCount;
+  const region = new Uint8Array(n);
+  for (let c = 0; c < n; c++) region[c] = world.crust[c] === Crust.Continental ? 1 : 0;
+  // Terra de cada placa: braço que falha não pode juntar duas placas num continente grande demais.
+  const land = new Float64Array(seeds.length);
+  let totalLand = 0;
+  for (let c = 0; c < n; c++) {
+    if (world.isWater(c)) continue;
+    land[world.plate[c] as number] = (land[world.plate[c] as number] as number) + 1;
+    totalLand++;
+  }
+  const label = Int32Array.from(world.plate);
+  const res = retraceBorders({
+    grid,
+    region,
+    label,
+    height: (c) => world.heightAboveSea(c),
+    rng,
+    failChance: FAILED_ARM_CHANCE,
+    canKeep: (a, b) => (land[a] as number) + (land[b] as number) <= MAX_LAND_SHARE * totalLand,
+  });
+  // Placas juntadas por braço que falhou: a placa inteira (também o oceano) fica com o número menor.
+  const parent = new Map<number, number>();
+  const root = (p: number): number => {
+    while (parent.has(p) && parent.get(p) !== p) p = parent.get(p) as number;
+    return p;
+  };
+  for (const { a, b } of res.kept) {
+    const ra = root(a);
+    const rb = root(b);
+    if (ra !== rb) parent.set(Math.max(ra, rb), Math.min(ra, rb));
+  }
+  const rootOf = Int32Array.from({ length: seeds.length }, (_, p) => root(p));
+  for (let c = 0; c < n; c++) world.plate[c] = region[c] ? (label[c] as number) : (rootOf[world.plate[c] as number] as number);
+  world.aulacogens = res.kept.map((k) => k.path);
+
+  // Placa com terra demais (> MAX_LAND_SHARE): um braço traçado corta a terra dela de costa a costa e
+  // o lado menor vira placa nova (o braço que corta dentro de uma placa, G3). Senão um continente
+  // único ficava com mais de 40% da terra para sempre.
+  const landOf = new Float64Array(MAX_PLATE_IDS);
+  for (let c = 0; c < n; c++) if (!world.isWater(c)) landOf[world.plate[c] as number] = (landOf[world.plate[c] as number] as number) + 1;
+  for (let round = 0; round < 3 && seeds.length < MAX_PLATE_IDS; round++) {
+    let big = -1;
+    for (let p = 0; p < seeds.length; p++) if ((landOf[p] as number) > MAX_LAND_SHARE * totalLand && (big < 0 || (landOf[p] as number) > (landOf[big] as number))) big = p;
+    if (big < 0 || !splitPlate(world, big, seeds, rng, landOf)) break;
+  }
+
+  // Microcontinente: lasca ao lado do braço mais comprido.
+  let micro: { id: number; parent: number; across: number } | null = null;
+  const longest = [...res.cuts].sort((x, y) => y.path.length - x.path.length)[0];
+  if (longest && longest.path.length >= 20 && seeds.length < MAX_PLATE_IDS && rng.next() < MICROCONTINENT_CHANCE) {
+    const side: 1 | -1 = rng.next() < 0.5 ? 1 : -1;
+    let width = rng.int(3, 8);
+    let cells = sliverAlong(grid, region, longest.path, side, width);
+    if (cells.length < MICRO_SHARE_MIN * n) cells = sliverAlong(grid, region, longest.path, side, (width = 8));
+    while (cells.length > MICRO_SHARE_MAX * n && width > 3) cells = sliverAlong(grid, region, longest.path, side, --width);
+    if (cells.length >= MICRO_SHARE_FLOOR * n) {
+      const count = new Map<number, number>();
+      for (const c of cells) count.set(world.plate[c] as number, (count.get(world.plate[c] as number) ?? 0) + 1);
+      let from = -1;
+      let most = 0;
+      for (const [p, k] of count) if (k > most) [from, most] = [p, k];
+      const id = seeds.length;
+      let x = 0;
+      let y = 0;
+      let z = 0;
+      for (const c of cells) {
+        world.plate[c] = id;
+        x += grid.positions[c * 3] as number;
+        y += grid.positions[c * 3 + 1] as number;
+        z += grid.positions[c * 3 + 2] as number;
+      }
+      seeds.push(normalize([x, y, z]));
+      micro = { id, parent: from, across: from === longest.a ? longest.b : longest.a };
+    }
+  }
+
+  makeContiguous(world, seeds.length);
+
+  // Números seguidos (placas juntadas deixam número vago).
+  const used = new Uint8Array(seeds.length);
+  for (let c = 0; c < n; c++) used[world.plate[c] as number] = 1;
+  const remap = new Int32Array(seeds.length).fill(-1);
+  const kept: Vec3[] = [];
+  for (let p = 0; p < seeds.length; p++) {
+    if (!used[p]) continue;
+    remap[p] = kept.length;
+    kept.push(seeds[p] as Vec3);
+  }
+  if (kept.length !== seeds.length) {
+    for (let c = 0; c < n; c++) world.plate[c] = remap[world.plate[c] as number] as number;
+    seeds.length = 0;
+    seeds.push(...kept);
+    if (micro) micro = { id: remap[micro.id] as number, parent: remap[micro.parent] as number, across: remap[micro.across] as number };
+  }
+  return { micro };
+}
+
+/**
+ * Cada placa uma peça só: o traçado dos riftes pode deixar uma ponta solta do outro lado de um braço.
+ * Fica a maior peça de cada placa; as outras passam para a placa vizinha com mais divisa.
+ */
+function makeContiguous(world: WorldState, plates: number): void {
+  const { neighbors } = world.grid;
+  const n = world.cellCount;
+  // A peça solta vai para a peça principal de uma vizinha; peça cercada só por outras peças soltas
+  // espera a rodada seguinte.
+  for (let round = 0; round < 4; round++) {
+    const comp = new Int32Array(n).fill(-1);
+    const size: number[] = [];
+    const owner: number[] = [];
+    const stack: number[] = [];
+    for (let c = 0; c < n; c++) {
+      if ((comp[c] as number) >= 0) continue;
+      const id = size.length;
+      const p = world.plate[c] as number;
+      let count = 0;
+      comp[c] = id;
+      stack.push(c);
+      while (stack.length) {
+        const k = stack.pop() as number;
+        count++;
+        for (let d = 0; d < 4; d++) {
+          const nb = neighbors[k * 4 + d] as number;
+          if ((comp[nb] as number) < 0 && world.plate[nb] === p) {
+            comp[nb] = id;
+            stack.push(nb);
+          }
+        }
+      }
+      size.push(count);
+      owner.push(p);
+    }
+    const biggest = new Int32Array(plates).fill(-1);
+    for (let id = 0; id < size.length; id++) {
+      const p = owner[id] as number;
+      const b = biggest[p] as number;
+      if (b < 0 || (size[id] as number) > (size[b] as number)) biggest[p] = id;
+    }
+    // Divisas de cada peça solta com as outras placas.
+    const contact = new Map<number, Map<number, number>>();
+    for (let c = 0; c < n; c++) {
+      const id = comp[c] as number;
+      if (biggest[owner[id] as number] === id) continue;
+      for (let d = 0; d < 4; d++) {
+        const k = neighbors[c * 4 + d] as number;
+        const q = world.plate[k] as number;
+        // Só a peça principal da vizinha recebe (senão a peça solta ia para outra peça solta).
+        if (q === owner[id] || biggest[q] !== comp[k]) continue;
+        let m = contact.get(id);
+        if (!m) contact.set(id, (m = new Map()));
+        m.set(q, (m.get(q) ?? 0) + 1);
+      }
+    }
+    if (!contact.size) return;
+    const target = new Map<number, number>();
+    for (const [id, m] of contact) {
+      let best = -1;
+      let most = 0;
+      for (const [q, k] of m) if (k > most || (k === most && q < best)) [best, most] = [q, k];
+      target.set(id, best);
+    }
+    for (let c = 0; c < n; c++) {
+      const to = target.get(comp[c] as number);
+      if (to !== undefined) world.plate[c] = to;
+    }
+  }
+}
+
+/**
+ * Corta a terra da placa `p` por um braço de rifte traçado de costa a costa, passando perto do centro
+ * da terra dela; o lado menor (e o oceano mais perto dele) vira placa nova. Retorna se cortou.
+ */
+function splitPlate(world: WorldState, p: number, seeds: Vec3[], rng: Rng, landOf: Float64Array): boolean {
+  const grid = world.grid;
+  const n = world.cellCount;
+  const { neighbors, positions } = grid;
+  const region = new Uint8Array(n);
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  let count = 0;
+  for (let c = 0; c < n; c++) {
+    if (world.plate[c] !== p || world.crust[c] !== Crust.Continental) continue;
+    region[c] = 1;
+    x += positions[c * 3] as number;
+    y += positions[c * 3 + 1] as number;
+    z += positions[c * 3 + 2] as number;
+    count++;
+  }
+  if (!count) return false;
+  const center = normalize([x, y, z]);
+  const P = (c: number): Vec3 => [positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number];
+  const edge = (c: number): boolean => {
+    for (let d = 0; d < 4; d++) if (!region[neighbors[c * 4 + d] as number]) return true;
+    return false;
+  };
+  // Começa na borda, num ponto sorteado; segue para o centro e termina na borda do outro lado.
+  const border: number[] = [];
+  for (let c = 0; c < n; c++) if (region[c] && edge(c)) border.push(c);
+  if (border.length < 8) return false;
+  const start = border[rng.int(0, border.length - 1)] as number;
+  const s = P(start);
+  const toCenter: Vec3 = [center[0] - s[0], center[1] - s[1], center[2] - s[2]];
+  const reach = Math.hypot(...toCenter);
+  const goal = (c: number): boolean => {
+    if (!edge(c)) return false;
+    const q = P(c);
+    return Math.hypot(q[0] - s[0], q[1] - s[1], q[2] - s[2]) > 1.4 * reach;
+  };
+  const path = traceArm({ grid, allowed: region, start, direction: toCenter, goal, height: (c) => world.heightAboveSea(c), rng, noise: new Noise3D(rng) });
+  if (!path) return false;
+  // Os dois lados do braço.
+  const onPath = new Uint8Array(n);
+  for (const c of path) onPath[c] = 1;
+  const seen = new Uint8Array(n);
+  const comps: number[][] = [];
+  for (let c = 0; c < n; c++) {
+    if (!region[c] || onPath[c] || seen[c]) continue;
+    const comp: number[] = [];
+    const stack = [c];
+    seen[c] = 1;
+    while (stack.length) {
+      const k = stack.pop() as number;
+      comp.push(k);
+      for (let d = 0; d < 4; d++) {
+        const m = neighbors[k * 4 + d] as number;
+        if (region[m] && !onPath[m] && !seen[m]) {
+          seen[m] = 1;
+          stack.push(m);
+        }
+      }
+    }
+    comps.push(comp);
+  }
+  comps.sort((a, b) => b.length - a.length);
+  const side = comps[1];
+  if (!side || side.length < 0.25 * count) return false;
+  // Lado menor e o oceano da placa mais perto dele que da outra terra: placa nova.
+  const id = seeds.length;
+  const owner = new Int8Array(n).fill(-1);
+  let frontier: number[] = [];
+  for (const c of side) {
+    owner[c] = 1;
+    frontier.push(c);
+  }
+  for (let c = 0; c < n; c++) {
+    if (region[c] && owner[c] === -1) {
+      owner[c] = 0;
+      frontier.push(c);
+    }
+  }
+  while (frontier.length) {
+    const next: number[] = [];
+    for (const c of frontier) {
+      for (let d = 0; d < 4; d++) {
+        const k = neighbors[c * 4 + d] as number;
+        if (owner[k] !== -1 || world.plate[k] !== p) continue;
+        owner[k] = owner[c] as number;
+        next.push(k);
+      }
+    }
+    frontier = next;
+  }
+  let sx = 0;
+  let sy = 0;
+  let sz = 0;
+  for (let c = 0; c < n; c++) {
+    if (owner[c] !== 1) continue;
+    world.plate[c] = id;
+    if (!world.isWater(c)) {
+      landOf[p] = (landOf[p] as number) - 1;
+      landOf[id] = (landOf[id] as number) + 1;
+    }
+    sx += positions[c * 3] as number;
+    sy += positions[c * 3 + 1] as number;
+    sz += positions[c * 3 + 2] as number;
+  }
+  seeds.push(normalize([sx, sy, sz]));
+  return true;
 }
 
 /** Gira o ponto `p` pelo ângulo `a` em torno do eixo unitário `k` (Rodrigues). */

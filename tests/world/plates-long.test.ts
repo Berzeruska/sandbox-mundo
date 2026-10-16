@@ -58,9 +58,10 @@ describe('placas em 5 minutos a 20× com o controle no máximo', () => {
     let prev: Uint8Array | null = null;
     let worstLoose = 0;
     let worstFlips = 0;
-    // Depois de uma troca de movimento (polo novo, solda, ruptura), as células que a placa tinha
-    // acabado de tomar voltam para a outra: é um evento único, não a oscilação de placas se comendo
-    // alternadamente. Essas recomposições têm um teto próprio.
+    // Depois de uma troca de movimento (polo novo, solda, ruptura) ou de uma acreção (placa pequena
+    // absorvida inteira numa colisão, G3), as células que a placa tinha acabado de tomar voltam para
+    // a outra: é um evento único, não a oscilação de placas se comendo alternadamente. Essas
+    // recomposições têm um teto próprio.
     let worstAfterChange = 0;
     const changes: number[] = [];
     for (let k = 0; k < 5 * TICKS_PER_MINUTE; k++) {
@@ -69,7 +70,7 @@ describe('placas em 5 minutos a 20× com o controle no máximo', () => {
       worstLoose = Math.max(worstLoose, loosePieces(w).filter((s) => s < limit).length);
       // Oscilação: células que voltam à dona de duas recomposições atrás.
       const cur = Uint8Array.from(w.plate);
-      changes.push(t.motionChanges);
+      changes.push(t.motionChanges + t.fragmentsAbsorbed);
       if (prev && prev2) {
         let flips = 0;
         for (let c = 0; c < cur.length; c++) if (cur[c] === prev2[c] && cur[c] !== prev[c]) flips++;

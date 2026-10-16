@@ -12,7 +12,7 @@ import { Tectonics } from '../../src/world/tectonics';
  * Medido aos 3 min (G1): aos 2 min a quebra ainda está no meio (pedaços de 4–6% que se juntam logo
  * depois), e sem as soldas falsas por arredondamento esses pedaços não ficam mais grudados.
  * As sementes "42" e "ilha" ainda ficam fora do critério (maior com 44% e 61%): é o G3 (riftes).
- * Desde a correção 1 (vale de rifte), "terra" e "mundo" também: falha conhecida até o fim do G3.
+ * "terra" e "mundo" foram falha conhecida entre a correção 1 (vale de rifte) e o G3 (riftes traçados).
  */
 const TICKS_PER_MINUTE_AT_20X = 60 * 240;
 
@@ -31,9 +31,7 @@ describe('formas dos continentes depois da Pangeia se partir (placas no máximo,
     expect(w.landFraction()).toBeGreaterThan(0.24);
   };
   it('semente "7": 4 a 7 continentes, nenhum com mais de 40% da terra', () => check('7'), 60_000);
-  // Falha conhecida (decisão do usuário, 2026-10-16): desde a correção 1, rifte que para de abrir fica
-  // como vale em terra (aulacógeno) e liga continentes; aqui o maior fica com 44% (`terra`) e 40%
-  // (`mundo`). O critério não muda: estes dois têm de voltar a passar no fim do G3 (riftes e formas).
-  // `it.fails` passa enquanto o critério falha e acusa quando ele voltar a passar: aí vira `it` de novo.
-  it.fails.each(['terra', 'mundo'])('semente "%s" (falha conhecida até o G3): 4 a 7 continentes, nenhum com mais de 40% da terra', (seedText) => check(seedText), 60_000);
+  // Falha conhecida de 2026-10-16 (correção 1) a 2026-10-16 (G3): o G3 a resolveu, voltaram a ser
+  // testes normais, com o mesmo critério.
+  it.each(['terra', 'mundo'])('semente "%s": 4 a 7 continentes, nenhum com mais de 40% da terra', (seedText) => check(seedText), 60_000);
 });

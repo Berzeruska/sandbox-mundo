@@ -111,6 +111,9 @@ describe('G2: ruptura', () => {
     const { positions, neighbors } = w.grid;
     let opening = 0;
     let closing = 0;
+    // A fenda principal (entre as duas placas soldadas): quase toda abrindo.
+    let mainOpening = 0;
+    let mainClosing = 0;
     for (let c = 0; c < w.cellCount; c++) {
       const a = w.plate[c]!;
       for (let d = 0; d < 4; d++) {
@@ -124,12 +127,25 @@ describe('G2: ruptura', () => {
         const p = [positions[c * 3]!, positions[c * 3 + 1]!, positions[c * 3 + 2]!];
         const n = [positions[k * 3]! - p[0]!, positions[k * 3 + 1]! - p[1]!, positions[k * 3 + 2]! - p[2]!];
         const v = [o[1]! * p[2]! - o[2]! * p[1]!, o[2]! * p[0]! - o[0]! * p[2]!, o[0]! * p[1]! - o[1]! * p[0]!];
-        if (v[0]! * n[0]! + v[1]! * n[1]! + v[2]! * n[2]! < 0) opening++;
-        else closing++;
+        const vn = v[0]! * n[0]! + v[1]! * n[1]! + v[2]! * n[2]!;
+        // Degrau de falha transformante (G3): a divisa corre junto com o movimento, nem abre nem
+        // fecha. Só contam os trechos com velocidade normal de verdade.
+        if (Math.abs(vn) < 0.3 * Math.hypot(v[0]!, v[1]!, v[2]!) * Math.hypot(n[0]!, n[1]!, n[2]!)) continue;
+        const main = (a === 0 && b === 1) || (a === 1 && b === 0);
+        if (vn < 0) {
+          opening++;
+          if (main) mainOpening++;
+        } else {
+          closing++;
+          if (main) mainClosing++;
+        }
       }
     }
-    expect(opening).toBeGreaterThan(0);
-    expect(closing / (opening + closing)).toBeLessThan(0.1);
+    expect(mainOpening).toBeGreaterThan(0);
+    expect(mainClosing / (mainOpening + mainClosing)).toBeLessThan(0.1);
+    // Com o braço novo da junção tríplice (G3), que é curvo, um giro rígido não abre todos os trechos:
+    // nas curvas há compressão (como nos riftes de verdade). No conjunto, a grande maioria abre.
+    expect(closing / (opening + closing)).toBeLessThan(0.2);
     // Andando 1 min de jogo, os pedaços não voltam a se soldar.
     const welds = t.welds;
     for (let k = 0; k < TICKS_PER_MINUTE; k++) t.step(1);

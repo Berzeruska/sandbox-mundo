@@ -8,9 +8,10 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** Bloco G. Correção 2 feita (ajudante 2 "Terra": o tempo não para mais na recomposição
-  enquanto o celular acompanhar). Próximo: G3 (riftes traçados e formas), depois G4 (especificação
-  antes de codar: **parada de design**). Teste do bloco no fim, com a lista numerada.
+- **Agora:** Bloco G. Correção 2 e G3 feitos. **Parado numa decisão de design:** a especificação do
+  G4 (continente amassa e vira montanha) está pronta e espera aprovação, com 2 perguntas
+  (`docs/M2-especificacao.md`, "G4 — Proposta"). Depois do G4, fim do Bloco G: prévia e lista do que
+  testar.
 - **Método (regra do usuário, 2026-10-16):** teste por bloco. Sigo de tarefa em tarefa e só paro no
   fim do bloco, com prévia e lista numerada do que testar; paradas obrigatórias: decisão de design,
   teste de portão, meta de desempenho quebrada na estimativa. Blocos do M2: G (correção 2, G3, G4);
@@ -62,6 +63,11 @@ sobre "onde estamos", vale este.
 - G1 latitude (`bcfba4b`), aprovado no celular.
 - G2 ciclo de Wilson (`c0660ea`), testado no celular: "bem mais liso".
 - Etiqueta "PRÉVIA" não cobre mais o fps do painel Dados (`4a11cf8`): some com o painel aberto.
+- G3, riftes traçados: fendas traçadas célula a célula (serpenteiam, degraus de falha transformante,
+  junção tríplice, aulacógeno, terceiro braço, microcontinente, margem igual dos dois lados, rifte que
+  abre como zíper); geração v3 (a Pangeia nasce soldada e se parte por riftes). Os testes de formas de
+  `terra` e `mundo` voltaram a ser testes normais e passam. Geração ~+0,2 s no celular (estimativa
+  ~2,9–3,0 s, no limite da meta).
 - Correção 2, ajudante 2 "Terra": memória compartilhada "sim" no Hot 50i; recomposição, clima e cores
   em outro worker, aparecendo 480 passos depois; "pior" do relatório por cenário; "relógio esperou".
 - Correção 1, vale de rifte: fenda entre continentes nasce como vale; com 3 células de largura o meio
@@ -72,11 +78,7 @@ sobre "onde estamos", vale este.
   reabrir (contador "recargas p/ isolar").
 - [ ] Teste da correção 1 no celular (na lista do fim do Bloco G).
 - [ ] T7: vale de rifte entre montanhas com neve (`docs/bugs.md`), registrado para a T7.
-- [ ] **Falha conhecida:** testes de formas de `terra` e `mundo` (maior continente 44% e 40% aos 3 min,
-  por istmos de vale). Têm de voltar a passar no fim do G3.
-- [ ] G3 — riftes traçados, junção tríplice, aulacógenos, microcontinentes, Pangeia nascendo soldada
-  (geração v3), teste de formas aos 2, 5 e 10 min.
-- [ ] G4 — continente amassa e vira montanha na colisão (especificação antes).
+- [ ] G4 — continente amassa e vira montanha (especificação esperando aprovação).
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
 - [ ] Antes de fechar o Bloco G: medir de novo latitude e grupos soldados em N = 256; se subir para
   32 placas, medir no Hot 50i.
@@ -94,10 +96,12 @@ sobre "onde estamos", vale este.
 - Recomposição: 900–1.260 ms em média (placas 620–990 · clima ~170). Worker 192 passos/s em vez de
   240 (é o "tempo travando").
 
-## Ressalvas conhecidas do G2
+## Ressalvas conhecidas (G2/G3)
 - O "supercontinente" é um aglomerado de continentes encostados, não uma massa compacta.
-- Ainda não há junção tríplice (vem no G3).
-- Nas sementes `mundo` e `42`, às vezes o supercontinente volta em ~2 min.
+- Nas sementes `mundo` e `42`, às vezes o supercontinente volta em ~2 min; em geral, quando o critério
+  de formas falha, é porque dois continentes colidiram e se soldaram logo depois da quebra (12 de 20
+  sementes passam aos 3 min).
+- Geração no limite da meta de 3 s no celular (estimativa); o relatório do aparelho decide.
 
 ## Decisões abertas (do usuário)
 - **"Tamanho fixo" das placas:** hoje ficam fixas a identidade e a forma; placas oceânicas podem

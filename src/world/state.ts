@@ -52,6 +52,11 @@ export class WorldState {
   /** Tipo de fronteira de placa (`Boundary` em plates.ts); 0 = interior da placa. */
   readonly boundary: Uint8Array;
   plates: Plate[] = [];
+  /**
+   * Braços que falharam na quebra da Pangeia (geração v3): células de cada traçado. A tectônica cava
+   * o vale (aulacógeno) quando as placas começam a andar.
+   */
+  aulacogens: number[][] = [];
   /** Distância (em células) até a água mais próxima; 0 na água. Usada pela umidade. */
   readonly waterDistance: Uint16Array;
   seaLevel: number;

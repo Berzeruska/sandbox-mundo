@@ -185,7 +185,33 @@ fragmento pequeno gruda na placa maior; nada oscilando, nada colidindo para semp
   que some sem contato; latitude da terra em 10 min nas 5 sementes (20°–45°, ≤ 30% acima de 60° e
   ≤ 25% depois de 4 min, inclinação média < 0,75°/min).
 - Teste automático (`tests/world/plates-long.test.ts`): 5 min a 20× com placas em 100%, 3 sementes;
-  a cada recomposição nenhum pedaço solto, nenhuma colisão além da solda, trocas A→B→A < 0,06%.
+  a cada recomposição nenhum pedaço solto, nenhuma colisão além da solda, trocas A→B→A < 0,06%
+  (troca de rumo e acreção têm teto próprio de 0,5%: é um evento único, não oscilação).
+- **Vale de rifte (correção 1)**: fenda entre dois continentes com menos de 3 células nasce como vale
+  (300–800 m abaixo das bordas); com 3 ou mais, o meio vira dorsal. Rifte parado fica vale em terra.
+- **Riftes traçados (G3)**, `src/world/rifts.ts`:
+  - Toda fenda continental é traçada célula a célula (busca de caminho): barata perto da sutura
+    antiga e em terreno baixo, cara em montanha; serpenteia (2 a 6 células) e anda em degraus de
+    falha transformante (trechos de 6 a 14 células, desvio de até 5). Cada lado da linha fica com o
+    pedaço daquele lado; as duas costas se encaixam.
+  - Junção tríplice: os braços se encontram num ponto. Com chance de 1/3, um braço falha:
+    os dois lados continuam juntos e o traçado vira aulacógeno (vale de 1–2 células, 300–800 m mais
+    baixo: lago ou golfo estreito).
+  - Ruptura com 2 pedaços: um terceiro braço sai do meio da fenda para dentro do pedaço maior
+    (±25° da perpendicular); com chance de 1/3 falha (aulacógeno), senão corta o pedaço e o lado
+    menor vira placa nova (anda com o pedaço de onde saiu mais um giro que abre o braço).
+  - Microcontinente (chance de 25% por ruptura): lasca de 0,5–2% do planeta ao lado da fenda vira
+    placa própria e anda com a média das duas placas da fenda (as duas se afastam dela).
+  - Margem passiva igual dos dois lados: o ruído da margem é gravado na posição do mundo na hora do
+    rifte.
+  - Rifte que abre como zíper: onde a fenda já virou mar, o mar avança até 3 células por recomposição
+    pelo vale que ainda liga as duas margens, se as placas ali ainda se afastam.
+  - Placas novas usam o número de uma placa que sumiu ou um novo, até 16 (limite do desenho).
+- **Geração v3 (G3)**: a Pangeia nasce soldada e se parte já no nascimento pelo mesmo mecanismo:
+  as divisas entre as placas da Pangeia viram riftes traçados; em cada junção tríplice, com chance
+  de 1/3, um braço falha (as duas placas viram uma, até 35% da terra, e o vale aparece quando as
+  placas começam a andar); placa com mais de 35% da terra é cortada por um braço de costa a costa;
+  chance de 25% de microcontinente. O terreno inicial não muda.
 
 ### Geração v2 (M2): costas recortadas e mares internos
 Decisão do usuário: aceitar que a mesma semente gere um mundo inicial diferente do da v1.x.

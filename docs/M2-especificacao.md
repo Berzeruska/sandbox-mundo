@@ -581,6 +581,101 @@ continua escura com tudo pausado (é crosta na simulação, não efeito de desen
   marcados como falha conhecida (`it.fails`), sem apagar e sem afrouxar o critério. **Têm de voltar a
   passar no fim do G3**; o G3 só fecha com eles como teste normal de novo.
 
+### G4 — Proposta: continente amassa e vira montanha (esperando aprovação)
+**Hoje:** numa colisão entre dois continentes, até a solda (8 recomposições), a crosta continental da
+faixa sobreposta é apagada. Medido em 10 min: 10–16% da crosta continental some assim. A cordilheira
+sobe 480 m por recomposição na faixa da frente, até 7.000 m, não importa quanta crosta foi apagada.
+
+**Proposta:** a crosta que entra por baixo não some; vira altura na placa que fica por cima.
+- Cada célula continental consumida numa colisão entrega a "espessura" dela (a altura acima de uma
+  base de −3.500 m) à cordilheira da placa que venceu.
+- Essa espessura é repartida na faixa da frente em forma de sino (até 8 células, como hoje). A
+  cordilheira passa a crescer conforme a crosta que entra: colisão longa e rápida faz montanha maior,
+  e encostada de leve faz pouca.
+- **Planalto:** onde a montanha bate no teto (7.000 m), o que sobra vai para a célula seguinte, mais
+  para dentro da placa. Colisão longa alarga a cordilheira num planalto (como o Tibete), em vez de
+  jogar a crosta fora.
+- A área de terra ainda diminui um pouco: placas rígidas não encolhem. A crosta dessa área vira
+  altura em vez de sumir.
+- **Fica igual:** solda depois de 8 recomposições, acreção de continente pequeno, subducção de crosta
+  oceânica, erosão.
+
+**Teste (pelo desenho):**
+- Colisão sintética de 2 continentes, sem erosão: a soma da espessura continental (área × altura
+  acima da base) antes e depois da colisão bate em ±2%. Hoje ela cai.
+- Colisão longa: a faixa acima de 6.000 m fica mais larga que numa colisão curta (planalto).
+- Medida em N = 256, 5 sementes, 10 min: "crosta continental apagada" cai de 10–16% para ~0. Os
+  testes de oscilação, de pedaços soltos e de formas continuam passando.
+
+**Desempenho:** é conta só nas células da frente de colisão. Estimativa: < 5 ms por recomposição no
+notebook, no ajudante 2 (não para o relógio).
+
+**Perguntas antes de codar:**
+1. **Onde nasce a montanha:**
+   - (a, recomendada) toda na placa que fica por cima (como o Himalaia, do lado da Ásia);
+   - (b) metade de cada lado da sutura.
+2. **Planalto:** pode alargar sem limite enquanto a colisão durar (até a solda, ~8 recomposições), ou
+   prefere um limite de largura (ex.: 12 células)?
+
+### G3 — Resultado (2026-10-16)
+**Como funciona** (detalhes em `docs/03-mundo-geologia.md`, constantes em `src/world/rifts.ts` e
+`src/world/tectonics.ts`):
+- Riftes traçados célula a célula (busca de caminho): seguem perto da sutura antiga, preferem terreno
+  baixo, evitam montanha, serpenteiam e andam em degraus de falha transformante. Os dois lados da
+  linha se encaixam com dentes e reentrâncias (`docs/img/m2-g3-fenda-terra.png`).
+- Junção tríplice com braço que falha (1/3): aulacógeno, vale de 1–2 células.
+- Ruptura com 2 pedaços ganha um terceiro braço para dentro do pedaço maior: falha (1/3) ou corta e
+  cria placa nova. Microcontinente com chance de 25%.
+- Margens passivas iguais dos dois lados. Placas novas até 16 (reaproveita números de placas que
+  sumiram).
+- Geração v3: a quebra da Pangeia usa o mesmo mecanismo, no nascimento
+  (`docs/img/m2-g3-quebra-terra.png`: 0, 1 e 3 min).
+
+**Decisões técnicas tomadas no caminho** (registradas em `docs/decisoes.md`):
+1. **Rifte que abre como zíper.** Sem ele, vales de rifte que abrem devagar ligavam continentes (a
+   falha conhecida da correção 1). Onde a fenda já virou mar, o mar avança pelo vale que ainda liga as
+   duas margens, só se as placas ali ainda se afastam. Rifte parado continua vale em terra (sua
+   decisão da correção 1).
+2. **Placa com mais de 35% da terra é cortada na geração** por um braço de costa a costa (o "braço que
+   corta dentro de uma placa"). Algumas sementes nasciam com uma placa de até 49% da terra, que nunca
+   viraria um continente abaixo de 40%.
+3. **Microcontinente anda com a média das duas placas da fenda.** Com "metade da velocidade da placa
+   de onde saiu", ele ficava à frente dela e era engolido de volta logo depois (acreção). Na média, as
+   duas placas se afastam dele: ele fica para trás no oceano que se abre, mais lento que as duas em
+   relação à fenda.
+4. **A primeira dispersão fica como no G1.** Usar nela a regra das dispersões seguintes (não empurrar
+   vizinhos) não melhorou as formas: 11 contra 12 de 20 sementes aos 3 min.
+5. **O teste de oscilação conta a acreção como evento**, como já contava a troca de rumo: uma placa
+   pequena absorvida inteira numa colisão devolve as células que tinha acabado de cobrir uma vez só.
+   O teste de "a fenda abre" ignora os degraus de falha transformante (correm junto com o movimento,
+   nem abrem nem fecham) e mede à parte a fenda principal (< 10% fechando) e o braço novo, que é curvo
+   (< 20% no conjunto).
+
+**Medido:**
+- **Falha conhecida resolvida:** os testes de formas de `terra` e `mundo` voltaram a ser testes normais
+  e passam, com o mesmo critério (aos 3 min, N = 128: `terra` 34%, `mundo` 30%, `7` 28%).
+- **20 sementes, N = 128, 3 min:** 12 de 20 no critério (antes do G3: 8 de 20). As que falham têm, em
+  geral, dois continentes que colidem e se soldam logo depois da quebra (dinâmica da dispersão do
+  G1/G2), não vale de rifte.
+- **N = 256, 5 sementes, aos 2, 5 e 10 min fora da fase de supercontinente:** 6 de 8 medições no
+  critério (antes: 7 de 13). As 2 que falham estão na fase de reunião (`mundo` aos 5 e 10 min). A `42`
+  forma supercontinente já aos 2 min (ressalva conhecida do G2).
+
+  | Semente | 2 min | 5 min | 10 min |
+  |---|---|---|---|
+  | `terra` | 6 cont., 34% | supercontinente | supercontinente |
+  | `mundo` | 6 cont., 32% | 3 cont., 60% (reunião) | 4 cont., 49% |
+  | `7` | 5 cont., 32% | 5 cont., 31% | 4 cont., 52% |
+  | `42` | supercontinente | supercontinente | supercontinente |
+  | `ilha` | 5 cont., 30% | 5 cont., 31% | supercontinente |
+- **Índice de recorte** (células de costa ÷ √área, média dos continentes) parecido com o de antes:
+  sobe em `7` e `ilha`, cai um pouco em `terra` e `mundo`. **Mares internos:** 2 a 4 por mundo.
+  Penínsulas e golfos são para você julgar no celular.
+- **Desempenho (notebook, Chromium):** geração 753 → 820 ms de mediana (placas 175 → 271 ms). Na
+  proporção do celular (952 ms → 2,7 s), a geração deve ir para ~2,9–3,0 s: dentro da meta de 3 s, mas
+  no limite. Recomposição com placas 100%: 435–520 ms no ajudante, relógio a 240 passos/s, "relógio
+  esperou 0 ms". O relatório do aparelho decide.
+
 ### G3 — Formas: de onde vem hoje o formato das costas
 1. **Costa da Pangeia inicial:** vem da geração v2. São lobos em volta de um centro, borda deformada
    por ruído, ruído fractal, 2 a 4 bacias internas e ruído fino só na faixa da costa.
@@ -694,11 +789,10 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
     ajudante), um pouco acima da estimativa de +15–20 MB.
   - **Relatório:** "pior" agora é por cenário; nova parte "relógio esperou X ms" (quanto o relógio
     parou esperando o ajudante); "envio" virou "aplicar".
-- [ ] **G3 — Riftes traçados e formas:** braços serpenteando com degraus, aulacógeno,
+- [x] **G3 — Riftes traçados e formas:** braços serpenteando com degraus, aulacógeno,
   microcontinentes, geração v3 (se aprovada), números de placa; critério de formas aos 2, 5 e 10 min;
   mapas antes/depois.
-  **Para fechar o G3:** os testes de formas de `terra` e `mundo` voltam a passar como teste normal
-  (falha conhecida desde a correção 1; ver "Correção 1 — resultado").
+  Os testes de formas de `terra` e `mundo` voltaram a passar como teste normal (resultado abaixo).
 - [ ] **G4 — Continente amassa e vira montanha** em vez de ser apagado na colisão. Especificação
   aprovada antes de codar.
 

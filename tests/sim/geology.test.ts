@@ -42,23 +42,43 @@ class DeferredGeology implements GeologyPort {
 const N = 32;
 const SEED = 'ajudante';
 
+const RATE_CHANGE = 9000;
+const RUPTURE = 12_000;
+
+/** Passo das primeiras recomposições com este roteiro de placas (o pincel não muda quando elas vêm). */
+function recompositionTicks(): number[] {
+  const inbox: FromWorker[] = [];
+  const core = new SimulationCore((msg) => inbox.push(msg), () => 0, (c) => new DeferredGeology(c));
+  const port = core.geology as DeferredGeology;
+  core.handle({ type: 'newWorld', seedText: SEED, n: N });
+  core.handle({ type: 'speed', speed: 20 });
+  core.handle({ type: 'plateRate', rate: 1 });
+  while (core.clock.tick < RATE_CHANGE) {
+    core.advance(Math.min(60, RATE_CHANGE - core.clock.tick) / 240 + 1e-12);
+    port.deliver();
+  }
+  return port.results.map((r) => r.tick);
+}
+
 /**
- * Comandos do jogador em passos fixos. Com esta semente a 1ª recomposição é no passo 6.467 e aparece
- * no 6.947: as pinceladas de 6.600 e 6.700 caem na janela de espera; a de 12.100 cai na janela da
- * ruptura forçada (12.000 → 12.480).
+ * Comandos do jogador em passos fixos. As pinceladas caem dentro da janela de espera da 1ª
+ * recomposição (entre ela e o mundo novo aparecer, APPLY_DELAY_TICKS passos depois) e na da ruptura
+ * forçada; outras caem fora das janelas.
  */
-const SCRIPT: Record<number, (core: SimulationCore) => void> = {
-  1: (c) => c.handle({ type: 'plateRate', rate: 1 }),
-  900: (c) => c.handle({ type: 'brush', tool: Tool.Raise, point: latLonToPoint(0.1, 0.2), radius: 4, dt: 1.5 }),
-  4000: (c) => c.handle({ type: 'brush', tool: Tool.Ice, point: latLonToPoint(0.5, -1), radius: 3, dt: 0.2 }),
-  6600: (c) => c.handle({ type: 'brush', tool: Tool.Raise, point: latLonToPoint(-0.3, 1.1), radius: 5, dt: 2 }),
-  6700: (c) => c.handle({ type: 'brush', tool: Tool.Lower, point: latLonToPoint(-0.3, 1.1), radius: 3, dt: 0.5 }),
-  6750: (c) => c.handle({ type: 'brush', tool: Tool.EraseIce, point: latLonToPoint(0.5, -1), radius: 2, dt: 0.2 }),
-  9000: (c) => c.handle({ type: 'plateRate', rate: 0.6 }),
-  12_000: (c) => c.handle({ type: 'forceRupture' }),
-  12_100: (c) => c.handle({ type: 'brush', tool: Tool.Water, point: latLonToPoint(0.2, 2.5), radius: 4, dt: 0.2 }),
-};
-const END = 26_000;
+function script(first: number): Record<number, (core: SimulationCore) => void> {
+  return {
+    1: (c) => c.handle({ type: 'plateRate', rate: 1 }),
+    900: (c) => c.handle({ type: 'brush', tool: Tool.Raise, point: latLonToPoint(0.1, 0.2), radius: 4, dt: 1.5 }),
+    4000: (c) => c.handle({ type: 'brush', tool: Tool.Ice, point: latLonToPoint(0.5, -1), radius: 3, dt: 0.2 }),
+    [first + 130]: (c) => c.handle({ type: 'brush', tool: Tool.Raise, point: latLonToPoint(-0.3, 1.1), radius: 5, dt: 2 }),
+    [first + 230]: (c) => c.handle({ type: 'brush', tool: Tool.Lower, point: latLonToPoint(-0.3, 1.1), radius: 3, dt: 0.5 }),
+    [first + 280]: (c) => c.handle({ type: 'brush', tool: Tool.EraseIce, point: latLonToPoint(0.5, -1), radius: 2, dt: 0.2 }),
+    [RATE_CHANGE]: (c) => c.handle({ type: 'plateRate', rate: 0.6 }),
+    [RUPTURE]: (c) => c.handle({ type: 'forceRupture' }),
+    [RUPTURE + 100]: (c) => c.handle({ type: 'brush', tool: Tool.Water, point: latLonToPoint(0.2, 2.5), radius: 4, dt: 0.2 }),
+  };
+}
+const END = 30_000;
 
 function makeCore(port?: (core: SimulationCore) => GeologyPort) {
   const inbox: FromWorker[] = [];
@@ -72,7 +92,7 @@ function makeCore(port?: (core: SimulationCore) => GeologyPort) {
  * Roda o roteiro até END. `deliverEvery`: de quantas em quantas chamadas o motor "responde"; se o
  * relógio parar de andar (esperando o motor), entrega tudo.
  */
-function run(port: ((core: SimulationCore) => GeologyPort) | undefined, deliverEvery = 1) {
+function run(SCRIPT: Record<number, (core: SimulationCore) => void>, port: ((core: SimulationCore) => GeologyPort) | undefined, deliverEvery = 1) {
   const { core, inbox } = makeCore(port);
   const deferred = core.geology instanceof DeferredGeology ? core.geology : null;
   let calls = 0;
@@ -123,9 +143,13 @@ describe('ajudante 2 "Terra" (correção 2)', () => {
   });
 
   it('o mundo é o mesmo com o motor no relógio ou num ajudante atrasado (determinístico)', () => {
-    const local = run(undefined);
-    const late = run((c) => new DeferredGeology(c), 5);
-    const veryLate = run((c) => new DeferredGeology(c), 1_000_000);
+    const first = recompositionTicks()[0] as number;
+    expect(first).toBeGreaterThan(1000);
+    expect(first + 300).toBeLessThan(RATE_CHANGE);
+    const SCRIPT = script(first);
+    const local = run(SCRIPT, undefined);
+    const late = run(SCRIPT, (c) => new DeferredGeology(c), 5);
+    const veryLate = run(SCRIPT, (c) => new DeferredGeology(c), 1_000_000);
     for (const other of [late, veryLate]) {
       expect(other.core.clock.tick).toBe(END);
       expect(other.core.world!.elevation).toEqual(local.core.world!.elevation);
