@@ -228,6 +228,9 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   de temperatura global em Clima, somado ao ciclo.
   Testes: o recálculo parcial bate com o total; a área de gelo cresce com a temperatura global
   menor e recua com ela maior; ciclo e controle se somam.
+  **Observado pelo usuário no celular (2026-10-16, `c0660ea`), para tratar nesta tarefa:**
+  terra em latitude alta sem gelo; polos simplificados demais; neve fraca. Diagnosticar na T7, não
+  antes.
 
 - [ ] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa
@@ -480,6 +483,62 @@ O que **não** fica bom só com o G2:
 - **Custo:** a recomposição no notebook voltou para perto de antes do G1. Contato das suturas: 32 →
   5 ms. Total: 354 → 261 ms, contra 239 antes do G1. O celular decide.
 
+### G2 — Teste no celular (2026-10-16, `c0660ea`) e diagnósticos
+Relatório do aparelho: pausado 80 fps (parado) / 91 (girando); tempo 20× com placas paradas 91; placas
+100% 82–85 (mín. 59); deriva longa 84; ruptura forçada 84; geração 2,7 s. Recomposição no celular:
+900–1.260 ms em média (placas 620–990 · clima ~170 · cores ~40 · envio ~55). "Pausado, parado" ficou
+abaixo da meta de 85 (antes 91); a vigiar no próximo relatório.
+
+**1. "Elevar" numa fronteira forma um buraco.** Reproduzido em `terra`, no ponto da fronteira, com
+placas 100%: a partir da 2ª recomposição (~ano 135), uma linha de 1 célula de **fundo oceânico novo
+(−2.500 m)** atravessa o morro pintado e a cordilheira; na 6ª (~ano 400) tem 1–2 células de largura e
+continua escura com tudo pausado (é crosta na simulação, não efeito de desenho).
+- **Causa:** as duas placas ali estão se afastando devagar (testado: tratar a fenda como arredondamento
+  não muda nada; é abertura de verdade). A cada recomposição, a fenda aberta entre dois continentes
+  vira dorsal oceânica na hora, a −2.500 m, e afunda com a idade. Um rifte de verdade começa como vale
+  (terra afundando, lagos) e só vira mar quando fica largo. Não depende do pincel: o pincel só deixou
+  o rasgo visível no morro.
+- **Proposta (correção 1, antes do G3):** fenda entre dois continentes, enquanto tiver menos de 3
+  células de largura, nasce como **vale de rifte continental**: altura das vizinhas menos 300–800 m (a
+  mesma faixa do aulacógeno do G3), podendo virar lago se ficar abaixo do mar. Com 3 células ou mais, o
+  meio vira fundo oceânico como hoje. Resultado esperado: o morro sobe normal e, depois, a placa se
+  parte por um vale que alarga até virar mar.
+- **Teste (pelo desenho):** duas placas continentais se afastando em cenário sintético: nas primeiras
+  recomposições a fenda é terra mais baixa que as vizinhas e nenhuma célula é oceânica; com largura
+  ≥ 3, o meio é oceânico. Os testes de tiras arrastadas e de oscilação continuam passando.
+
+**2. Placas no máximo travam o tempo.**
+- **Causa:** a recomposição roda no mesmo worker do relógio. Com placas 100% a 20×, há uma a cada
+  ~3,6 s reais (877 passos), e ela segura o worker ~1 s no celular. Nesse tempo o relógio não anda e
+  depois só recupera 0,25 s (`MAX_FRAME_DT`): a data para ~1 s a cada 3,6 s e o jogo anda ~20% mais
+  devagar (192 passos/s em vez de 240; "ocupado 21%").
+- **Onde está o custo** (notebook, N = 256, `terra`, 3 min, 50 recomposições; total 239 ms, no celular
+  ×3–4): composição do mapa (cada célula da faixa de fronteira testa todas as placas) ~146 ms (61%) ·
+  relevo 49 (20%) · pedaços soltos 20 (9%) · polaridade 9 · somas por placa 7 · contatos 4 · acreção 2.
+  Fora das placas: clima ~170 ms no celular.
+- **Defeito na medição:** o "pior" de cada linha é o máximo desde que o mundo abriu, não do cenário
+  (por isso 2.010 ms em todas). Corrigir junto.
+- **Não há meta de "o tempo não para"**; as metas de fps estão batidas. Opções para o usuário decidir
+  (ver "Estado"): (a) baratear a recomposição (só placas vizinhas na faixa, sem alocar por célula,
+  relevo incremental): estimativa de metade do custo, a data ainda para ~0,5 s; (b) recomposição num
+  segundo worker, aplicada um número fixo de passos depois (determinística): o tempo não para enquanto
+  o celular acompanhar; mudança maior e mais memória.
+
+**4. Placas se chocam até uma englobar a outra.** Medido em 10 min, N = 256, 5 sementes:
+- A regra registrada (decisões, D3) é "identidade e forma: nada de placas comendo umas às outras
+  **alternadamente**". Ela é cumprida: trocas A→B→A são 0,8–1,2% das trocas de dona (arredondamento de
+  1 célula).
+- O que se vê tem três mecanismos, todos do desenho atual:
+  - **acreção:** continente pequeno (< 1,5% do planeta) que colide passa inteiro para a placa maior
+    (`terra`: a placa 1 perdeu seus 2.620 continentes no minuto 0,8);
+  - **subducção até sumir:** placa oceânica encolhe até desaparecer (`terra`: placa 8 some em ~4,5 min;
+    `mundo`: 3 de 14 placas somem em 10 min);
+  - **"deformam um pouco":** na colisão, antes da solda (8 recomposições), a crosta continental da
+    faixa sobreposta é apagada: 10–16% da crosta continental em 10 min (`ilha` 19.801 células). Na
+    Terra real, continente não afunda: amassa e vira montanha.
+- Conclusão: não é bug da regra como está escrita. Se "nenhuma placa come a outra" quer dizer "nenhuma
+  placa some e nenhum continente é apagado", é regra nova de placas → docs, pela direção do usuário.
+
 ### G3 — Formas: de onde vem hoje o formato das costas
 1. **Costa da Pangeia inicial:** vem da geração v2. São lobos em volta de um centro, borda deformada
    por ruído, ruído fractal, 2 a 4 bacias internas e ruído fino só na faixa da costa.
@@ -575,7 +634,7 @@ Feito no `marco-2` (prévia em `/previa/marco-2/`): T1–T5, correção do trava
 a correção dos pedaços de placa (commit `d36c156`, confirmada no celular: a oscilação sumiu; o
 relatório do aparelho bateu todas as metas de fps e geração).
 
-Bloco G aprovado. **G1 e G2 feitos** (G1 aprovado pelo usuário com o relatório do aparelho). G2
+Bloco G aprovado. **G1 e G2 feitos** (G1 aprovado pelo usuário com o relatório do aparelho; G2 testado no celular em 2026-10-16, diagnósticos na seção "G2 — Teste no celular"). G2
 aguardando o teste na prévia; depois G3. Ainda pendentes: confirmar no celular o travamento em 92% e os lagos retos
 (`docs/bugs.md`), avaliar as imagens de formas e a T5. T6 (minerais) segue congelada.
 

@@ -2,6 +2,22 @@
 
 Formato: data — como reproduzir — causa — correção — commit.
 
+## 2026-10-16 — "Elevar" numa fronteira de placa forma um buraco (celular, `c0660ea5`)
+
+- **Como reproduzir:** semente `terra`, Elevar na fronteira entre duas placas em terra, placas 100%,
+  tempo 20×. Em ~2 recomposições, uma linha azul-escura de 1 célula atravessa o morro e a cordilheira.
+- **Causa:** fenda entre dois continentes que se afastam vira fundo oceânico (−2.500 m) já na primeira
+  célula aberta; um rifte de verdade começa como vale. Detalhes em `docs/M2-especificacao.md`
+  ("G2 — Teste no celular").
+- **Correção:** proposta (vale de rifte até 3 células de largura), esperando aprovação.
+
+## 2026-10-16 — Placas no máximo travam o tempo (celular, `c0660ea5`)
+
+- **Como reproduzir:** placas 100%, tempo 20×: a data para ~1 s a cada ~3,6 s.
+- **Causa:** a recomposição (~1 s no celular) segura o worker do relógio, e o relógio só recupera
+  0,25 s depois. Custo medido em `docs/M2-especificacao.md` ("G2 — Teste no celular").
+- **Correção:** opções (a) baratear ou (b) segundo worker, esperando decisão do usuário.
+
 ## 2026-10-15 — Continentes migram dos trópicos para os polos e a deriva morre (celular, `d36c156b`)
 
 - **Como reproduzir:**
