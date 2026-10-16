@@ -1,3 +1,4 @@
+import { countIsolationReload } from './ui/isolation';
 import { App } from './app';
 import { GAME_NAME } from './core/version';
 
@@ -40,6 +41,7 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     } catch {
       return;
     }
+    countIsolationReload();
     window.location.reload();
   };
   navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);

@@ -24,8 +24,8 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **Como reproduzir:** placas 100%, tempo 20×: a data para ~1 s a cada ~3,6 s.
 - **Causa:** a recomposição (~1 s no celular) segura o worker do relógio, e o relógio só recupera
   0,25 s depois. Custo medido em `docs/M2-especificacao.md` ("G2 — Teste no celular").
-- **Correção:** decidida: recomposição no ajudante 2 com memória compartilhada (correção 2), depois
-  a recomposição mais barata como complemento.
+- **Correção:** recomposição no ajudante 2 com memória compartilhada (correção 2); no notebook, 240
+  passos/s com placas 100% e "relógio esperou 0 ms". Falta confirmar no celular (fim do Bloco G).
 
 ## 2026-10-15 — Continentes migram dos trópicos para os polos e a deriva morre (celular, `d36c156b`)
 

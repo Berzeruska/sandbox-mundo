@@ -8,9 +8,9 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** Bloco G, correção 2. **Parado no teste de portão:** a memória compartilhada funciona no
-  celular? (linha "memória compartilhada" no painel Dados). "sim" → sigo com o ajudante 2 até o fim do
-  bloco (correção 2, G3, G4). "não" → paro e pergunto antes de seguir com cópia.
+- **Agora:** Bloco G. Correção 2 feita (ajudante 2 "Terra": o tempo não para mais na recomposição
+  enquanto o celular acompanhar). Próximo: G3 (riftes traçados e formas), depois G4 (especificação
+  antes de codar: **parada de design**). Teste do bloco no fim, com a lista numerada.
 - **Método (regra do usuário, 2026-10-16):** teste por bloco. Sigo de tarefa em tarefa e só paro no
   fim do bloco, com prévia e lista numerada do que testar; paradas obrigatórias: decisão de design,
   teste de portão, meta de desempenho quebrada na estimativa. Blocos do M2: G (correção 2, G3, G4);
@@ -62,12 +62,14 @@ sobre "onde estamos", vale este.
 - G1 latitude (`bcfba4b`), aprovado no celular.
 - G2 ciclo de Wilson (`c0660ea`), testado no celular: "bem mais liso".
 - Etiqueta "PRÉVIA" não cobre mais o fps do painel Dados (`4a11cf8`): some com o painel aberto.
+- Correção 2, ajudante 2 "Terra": memória compartilhada "sim" no Hot 50i; recomposição, clima e cores
+  em outro worker, aparecendo 480 passos depois; "pior" do relatório por cenário; "relógio esperou".
 - Correção 1, vale de rifte: fenda entre continentes nasce como vale; com 3 células de largura o meio
   vira mar; rifte parado fica como vale em terra (aulacógeno, opção 1 do usuário).
 
 ## Pendente no M2
-- [ ] Correção 2: teste de memória compartilhada no celular (portão, agora); depois ajudante 2 e "pior"
-  por cenário.
+- [ ] Confirmar no celular, no fim do Bloco G: "relógio esperou" perto de 0 com placas 100%; recarga ao
+  reabrir (contador "recargas p/ isolar").
 - [ ] Teste da correção 1 no celular (na lista do fim do Bloco G).
 - [ ] T7: vale de rifte entre montanhas com neve (`docs/bugs.md`), registrado para a T7.
 - [ ] **Falha conhecida:** testes de formas de `terra` e `mundo` (maior continente 44% e 40% aos 3 min,

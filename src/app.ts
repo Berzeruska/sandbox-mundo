@@ -1,3 +1,4 @@
+import { isolationReloads } from './ui/isolation';
 import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
 import { Clock, formatDate, type Speed } from './core/time';
 import { PaintGate } from './input/paint-gate';
@@ -527,7 +528,7 @@ export class App {
       memoryMb: this.stats.memoryMb,
       drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
       version: __BUILD_ID__,
-      sharedMemory: this.sim.sharedMemory,
+      sharedMemory: `${this.sim.sharedMemory} · recargas p/ isolar ${isolationReloads()}`,
       cycle: `${CYCLE_PHASES[this.work.cyclePhase] ?? '—'} · ${this.work.supercontinents} supercontinentes · ${this.work.ruptures} rupturas`,
     });
   }
@@ -560,6 +561,7 @@ export class App {
       const recorder = new FrameRecorder();
       bench.recorder = recorder;
       bench.receive = [];
+      this.sim.resetWorst();
       const work0 = { ...this.work };
       const timer = setInterval(() => status(step, name, panel), 1000);
       await wait(ms);
@@ -632,7 +634,7 @@ export class App {
         gpu: renderer?.gpuName() ?? '—',
         drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
         cores: navigator.hardwareConcurrency || 0,
-        sharedMemory: this.sim.sharedMemory,
+        sharedMemory: `${this.sim.sharedMemory} (recargas p/ isolar ${isolationReloads()})`,
         screen: `tela ${screen.width}×${screen.height} @${(window.devicePixelRatio || 1).toFixed(2)} · desenho ${canvas.width}×${canvas.height} · ~${this.stats.lastMinGap > 0 ? Math.round(1000 / this.stats.lastMinGap) : 0} Hz`,
         userAgent: navigator.userAgent,
       },

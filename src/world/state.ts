@@ -1,3 +1,4 @@
+import { newArray } from '../core/shared';
 import { CubeSphere } from './cubesphere';
 import type { Plate } from './plates';
 
@@ -61,18 +62,18 @@ export class WorldState {
     this.grid = grid;
     this.cellCount = grid.cellCount;
     this.seaLevel = params.seaLevel;
-    this.elevation = new Float32Array(this.cellCount);
-    this.temperature = new Float32Array(this.cellCount);
-    this.precipitation = new Float32Array(this.cellCount);
-    this.biome = new Uint8Array(this.cellCount);
-    this.ice = new Uint8Array(this.cellCount);
-    this.iceMode = new Uint8Array(this.cellCount);
-    this.tempNoise = new Float32Array(this.cellCount);
-    this.rainNoise = new Float32Array(this.cellCount);
-    this.plate = new Uint8Array(this.cellCount);
-    this.crust = new Uint8Array(this.cellCount);
-    this.boundary = new Uint8Array(this.cellCount);
-    this.waterDistance = new Uint16Array(this.cellCount);
+    this.elevation = newArray(Float32Array, this.cellCount);
+    this.temperature = newArray(Float32Array, this.cellCount);
+    this.precipitation = newArray(Float32Array, this.cellCount);
+    this.biome = newArray(Uint8Array, this.cellCount);
+    this.ice = newArray(Uint8Array, this.cellCount);
+    this.iceMode = newArray(Uint8Array, this.cellCount);
+    this.tempNoise = newArray(Float32Array, this.cellCount);
+    this.rainNoise = newArray(Float32Array, this.cellCount);
+    this.plate = newArray(Uint8Array, this.cellCount);
+    this.crust = newArray(Uint8Array, this.cellCount);
+    this.boundary = newArray(Uint8Array, this.cellCount);
+    this.waterDistance = newArray(Uint16Array, this.cellCount);
   }
 
   isWater(i: number): boolean {

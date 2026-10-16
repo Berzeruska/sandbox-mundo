@@ -6,17 +6,22 @@
 
 /** Contadores acumulados do worker (desde que ele nasceu). A diferença entre dois mostra um trecho. */
 export interface WorkCounters {
-  /** Tempo trabalhando no relógio (passos + recomposições), ms. */
+  /** Tempo trabalhando no relógio (passos + aplicar recomposições), ms. */
   ms: number;
   ticks: number;
   recompositions: number;
-  /** Partes das recomposições, ms: mover as placas, clima, cores, empacotar e enviar. */
+  /**
+   * Partes das recomposições, ms: mover as placas, clima e cores (no ajudante 2, sem parar o relógio,
+   * quando há memória compartilhada) e aplicar no mundo do relógio e enviar à tela.
+   */
   plates: number;
   climate: number;
   colors: number;
   send: number;
-  /** Pior recomposição completa, ms. */
+  /** Pior recomposição completa, ms, desde o último `resetWorst` (o começo do cenário). */
   worstGeology: number;
+  /** Tempo em que o relógio ficou parado esperando o ajudante da geologia, ms. */
+  waitMs: number;
   /** Mensagens de relógio enviadas à tela. */
   clockMessages: number;
   /** Soldas de continentes e pedaços de placa absorvidos (geologia). */
@@ -32,10 +37,13 @@ export interface WorkCounters {
 export const CYCLE_PHASES = ['—', 'dispersão', 'reunião', 'supercontinente'] as const;
 
 export function emptyWork(): WorkCounters {
-  return { ms: 0, ticks: 0, recompositions: 0, plates: 0, climate: 0, colors: 0, send: 0, worstGeology: 0, clockMessages: 0, welds: 0, fragments: 0, ruptures: 0, supercontinents: 0, cyclePhase: 0 };
+  return { ms: 0, ticks: 0, recompositions: 0, plates: 0, climate: 0, colors: 0, send: 0, worstGeology: 0, waitMs: 0, clockMessages: 0, welds: 0, fragments: 0, ruptures: 0, supercontinents: 0, cyclePhase: 0 };
 }
 
-/** Diferença entre dois retratos dos contadores (o pior fica o do fim, que inclui o trecho). */
+/**
+ * Diferença entre dois retratos dos contadores. O pior é o do fim: o cenário zera o pior ao começar
+ * (`resetWorst`), então ele é o pior do trecho (antes era o pior desde que o mundo abriu).
+ */
 export function workDelta(a: WorkCounters, b: WorkCounters): WorkCounters {
   return {
     ms: b.ms - a.ms,
@@ -46,6 +54,7 @@ export function workDelta(a: WorkCounters, b: WorkCounters): WorkCounters {
     colors: b.colors - a.colors,
     send: b.send - a.send,
     worstGeology: b.worstGeology,
+    waitMs: b.waitMs - a.waitMs,
     clockMessages: b.clockMessages - a.clockMessages,
     welds: Math.max(0, b.welds - a.welds),
     fragments: Math.max(0, b.fragments - a.fragments),
@@ -173,7 +182,7 @@ function workLine(r: ScenarioResult): string {
   if (!w.recompositions) return base;
   const k = w.recompositions;
   return (
-    `${base}\n    ${k} recomposições (${w.welds} soldas · ${w.ruptures} rupturas · ${w.fragments} pedaços absorvidos): média ${f0((w.plates + w.climate + w.colors + w.send) / k)} ms (placas ${f0(w.plates / k)} · clima ${f0(w.climate / k)} · cores ${f0(w.colors / k)} · envio ${f0(w.send / k)}) · pior ${f0(w.worstGeology)} ms` +
+    `${base}\n    ${k} recomposições (${w.welds} soldas · ${w.ruptures} rupturas · ${w.fragments} pedaços absorvidos): média ${f0((w.plates + w.climate + w.colors + w.send) / k)} ms (placas ${f0(w.plates / k)} · clima ${f0(w.climate / k)} · cores ${f0(w.colors / k)} · aplicar ${f0(w.send / k)}) · pior ${f0(w.worstGeology)} ms · relógio esperou ${f0(w.waitMs)} ms` +
     `\n    tela ao receber: média ${f1(r.receiveAvgMs)} · pior ${f1(r.receiveMaxMs)} ms`
   );
 }

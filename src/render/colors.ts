@@ -1,3 +1,4 @@
+import { newArray } from '../core/shared';
 import { BIOME_INFO } from '../world/biomes';
 import type { CubeSphere } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
@@ -70,11 +71,11 @@ export function colorCacheBytes(grid: CubeSphere): number {
  * direção à luz" (noroeste), em metros por célula. Só depende da geometria da grade, então é
  * calculado uma vez e o sombreado vira 4 multiplicações por célula.
  */
-function shadeWeightsFor(grid: CubeSphere): Float32Array {
+export function shadeWeightsFor(grid: CubeSphere): Float32Array {
   const cached = shadeWeights.get(grid);
   if (cached) return cached;
   const { positions, neighbors, cellAngle } = grid;
-  const w = new Float32Array(grid.cellCount * 4);
+  const w = newArray(Float32Array, grid.cellCount * 4);
   for (let i = 0; i < grid.cellCount; i++) {
     const px = positions[i * 3] as number;
     const py = positions[i * 3 + 1] as number;
@@ -100,6 +101,12 @@ function shadeWeightsFor(grid: CubeSphere): Float32Array {
   }
   shadeWeights.set(grid, w);
   return w;
+}
+
+/** Usa a tabela de sombreado de outro ajudante (memória compartilhada) para esta grade. */
+export function adoptShadeWeights(grid: CubeSphere, weights: Float32Array): void {
+  if (weights.length !== grid.cellCount * 4) throw new Error('Tabela de sombreado com tamanho diferente');
+  shadeWeights.set(grid, weights);
 }
 
 /**

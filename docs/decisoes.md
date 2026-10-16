@@ -444,3 +444,14 @@ Formato: data — decisão — motivo — alternativa descartada.
   - **Motivo:** menos idas e vindas; o usuário testa um conjunto que faz sentido junto.
   - **Alternativa descartada:** parar a cada tarefa com mudança visível (regra de 2026-10-15).
 
+- **2026-10-16 — Recomposição aparece 480 passos depois de feita (correção 2).**
+  - **Decisão:** o motor da geologia anda nos mesmos passos do relógio e a recomposição feita no passo T
+    aparece no passo T + 480 (40 anos; 2 s a 20×). O relógio nunca fica mais de 480 passos à frente do
+    motor (espera se precisar). Pinceladas vão ao motor como "placa + ponto do referencial"; as feitas
+    na janela valem de novo quando a recomposição aparece.
+  - **Motivo:** determinístico (não depende de quanto o aparelho demora) e o tempo não para enquanto o
+    ajudante acompanhar; 480 passos cabem numa recomposição de ~1–1,3 s num núcleo forte do Hot 50i e
+    mantêm o deslize do desenho em ~3 células, dentro do alcance do shader (3,5).
+  - **Alternativas descartadas:** aplicar quando o ajudante terminar (o mundo dependeria da velocidade
+    do aparelho); recompor mais vezes com menos deslize (dobra o trabalho do ajudante).
+

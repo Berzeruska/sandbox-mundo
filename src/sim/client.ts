@@ -83,6 +83,11 @@ export class SimClient {
     this.send({ type: 'forceRupture' });
   }
 
+  /** "Medir desempenho": o pior tempo de recomposição passa a contar a partir de agora. */
+  resetWorst(): void {
+    this.send({ type: 'resetWorst' });
+  }
+
   setLayers(layers: Layers): void {
     this.send({ type: 'layers', layers });
   }

@@ -49,6 +49,8 @@ export type ToWorker =
   | { type: 'plateRate'; rate: number }
   /** "Medir desempenho": racha agora o maior bloco soldado (ciclo de Wilson, G2). */
   | { type: 'forceRupture' }
+  /** "Medir desempenho": começo de cenário, o "pior" passa a contar daqui. */
+  | { type: 'resetWorst' }
   | { type: 'query'; id: number; point: Vec3 }
   /** Teste de memória compartilhada (correção 2): o worker escreve SHARED_PROBE_VALUE no buffer. */
   | { type: 'sharedProbe'; buffer: SharedArrayBuffer };

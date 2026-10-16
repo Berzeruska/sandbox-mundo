@@ -177,17 +177,19 @@ describe('placas no worker', () => {
     ['antes de a tectônica existir', false],
     ['depois de a tectônica existir', true],
   ])('pincelada fica gravada na placa %s (sobrevive à recomposição)', (_label, startFirst) => {
-    const { core } = makeCore();
+    const { core, inbox } = makeCore();
     core.handle({ type: 'newWorld', seedText: 'grava', n: 32 });
-    if (startFirst) core.advance(1 / 12); // um passo: monta a tectônica
+    core.handle({ type: 'plateRate', rate: 1 });
+    core.handle({ type: 'speed', speed: 20 });
+    if (startFirst) core.advance(1 / 240 + 1e-12); // um passo: monta a tectônica
     const p = latLonToPoint(0.1, 0.2);
     core.handle({ type: 'brush', tool: Tool.Raise, point: p, radius: 3, dt: 2 });
-    core.advance(1 / 12);
-    const w = core.world!;
-    const max0 = Math.max(...w.elevation);
-    core.tectonics!.recompose();
+    const max0 = Math.max(...core.world!.elevation);
+    inbox.length = 0;
+    // Anda até a primeira recomposição aparecer no mundo do relógio.
+    while (!inbox.some((m) => m.type === 'recomposed')) core.advance(0.25);
     // A montanha continua lá (a erosão leve do relevo pode baixar um pouco o pico).
-    expect(Math.max(...w.elevation)).toBeGreaterThan(max0 * 0.85);
+    expect(Math.max(...core.world!.elevation)).toBeGreaterThan(max0 * 0.85);
   });
 
   it('a tectônica só é montada no primeiro passo, e não com o controle em 0', () => {

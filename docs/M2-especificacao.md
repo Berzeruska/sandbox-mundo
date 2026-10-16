@@ -669,16 +669,31 @@ passam para a placa daquele lado. A transferência de crosta entre placas já ex
   Resultado abaixo ("G2 — Resultado").
 - [x] **Correção 1 — Vale de rifte:** fenda entre continentes com menos de 3 células nasce como vale
   (vizinhas −300 a −800 m); com 3 ou mais, o meio vira fundo oceânico. Teste sintético de 2 placas.
-- [ ] **Correção 2 — Ajudante 2 "Terra":** (2a) teste de memória compartilhada no celular (linha no
-  painel Dados); (2b) recomposição e clima no ajudante 2, aplicados num passo fixo à frente; "pior" do
-  relatório por cenário.
-  - **2a feito, esperando o celular (teste de portão):** o service worker acrescenta os cabeçalhos de
-    isolamento (COOP `same-origin`, COEP `require-corp`) às respostas do jogo; na primeira visita a
-    página recarrega uma vez sozinha (marca na sessão evita laço). A tela cria um SharedArrayBuffer, o
-    worker grava 42 nele e a tela lê de volta: linha "memória compartilhada" no painel Dados e no
-    relatório do "Medir desempenho". No notebook (Chromium, build servido sem cabeçalhos em
-    `/previa/marco-2/`): isolada, "sim", uma recarga só na primeira visita, nenhuma ao reabrir, abre
-    offline. **Se no celular der "não", parar e perguntar antes de seguir com cópia.**
+- [x] **Correção 2 — Ajudante 2 "Terra":** (2a) teste de memória compartilhada no celular; (2b)
+  recomposição e clima no ajudante 2, aplicados num passo fixo à frente; "pior" do relatório por cenário.
+  - **2a (portão):** "sim" no Hot 50i (`c864756a`). O service worker acrescenta os cabeçalhos de
+    isolamento; a primeira visita recarrega uma vez. O usuário viu uma recarga também ao reabrir: o
+    painel Dados agora conta as recargas que o jogo faz ("recargas p/ isolar"); se o número não subir
+    ao reabrir, a recarga vista foi do navegador, não do jogo.
+  - **2b:** o motor da geologia (`src/sim/geology.ts`) anda pelos mesmos passos do relógio, na ordem
+    dos comandos. Uma recomposição feita no passo T aparece no passo T + 480 (`APPLY_DELAY_TICKS`: 40
+    anos, 2 s a 20×). O relógio nunca fica mais de 480 passos à frente do motor: se o ajudante atrasar,
+    o relógio espera e o resultado não muda. Pinceladas viajam como "placa + ponto do referencial dela";
+    as feitas enquanto a recomposição está no ajudante valem de novo quando ela aparece. Grade, tabelas
+    do clima e do sombreado são compartilhadas; o mundo existe duas vezes (o do relógio e o de trabalho
+    do ajudante). Sem memória compartilhada, o mesmo motor roda no relógio (como antes, o tempo para na
+    recomposição).
+  - **Testes:** o mundo final é idêntico com o motor no relógio, num ajudante atrasado e num muito
+    atrasado (pincel dentro e fora da janela, ruptura forçada, troca de velocidade das placas); a
+    recomposição aparece exatamente 480 passos depois; pincelada na janela não some; o relógio conta o
+    tempo esperando.
+  - **Medido no notebook (Chromium, `terra`):** placas 100% a 20×: 240 passos/s com e sem
+    recomposição (antes caía), relógio ocupado 0%, "relógio esperou 0 ms"; recomposição no ajudante
+    450–530 ms; aplicar no relógio 4–5 ms. Suavidade igual à de antes (1 salto de imagem em 30 s nas
+    duas versões). Memória da simulação 46 → 69–70 MB (+23 MB: segundo mundo, cores e tabelas do
+    ajudante), um pouco acima da estimativa de +15–20 MB.
+  - **Relatório:** "pior" agora é por cenário; nova parte "relógio esperou X ms" (quanto o relógio
+    parou esperando o ajudante); "envio" virou "aplicar".
 - [ ] **G3 — Riftes traçados e formas:** braços serpenteando com degraus, aulacógeno,
   microcontinentes, geração v3 (se aprovada), números de placa; critério de formas aos 2, 5 e 10 min;
   mapas antes/depois.

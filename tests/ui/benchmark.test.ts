@@ -61,7 +61,7 @@ describe('medir desempenho: worker e relatório', () => {
     const a = { ...emptyWork(), ms: 100, ticks: 1000, recompositions: 2, plates: 50, worstGeology: 80 };
     const b = { ...a, ms: 400, ticks: 3400, recompositions: 5, plates: 140, worstGeology: 120 };
     const d = workDelta(a, b);
-    expect(d).toMatchObject({ ms: 300, ticks: 2400, recompositions: 3, plates: 90, worstGeology: 120 });
+    expect(d).toMatchObject({ ms: 300, ticks: 2400, recompositions: 3, plates: 90, worstGeology: 120, waitMs: 0 });
   });
 
   it('relatório traz cenários, worker, geração e a GPU', () => {
@@ -84,7 +84,7 @@ describe('medir desempenho: worker e relatório', () => {
     expect(text).toContain('memória compartilhada: sim');
     expect(text).toContain('pausado, parado');
     expect(text).toContain('worker parado');
-    expect(text).toContain('2 recomposições (1 soldas · 1 rupturas · 3 pedaços absorvidos): média 100 ms (placas 50 · clima 30 · cores 15 · envio 5) · pior 120 ms');
+    expect(text).toContain('2 recomposições (1 soldas · 1 rupturas · 3 pedaços absorvidos): média 100 ms (placas 50 · clima 30 · cores 15 · aplicar 5) · pior 120 ms · relógio esperou 0 ms');
     expect(text).toContain('240 passos/s');
     expect(text).toContain('geração: 4000 ms');
     expect(text).toContain('terreno 2000');

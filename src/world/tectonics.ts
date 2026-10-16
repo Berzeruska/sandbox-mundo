@@ -431,6 +431,45 @@ export class Tectonics {
     }
   }
 
+  /** Deriva acumulada (soma do controle "Placas" × MAX_PLATE_RATE a cada passo): o tempo geológico. */
+  get driftNow(): number {
+    return this.drift;
+  }
+
+  /**
+   * O próximo `step(rate)` vai recompor o mapa? Mesma conta do `step`, sem mudar nada. O ajudante da
+   * geologia usa para não começar uma recomposição antes de a anterior ser aplicada (correção 2).
+   */
+  willRecompose(rate: number): boolean {
+    if (rate <= 0) return false;
+    const limit = RECOMPOSE_CELLS * this.world.grid.cellAngle;
+    for (let p = 0; p < this.angle.length; p++) {
+      const next = (this.angle[p] as number) + MAX_PLATE_RATE * rate * (this.speed[p] as number);
+      if (Math.abs(next - (this.lastAngle[p] as number)) >= limit) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Pincelada vinda de outro ajudante (correção 2): a amostra da placa `plate` no ponto `ref` do
+   * referencial dela passa a ter esta altura e crosta (o mesmo que `syncCells` faz por célula).
+   * Amostra que já não existe (consumida, ou passada para outra placa) é ignorada.
+   */
+  syncSample(plate: number, ref: number, elevation: number, crust: number): void {
+    const i = this.find(plate, ref);
+    if (i < 0) return;
+    this.sElev[i] = elevation;
+    this.sCrust[i] = crust;
+  }
+
+  /** Ponto do referencial da placa mostrado em cada célula (-1 = nenhum), para `syncSample`. */
+  writeCellRefs(out: Int32Array): void {
+    for (let c = 0; c < this.world.cellCount; c++) {
+      const i = this.cellSample[c] as number;
+      out[c] = i >= 0 ? (this.sRef[i] as number) : -1;
+    }
+  }
+
   /**
    * Um passo do relógio. `rate` é o controle "Placas" (0 a 1). Retorna true se o mapa foi recomposto.
    */

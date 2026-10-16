@@ -1,4 +1,5 @@
 import { classifyCell } from './biomes';
+import { newArray } from '../core/shared';
 import type { CubeSphere } from './cubesphere';
 import { IceMode, type WorldState } from './state';
 
@@ -188,10 +189,16 @@ const upwindTables = new WeakMap<CubeSphere, Int32Array>();
 export function upwindTable(grid: CubeSphere): Int32Array {
   let table = upwindTables.get(grid);
   if (!table) {
-    table = new Int32Array(grid.cellCount * SHADOW_STEPS).fill(NOT_COMPUTED);
+    table = newArray(Int32Array, grid.cellCount * SHADOW_STEPS).fill(NOT_COMPUTED);
     upwindTables.set(grid, table);
   }
   return table;
+}
+
+/** Usa a tabela do vento de outro ajudante (memória compartilhada) para esta grade. */
+export function adoptUpwindTable(grid: CubeSphere, table: Int32Array): void {
+  if (table.length !== grid.cellCount * SHADOW_STEPS) throw new Error('Tabela do vento com tamanho diferente');
+  upwindTables.set(grid, table);
 }
 
 /** Bytes das tabelas guardadas para esta grade (vento e marcas de região), para o painel Dados. */
@@ -205,24 +212,29 @@ function computeUpwindRow(grid: CubeSphere, table: Int32Array, i: number): void 
   const y = positions[i * 3 + 1] as number;
   const z = positions[i * 3 + 2] as number;
   const row = i * SHADOW_STEPS;
-  table.fill(-1, row, row + SHADOW_STEPS);
-  // Vetor leste no ponto (tangente, perpendicular ao eixo norte).
+  const cells = new Array<number>(SHADOW_STEPS).fill(-1);
+  // Vetor leste no ponto (tangente, perpendicular ao eixo norte). Exatamente no polo não há leste.
   const len = Math.hypot(x, z);
-  if (len < 1e-6) return; // exatamente no polo não há leste
-  const ex = z / len;
-  const ez = -x / len;
-  const sign = windFrom(Math.asin(Math.max(-1, Math.min(1, y))));
-  const step = SHADOW_REACH / SHADOW_STEPS;
-  for (let s = 0; s < SHADOW_STEPS; s++) {
-    const a = step * (s + 1) * sign;
-    const c = grid.pointToCell(x + ex * a, y, z + ez * a);
-    if (c !== i) table[row + s] = c;
+  if (len >= 1e-6) {
+    const ex = z / len;
+    const ez = -x / len;
+    const sign = windFrom(Math.asin(Math.max(-1, Math.min(1, y))));
+    const step = SHADOW_REACH / SHADOW_STEPS;
+    for (let s = 0; s < SHADOW_STEPS; s++) {
+      const a = step * (s + 1) * sign;
+      const c = grid.pointToCell(x + ex * a, y, z + ez * a);
+      if (c !== i) cells[s] = c;
+    }
   }
+  // A tabela pode ser compartilhada entre os ajudantes: a primeira posição (a marca de "calculada")
+  // é escrita por último, de forma atômica, para o outro lado nunca ler uma linha pela metade.
+  for (let s = 1; s < SHADOW_STEPS; s++) table[row + s] = cells[s] as number;
+  Atomics.store(table, row, cells[0] as number);
 }
 
 /** Quantos metros acima desta célula fica a montanha mais alta no caminho do vento. */
 function upwindBarrier(world: WorldState, table: Int32Array, i: number, height: number): number {
-  if (table[i * SHADOW_STEPS] === NOT_COMPUTED) computeUpwindRow(world.grid, table, i);
+  if (Atomics.load(table, i * SHADOW_STEPS) === NOT_COMPUTED) computeUpwindRow(world.grid, table, i);
   let highest = -Infinity;
   for (let s = 0; s < SHADOW_STEPS; s++) {
     const c = table[i * SHADOW_STEPS + s] as number;

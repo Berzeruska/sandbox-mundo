@@ -3,15 +3,29 @@ import { Clock } from '../core/time';
 import { applyBrush } from '../input/tools';
 import { buildColors, colorCacheBytes, NO_LAYERS, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
-import { climateCacheBytes, computeWaterDistance, updateClimate } from '../world/climate';
+import { climateCacheBytes, updateClimate, updateWaterDistance } from '../world/climate';
 import { createWorld, WORLD_STAGES } from '../world/create';
-import { DEFAULT_PLATE_RATE, Tectonics } from '../world/tectonics';
-import { Crust } from '../world/plates';
-import { NEAR_CELLS, packPlateCell } from '../render/plate-motion';
+import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
+import { CONTINENTAL_DEPTH, Crust } from '../world/plates';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
 import { emptyWork, type WorkCounters } from '../ui/benchmark';
 import { makePatches, transferables, type FromWorker, type ToWorker } from './protocol';
+import {
+  APPLY_DELAY_TICKS,
+  COMPOSED_FIELDS,
+  driftStep,
+  GeologyEngine,
+  worldArrays,
+  type BrushDelta,
+  type GeologyBuffers,
+  type GeologyCommand,
+  type GeologyEvent,
+  type GeologyInit,
+  type GeologyResult,
+  type GeologyStats,
+} from './geology';
+import { packPlates } from './plates-pack';
 
 export type Post = (msg: FromWorker, transfer: ArrayBuffer[]) => void;
 
@@ -43,9 +57,58 @@ export function overallProgress(stage: string, fraction: number): number {
 }
 
 /**
+ * Ligação com o motor da geologia (correção 2). No próprio relógio (`LocalGeology`: testes, ou
+ * página sem memória compartilhada) ou no ajudante 2 (`worker.ts`). O resultado é o mesmo.
+ */
+export interface GeologyPort {
+  /** Começa um mundo novo no motor. As respostas chegam por `SimulationCore.onGeology*`. */
+  start(init: GeologyInit, grid: CubeSphere): void;
+  send(cmd: GeologyCommand): void;
+  /** true: o relógio avisa o motor a cada passo (no próprio relógio); false: uma vez por laço. */
+  readonly perTick: boolean;
+  /** Bytes do motor que não estão no mundo do relógio (para o painel Dados). */
+  readonly bytes: number;
+}
+
+/** Motor da geologia rodando no próprio relógio (síncrono). */
+export class LocalGeology implements GeologyPort {
+  readonly perTick = true;
+  engine: GeologyEngine | null = null;
+
+  constructor(
+    private core: SimulationCore,
+    private now: () => number,
+  ) {}
+
+  start(init: GeologyInit, grid: CubeSphere): void {
+    this.engine = new GeologyEngine(init, grid, (event) => this.core.onGeologyEvent(event), this.now);
+    this.core.onGeologyBuffers(this.engine.buffers);
+  }
+
+  send(cmd: GeologyCommand): void {
+    this.engine?.receive(cmd);
+  }
+
+  get bytes(): number {
+    return this.engine?.bytes ?? 0;
+  }
+}
+
+/** Composição que o jogador vê: ângulos e velocidades das placas e a deriva naquele momento. */
+interface ShownComposition {
+  angles: number[];
+  speeds: number[];
+  drift: number;
+}
+
+/**
  * O "cérebro" que roda dentro do Web Worker: guarda o mundo e o relógio, responde a comandos e
  * avisa a thread principal do que mudou. Não sabe que está num worker (recebe mensagens por
  * `handle` e responde por `post`), por isso é testado direto no Vitest.
+ *
+ * A geologia pesada (recomposição, clima e cores do mundo todo) fica no motor (`geology.ts`); o
+ * relógio aplica cada recomposição APPLY_DELAY_TICKS passos depois e nunca passa disso à frente do
+ * motor.
  */
 export class SimulationCore {
   world: WorldState | null = null;
@@ -53,8 +116,6 @@ export class SimulationCore {
   readonly clock = new Clock();
   /** Camadas opcionais ligadas no menu (ex.: "Ver placas"). */
   layers: Layers = NO_LAYERS;
-  /** Movimento das placas do mundo atual e o controle "Placas" (0 a 1). */
-  tectonics: Tectonics | null = null;
   plateRate = DEFAULT_PLATE_RATE;
   /** Tempo da última recomposição com clima e cores (ms), para o painel Dados. */
   private geologyMs = 0;
@@ -64,11 +125,37 @@ export class SimulationCore {
   private lastPostedTick = -1;
   private lastPostedAt = -Infinity;
   private ticksWindow = { since: 0, ticks: 0, rate: 0 };
+  readonly geology: GeologyPort;
+  /** Mundo atual (descarta respostas atrasadas do motor sobre um mundo anterior). */
+  private worldId = 0;
+  private buffers: GeologyBuffers | null = null;
+  /** Passo até onde o motor já andou, e recomposições prontas esperando a vez de aparecer. */
+  private engineTick = 0;
+  private pending: GeologyResult[] = [];
+  /** Ponto do referencial da placa que cada célula mostra (para as pinceladas chegarem às placas). */
+  private cellRef: Int32Array = new Int32Array(0);
+  /** Pinceladas desde a última recomposição aplicada: valem de novo sobre a composição seguinte. */
+  private brushLog: { tick: number; delta: BrushDelta }[] = [];
+  /** Deriva no relógio (a mesma soma da tectônica) e a composição mostrada, para os ângulos. */
+  private drift = 0;
+  private shown: ShownComposition = { angles: [], speeds: [], drift: 0 };
+  private platesMoving = false;
+  private stats: GeologyStats | null = null;
+  /** Desde quando o relógio está parado esperando o motor (0: não está). */
+  private waitingSince = 0;
 
   constructor(
     private post: Post,
     private now: () => number = () => performance.now(),
-  ) {}
+    geology?: (core: SimulationCore) => GeologyPort,
+  ) {
+    this.geology = geology ? geology(this) : new LocalGeology(this, now);
+  }
+
+  /** A tectônica do motor no próprio relógio (testes); no ajudante, null. */
+  get tectonics(): Tectonics | null {
+    return this.geology instanceof LocalGeology ? (this.geology.engine?.tectonics ?? null) : null;
+  }
 
   private send(msg: FromWorker): void {
     this.post(msg, transferables(msg));
@@ -84,6 +171,7 @@ export class SimulationCore {
         break;
       case 'plateRate':
         this.plateRate = Math.max(0, Math.min(1, msg.rate));
+        if (this.world) this.geology.send({ type: 'rate', world: this.worldId, tick: this.clock.tick, rate: this.plateRate });
         break;
       case 'layers':
         this.setLayers(msg.layers);
@@ -95,13 +183,12 @@ export class SimulationCore {
       case 'query':
         this.query(msg.id, msg.point);
         break;
+      case 'resetWorst':
+        this.work.worstGeology = 0;
+        break;
       case 'forceRupture':
-        // Racha e recompõe já: a tela recebe os eixos novos junto com a composição.
-        if (this.tectonics?.forceRupture()) {
-          const t0 = this.now();
-          this.tectonics.recompose();
-          this.afterRecompose(t0);
-        }
+        // Racha no passo atual; o mundo rachado aparece APPLY_DELAY_TICKS passos depois.
+        if (this.world) this.geology.send({ type: 'rupture', world: this.worldId, tick: this.clock.tick });
         break;
     }
   }
@@ -123,19 +210,39 @@ export class SimulationCore {
     // Solta o mundo antigo antes de gerar o novo: no celular, ter os dois na memória ao mesmo
     // tempo força o coletor de lixo e deixa a geração bem mais lenta.
     this.world = null;
-    this.tectonics = null;
+    this.buffers = null;
     this.colors = new Uint8Array(0);
+    this.worldId++;
+    this.pending = [];
+    this.brushLog = [];
+    this.engineTick = 0;
+    this.stats = null;
     stage('grade');
     if (!this.grid || this.grid.n !== n) this.grid = new CubeSphere(n);
     const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3 }, this.grid, stage);
     stage('cores');
     this.world = world;
-    // A tectônica é montada no primeiro passo do relógio (depois que o globo já apareceu).
     this.colors = new Uint8Array(world.cellCount * 4);
     buildColors(world, this.colors, undefined, this.layers);
+    this.cellRef = new Int32Array(world.cellCount);
+    for (let c = 0; c < world.cellCount; c++) this.cellRef[c] = c;
     stagesMs[current] = this.now() - mark;
     const generationMs = this.now() - t0;
     this.clock.tick = 0;
+    this.drift = 0;
+    this.platesMoving = false;
+    const motion = world.plates.map((p) => {
+      const speed = Math.hypot(p.omega[0], p.omega[1], p.omega[2]);
+      const axis: Vec3 = speed > 0 ? [p.omega[0] / speed, p.omega[1] / speed, p.omega[2] / speed] : [0, 1, 0];
+      return { axis, speed, center: [p.center[0], p.center[1], p.center[2]] as Vec3 };
+    });
+    this.shown = { angles: motion.map(() => 0), speeds: motion.map((m) => m.speed), drift: 0 };
+    // O motor da geologia começa com o mundo recém-gerado; a tectônica nasce no primeiro passo
+    // com placas ligadas.
+    this.geology.start(
+      { world: this.worldId, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: this.plateRate, layers: this.layers },
+      this.grid,
+    );
     this.send({
       type: 'world',
       info: {
@@ -146,11 +253,7 @@ export class SimulationCore {
         generationMs,
         stagesMs,
         landCenter: landCenter(world),
-        plates: world.plates.map((p) => {
-          const speed = Math.hypot(p.omega[0], p.omega[1], p.omega[2]);
-          const axis: Vec3 = speed > 0 ? [p.omega[0] / speed, p.omega[1] / speed, p.omega[2] / speed] : [0, 1, 0];
-          return { axis, speed, center: [p.center[0], p.center[1], p.center[2]] as Vec3 };
-        }),
+        plates: motion,
       },
       // Cópia: o worker continua com as próprias cores; a cópia vai transferida.
       colors: this.colors.slice(),
@@ -159,13 +262,48 @@ export class SimulationCore {
     this.postClock(true);
   }
 
+  /** O motor informou onde estão os buffers do mundo atual. */
+  onGeologyBuffers(buffers: GeologyBuffers): void {
+    if (buffers.world === this.worldId) this.buffers = buffers;
+  }
+
+  /** Resposta do motor: andou até um passo, ou terminou uma recomposição. */
+  onGeologyEvent(event: GeologyEvent): void {
+    if (event.type === 'error') throw new Error(event.message);
+    if (event.type === 'progress') {
+      if (event.world === this.worldId) this.engineTick = Math.max(this.engineTick, event.tick);
+      return;
+    }
+    if (event.result.world === this.worldId) this.pending.push(event.result);
+  }
+
   private brush(msg: Extract<ToWorker, { type: 'brush' }>): void {
     const world = this.world;
     if (!world) return;
     const t0 = this.now();
     const { region } = applyBrush(world, msg.tool, msg.point, msg.radius, msg.dt);
-    // A pincelada fica gravada na placa: anda junto quando ela se mover.
-    this.tectonics?.syncCells(region);
+    // A pincelada fica gravada na placa: anda junto quando ela se mover. Vai para o motor com o passo
+    // em que aconteceu e fica guardada até a próxima recomposição aparecer (que ainda não a tem).
+    const count = region.length;
+    const delta: BrushDelta = {
+      cells: Int32Array.from(region),
+      plate: new Uint8Array(count),
+      ref: new Int32Array(count),
+      elevation: new Float32Array(count),
+      crust: new Uint8Array(count),
+      iceMode: new Uint8Array(count),
+    };
+    for (let k = 0; k < count; k++) {
+      const c = region[k] as number;
+      world.crust[c] = world.heightAboveSea(c) > CONTINENTAL_DEPTH ? Crust.Continental : Crust.Oceanic;
+      delta.plate[k] = world.plate[c] as number;
+      delta.ref[k] = this.cellRef[c] as number;
+      delta.elevation[k] = world.elevation[c] as number;
+      delta.crust[k] = world.crust[c] as number;
+      delta.iceMode[k] = world.iceMode[c] as number;
+    }
+    this.brushLog.push({ tick: this.clock.tick, delta });
+    this.geology.send({ type: 'brush', world: this.worldId, tick: this.clock.tick, delta });
     buildColors(world, this.colors, region, this.layers);
     const patches = makePatches(this.colors, world.params.n, dirtyRects(world.grid, region));
     this.send({ type: 'patch', patches, brushMs: this.now() - t0 });
@@ -181,40 +319,71 @@ export class SimulationCore {
     this.send({ type: 'patch', patches: makePatches(this.colors, n, faces), brushMs: -1 });
   }
 
-  /** Depois que as placas se moveram: clima, biomas e cores do mundo todo, com os ângulos. */
-  private afterRecompose(t0: number): void {
+  /**
+   * A recomposição feita no passo `r.tick` aparece agora: copia o mundo do motor, refaz por cima as
+   * pinceladas que vieram depois dela e manda tudo à tela.
+   */
+  private applyResult(r: GeologyResult): void {
     const world = this.world;
-    const tectonics = this.tectonics;
-    if (!world || !tectonics) return;
-    const w = this.work;
-    const t1 = this.now();
-    w.plates += t1 - t0;
-    computeWaterDistance(world);
-    updateClimate(world);
-    const t2 = this.now();
-    w.climate += t2 - t1;
-    buildColors(world, this.colors, undefined, this.layers);
-    const t3 = this.now();
-    w.colors += t3 - t2;
+    const buffers = this.buffers;
+    if (!world || !buffers) return;
+    const t0 = this.now();
+    for (const k of COMPOSED_FIELDS) world[k].set(buffers.arrays[k]);
+    this.colors.set(buffers.colors);
+    this.cellRef.set(buffers.cellRef);
+    world.plates = r.plates;
+    this.shown = { angles: r.angles, speeds: r.motion.map((m) => m.speed), drift: r.drift };
+    this.platesMoving = true;
+    // Os buffers do motor estão livres para a próxima recomposição.
+    this.geology.send({ type: 'consumed', world: this.worldId, index: r.index });
+    this.brushLog = this.brushLog.filter((b) => b.tick >= r.tick);
+    if (this.brushLog.length) this.replayBrushes(world);
     const n = world.params.n;
     const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
-    this.send({
-      type: 'recomposed',
-      patches: makePatches(this.colors, n, faces),
-      plateCells: packPlates(world),
-      angles: Array.from(tectonics.angle),
-      plates: world.plates.map((pl, k) => ({ ...tectonics.plateMotion(k), center: [pl.center[0], pl.center[1], pl.center[2]] as Vec3 })),
-    });
-    const t4 = this.now();
-    w.send += t4 - t3;
+    this.send({ type: 'recomposed', patches: makePatches(this.colors, n, faces), plateCells: r.plateCells, angles: r.angles, plates: r.motion });
+    const w = this.work;
+    w.plates += r.platesMs;
+    w.climate += r.climateMs;
+    w.colors += r.colorsMs;
+    const applyMs = this.now() - t0;
+    w.send += applyMs;
     w.recompositions++;
-    this.geologyMs = t4 - t0;
+    this.geologyMs = r.platesMs + r.climateMs + r.colorsMs + applyMs;
     w.worstGeology = Math.max(w.worstGeology, this.geologyMs);
+    this.stats = r.stats;
+  }
+
+  /** Pinceladas feitas depois da recomposição que acabou de aparecer: valem de novo sobre ela. */
+  private replayBrushes(world: WorldState): void {
+    const n = world.cellCount;
+    const shown = new Map<number, { elevation: number; crust: number }>();
+    const region = new Set<number>();
+    for (const { delta } of this.brushLog) {
+      for (let k = 0; k < delta.cells.length; k++) {
+        shown.set((delta.plate[k] as number) * n + (delta.ref[k] as number), { elevation: delta.elevation[k] as number, crust: delta.crust[k] as number });
+        world.iceMode[delta.cells[k] as number] = delta.iceMode[k] as number;
+        region.add(delta.cells[k] as number);
+      }
+    }
+    for (let c = 0; c < n; c++) {
+      const ref = this.cellRef[c] as number;
+      if (ref < 0) continue;
+      const hit = shown.get((world.plate[c] as number) * n + ref);
+      if (!hit) continue;
+      world.elevation[c] = hit.elevation;
+      world.crust[c] = hit.crust;
+      region.add(c);
+    }
+    const cells = [...region];
+    updateWaterDistance(world, cells);
+    updateClimate(world, cells);
+    buildColors(world, this.colors, cells, this.layers);
   }
 
   /** Liga/desliga camadas: repinta o mundo todo e manda as 6 faces como remendos. */
   private setLayers(layers: Layers): void {
     this.layers = layers;
+    if (this.world) this.geology.send({ type: 'layers', world: this.worldId, layers });
     this.sendAllColors();
   }
 
@@ -229,27 +398,35 @@ export class SimulationCore {
     });
   }
 
-  /** Memória aproximada do worker (bytes): mundo, grade, tectônica e cores. */
+  /** Memória aproximada da simulação (bytes): mundo, grade, caches, cores e o motor da geologia. */
   memoryBytes(): number {
     const caches = this.grid ? climateCacheBytes(this.grid) + colorCacheBytes(this.grid) : 0;
-    return typedBytes(this.world) + typedBytes(this.grid) + caches + (this.tectonics?.bytes ?? 0) + this.colors.byteLength;
+    return typedBytes(this.world) + typedBytes(this.grid) + caches + this.colors.byteLength + this.cellRef.byteLength + this.geology.bytes;
   }
 
   /** Avança o relógio pelo tempo real `dt` (segundos). Chamado pelo laço do worker. */
   advance(dt: number): void {
     const start = this.now();
-    // Cada passo move as placas; a recomposição acontece no passo exato em que elas andaram o
-    // bastante (contado em passos, não em tempo real: o resultado não depende do aparelho).
+    let blocked = false;
     const ran = this.clock.advance(
       dt,
-      () => {
-        if (!this.world || this.plateRate <= 0) return;
-        this.tectonics ??= new Tectonics(this.world);
-        const t0 = this.now();
-        if (this.tectonics.step(this.plateRate)) this.afterRecompose(t0);
-      },
+      (tick) => this.stepTick(tick),
       this.now,
+      // Nunca mais que APPLY_DELAY_TICKS passos à frente do motor: assim toda recomposição que
+      // deve aparecer já chegou. Se o motor atrasar, o relógio espera (o resultado não muda).
+      (next) => {
+        const ok = !this.world || next <= this.engineTick + APPLY_DELAY_TICKS;
+        if (!ok) blocked = true;
+        return ok;
+      },
     );
+    // Tempo parado esperando o motor (para o "Medir desempenho": o celular acompanha?).
+    if (ran > 0 && this.waitingSince) {
+      this.work.waitMs += start - this.waitingSince;
+      this.waitingSince = 0;
+    }
+    if (blocked && !this.waitingSince) this.waitingSince = this.now();
+    if (ran && this.world && !this.geology.perTick) this.geology.send({ type: 'advance', world: this.worldId, tick: this.clock.tick });
     const w = this.ticksWindow;
     const t = this.now();
     if (!w.since) w.since = t;
@@ -262,6 +439,25 @@ export class SimulationCore {
       w.since = t;
     }
     this.postClock(false);
+  }
+
+  private stepTick(tick: number): void {
+    if (!this.world) return;
+    if (this.plateRate > 0) {
+      this.drift += driftStep(this.plateRate);
+      this.platesMoving = true;
+    }
+    if (this.geology.perTick) this.geology.send({ type: 'advance', world: this.worldId, tick });
+    while (this.pending.length && (this.pending[0] as GeologyResult).tick + APPLY_DELAY_TICKS <= tick) {
+      this.applyResult(this.pending.shift() as GeologyResult);
+    }
+  }
+
+  /** Ângulo atual de cada placa (para o desenho), a partir da composição mostrada. */
+  private currentAngles(): number[] {
+    if (!this.platesMoving) return [];
+    const { angles, speeds, drift } = this.shown;
+    return angles.map((a, p) => a + (speeds[p] as number) * (this.drift - drift));
   }
 
   /**
@@ -283,13 +479,13 @@ export class SimulationCore {
     this.lastPostedAt = t;
     this.lastPostedTick = this.clock.tick;
     this.work.clockMessages++;
-    if (this.tectonics) {
-      this.work.welds = this.tectonics.welds;
-      this.work.fragments = this.tectonics.fragmentsAbsorbed;
-      const cycle = this.tectonics.cycle;
-      this.work.ruptures = cycle.ruptures;
-      this.work.supercontinents = cycle.supercontinents;
-      this.work.cyclePhase = cycle.phase === 'dispersal' ? 1 : cycle.phase === 'assembly' ? 2 : 3;
+    const s = this.stats;
+    if (s) {
+      this.work.welds = s.welds;
+      this.work.fragments = s.fragments;
+      this.work.ruptures = s.ruptures;
+      this.work.supercontinents = s.supercontinents;
+      this.work.cyclePhase = s.cyclePhase;
     }
     this.send({
       type: 'clock',
@@ -298,80 +494,13 @@ export class SimulationCore {
       ticksPerSecond: this.ticksWindow.rate,
       geologyMs: this.geologyMs,
       memoryMb: this.memoryBytes() / 1e6,
-      angles: this.tectonics ? Array.from(this.tectonics.angle) : [],
+      angles: this.currentAngles(),
       work: { ...this.work },
     });
   }
 }
 
-/**
- * Textura de placas do shader (2 bytes por célula, R e G; ver plate-motion.ts): placa, crosta
- * continental, se encosta em outra placa, e até duas outras placas a até NEAR_CELLS passos.
- */
-export function packPlates(world: WorldState): Uint8Array {
-  const n = world.cellCount;
-  const { neighbors } = world.grid;
-  const plate = world.plate;
-  const NONE = 255;
-  const o1 = new Uint8Array(n).fill(NONE);
-  const o2 = new Uint8Array(n).fill(NONE);
-  const add = (i: number, q: number): boolean => {
-    if (q === plate[i] || o1[i] === q || o2[i] === q) return false;
-    if (o1[i] === NONE) o1[i] = q;
-    else if (o2[i] === NONE) o2[i] = q;
-    else return false;
-    return true;
-  };
-  // Passo 1: células com vizinha de outra placa.
-  const touches = new Uint8Array(n);
-  let frontier: number[] = [];
-  for (let i = 0; i < n; i++) {
-    for (let d = 0; d < 4; d++) {
-      const q = plate[neighbors[i * 4 + d] as number] as number;
-      if (q !== plate[i]) {
-        touches[i] = 1;
-        add(i, q);
-      }
-    }
-    if (touches[i]) frontier.push(i);
-  }
-  // Passos seguintes: as placas conhecidas (a da célula e as outras dela) se espalham.
-  const queued = new Uint8Array(n);
-  for (let step = 1; step < NEAR_CELLS && frontier.length; step++) {
-    const next: number[] = [];
-    queued.fill(0);
-    // Lê as placas como estavam no começo do passo: senão uma placa recém-chegada andaria várias
-    // células num passo só, correndo ao longo da linha de fronteira.
-    const s1 = o1.slice();
-    const s2 = o2.slice();
-    for (const c of frontier) {
-      const labels = [plate[c] as number, s1[c] as number, s2[c] as number];
-      for (let d = 0; d < 4; d++) {
-        const nb = neighbors[c * 4 + d] as number;
-        let changed = false;
-        for (const q of labels) if (q !== NONE && add(nb, q)) changed = true;
-        if (changed && !queued[nb]) {
-          queued[nb] = 1;
-          next.push(nb);
-        }
-      }
-    }
-    frontier = next;
-  }
-  const out = new Uint8Array(n * 2);
-  for (let i = 0; i < n; i++) {
-    // "Encosta em outra placa" (vizinhança 3×3, com folga): ela ou uma vizinha tem vizinha de outra placa.
-    let line = touches[i] === 1;
-    for (let d = 0; d < 4 && !line; d++) line = touches[neighbors[i * 4 + d] as number] === 1;
-    const others: number[] = [];
-    if (o1[i] !== NONE) others.push(o1[i] as number);
-    if (o2[i] !== NONE) others.push(o2[i] as number);
-    const v = packPlateCell(plate[i] as number, world.crust[i] === Crust.Continental, line, others);
-    out[i * 2] = v & 255;
-    out[i * 2 + 1] = v >> 8;
-  }
-  return out;
-}
+export { packPlates };
 
 /** Bytes dos arrays tipados de um objeto (só os campos próprios, um nível). */
 function typedBytes(obj: object | null | undefined): number {

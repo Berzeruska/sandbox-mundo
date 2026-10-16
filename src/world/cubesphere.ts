@@ -1,3 +1,4 @@
+import { newArray } from '../core/shared';
 /**
  * Geometria do planeta: cubo de 6 faces, cada uma uma grade N × N, projetado na esfera.
  *
@@ -172,14 +173,25 @@ export class CubeSphere {
   private visitStamp: Uint32Array;
   private stamp = 0;
 
-  constructor(n: number) {
+  /**
+   * `shared`: posições e vizinhos já calculados por outro ajudante (mesma N), usados sem cópia.
+   */
+  constructor(n: number, shared?: { positions: Float32Array; neighbors: Int32Array }) {
     if (!Number.isInteger(n) || n < 2) throw new Error(`Resolução inválida: ${n}`);
     this.n = n;
     this.cellCount = FACE_COUNT * n * n;
     this.cellAngle = Math.PI / 2 / n;
-    this.positions = new Float32Array(this.cellCount * 3);
-    this.neighbors = new Int32Array(this.cellCount * 4);
     this.visitStamp = new Uint32Array(this.cellCount);
+    if (shared) {
+      if (shared.positions.length !== this.cellCount * 3 || shared.neighbors.length !== this.cellCount * 4) {
+        throw new Error('Grade compartilhada com tamanho diferente');
+      }
+      this.positions = shared.positions;
+      this.neighbors = shared.neighbors;
+      return;
+    }
+    this.positions = newArray(Float32Array, this.cellCount * 3);
+    this.neighbors = newArray(Int32Array, this.cellCount * 4);
 
     const p: Vec3 = [0, 0, 0];
     for (let face = 0; face < FACE_COUNT; face++) {
