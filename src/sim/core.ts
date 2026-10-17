@@ -3,7 +3,7 @@ import { Clock } from '../core/time';
 import { applyBrush } from '../input/tools';
 import { buildColors, colorCacheBytes, NO_LAYERS, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
-import { applyClimateOffset, climateCacheBytes, climateOffsetAt, CONTROL_MAX, CONTROL_MIN, updateClimate, updateWaterDistance } from '../world/climate';
+import { applyClimateOffset, climateCacheBytes, climateOffsetAt, CONTROL_APPLY_STEP, CONTROL_MAX, CONTROL_MIN, glideToward, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellPool } from '../world/cell-pool';
 import { createWorld, WORLD_STAGES } from '../world/create';
 import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
@@ -127,8 +127,11 @@ export class SimulationCore {
   /** Camadas opcionais ligadas no menu (ex.: "Ver placas"). */
   layers: Layers = NO_LAYERS;
   plateRate = DEFAULT_PLATE_RATE;
-  /** Controle de temperatura global do jogador (°C, T7), somado ao ciclo glacial. */
+  /** Controle de temperatura global aplicado (°C, T7), somado ao ciclo glacial. */
   climateControl = 0;
+  /** O que o jogador escolheu (o aplicado anda até ele aos poucos) e onde a caminhada está. */
+  climateTarget = 0;
+  private climateGlide = 0;
   /** Tempo da última recomposição com clima e cores (ms), para o painel Dados. */
   private geologyMs = 0;
   /** Contadores acumulados de trabalho (para o "Medir desempenho"). */
@@ -189,7 +192,8 @@ export class SimulationCore {
         this.setLayers(msg.layers);
         break;
       case 'climateControl':
-        this.setClimateControl(msg.control);
+        this.climateTarget = Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, msg.control));
+        if (!this.world) this.climateControl = this.climateGlide = this.climateTarget;
         break;
       case 'speed':
         this.clock.speed = msg.speed;
@@ -246,6 +250,8 @@ export class SimulationCore {
     const generationMs = this.now() - t0;
     this.clock.tick = 0;
     this.drift = 0;
+    // Mundo novo já nasce com a temperatura escolhida (sem caminhada).
+    this.climateControl = this.climateGlide = this.climateTarget;
     this.platesMoving = false;
     const motion = world.plates.map((p) => {
       const speed = Math.hypot(p.omega[0], p.omega[1], p.omega[2]);
@@ -425,12 +431,21 @@ export class SimulationCore {
     buildColors(world, this.colors, withRing(world.grid, cells), this.layers);
   }
 
+  /** Anda o controle aplicado rumo ao escolhido (tempo real, também pausado) e refaz o clima a cada degrau. */
+  private glideClimate(dt: number): void {
+    if (!this.world || this.climateGlide === this.climateTarget) return;
+    this.climateGlide = glideToward(this.climateGlide, this.climateTarget, Math.min(dt, 0.25));
+    if (Math.abs(this.climateGlide - this.climateControl) >= CONTROL_APPLY_STEP || this.climateGlide === this.climateTarget) {
+      this.setClimateControl(this.climateGlide);
+    }
+  }
+
   /**
    * Controle de temperatura global (T7): vale a partir do passo atual no motor; a tela vê já uma prévia
    * feita aqui (o resultado do motor chega depois e é o mesmo cálculo).
    */
   private setClimateControl(control: number): void {
-    this.climateControl = Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, control));
+    this.climateControl = control;
     const world = this.world;
     if (!world) return;
     this.geology.send({ type: 'climate', world: this.worldId, tick: this.clock.tick, control: this.climateControl });
@@ -464,6 +479,7 @@ export class SimulationCore {
 
   /** Avança o relógio pelo tempo real `dt` (segundos). Chamado pelo laço do worker. */
   advance(dt: number): void {
+    this.glideClimate(dt);
     const start = this.now();
     let blocked = false;
     const ran = this.clock.advance(

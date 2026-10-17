@@ -115,6 +115,7 @@ export class PointerInput {
       const paints = this.handlers.getMode() === 'paint' && (e.pointerType !== 'mouse' || e.button === 0);
       this.action = paints ? 'paint' : 'rotate';
       if (paints) this.handlers.onPaint(p.x, p.y, 'start');
+      if (e.pointerType === 'mouse') this.setCursor(p.x, p.y);
     } else {
       if (this.action === 'paint') this.handlers.onPaint(p.x, p.y, 'cancel');
       this.action = 'pinch';
@@ -122,10 +123,23 @@ export class PointerInput {
     }
   };
 
+  /**
+   * Cursor do mouse (pedido do usuário, 2026-10-17): mãozinha aberta sobre o globo no modo mover,
+   * fechada enquanto arrasta; fora do globo e no modo pintar, o normal.
+   */
+  private setCursor(x: number, y: number): void {
+    const over = this.handlers.getMode() === 'move' && this.camera.screenToView(x, y) !== null;
+    const cursor = this.action === 'rotate' || this.action === 'pinch' ? 'grabbing' : over ? 'grab' : '';
+    if (this.canvas.style.cursor !== cursor) this.canvas.style.cursor = cursor;
+  }
+
   private onMove = (e: PointerEvent): void => {
     const ptr = this.pointers.get(e.pointerId);
     const p = this.toCanvas(e);
-    if (e.pointerType === 'mouse') this.handlers.onHover(p.x, p.y);
+    if (e.pointerType === 'mouse') {
+      this.handlers.onHover(p.x, p.y);
+      this.setCursor(p.x, p.y);
+    }
     if (!ptr) return;
     const prevX = ptr.x;
     const prevY = ptr.y;
@@ -165,6 +179,7 @@ export class PointerInput {
       this.detectTap(ptr, p.x, p.y, e.timeStamp);
       this.action = 'none';
     }
+    if (e.pointerType === 'mouse') this.setCursor(p.x, p.y);
   };
 
   private onWheel = (e: WheelEvent): void => {

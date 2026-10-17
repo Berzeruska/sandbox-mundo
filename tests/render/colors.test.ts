@@ -3,6 +3,7 @@ import { BIOME_BITS, buildColors, hillshade, withRing } from '../../src/render/c
 import { BIOME_COUNT } from '../../src/world/biomes';
 import { latLonToPoint } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
+import { applyClimateOffset } from '../../src/world/climate';
 
 describe('cores das células', () => {
   const w = createWorld({ seedText: '1', seed: 1, n: 16, seaLevel: 0, landFraction: 0.3 });
@@ -59,6 +60,22 @@ describe('cores das células', () => {
   it('mesmo bioma e mesma altura dão a mesma cor (sem variação por célula, que desenhava a grade)', () => {
     const a = [...Array(w.cellCount).keys()].filter((i) => w.isWater(i) && !w.ice[i] && w.elevation[i] === w.elevation[0]);
     for (const i of a) expect([...out.subarray(i * 4, i * 4 + 3)]).toEqual([...out.subarray(a[0]! * 4, a[0]! * 4 + 3)]);
+  });
+});
+
+describe('cores do gelo', () => {
+  it('gelo claro nunca dá a volta no byte (pontos rosa e azuis no gelo, teste da 50f0dca)', () => {
+    const w = createWorld({ seedText: 'terra', seed: 99, n: 64, seaLevel: 0, landFraction: 0.3 });
+    applyClimateOffset(w, -8);
+    const out = new Uint8Array(w.cellCount * 4);
+    buildColors(w, out);
+    let ice = 0;
+    for (let i = 0; i < w.cellCount; i++) {
+      if (!w.ice[i]) continue;
+      ice++;
+      expect(Math.min(out[i * 4]!, out[i * 4 + 1]!, out[i * 4 + 2]!)).toBeGreaterThan(110);
+    }
+    expect(ice).toBeGreaterThan(100);
   });
 });
 

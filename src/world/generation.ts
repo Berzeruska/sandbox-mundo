@@ -9,6 +9,9 @@ import { latLonToPoint, type Vec3 } from './cubesphere';
 const BASINS_MIN = 2;
 const BASINS_MAX = 4;
 /** Ruído costeiro (geração v2): largura da faixa em torno da costa e amplitude, no relevo bruto. */
+/** Plataforma continental: largura (fração da faixa de profundidade) e profundidade na borda (m). */
+const SHELF_WIDTH = 0.28;
+const SHELF_DEPTH = 160;
 const COAST_BAND = 0.12;
 const COAST_AMPLITUDE = 0.24;
 
@@ -262,8 +265,10 @@ export function generateTerrain(world: WorldState, onProgress?: (fraction: numbe
       elev = 1 + 1400 * Math.pow(s, 1.3) + (MAX_HEIGHT - 1400) * mountains;
     } else {
       const s = (t - h) / (t - hMin);
-      // Plataforma continental rasa perto da costa, depois talude e planície abissal.
-      const depth = s < 0.06 ? (s / 0.06) * 180 : 180 + (MAX_DEPTH - 180) * Math.pow((s - 0.06) / 0.94, 0.6);
+      // Plataforma continental rasa perto da costa, depois talude e planície abissal. Plataforma larga
+      // (teste da 50f0dca, pedido do usuário): no máximo glacial o mar baixa 120 m e ela vira terra,
+      // abrindo pontes entre terras próximas.
+      const depth = s < SHELF_WIDTH ? (s / SHELF_WIDTH) * SHELF_DEPTH : SHELF_DEPTH + (MAX_DEPTH - SHELF_DEPTH) * Math.pow((s - SHELF_WIDTH) / (1 - SHELF_WIDTH), 0.6);
       elev = -Math.max(5, depth);
     }
     world.elevation[i] = elev;

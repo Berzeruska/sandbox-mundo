@@ -20,7 +20,9 @@ const bytesOf = (a: ArrayBufferView): Uint8Array => new Uint8Array(a.buffer, a.b
  * limpeza de lixo de memória (2026-10-16), com 300 recomposições em N = 64 e 14 em N = 128. Valor
  * novo na T6 (2026-10-17): entraram as jazidas e o tom delas nas cores; sem jazidas e sem cores, o
  * valor do código de antes e do novo é o mesmo (c4bd0869). Valor novo na T7: a erosão passa a depender
- * da chuva e o clima mudou (gelo, umidade, ciclo glacial), de propósito.
+ * da chuva e o clima mudou (gelo, umidade, ciclo glacial), de propósito. Valor novo no teste da 50f0dca:
+ * plataforma continental larga, jazidas maiores, formação pelo relógio do jogo e cor do gelo presa
+ * em 0–255.
  */
 describe('motor da geologia: mesmo resultado', () => {
   it('impressão digital depois de 40 recomposições (terra, N = 64)', () => {
@@ -47,6 +49,6 @@ describe('motor da geologia: mesmo resultado', () => {
       engine.receive({ type: 'advance', world: 1, tick });
       for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
     }
-    expect(h.toString(16)).toBe('b18733a7');
+    expect(h.toString(16)).toBe('b729d5a6');
   });
 });

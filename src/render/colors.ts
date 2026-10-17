@@ -219,12 +219,16 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
       b += (tint[2] - b) * t;
     }
   }
+  // Prende em 0–255: a textura é Uint8Array, que dá a volta (260 vira 4) em vez de prender. Era isso
+  // que pintava pontos rosa e azul-forte no gelo claro (teste da 50f0dca).
   const o = i * 4;
-  out[o] = r;
-  out[o + 1] = g;
-  out[o + 2] = (Math.min(255, Math.max(0, Math.round(b))) & ~DECOR_BIT) | (decor ? DECOR_BIT : 0);
+  out[o] = clampByte(r);
+  out[o + 1] = clampByte(g);
+  out[o + 2] = (clampByte(b) & ~DECOR_BIT) | (decor ? DECOR_BIT : 0);
   out[o + 3] = (world.biome[i] as number) | (sameCorners(world, i) << BIOME_BITS);
 }
+
+const clampByte = (v: number): number => (v <= 0 ? 0 : v >= 255 ? 255 : Math.round(v));
 
 /**
  * Canal alfa da textura de cores: bioma nos 4 bits de baixo e, nos 4 de cima, um bit por canto da

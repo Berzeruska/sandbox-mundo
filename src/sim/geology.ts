@@ -390,7 +390,7 @@ export class GeologyEngine {
     updateClimate(world);
     // Jazidas: as da crosta (andaram com as placas) e as que nascem nas frentes ativas (T6).
     tectonics.writeDeposits(world.deposit);
-    this.formation.step(world, tectonics.driftNow, (c, code) => tectonics.setDeposit(c, code));
+    this.formation.step(world, this.tick, (c, code) => tectonics.setDeposit(c, code));
     const t2 = this.now();
     buildColors(world, this.colors, undefined, this.layers);
     tectonics.writeCellRefs(this.cellRef);

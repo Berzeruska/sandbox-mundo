@@ -3,6 +3,7 @@ import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
 import { Clock, formatDate, type Speed } from './core/time';
 import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
+import { KeyControls } from './input/keys';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
 import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectonics';
@@ -18,7 +19,7 @@ import { applyPatch, type Patch, type PlateMotionInfo, type WorldInfo } from './
 import { Hud } from './ui/hud';
 import { BiomeLegend, DepositTip, ResourceLegend } from './ui/resource-legend';
 import { BIOME_LAYER_COLORS, NO_LAYERS, type Layers } from './render/colors';
-import { depositLabel } from './world/resources';
+import { depositLabel, isHiddenOil } from './world/resources';
 import { activeBrush, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
@@ -131,6 +132,8 @@ export class App {
   private brushScreen: { x: number; y: number } | null = null;
   /** Decide quando o toque vira pincelada (espera o segundo dedo de uma pinça). */
   private paintGate = new PaintGate();
+  /** Setas do teclado: aproximar, afastar e girar (notebook). */
+  private keys = new KeyControls(window, () => this.camera.stopSpin());
 
   constructor(root: HTMLElement, seedText: string) {
     this.canvas = document.createElement('canvas');
@@ -144,9 +147,8 @@ export class App {
       getMode: () => this.mode,
       onCameraChange: () => this.requestDraw(),
       onPaint: (sx, sy, phase) => this.onPaint(sx, sy, phase),
-      onTap: (sx, sy) => {
-        if (this.layers.resources || this.layers.biomes) void this.showDepositAt(sx, sy);
-      },
+      // Toque curto (modo Mover) seleciona: mostra o que há no ponto (pedido do usuário, 2026-10-17).
+      onTap: (sx, sy) => void this.showDepositAt(sx, sy),
       onHover: (sx, sy) => {
         this.brushScreen = { x: sx, y: sy };
         if (this.mode === 'paint') this.requestDraw();
@@ -519,8 +521,12 @@ export class App {
       this.tip.show(depositLabel(cell.deposit), rect.left + sx * k, rect.top + sy * k);
       return true;
     }
-    // Camada "Ver biomas": toque curto (modo Mover) mostra o nome do bioma.
-    if (this.layers.biomes && !this.layers.resources) this.tip.show(BIOME_INFO[cell.biome]?.name ?? '', rect.left + sx * k, rect.top + sy * k);
+    // Sem a camada de recursos: o bioma e, se houver jazida à vista (não escondida, não sob o gelo),
+    // ela também. No modo pintar (Rebaixar) só a camada de recursos mostra; o resto pinta.
+    if (this.mode !== 'move') return false;
+    const name = BIOME_INFO[cell.biome]?.name ?? '';
+    const visible = cell.deposit && !isHiddenOil(cell.deposit) && !cell.ice;
+    this.tip.show(visible ? `${name} · ${depositLabel(cell.deposit)}` : name, rect.left + sx * k, rect.top + sy * k);
     return false;
   }
 
@@ -551,6 +557,7 @@ export class App {
       this.needsDraw = true;
     }
     if (this.camera.update(dt)) this.needsDraw = true;
+    if (this.keys.update(this.camera, dt)) this.needsDraw = true;
     if (this.input.update(dt)) this.needsDraw = true;
     if (this.updateMotion()) this.needsDraw = true;
     const gate = this.paintGate.frame(performance.now());

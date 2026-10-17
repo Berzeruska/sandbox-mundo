@@ -1,4 +1,5 @@
 import { createRng, type Rng } from '../core/rng';
+import { TICKS_PER_YEAR } from '../core/time';
 import { Boundary, Crust } from './plates';
 import { provinceNoiseFor, provinceRigidity } from './tectonics';
 import type { WorldState } from './state';
@@ -81,10 +82,10 @@ export const RESOURCE_INFO: readonly ResourceInfo[] = [
 ];
 export const RESOURCE_TYPES = RESOURCE_INFO.length - 1;
 
-/** Tamanho da jazida: pequena 1–2 células, média 3–6, grande 8–15. */
+/** Tamanho da jazida: pequena 3–6 células, média 10–20, grande 25–45 (maiores no teste da 50f0dca: apareciam pouco). */
 export const DepositSize = { Small: 1, Medium: 2, Large: 3 } as const;
 export type DepositSize = (typeof DepositSize)[keyof typeof DepositSize];
-const SIZE_CELLS: Record<DepositSize, readonly [number, number]> = { 1: [1, 2], 2: [3, 6], 3: [8, 15] };
+const SIZE_CELLS: Record<DepositSize, readonly [number, number]> = { 1: [3, 6], 2: [10, 20], 3: [25, 45] };
 const SIZE_NAME: Record<DepositSize, string> = { 1: 'pequena', 2: 'média', 3: 'grande' };
 
 /**
@@ -484,13 +485,11 @@ const FrontKind = { Arc: 0, Collision: 1, Rift: 2 } as const;
 type FrontKind = (typeof FrontKind)[keyof typeof FrontKind];
 
 /**
- * A cada quanto tempo de deriva (rad no relógio da deriva, `Tectonics.driftNow`) com a frente ativa
- * ela pode formar uma jazida, e a chance. Medido na deriva, não em recomposições (essas dependem da
- * resolução). Com placas a 100% em 20× a deriva anda ~0,0034 rad/s: arco ~80 s, colisão ~100 s,
- * rifte ~60 s reais (constantes ajustáveis; `docs/decisoes.md`).
+ * Intervalo (anos de jogo) entre duas jazidas novas na mesma frente ativa, sorteado a cada vez (pedido
+ * do usuário, teste da 50f0dca: jazidas continuam surgindo ao longo de 1.000 a 10.000 anos). Contado no
+ * relógio do jogo; a formação só roda quando as placas recompõem (placas paradas = geologia parada).
  */
-export const FORMATION_PERIOD: Record<FrontKind, number> = { 0: 0.27, 1: 0.34, 2: 0.2 };
-export const FORMATION_CHANCE = 0.6;
+export const FORMATION_YEARS: readonly [number, number] = [1000, 10000];
 /** Frente com menos células que isto não conta (arredondamento, não fronteira de verdade). */
 const FRONT_MIN_CELLS = 3;
 /** Células guardadas por frente para sortear onde a jazida nasce. */
@@ -498,9 +497,8 @@ const FRONT_KEEP = 48;
 
 interface Front {
   kind: FrontKind;
-  /** Deriva em que a frente apareceu e quantos períodos dela já foram sorteados. */
-  since: number;
-  rolled: number;
+  /** Passo do jogo em que a frente forma a próxima jazida. */
+  next: number;
   cells: number[];
 }
 
@@ -527,10 +525,10 @@ export class DepositFormation {
   }
 
   /**
-   * Depois de uma recomposição (o mundo já tem fronteiras, crosta e clima novos). `write` grava a
-   * jazida na crosta (tectônica) e no mundo.
+   * Depois de uma recomposição (o mundo já tem fronteiras, crosta e clima novos), no passo `tick`.
+   * `write` grava a jazida na crosta (tectônica) e no mundo.
    */
-  step(world: WorldState, drift: number, write: (c: number, code: number) => void): void {
+  step(world: WorldState, tick: number, write: (c: number, code: number) => void): void {
     const n = world.cellCount;
     const { neighbors } = world.grid;
     const seen = new Map<number, Front>();
@@ -547,40 +545,41 @@ export class DepositFormation {
       const key = ((world.plate[c] as number) * 64 + other) * 4 + kind;
       let f = seen.get(key);
       if (!f) {
-        f = { kind: kind as FrontKind, since: drift, rolled: 0, cells: [] };
+        f = { kind: kind as FrontKind, next: -1, cells: [] };
         seen.set(key, f);
       }
       if (f.cells.length < FRONT_KEEP) f.cells.push(c);
     }
-    const next = new Map<number, Front>();
     let env: Environment | null = null;
     // Ordem fixa (pela chave) para os sorteios não dependerem da ordem do mapa.
     for (const key of [...seen.keys()].sort((a, b) => a - b)) {
       const f = seen.get(key) as Front;
       if (f.cells.length < FRONT_MIN_CELLS) continue;
       const old = this.fronts.get(key);
-      if (old) {
-        f.since = old.since;
-        f.rolled = old.rolled;
-      }
-      next.set(key, f);
-      const periods = Math.floor((drift - f.since) / FORMATION_PERIOD[f.kind]);
-      if (periods <= f.rolled) continue;
-      f.rolled = periods;
-      if (this.rng.next() >= FORMATION_CHANCE) continue;
+      // Frente nova: a primeira jazida vem em parte sorteada de um intervalo (as frentes do começo não
+      // formam todas juntas). Frente que some numa recomposição (arredondamento) e volta guarda a
+      // contagem (fica no mapa).
+      f.next = old ? old.next : tick + Math.round(this.interval() * this.rng.next());
+      this.fronts.set(key, f);
+      if (tick < f.next) continue;
       env ??= new Environment(world);
-      this.form(world, env, f, write);
+      // Lugar ocupado ou sem ambiente: tenta de novo na próxima recomposição.
+      if (this.form(world, env, f, write)) f.next = tick + this.interval();
     }
-    this.fronts = next;
   }
 
-  private form(world: WorldState, env: Environment, f: Front, write: (c: number, code: number) => void): void {
+  private interval(): number {
+    const [lo, hi] = FORMATION_YEARS;
+    return Math.round((lo + (hi - lo) * this.rng.next()) * TICKS_PER_YEAR);
+  }
+
+  private form(world: WorldState, env: Environment, f: Front, write: (c: number, code: number) => void): boolean {
     const rng = this.rng;
     const from = f.cells[rng.int(0, f.cells.length - 1)] as number;
     // Arco e colisão: a 2–4 células da frente, para dentro do continente; rifte: no próprio vale.
     const [minD, maxD] = f.kind === FrontKind.Rift ? [0, 1] : [2, 4];
     const spots = cellsAround(world, from, minD, maxD);
-    if (!spots.length) return;
+    if (!spots.length) return false;
     const spot = spots[rng.int(0, spots.length - 1)] as number;
     const e = env.at(spot);
     const roll = rng.next();
@@ -597,6 +596,7 @@ export class DepositFormation {
     const size: DepositSize = s < 0.1 ? DepositSize.Large : s < 0.45 ? DepositSize.Medium : DepositSize.Small;
     const cells = placeDeposit(world, env, rng, type, size, spot, write);
     if (cells) this.formed.push({ type, kind: f.kind === FrontKind.Arc ? 'arco' : f.kind === FrontKind.Collision ? 'colisão' : 'rifte', cells });
+    return cells > 0;
   }
 }
 

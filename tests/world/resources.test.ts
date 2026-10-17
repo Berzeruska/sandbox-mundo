@@ -85,7 +85,7 @@ describe('recursos minerais (T6): geração', () => {
     for (const w of worlds) {
       for (const d of deposits(w)) {
         const type = depositType(d.code);
-        const max = { 1: 2, 2: 6, 3: 15 }[depositSize(d.code)]!;
+        const max = { 1: 6, 2: 20, 3: 45 }[depositSize(d.code)]!;
         expect(d.cells.length).toBeLessThanOrEqual(max);
         for (const c of d.cells) {
           if (type === Resource.Oil || type === Resource.Limestone) expect(w.crust[c]).toBe(Crust.Continental);

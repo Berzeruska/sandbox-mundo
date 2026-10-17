@@ -33,6 +33,21 @@ const GLACIAL_COOLING = 0.8;
 /** Controle de temperatura global do jogador (°C), somado ao ciclo. */
 export const CONTROL_MIN = -10;
 export const CONTROL_MAX = 10;
+/**
+ * O controle muda o clima aos poucos (teste da 50f0dca, pedido do usuário: "mudança suave"): a
+ * temperatura aplicada anda até a escolhida a CONTROL_GLIDE °C por segundo real (também pausado), e o
+ * mundo é refeito a cada CONTROL_APPLY_STEP °C (cada refazer custa ~20–65 ms no ajudante).
+ */
+export const CONTROL_GLIDE = 1;
+export const CONTROL_APPLY_STEP = 0.5;
+
+/** Um passo de `dt` segundos de `current` rumo a `target`, a `rate` °C/s. */
+export function glideToward(current: number, target: number, dt: number, rate = CONTROL_GLIDE): number {
+  const d = target - current;
+  const s = rate * Math.max(0, dt);
+  return Math.abs(d) <= s ? target : current + Math.sign(d) * s;
+}
+
 /** O mar desce 15 m por grau de esfriamento (−120 m no máximo glacial), em degraus de 10 m. */
 export const SEA_DROP_PER_DEGREE = 15;
 export const SEA_LEVEL_STEP = 10;

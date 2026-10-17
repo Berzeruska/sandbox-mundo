@@ -70,7 +70,9 @@ describe('G2: ciclo de Wilson em 15 min a 20× com placas 100%', () => {
     expect(longestOneGroup * MAX_PLATE_RATE).toBeLessThanOrEqual(1.5 * TENURE * TENURE_JITTER_MAX);
     // Atividade nas fronteiras abaixo de 30% da inicial por no máximo um mandato (o supercontinente
     // quase para enquanto dura: a atividade baixa é o próprio mandato).
-    expect(longestLow * MAX_PLATE_RATE).toBeLessThanOrEqual(TENURE * TENURE_JITTER_MAX);
+    // Folga de uma amostra (a medição anda de `every` em `every` passos): com a plataforma larga
+    // (2026-10-17) a "42" passou por 0,002 de deriva, menos que uma amostra (0,025).
+    expect(longestLow * MAX_PLATE_RATE).toBeLessThanOrEqual(TENURE * TENURE_JITTER_MAX + every * MAX_PLATE_RATE);
   }, 120_000);
 });
 

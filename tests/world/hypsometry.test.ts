@@ -36,9 +36,7 @@ function check(seedText: string, grid: CubeSphere): void {
 
 describe('G4: altitudes da terra aos 10 min (placas no máximo, N = 256)', () => {
   const grid = new CubeSphere(256);
-  it.each(['terra', 'mundo', '42', 'ilha'])('semente "%s"', (seedText) => check(seedText, grid), 300_000);
-  // Falha conhecida (decisão do usuário, 2026-10-16): com a erosão escolhida (0,5%, alisamento 3%),
-  // a "7" fica com 0,44% da terra acima de 4.000 m (alvo 0,5%). O critério não muda; `it.fails` acusa
-  // se ela passar a cumprir.
-  it.fails('semente "7" (falha conhecida)', () => check('7', grid), 300_000);
+  // A "7" foi falha conhecida (0,44% acima de 4.000 m, alvo 0,5%) até a plataforma continental larga
+  // (2026-10-17), que deu mais crosta continental para as colisões.
+  it.each(['terra', 'mundo', '42', 'ilha', '7'])('semente "%s"', (seedText) => check(seedText, grid), 300_000);
 });

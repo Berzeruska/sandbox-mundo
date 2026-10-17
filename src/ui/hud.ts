@@ -207,8 +207,9 @@ export class Hud {
     range.addEventListener('input', () => {
       this.climateDegrees = Number(range.value);
       for (const v of this.root.querySelectorAll<HTMLElement>('.hud-climate-value')) v.textContent = label(this.climateDegrees);
+      // Manda já ao arrastar: o clima anda até o valor aos poucos (sem salto ao soltar).
+      this.cb.onClimateControl(this.climateDegrees);
     });
-    range.addEventListener('change', () => this.cb.onClimateControl(this.climateDegrees));
     wrap.append(range, value);
     return wrap;
   }

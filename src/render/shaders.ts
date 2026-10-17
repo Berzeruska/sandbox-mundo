@@ -40,8 +40,8 @@ void main() {
  * cor mais viva, variação leve por célula, contorno fino entre biomas e sombra na água junto da terra.
  * De longe nada muda.
  */
-export const SQUARE_FROM_PX = 6;
-export const SQUARE_TO_PX = 14;
+export const SQUARE_FROM_PX = 3;
+export const SQUARE_TO_PX = 6;
 
 /**
  * Acabamento das células de perto para um conjunto de texturas (`cells`).
@@ -49,8 +49,9 @@ export const SQUARE_TO_PX = 14;
  * Cada ponto mostra a célula de **centro mais perto** (entre a célula da grade e as 8 em volta, também
  * do outro lado de uma emenda do cubo), em vez do quadrado da grade em que ele cai. No meio das faces
  * é o mesmo quadrado; perto das emendas e dos 8 cantos do cubo, onde os quadrados viravam losangos e a
- * costa dobrava como a quina de uma caixa, as formas ficam arredondadas e passam de uma face para a
- * outra sem dobra (pedido do usuário, 2026-10-17: "o planeta não pode ficar cubado"). O contorno entre
+ * costa dobrava como a quina de uma caixa, viram hexágonos e passam de uma face para a outra sem dobra
+ * (pedido do usuário, 2026-10-17: "o planeta não pode ficar cubado"; costa reta, sem as "bolhas" do
+ * alisamento, aprovada no mesmo dia). O contorno entre
  * biomas e a sombra na água saem da distância até a divisa com a vizinha, então valem também nas
  * emendas. A distância até os centros usa a métrica local da grade (ver `tileGlsl`).
  */
@@ -82,15 +83,12 @@ function tileGlsl(sfx: string, cells: string, deposits: string, plates = ''): st
       d${k} = dot(e, e);
     }
     int b${k} = int(texelFetch(${cells}, t${k}c, 0).a * 255.0 + 0.5) & ${mask};`;
-  // Peso pela distância: 1 no centro, 0 a 1 célula.
   // Na fronteira com placas andando, só valem células da própria placa (sem misturar com a outra placa
-  // onde ela estava na última recomposição). Célula de outra placa: peso 0 e nunca escolhida.
+  // onde ela estava na última recomposição). Célula de outra placa nunca é escolhida.
   const owner = (k: number): string =>
     plates
       ? `    bool ok${k} = !line || int(texelFetch(${plates}, ${k === 0 ? 't0c' : `t${k}c`}, 0).r & ${PLATE_MASK}u) == ownPlate;`
       : `    bool ok${k} = true;`;
-  const weight = (k: number): string =>
-    `    float w${k} = ok${k} ? max(0.0, 1.0 - d${k} * inv2) : 0.0; w${k} *= w${k};`;
   return `
 // Célula de perto no ponto q. Devolve a cor (antes da luz) e a célula escolhida em "cell".
 vec3 tile${sfx}(vec3 q, float cellPx, float sq, int ownPlate, out vec4 cell) {
@@ -134,21 +132,17 @@ ${[1, 2, 3].map((k) => `    if (d${k} < best) { best = d${k}; pickT = ivec3(t0 +
   } else {
     int b0 = b;
 ${[1, 2, 3].map(neighbor).join('\n')}
-    float inv2 = 1.0 / (uCellAngle * uCellAngle);
 ${ks.map(owner).join('\n')}
     if (!(ok0 || ok1 || ok2 || ok3)) { ok0 = true; ok1 = true; ok2 = true; ok3 = true; }
-${ks.map(weight).join('\n')}
-    // Alisamento: ganha o bioma com mais peso somado (empate: o da célula mais perto). As divisas viram
-    // curvas, sem escadinha nem quina na emenda; a cor vem da célula mais perto com o bioma vencedor.
-${ks.map((k) => `    float sc${k} = ${ks.map((j) => (j === k ? `w${j}` : `(b${j} == b${k} ? w${j} : 0.0)`)).join(' + ')};`).join('\n')}
-    float top = -1.0;
+    // Costa reta (aprovada pelo usuário em 2026-10-17): fica a célula de centro mais perto, sem
+    // alisamento por pesos (que fazia "bolhas"). Divisas viram retas: degraus quadrados no meio das
+    // faces, hexágonos perto dos cantos do cubo. O contorno sai da diferença entre a distância à célula
+    // escolhida e à célula mais perto de outro bioma (0 na divisa).
     float near = 1e9;
-${ks.map((k) => `    if (ok${k} && (sc${k} > top || (sc${k} == top && d${k} < near))) { top = sc${k}; b = b${k}; near = d${k}; }`).join('\n')}
-    near = 1e9;
-${ks.map((k) => `    if (ok${k} && b${k} == b && d${k} < near) { near = d${k}; pickT = ${k === 0 ? 't0c' : `t${k}c`}; }`).join('\n')}
-    float second = 0.0;
-${ks.map((k) => `    if (ok${k} && b${k} != b && sc${k} > second) { second = sc${k}; other = b${k}; }`).join('\n')}
-    m = second > 0.0 ? (top - second) / (top + second) : 1.0;
+${ks.map((k) => `    if (ok${k} && d${k} < near) { near = d${k}; b = b${k}; pickT = ${k === 0 ? 't0c' : `t${k}c`}; }`).join('\n')}
+    float second = 1e9;
+${ks.map((k) => `    if (ok${k} && b${k} != b && d${k} < second) { second = d${k}; other = b${k}; }`).join('\n')}
+    m = second < 1e9 ? min(1.0, (sqrt(second) - sqrt(near)) / uCellAngle) : 1.0;
   }
   cell = pickT == t0c ? col0 : texelFetch(${cells}, pickT, 0);
   bool water = b <= 1;
@@ -187,8 +181,8 @@ ${ks.map((k) => `    if (ok${k} && b${k} != b && sc${k} > second) { second = sc$
 const glslColor = (c: readonly number[]): string => `vec3(${c.map((v) => ((v as number) / 255).toFixed(3)).join(', ')})`;
 
 /**
- * Jazida vista de perto (T6, visual aprovado pelo usuário): minério sólido vira 3 a 6 pedrinhas na cor
- * do tipo; petróleo revelado vira uma mancha preta brilhante; petróleo escondido só aparece (listrado)
+ * Jazida vista de perto (T6; pixels quadrados no lugar das pedrinhas, teste da 50f0dca): minério
+ * sólido vira um mosaico de pixels quadrados na cor do tipo; petróleo revelado vira uma mancha preta brilhante; petróleo escondido só aparece (listrado)
  * com a camada "Ver recursos". `f`: posição dentro da célula (0–1). Tudo some de longe junto com `sq`.
  */
 const DECORATE_GLSL = `
@@ -222,22 +216,16 @@ vec3 decorate(vec3 col, uint code, vec2 f, ivec3 t, float sq) {
     vec3 stain = vec3(0.05, 0.045, 0.06) + vec3(0.32) * (1.0 - smoothstep(0.0, 0.08, length(d - vec2(-0.09, 0.1))));
     return mix(col, stain, m * sq);
   }
-  // Pedrinhas: 3 (pequena), 5 (média) ou 6 (grande), em lugares fixos por célula.
-  int count = size >= 3 ? 6 : size == 2 ? 5 : 3;
-  for (int k = 0; k < 6; k++) {
-    if (k >= count) break;
-    vec2 c = 0.2 + 0.6 * vec2(hashK(t, 2 * k), hashK(t, 2 * k + 1));
-    float rad = 0.09 + 0.05 * hashK(t, k + 20);
-    vec2 d = (f - c) / rad;
-    float l2 = dot(d, d);
-    if (l2 < 1.0) {
-      // Luz de cima à esquerda, borda escura e contorno suave.
-      vec3 p = rc * (0.8 + 0.3 * clamp(0.6 * d.y - 0.5 * d.x, -1.0, 1.0));
-      p = mix(p, p * 0.45, smoothstep(0.55, 1.0, l2));
-      col = mix(col, p, (1.0 - smoothstep(0.85, 1.0, l2)) * sq);
-      break;
-    }
-  }
+  // Minério (teste da 50f0dca, pedido do usuário: sem bolinhas): a célula vira um mosaico de 3×3
+  // pixels quadrados na cor do tipo, em tons sorteados por pixel; alguns ficam mais escuros (veio).
+  // Jazida maior = mais pixels cobertos (pequena 6, média 7, grande 9 de 9).
+  ivec2 sp = clamp(ivec2(floor(f * 3.0)), ivec2(0), ivec2(2));
+  int k = sp.x + sp.y * 3;
+  float hk = hashK(t, k);
+  int keep = size >= 3 ? 9 : size == 2 ? 7 : 6;
+  if (hashK(t, 9 + k) * 9.0 >= float(keep)) return col;
+  vec3 p = rc * (0.72 + 0.4 * hk);
+  col = mix(col, p, 0.88 * sq);
   return col;
 }`;
 
@@ -370,7 +358,13 @@ vec3 surface${sfx}(vec3 p, float cellPx) {
   // De longe, a tolerância de arredondamento lê o ponto vizinho que é da placa ("fix", menos de 1 pixel).
   // De perto isso virava faixas de células esticadas na fronteira: lá a escolha entre as células da
   // própria placa é feita na vista de perto (remendo nas fronteiras, 2026-10-17).
-  if (pl >= 0) q = toTexture${sfx}(pl, q) + (sq > 0.0 ? vec3(0.0) : fix);
+  if (pl >= 0) {
+    q = toTexture${sfx}(pl, q) + (sq > 0.0 ? vec3(0.0) : fix);
+    // A borda orgânica desloca o ponto até ~0,7 célula: perto da fronteira ele pode cair na textura de
+    // OUTRA placa, que seria lida com a rotação desta e apareceria arrastada (faixas esticadas ao longo
+    // da costa de longe, maiores quanto mais as placas andaram). Aí lê sem o deslocamento.
+    if (warpAmount > 0.0 && int(plateAt${sfx}(q).x & ${PLATE_MASK}u) != pl) q = toTexture${sfx}(pl, anchor) + fix;
+  }
   vec4 cell;
   vec3 base;
   if (gap) {

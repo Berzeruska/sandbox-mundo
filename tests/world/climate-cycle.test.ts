@@ -10,6 +10,7 @@ import {
   GLACIAL_AMPLITUDE,
   GLACIAL_PERIOD_TICKS,
   glacialOffset,
+  glideToward,
   seaLevelFor,
   updateClimate,
 } from '../../src/world/climate';
@@ -136,12 +137,25 @@ describe('clima (T7): no jogo, com placas paradas', () => {
     expect(Math.abs(core.world!.climateOffset - glacialOffset(shownTick))).toBeLessThan(CLIMATE_STEP + 0.05);
   });
 
-  it('o controle do jogador muda o clima na hora (prévia no relógio)', () => {
+  it('o controle do jogador muda o clima aos poucos (1 °C por segundo real, também pausado)', () => {
     const core = new SimulationCore(() => undefined, () => 0);
     core.handle({ type: 'newWorld', seedText: 'terra', n: 32 });
+    core.handle({ type: 'speed', speed: 0 });
     const ice0 = iceCells(core.world!);
     core.handle({ type: 'climateControl', control: -8 });
+    expect(core.world!.climateOffset).toBe(0);
+    for (let k = 0; k < 4; k++) core.advance(0.25);
+    // 1 s depois: −1 °C (refeito em degraus de 0,5 °C).
+    expect(core.world!.climateOffset).toBeCloseTo(-1, 6);
+    for (let k = 0; k < 40; k++) core.advance(0.25);
     expect(core.world!.climateOffset).toBe(-8);
     expect(iceCells(core.world!)).toBeGreaterThan(ice0);
+  });
+
+  it('caminhada do controle: passo limitado pela taxa, chega no alvo sem passar', () => {
+    expect(glideToward(0, -8, 1)).toBe(-1);
+    expect(glideToward(-7.6, -8, 1)).toBe(-8);
+    expect(glideToward(2, 5, 0.5, 2)).toBe(3);
+    expect(glideToward(3, 3, 1)).toBe(3);
   });
 });
