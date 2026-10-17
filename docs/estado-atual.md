@@ -1,7 +1,7 @@
 # Estado atual do projeto
 
 Atualizado em: **2026-10-17**, branch `marco-2`. Rodada de correções do teste da `50f0dca` feita;
-bloco Desastres: T8, T9 e T10 feitas; seguindo para a T11.
+bloco Desastres: T8 a T11 feitas; seguindo para a T12.
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -20,7 +20,8 @@ sobre "onde estamos", vale este.
 - **Bloco Desastres (T8–T12), em andamento:** T8 feita (terremotos por tensão nas fronteiras,
   tsunamis que andam pelo mar e alagam costa baixa, marcas temporárias, animações na camada de cima);
   T9 feita (vulcões em arcos e dorsais, pontos quentes formando cadeias de ilhas, cinzas que somem);
-  T10 feita (seca, enchente, furacão com trilha, incêndio sob seca, nuvens com furacões em espiral).
+  T10 feita (seca, enchente, furacão com trilha, incêndio sob seca, nuvens com furacões em espiral);
+  T11 feita (provocar cada desastre tocando no globo, frequência de Nenhum a Muitos, "Ver tensão").
 - **Esperando o usuário:** (1) aprovar as metas do notebook; (2) proposta dos polos
   (`docs/img/m2-polos-proposta.png`: borda em lobos, placas soltas, fino e azulado na borda); (3)
   norte/sul pelo teclado não existe (arrastar faz) — o usuário pediu para ser avisado.

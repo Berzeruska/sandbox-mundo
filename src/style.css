@@ -671,3 +671,17 @@ body {
 .hud.menu-open .res-legend {
   display: none;
 }
+
+/* Frequência dos desastres (T11): 5 escolhas lado a lado. */
+.hud-freq {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+
+.hud-freq .hud-speed {
+  font-size: 12px;
+  padding: 0 4px;
+  min-width: 0;
+}

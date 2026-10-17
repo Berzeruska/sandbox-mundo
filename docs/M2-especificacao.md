@@ -515,11 +515,19 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   O evento só muda as marcas da região dele (alagado, seco, queimado). Desempenho no notebook: igual
   (60 fps em todos os cenários).
 
-- [ ] **T11 — Desastres na mão do jogador e frequência**
+- [x] **T11 — Desastres na mão do jogador e frequência**
   Em Desastres: ferramenta para provocar cada desastre e controle de frequência (nenhum → muitos),
   padrão "raro". Camadas "Ver placas" e "Ver tensão".
   Testes: frequência 0 não gera desastre natural; "raro" fica na faixa de ~1 notável a cada 1–2 min
   em 1×; provocar manualmente funciona com qualquer frequência.
+  **Feito (2026-10-17):** os 7 desastres no menu Desastres: escolher e tocar no globo provoca ali
+  (arrastar continua girando); os do jogador são sempre fortes (terremoto M 7–9, erupção IEV 4–6 que
+  ergue mais, tsunami M 8,3–9,2 no mar mais perto, furacão categoria 3–5 no mar mais perto, seca e
+  enchente grandes, incêndio de 40–150 células na floresta mais perto) e funcionam com qualquer
+  frequência. "Frequência" com 5 níveis (Nenhum, Raro, Às vezes, Frequente, Muitos; ×0, ×1, ×2,5, ×6,
+  ×15), na tela e no menu, padrão Raro. "Ver tensão" (Desastres): o mundo cinza e as fronteiras de
+  verde-amarelo (pouca tensão) a vermelho (terremoto perto), com legenda; repintada a cada 2 anos.
+  "Ver placas" continua em Geologia.
 
 - [ ] **T12 — Avisos e lista de desastres**
   Aviso curto só para desastres grandes; lista completa no painel; tocar leva a câmera ao local.

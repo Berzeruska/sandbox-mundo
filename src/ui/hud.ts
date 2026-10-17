@@ -1,5 +1,6 @@
 import { SPEEDS, speedLabel, type Speed } from '../core/time';
 import { MAX_BRUSH, MIN_BRUSH } from '../input/tools';
+import { DEFAULT_FREQUENCY, FREQUENCIES } from '../world/disasters/types';
 import {
   CATEGORIES,
   INITIAL_MENU,
@@ -24,6 +25,8 @@ export interface HudCallbacks {
   onPlateRate(percent: number): void;
   /** Controle de temperatura global (°C, T7). */
   onClimateControl(degrees: number): void;
+  /** Frequência dos desastres naturais (índice de FREQUENCIES, T11). */
+  onDisasterFrequency(level: number): void;
   onNorthUp(): void;
   /** Ação do menu (ex.: 'newWorld', 'debug'). */
   onAction(action: string): void;
@@ -61,6 +64,7 @@ export class Hud {
   private speed: Speed = 1;
   private brushSize: number;
   private platePercent: number;
+  private frequency = DEFAULT_FREQUENCY;
   private climateDegrees = 0;
   private lastDate = '';
 
@@ -192,6 +196,23 @@ export class Hud {
     return wrap;
   }
 
+  /** Frequência dos desastres naturais: Nenhum, Raro, Às vezes, Frequente, Muitos (T11). */
+  private frequencyChoices(): HTMLElement {
+    const wrap = el('span', 'hud-freq');
+    FREQUENCIES.forEach((f, level) => {
+      const b = btn('hud-speed hud-freq-choice', `Frequência ${f.label}`, () => {
+        this.frequency = level;
+        for (const c of this.root.querySelectorAll<HTMLElement>('.hud-freq-choice')) c.classList.toggle('selected', c.dataset.level === String(level));
+        this.cb.onDisasterFrequency(level);
+      });
+      b.dataset.level = String(level);
+      b.textContent = f.label;
+      b.classList.toggle('selected', level === this.frequency);
+      wrap.append(b);
+    });
+    return wrap;
+  }
+
   /** Controle de temperatura global, −10 a +10 °C (T7). Manda ao soltar (refazer o clima custa). */
   private climateSlider(): HTMLElement {
     const wrap = el('span', 'hud-brush');
@@ -258,6 +279,13 @@ export class Hud {
       name.textContent = 'Temperatura';
       name.append(el('small', '', 'global, somada ao ciclo'));
       card.append(name, this.climateSlider());
+    } else if (item.disaster !== undefined) {
+      name.append(el('small', '', 'toque no globo'));
+      card.append(name);
+    } else if (item.id === 'disasterFreq') {
+      name.textContent = 'Desastres';
+      name.append(el('small', '', 'frequência'));
+      card.append(name, this.frequencyChoices());
     } else if (item.id === 'plateSpeed') {
       name.textContent = 'Placas';
       name.append(el('small', '', this.platePercent === 0 ? 'congeladas' : 'velocidade'));
@@ -304,8 +332,8 @@ export class Hud {
       this.grid.append(row);
     }
     if (this.state.category === 'desastres') {
-      const row = el('div', 'hud-row soon');
-      row.append(el('span', '', 'Frequência: raro'), el('span', 'hud-soon', 'em breve'));
+      const row = el('div', 'hud-row');
+      row.append(el('span', '', 'Frequência'), this.frequencyChoices());
       this.grid.append(row);
     }
   }

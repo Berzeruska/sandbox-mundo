@@ -6,7 +6,7 @@ import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
 import { KeyControls } from './input/keys';
 import { DisasterFx } from './render/disaster-fx';
 import { MAX_STORMS } from './render/shaders';
-import type { DisasterEvent } from './world/disasters/types';
+import type { DisasterEvent, DisasterKind } from './world/disasters/types';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
 import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectonics';
@@ -21,9 +21,9 @@ import { SimClient } from './sim/client';
 import { applyPatch, type Patch, type PlateMotionInfo, type WorldInfo } from './sim/protocol';
 import { Hud } from './ui/hud';
 import { BiomeLegend, DepositTip, ResourceLegend } from './ui/resource-legend';
-import { BIOME_LAYER_COLORS, NO_LAYERS, type Layers } from './render/colors';
+import { BIOME_LAYER_COLORS, NO_LAYERS, STRESS_COLORS, type Layers } from './render/colors';
 import { depositLabel, isHiddenOil } from './world/resources';
-import { activeBrush, inputModeOf } from './ui/menu-state';
+import { activeBrush, activeDisaster, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
 import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, workDelta, type FirstLoad, type GenerationResult, type ScenarioResult, type WorkCounters } from './ui/benchmark';
@@ -105,6 +105,9 @@ export class App {
   private layers: Layers = { ...NO_LAYERS };
   private legend!: ResourceLegend;
   private biomeLegend!: BiomeLegend;
+  private stressLegend!: BiomeLegend;
+  /** Ferramenta de desastre ativa (tocar no globo provoca), ou null. */
+  private disasterTool: DisasterKind | null = null;
   private tip!: DepositTip;
   /** Onde o dedo encostou (para saber se andou: com a camada de recursos, andar = pincelada). */
   private pressAt: { x: number; y: number } | null = null;
@@ -156,7 +159,12 @@ export class App {
       onCameraChange: () => this.requestDraw(),
       onPaint: (sx, sy, phase) => this.onPaint(sx, sy, phase),
       // Toque curto (modo Mover) seleciona: mostra o que há no ponto (pedido do usuário, 2026-10-17).
-      onTap: (sx, sy) => void this.showDepositAt(sx, sy),
+      // Com uma ferramenta de desastre (T11), provoca o desastre ali.
+      onTap: (sx, sy) => {
+        const p = this.disasterTool !== null ? this.camera.pick(sx, sy) : null;
+        if (p && this.disasterTool !== null) this.sim.triggerDisaster(this.disasterTool, p);
+        else void this.showDepositAt(sx, sy);
+      },
       onHover: (sx, sy) => {
         this.brushScreen = { x: sx, y: sy };
         if (this.mode === 'paint') this.requestDraw();
@@ -178,6 +186,7 @@ export class App {
       root,
       {
         onMenuChange: (state) => {
+          this.disasterTool = activeDisaster(state);
           const brush = activeBrush(state);
           if (brush !== null) this.tool = brush;
           this.setMode(inputModeOf(state));
@@ -187,6 +196,7 @@ export class App {
           this.requestDraw();
         },
         onPlateRate: (percent) => this.setPlateRate(percent / 100),
+        onDisasterFrequency: (level) => this.sim.setDisasterFrequency(level),
         onClimateControl: (degrees) => {
           this.climateControl = degrees;
           this.sim.setClimateControl(degrees);
@@ -209,6 +219,7 @@ export class App {
             this.requestDraw();
             return;
           }
+          if (id === 'stressLayer') this.layers = { ...this.layers, stress: on };
           if (id === 'resourcesLayer') {
             this.layers = { ...this.layers, resources: on };
             if (!on) this.tip.hide();
@@ -217,6 +228,7 @@ export class App {
           // Uma legenda por vez: a de recursos tem prioridade (a camada de recursos fica por cima).
           this.legend.show(this.layers.resources);
           this.biomeLegend.show(this.layers.biomes && !this.layers.resources);
+          this.stressLegend.show(this.layers.stress && !this.layers.resources && !this.layers.biomes);
           this.sim.setLayers(this.layers);
           this.requestDraw();
         },
@@ -250,6 +262,8 @@ export class App {
       order.map((b) => BIOME_INFO[b]?.name ?? ''),
       order.map((b) => BIOME_LAYER_COLORS[b] ?? [0, 0, 0]),
     );
+    // Camada "Ver tensão" (T11): a escala de cores das fronteiras.
+    this.stressLegend = new BiomeLegend(this.hud.root, ['Tensão baixa', 'média', 'alta: terremoto perto'], STRESS_COLORS);
     this.errorScreen = new ErrorScreen(root, () => void retry());
     // Erros não tratados em qualquer parte da tela também aparecem (em vez de travar em silêncio).
     window.addEventListener('error', (e) => this.fail(`${e.message}${e.filename ? ` (${e.filename}:${e.lineno})` : ''}`));

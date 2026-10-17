@@ -1,7 +1,7 @@
 import { seedFrom } from '../core/rng';
 import { Clock, TICKS_PER_YEAR } from '../core/time';
 import { applyBrush, RAISE_RATE } from '../input/tools';
-import { buildColors, colorCacheBytes, NO_LAYERS, tintMark, withRing, type Layers } from '../render/colors';
+import { buildColors, colorCacheBytes, NO_LAYERS, tintMark, tintStress, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
 import { applyClimateOffset, climateCacheBytes, climateOffsetAt, CONTROL_APPLY_STEP, CONTROL_MAX, CONTROL_MIN, glideToward, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellPool } from '../world/cell-pool';
@@ -18,6 +18,8 @@ import { makePatches, transferables, type FromWorker, type Patch, type ToWorker 
 
 /** De quantos em quantos anos as marcas dos desastres são repintadas enquanto somem. */
 const MARK_FADE_YEARS = 3;
+/** De quantos em quantos anos a camada "Ver tensão" é repintada (a tensão sobe devagar). */
+const STRESS_REFRESH_YEARS = 2;
 import {
   APPLY_DELAY_TICKS,
   COMPOSED_FIELDS,
@@ -159,6 +161,7 @@ export class SimulationCore {
   /** Desastres do mundo atual (T8–T12) e o nível de frequência escolhido (vale para os mundos novos). */
   disasters: Disasters | null = null;
   private disasterFrequency = DEFAULT_FREQUENCY;
+  private stressBuf = new Float32Array(0);
   /** Deriva no relógio (a mesma soma da tectônica) e a composição mostrada, para os ângulos. */
   private drift = 0;
   private shown: ShownComposition = { angles: [], speeds: [], drift: 0 };
@@ -373,9 +376,32 @@ export class SimulationCore {
   /** Pinta por cima as marcas dos desastres (alagado, cinzas, queimado, seco) nas células dadas. */
   private tintMarks(cells: Iterable<number>): void {
     const d = this.disasters?.disturbance;
-    if (!d || !d.active.size) return;
-    const tick = this.clock.tick;
-    for (const c of cells) if (d.kind[c]) tintMark(this.colors, c, d.kind[c] as number, d.strength(c, tick));
+    if (d && d.active.size) {
+      const tick = this.clock.tick;
+      for (const c of cells) if (d.kind[c]) tintMark(this.colors, c, d.kind[c] as number, d.strength(c, tick));
+    }
+    if (this.layers.stress && !this.layers.resources) this.tintStressCells(cells);
+  }
+
+  /** Camada "Ver tensão" (T11): as células de fronteira nas cores da tensão do trecho delas. */
+  private tintStressCells(cells?: Iterable<number>): void {
+    const world = this.world;
+    if (!world || !this.disasters) return;
+    if (this.stressBuf.length !== world.cellCount) this.stressBuf = new Float32Array(world.cellCount);
+    this.disasters.stressMap(this.stressBuf);
+    const all = cells ?? world.boundary.keys();
+    for (const c of all) if (world.boundary[c]) tintStress(this.colors, c, this.stressBuf[c] as number);
+  }
+
+  /** Tensão mudou (ela sobe todo ano): repinta as fronteiras com a camada ligada. */
+  private refreshStress(): void {
+    const world = this.world;
+    if (!world || !this.layers.stress || this.layers.resources) return;
+    const cells: number[] = [];
+    for (let c = 0; c < world.cellCount; c++) if (world.boundary[c]) cells.push(c);
+    buildColors(world, this.colors, cells, this.layers);
+    this.tintMarks(cells);
+    this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
   }
 
   /** Aplica o que os desastres fizeram: relevo erguido, marcas novas ou vencidas, e avisa a tela. */
@@ -410,11 +436,22 @@ export class SimulationCore {
     this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
   }
 
+  /** Marcas dos desastres e camada de tensão por cima das cores do mundo todo (sem mandar). */
+  private overlayAll(): void {
+    const d = this.disasters?.disturbance;
+    if (d && d.active.size) {
+      const tick = this.clock.tick;
+      for (const c of d.active) tintMark(this.colors, c, d.kind[c] as number, d.strength(c, tick));
+    }
+    if (this.layers.stress && !this.layers.resources) this.tintStressCells();
+  }
+
   /** Repinta o mundo todo e manda as 6 faces como remendos (brushMs -1: não é pincelada). */
   private sendAllColors(): void {
     const world = this.world;
     if (!world) return;
     buildColors(world, this.colors, undefined, this.layers);
+    this.overlayAll();
     const n = world.params.n;
     const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
     this.send({ type: 'patch', patches: makePatches(this.colors, n, faces), brushMs: -1 });
@@ -440,7 +477,7 @@ export class SimulationCore {
       this.geology.send({ type: 'consumed', world: this.worldId, index: r.index });
       this.brushLog = this.brushLog.filter((b) => b.tick >= r.tick);
       if (this.brushLog.length) this.replayBrushes(world);
-      if (this.disasters) this.tintMarks(this.disasters.disturbance.active);
+      this.overlayAll();
       const changed: number[] = [];
       for (let c = 0; c < world.cellCount; c++) {
         const o = c * 4;
@@ -458,11 +495,9 @@ export class SimulationCore {
     this.geology.send({ type: 'consumed', world: this.worldId, index: r.index });
     this.brushLog = this.brushLog.filter((b) => b.tick >= r.tick);
     if (this.brushLog.length) this.replayBrushes(world);
-    if (this.disasters) {
-      // Fronteiras novas para a tensão; as marcas por cima das cores novas.
-      this.disasters.onRecompose();
-      this.tintMarks(this.disasters.disturbance.active);
-    }
+    // Fronteiras novas para a tensão; as marcas e a tensão por cima das cores novas.
+    this.disasters?.onRecompose();
+    this.overlayAll();
     const n = world.params.n;
     const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
     this.send({ type: 'recomposed', patches: makePatches(this.colors, n, faces), plateCells: r.plateCells, angles: r.angles, plates: r.motion, deposits: world.deposit.slice() });
@@ -606,6 +641,7 @@ export class SimulationCore {
       const o = this.disasters.step(tick, this.plateRate);
       if (o) this.applyDisasters(o);
       if (tick % (MARK_FADE_YEARS * TICKS_PER_YEAR) === 0) this.fadeMarks();
+      if (tick % (STRESS_REFRESH_YEARS * TICKS_PER_YEAR) === 0) this.refreshStress();
     }
   }
 

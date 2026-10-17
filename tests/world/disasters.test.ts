@@ -340,3 +340,59 @@ describe('desastres (T10): clima', () => {
     }
   });
 });
+
+describe('desastres (T11): na mão do jogador', () => {
+  it('cada desastre provocado acontece com qualquer frequência (mesmo "Nenhum")', () => {
+    const w = worldOf('terra', 64);
+    const d = new Disasters(w);
+    d.frequency = 0;
+    const { neighbors } = w.grid;
+    // Pontos: mar fundo encostado em terra baixa (tsunami, furacão), terra baixa (seca, enchente,
+    // vulcão, terremoto), floresta (incêndio).
+    let coastSea = -1;
+    for (let c = 0; c < w.cellCount && coastSea < 0; c++) {
+      if (!w.isWater(c)) continue;
+      for (let k = 0; k < 4; k++) if (!w.isWater(neighbors[c * 4 + k]!) && w.heightAboveSea(neighbors[c * 4 + k]!) < 100) coastSea = c;
+    }
+    const lowland = [...Array(w.cellCount).keys()].find((c) => !w.isWater(c) && !w.ice[c] && w.heightAboveSea(c) < 150 && w.precipitation[c]! > 900)!;
+    const forest = [...Array(w.cellCount).keys()].find((c) => [5, 6, 12].includes(w.biome[c]!))!;
+    const at: Record<number, number> = {
+      [DisasterKind.Quake]: lowland,
+      [DisasterKind.Tsunami]: coastSea,
+      [DisasterKind.Volcano]: lowland,
+      [DisasterKind.Drought]: lowland,
+      [DisasterKind.Flood]: lowland,
+      [DisasterKind.Hurricane]: coastSea,
+      [DisasterKind.Fire]: forest,
+    };
+    for (const [kind, cell] of Object.entries(at)) {
+      const o = d.trigger(Number(kind) as DisasterKind, cellPoint(w, cell), 12);
+      expect(o.events.some((e) => e.kind === Number(kind) && e.manual), `tipo ${kind}`).toBe(true);
+    }
+  });
+
+  it('camada "Ver tensão": as fronteiras pintadas pela tensão, o resto acinzentado', () => {
+    const core = new SimulationCore(() => undefined, () => 0);
+    core.handle({ type: 'newWorld', seedText: 'terra', n: 64 });
+    const w = core.world!;
+    core.handle({ type: 'layers', layers: { plates: false, biomes: false, resources: false, resourceMask: 0, stress: true } });
+    const colors = core.colors;
+    let grey = 0;
+    let painted = 0;
+    let land = 0;
+    for (let c = 0; c < w.cellCount; c++) {
+      const r = colors[c * 4]!;
+      const g = colors[c * 4 + 1]!;
+      const b = colors[c * 4 + 2]!;
+      if (w.boundary[c]) {
+        // Verde-amarelo, laranja ou vermelho: vermelho bem acima do azul.
+        if (r - b > 60) painted++;
+      } else if (!w.isWater(c)) {
+        land++;
+        if (Math.abs(r - g) < 12 && Math.abs(g - b) < 12) grey++;
+      }
+    }
+    expect(painted).toBeGreaterThan(0.9 * [...w.boundary].filter((v) => v).length);
+    expect(grey).toBeGreaterThan(0.95 * land);
+  });
+});

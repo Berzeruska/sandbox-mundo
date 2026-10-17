@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Tool } from '../../src/input/tools';
+import { DisasterKind } from '../../src/world/disasters/types';
 import {
   activeBrush,
+  activeDisaster,
   CATEGORIES,
   categoryOfActive,
   closeMenu,
@@ -31,8 +33,18 @@ describe('menu de ferramentas: conteúdo', () => {
     expect(itemsOf('tempo').map((i) => i.speed)).toEqual([0, 1, 2, 5, 20, 'max']);
   });
 
-  it('Desastres ainda "em breve"; Clima tem "Temperatura", "Ver biomas" e "Nuvens"; Geologia tem "Ver placas", "Ver recursos" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
-    expect(itemsOf('desastres').every((i) => !i.available)).toBe(true);
+  it('Desastres: os 7 desastres, a frequência e "Ver tensão"; Clima tem "Temperatura", "Ver biomas" e "Nuvens"; Geologia tem "Ver placas", "Ver recursos" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
+    expect(itemsOf('desastres').map((i) => [i.label, i.available])).toEqual([
+      ['Terremoto', true],
+      ['Vulcão', true],
+      ['Tsunami', true],
+      ['Seca', true],
+      ['Enchente', true],
+      ['Furacão', true],
+      ['Incêndio', true],
+      ['Frequência', true],
+      ['Ver tensão', true],
+    ]);
     expect(itemsOf('clima').map((i) => [i.label, i.available])).toEqual([['Temperatura', true], ['Ver biomas', true], ['Nuvens', true]]);
     expect(itemsOf('geologia').map((i) => [i.label, i.available])).toEqual([['Ver placas', true], ['Ver recursos', true], ['Velocidade', true]]);
     expect(itemsOf('mundo').map((i) => i.label)).toEqual(['Novo mundo', 'Dados']);
@@ -79,9 +91,9 @@ describe('menu de ferramentas: comportamento', () => {
     expect(state).toMatchObject({ open: false, active: 'ice' });
   });
 
-  it('itens "em breve" não fazem nada', () => {
+  it('item desconhecido (ou "em breve") não faz nada', () => {
     const s = openMenu(INITIAL_MENU, 'desastres');
-    expect(selectItem(s, 'volcano')).toEqual({ state: s, effect: { type: 'none' } });
+    expect(selectItem(s, 'nada')).toEqual({ state: s, effect: { type: 'none' } });
   });
 
   it('alternar abre e fecha', () => {
@@ -108,4 +120,12 @@ it('Velocidade das placas não pinta: um dedo continua girando o globo', () => {
   const { state } = selectItem(openMenu(INITIAL_MENU, 'geologia'), 'plateSpeed');
   expect(state.active).toBe('plateSpeed');
   expect(inputModeOf(state)).toBe('move');
+});
+
+it('ferramenta de desastre: fica na tela, um dedo continua girando, e o toque provoca o desastre', () => {
+  const { state } = selectItem(openMenu(INITIAL_MENU, 'desastres'), 'volcano');
+  expect(state.active).toBe('volcano');
+  expect(inputModeOf(state)).toBe('move');
+  expect(activeDisaster(state)).toBe(DisasterKind.Volcano);
+  expect(activeDisaster(INITIAL_MENU)).toBeNull();
 });

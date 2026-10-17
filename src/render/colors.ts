@@ -18,9 +18,11 @@ export interface Layers {
   /** Camada "Ver recursos" (T6) e os tipos mostrados nela (bit = código do tipo). */
   resources: boolean;
   resourceMask: number;
+  /** Camada "Ver tensão" (T11): o mundo acinzentado; quem pinta as fronteiras é o relógio (`tintStress`). */
+  stress: boolean;
 }
 
-export const NO_LAYERS: Layers = { plates: false, biomes: false, resources: false, resourceMask: ALL_RESOURCES };
+export const NO_LAYERS: Layers = { plates: false, biomes: false, resources: false, resourceMask: ALL_RESOURCES, stress: false };
 
 /**
  * Bit mais baixo do azul na textura de cores: a célula tem algo a desenhar de perto (pedrinhas,
@@ -160,8 +162,16 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
     g = c[1];
     b = c[2];
   }
-  // Jazida coberta de gelo não aparece (nem pedrinhas): só na camada "Ver recursos".
-  const code = world.ice[i] && !layers.resources ? 0 : (world.deposit[i] as number);
+  if (layers.stress && !layers.resources) {
+    // Terreno acinzentado e claro: as fronteiras pintadas pela tensão saltam aos olhos.
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    r = lum * 0.45 + 70;
+    g = lum * 0.45 + 72;
+    b = lum * 0.45 + 78;
+  }
+  // Jazida coberta de gelo não aparece (nem pedrinhas): só na camada "Ver recursos". Na camada "Ver
+  // tensão" também não (só as fronteiras têm cor).
+  const code = (world.ice[i] || layers.stress) && !layers.resources ? 0 : (world.deposit[i] as number);
   let decor = false;
   if (layers.resources) {
     // Terreno acinzentado e escurecido; jazidas do filtro fortes na cor do tipo.
@@ -384,4 +394,24 @@ export function tintMark(out: Uint8Array, i: number, kind: number, strength: num
   out[o] = clampByte((out[o] as number) + (m[0] - (out[o] as number)) * t);
   out[o + 1] = clampByte((out[o + 1] as number) + (m[1] - (out[o + 1] as number)) * t);
   out[o + 2] = (clampByte((out[o + 2] as number) + (m[2] - (out[o + 2] as number)) * t) & ~DECOR_BIT) | decor;
+}
+
+/** Cores da camada "Ver tensão": tensão baixa (verde-amarelo), média (laranja), alta (vermelho). */
+export const STRESS_COLORS: readonly (readonly [number, number, number])[] = [
+  [190, 220, 60],
+  [250, 150, 40],
+  [235, 30, 30],
+];
+
+/** Pinta a célula de fronteira `i` pela tensão `v` (0–1, relativa ao limite do próximo terremoto). */
+export function tintStress(out: Uint8Array, i: number, v: number): void {
+  const t = Math.max(0, Math.min(1, v)) * 2;
+  const a = STRESS_COLORS[Math.min(1, Math.floor(t))] as readonly [number, number, number];
+  const b = STRESS_COLORS[Math.min(2, Math.floor(t) + 1)] as readonly [number, number, number];
+  const f = t - Math.floor(t);
+  const o = i * 4;
+  const decor = (out[o + 2] as number) & DECOR_BIT;
+  out[o] = clampByte(a[0] + (b[0] - a[0]) * f);
+  out[o + 1] = clampByte(a[1] + (b[1] - a[1]) * f);
+  out[o + 2] = (clampByte(a[2] + (b[2] - a[2]) * f) & ~DECOR_BIT) | decor;
 }

@@ -1,6 +1,7 @@
 import type { InputMode } from '../input/pointer';
 import { Tool } from '../input/tools';
 import type { Speed } from '../core/time';
+import { DisasterKind } from '../world/disasters/types';
 
 /**
  * Estado do menu de ferramentas por categorias (lógica pura, sem DOM).
@@ -39,6 +40,8 @@ export interface MenuItem {
   speed?: Speed;
   /** Para ferramentas de relevo que pintam: o pincel. */
   brush?: Tool;
+  /** Para as ferramentas de desastre (T11): tocar no globo provoca este desastre ali. */
+  disaster?: DisasterKind;
 }
 
 export const ITEMS: readonly MenuItem[] = [
@@ -56,13 +59,15 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'ice', category: 'relevo', label: 'Gelo', icon: '❄️', kind: 'tool', available: true, brush: Tool.Ice },
   { id: 'melt', category: 'relevo', label: 'Derreter', icon: '🔥', kind: 'tool', available: true, brush: Tool.EraseIce },
 
-  { id: 'quake', category: 'desastres', label: 'Terremoto', icon: '💥', kind: 'tool', available: false },
-  { id: 'volcano', category: 'desastres', label: 'Vulcão', icon: '🌋', kind: 'tool', available: false },
-  { id: 'tsunami', category: 'desastres', label: 'Tsunami', icon: '🌊', kind: 'tool', available: false },
-  { id: 'drought', category: 'desastres', label: 'Seca', icon: '🏜️', kind: 'tool', available: false },
-  { id: 'flood', category: 'desastres', label: 'Enchente', icon: '🌧️', kind: 'tool', available: false },
-  { id: 'hurricane', category: 'desastres', label: 'Furacão', icon: '🌀', kind: 'tool', available: false },
-  { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: false },
+  { id: 'quake', category: 'desastres', label: 'Terremoto', icon: '💥', kind: 'tool', available: true, disaster: DisasterKind.Quake },
+  { id: 'volcano', category: 'desastres', label: 'Vulcão', icon: '🌋', kind: 'tool', available: true, disaster: DisasterKind.Volcano },
+  { id: 'tsunami', category: 'desastres', label: 'Tsunami', icon: '🌊', kind: 'tool', available: true, disaster: DisasterKind.Tsunami },
+  { id: 'drought', category: 'desastres', label: 'Seca', icon: '🏜️', kind: 'tool', available: true, disaster: DisasterKind.Drought },
+  { id: 'flood', category: 'desastres', label: 'Enchente', icon: '🌧️', kind: 'tool', available: true, disaster: DisasterKind.Flood },
+  { id: 'hurricane', category: 'desastres', label: 'Furacão', icon: '🌀', kind: 'tool', available: true, disaster: DisasterKind.Hurricane },
+  { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: true, disaster: DisasterKind.Fire },
+  { id: 'disasterFreq', category: 'desastres', label: 'Frequência', icon: '🎲', kind: 'tool', available: true },
+  { id: 'stressLayer', category: 'desastres', label: 'Ver tensão', icon: '📈', kind: 'toggle', available: true },
 
   { id: 'platesLayer', category: 'geologia', label: 'Ver placas', icon: '🧩', kind: 'toggle', available: true },
   { id: 'resourcesLayer', category: 'geologia', label: 'Ver recursos', icon: '💎', kind: 'toggle', available: true },
@@ -149,6 +154,11 @@ export function selectItem(state: MenuState, id: string): { state: MenuState; ef
 
 export function isOn(state: MenuState, id: string): boolean {
   return state.toggles.includes(id);
+}
+
+/** Desastre da ferramenta ativa (tocar no globo provoca), ou null. */
+export function activeDisaster(state: MenuState): DisasterKind | null {
+  return itemById(state.active)?.disaster ?? null;
 }
 
 /** Pincel da ferramenta ativa, ou null (mover, seletor de tempo...). */
