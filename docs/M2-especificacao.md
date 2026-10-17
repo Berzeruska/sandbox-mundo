@@ -701,6 +701,46 @@ notebook, no ajudante 2.
   teste de CI (N = 128) passa. **Decisão aberta do usuário** (mexer seria regra de placas).
 - Máximo de placas: até 16 (não subiu para 32); não precisa da medição extra no Hot 50i.
 
+### Teste do Bloco G no celular (2026-10-16, `f18969a2`): perguntas e diagnóstico
+Relato do usuário: geração 3,9 s (meta 3 s; estimativa era 2,9); pausado parado 81 fps; "relógio
+esperou 0 ms", mas ele viu o tempo travar; de perto, as células ficam puxadas e pontiagudas.
+
+1. **Geração 3,9 s.** Duas causas, medidas no notebook com o Chromium preso a 2 núcleos (como os 2
+   fortes do Hot 50i), comparando com `c0660ea` (o 2,7 s do celular):
+   - **A etapa "placas" quase dobrou** (G3: Pangeia partida por riftes traçados, rodadas extras de
+     crescimento das placas, placas contínuas). No Node, N = 256: mediana 175 → 300 ms. A estimativa de
+     2,9–3,0 s comparou com o commit do ajudante 2 e com mundos gerados em sossego; ela errou para baixo.
+   - **O ajudante 2 ainda trabalha quando a geração começa.** No "Medir desempenho", a geração vem logo
+     depois de 2 min de placas a 20×. O ajudante continua até 480 passos atrasado e termina as
+     recomposições que faltam (no celular, 1–2 s cada), disputando os 2 núcleos fortes. O mundo velho
+     também fica na memória dele até o novo chegar. Medido: etapa "terreno" 500 → 720 ms quando vem
+     logo depois da deriva.
+   - **Proposta (técnica):** (a) ao pedir mundo novo, o ajudante larga o mundo velho na hora (para de
+     andar e solta a memória); (b) baixar o custo da etapa "placas" do G3 sem mudar o resultado (mesma
+     semente, mesmo mundo); (c) o relatório mostra quanto o ajudante ainda trabalhou durante a geração.
+2. **Pausado parado 81 fps.** Nesse cenário o jogo não desenha nada (nada mudou na tela); o número é o
+   ritmo que o celular oferece a uma página parada. O Android baixa a taxa da tela quando nada se
+   mexe (entre 60 e 90 Hz, média ~80). Já era 80 em `c0660ea`, antes do Bloco G. Girando (desenho
+   cheio), 91. **Proposta:** o relatório mostra "desenhados X de Y quadros" e a meta de pausado passa
+   a valer para "pausado, girando" (custo real de desenhar). Mudar o critério é decisão do usuário.
+3. **Travou, mas "relógio esperou 0 ms".** Esse número só mede quando o relógio para à espera do
+   ajudante. Não mede: (a) quadros lentos da tela (3 trabalhos — tela, relógio, ajudante — em 2
+   núcleos fortes; quando o ajudante recompõe, um deles vai para um núcleo fraco); (b) a tela ao
+   receber cada recomposição; (c) a data que não chega porque o relógio está aplicando um resultado.
+   No notebook (2 núcleos) nada disso aparece (pior quadro 17 ms, receber ≤ 3,7 ms). **Proposta:**
+   registrar cada travada (> 100 ms da tela ou data parada > 300 ms) com a hora e o que estava
+   acontecendo, sempre ligado, no painel Dados. Pede ao usuário: o que travou (imagem, data ou os
+   dois), por quanto tempo, e o relatório completo.
+4. **Células puxadas e pontiagudas de perto.** É o T13 (bordas orgânicas): o shader desloca o ponto
+   com ruído de até ~0,7 célula antes de escolher a célula. De longe vira costa curva; de perto, os
+   cantos das células deslocadas viram pontas e lascas. Imagens no zoom máximo:
+   `docs/img/m2-zoom-bordas-organicas.png` (hoje) e `docs/img/m2-zoom-celulas-quadradas.png` (sem o
+   deslocamento). Vista quadrada ao aproximar: **custo de desempenho zero** (o shader faz menos
+   conta); o custo é de aparência: a grade aparece em degraus. Perto dos 8 cantos do cubo, onde 3
+   faces se encontram, as células são losangos de ~120°. Nenhum desenho do cubo evita isso. A
+   superfície de perto já é praticamente plana, porque a parte visível é pequena. Um mapa plano de
+   verdade (outro modo de câmera) é trabalho de outro marco. **Decisão do usuário** (aparência).
+
 ### G4 — Andamento (2026-10-16): feito, parado na erosão (decisão do usuário)
 **Decisões do usuário:** fontes de variedade 1 a 5 aprovadas; ombreira de rifte (6) entra no G4; se a
 erosão atual apagar a variedade antes do teste dos 10 min, avisar antes de mexer nela.
