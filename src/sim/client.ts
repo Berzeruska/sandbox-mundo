@@ -3,6 +3,7 @@ import type { Tool } from '../input/tools';
 import type { Layers } from '../render/colors';
 import type { Vec3 } from '../world/cubesphere';
 import type { WorkCounters } from '../ui/benchmark';
+import type { DisasterEvent, DisasterKind } from '../world/disasters/types';
 import { SHARED_PROBE_VALUE, sharedMemoryLabel, type CellQuery, type FromWorker, type Patch, type PlateMotionInfo, type ToWorker, type WorldInfo } from './protocol';
 
 export interface SimEvents {
@@ -25,6 +26,8 @@ export interface SimEvents {
     work: WorkCounters,
     climate: { offset: number; seaLevel: number },
   ): void;
+  /** Desastres que aconteceram (T8–T12). */
+  onDisasters?(events: DisasterEvent[]): void;
 }
 
 /**
@@ -107,6 +110,16 @@ export class SimClient {
     this.send({ type: 'climateControl', control });
   }
 
+  /** Provoca um desastre no ponto (T8–T11). */
+  triggerDisaster(kind: DisasterKind, point: Vec3): void {
+    this.send({ type: 'disaster', kind, point });
+  }
+
+  /** Nível de frequência dos desastres naturais (índice de FREQUENCIES). */
+  setDisasterFrequency(level: number): void {
+    this.send({ type: 'disasterFrequency', level });
+  }
+
   setSpeed(speed: Speed): void {
     this.send({ type: 'speed', speed });
   }
@@ -167,6 +180,9 @@ export class SimClient {
       case 'query':
         this.queries.get(msg.id)?.(msg.cell);
         this.queries.delete(msg.id);
+        break;
+      case 'disasters':
+        this.events.onDisasters?.(msg.events);
         break;
       case 'sharedProbe':
         this.sharedProbe = msg.ok && !!this.sharedBuffer && Atomics.load(new Int32Array(this.sharedBuffer), 0) === SHARED_PROBE_VALUE;

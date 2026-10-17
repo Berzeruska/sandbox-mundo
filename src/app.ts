@@ -4,6 +4,8 @@ import { Clock, formatDate, type Speed } from './core/time';
 import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
 import { KeyControls } from './input/keys';
+import { DisasterFx } from './render/disaster-fx';
+import type { DisasterEvent } from './world/disasters/types';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
 import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectonics';
@@ -132,6 +134,9 @@ export class App {
   private brushScreen: { x: number; y: number } | null = null;
   /** Decide quando o toque vira pincelada (espera o segundo dedo de uma pinça). */
   private paintGate = new PaintGate();
+  /** Animações dos desastres na camada de cima (T8–T10) e se ainda há algo dela na tela. */
+  private fx = new DisasterFx();
+  private fxShown = false;
   /** Setas do teclado: aproximar, afastar e girar (notebook). */
   private keys = new KeyControls(window, () => this.camera.stopSpin());
 
@@ -271,6 +276,7 @@ export class App {
         this.showProgress(stage, fraction);
       },
       onPatch: (patches, brushMs, deposits) => this.onPatch(patches, brushMs, deposits),
+      onDisasters: (events) => this.onDisasters(events),
       onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
         this.climate = climate;
         this.stats.memoryMb = memoryMb;
@@ -303,6 +309,7 @@ export class App {
     this.loadingEl.hidden = false;
     this.worldRequestedAt = performance.now();
     this.lastGenerationSignal = this.worldRequestedAt;
+    this.fx.clear();
     this.sim.newWorld(seedText, DEFAULT_N);
   }
 
@@ -447,6 +454,12 @@ export class App {
     return changed;
   }
 
+  /** Desastres que aconteceram: animação (e, na T12, aviso e lista). */
+  private onDisasters(events: DisasterEvent[]): void {
+    const now = performance.now();
+    for (const e of events) this.fx.add(e, now);
+  }
+
   private onPatch(patches: Patch[], brushMs: number, deposits?: Uint8Array): void {
     if (!this.info || !this.renderer) return;
     for (const p of patches) applyPatch(this.colors, this.info.n, p);
@@ -575,6 +588,9 @@ export class App {
       renderer.draw(this.camera, this.motion.uniforms);
       this.drawOverlay();
       this.needsDraw = false;
+    } else if (this.fx.active || this.fxShown) {
+      // Animação de desastre correndo com o globo parado: só a camada de cima é redesenhada.
+      this.drawOverlay();
     }
     const workMs = performance.now() - workStart;
     this.stalls.frameWork(workMs);
@@ -774,6 +790,9 @@ export class App {
 
   private drawOverlay(): void {
     this.overlay.clear();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.fxShown = this.fx.active;
+    if (this.fx.active) this.fx.draw(this.overlay.context, this.camera, performance.now(), dpr);
     if (this.mode !== 'paint' || !this.brushScreen || !this.info) return;
     const p = this.camera.pick(this.brushScreen.x, this.brushScreen.y);
     if (p) this.overlay.drawCap(this.camera, p, this.brushSize * (Math.PI / 2 / this.info.n));

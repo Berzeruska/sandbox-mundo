@@ -1,7 +1,7 @@
 # Estado atual do projeto
 
 Atualizado em: **2026-10-17**, branch `marco-2`. Rodada de correções do teste da `50f0dca` feita;
-próximo: bloco Desastres (T8 a T12).
+bloco Desastres: T8 feita; seguindo para a T9.
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -17,6 +17,8 @@ sobre "onde estamos", vale este.
   minério em pixels quadrados; jazidas maiores (mesmo número) formando-se a cada 1.000–10.000 anos por
   frente; plataforma continental larga (pontes de terra no máximo glacial); controle de temperatura
   suave (1 °C/s); setas ↑/↓ zoom e ←/→ giro, mãozinha sobre o globo, toque curto mostra bioma e jazida.
+- **Bloco Desastres (T8–T12), em andamento:** T8 feita (terremotos por tensão nas fronteiras,
+  tsunamis que andam pelo mar e alagam costa baixa, marcas temporárias, animações na camada de cima).
 - **Esperando o usuário:** (1) aprovar as metas do notebook; (2) proposta dos polos
   (`docs/img/m2-polos-proposta.png`: borda em lobos, placas soltas, fino e azulado na borda); (3)
   norte/sul pelo teclado não existe (arrastar faz) — o usuário pediu para ser avisado.

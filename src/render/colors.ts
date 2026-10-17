@@ -361,3 +361,27 @@ export function buildColors(world: WorldState, out: Uint8Array, cells?: readonly
   if (cells) for (const c of cells) writeCellColor(world, c, out, layers, halo);
   else for (let i = 0; i < world.cellCount; i++) writeCellColor(world, i, out, layers, halo);
 }
+
+/**
+ * Cor das marcas temporárias dos desastres (`src/world/disasters/disturbance.ts`), por tipo: alagado
+ * (água rasa), cinzas, queimado, ressecado. A força (0–1) vai caindo até a marca sumir.
+ */
+const MARK_COLORS: readonly (readonly [number, number, number, number])[] = [
+  [0, 0, 0, 0],
+  [58, 112, 168, 0.75], // alagado
+  [118, 112, 108, 0.7], // cinzas
+  [42, 34, 30, 0.8], // queimado
+  [196, 164, 96, 0.5], // ressecado
+];
+
+/** Tinge a cor já escrita da célula `i` com a marca `kind` de força `strength`. */
+export function tintMark(out: Uint8Array, i: number, kind: number, strength: number): void {
+  const m = MARK_COLORS[kind];
+  if (!m || strength <= 0) return;
+  const t = m[3] * Math.min(1, strength * 1.5);
+  const o = i * 4;
+  const decor = (out[o + 2] as number) & DECOR_BIT;
+  out[o] = clampByte((out[o] as number) + (m[0] - (out[o] as number)) * t);
+  out[o + 1] = clampByte((out[o + 1] as number) + (m[1] - (out[o + 1] as number)) * t);
+  out[o + 2] = (clampByte((out[o + 2] as number) + (m[2] - (out[o + 2] as number)) * t) & ~DECOR_BIT) | decor;
+}

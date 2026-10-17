@@ -711,3 +711,15 @@ Formato: data — decisão — motivo — alternativa descartada.
   - **Teclado e mouse no notebook:** setas ↑/↓ aproximam/afastam no centro, ←/→ giram (velocidade na
     tela igual em qualquer zoom); mãozinha (grab/grabbing) sobre o globo no modo mover; toque curto no
     modo mover sempre mostra o bioma e a jazida à vista. Norte/sul pelo teclado: não há (arrastar faz).
+
+- **2026-10-17 — T8, terremotos e tsunamis: decisões técnicas.**
+  - **Desastres no relógio (ajudante 1)**, um sorteio por ano de jogo, com sorteios próprios na ordem dos
+    passos (determinístico). Em "Placas 0" a geologia congela: sem terremoto natural.
+  - **Tensão por trecho de fronteira** (par de placas + tipo), não por célula: não depende da resolução e
+    sobrevive às recomposições (a fronteira anda, o trecho continua). "Ver tensão" (T11) pinta o trecho.
+  - **Animações em tempo real** (camada de cima, canvas 2D), separadas dos efeitos no mundo (anos de
+    jogo): a 20× um ano passa em 0,05 s. Descartado: animar no tempo do jogo.
+  - **Marcas temporárias em anos de jogo** (alagado 8, cinzas 25, queimado 60, seco 12), repintadas a
+    cada 3 anos enquanto somem; o relógio pinta por cima das cores que vêm do ajudante 2.
+  - **Onda com velocidade mínima de 0,4** da do oceano fundo: com √profundidade pura ela ficava presa
+    na plataforma continental larga.

@@ -463,11 +463,21 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
     com tons por placa de gelo. Custo medido: um ruído calculado uma vez por mundo, +~60 ms na geração
     (0,87 → 0,93 s em 5 sementes, N = 256, sem o ajudante); o desenho não muda.
 
-- [ ] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
+- [x] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa
   temporariamente; desenho das ondas na camada sobreposta.
   Testes: terremotos só perto de fronteiras; tsunami só a partir de terremoto no mar e forte;
   efeitos temporários se recuperam; determinismo.
+  **Feito (2026-10-17):** tensão por trecho de fronteira (par de placas + tipo), acumulando por ano de
+  jogo com comprimento × velocidade relativa × tipo (convergente 1, transformante 0,7, divergente
+  0,25), só com as placas andando; terremoto quando passa de um limite sorteado, magnitude de
+  Gutenberg–Richter (b = 0,8) de 5,5 até o máximo do tipo (9,3 / 8 / 6,8); grande a partir de M 7
+  (~1 a cada 200–280 anos em "Raro", 3 sementes, N = 256). Tsunami de terremoto no mar com M ≥ 7,5:
+  a onda anda pelo mar com √profundidade (mínimo 0,4 da velocidade do fundo, para atravessar a
+  plataforma larga), alcance e altura na costa pela magnitude; terra baixa encostada alaga por 8 anos.
+  Marcas temporárias numa camada de perturbação por célula (alagado, cinzas, queimado, seco) que vão
+  sumindo e tingem a cor. Animações em tempo real na camada de cima (anéis do terremoto, frente da
+  onda), independentes da velocidade do jogo. Testes em `tests/world/disasters.test.ts`.
 
 - [ ] **T9 — Vulcões e pontos quentes**
   Arcos de subducção, dorsais (fraco), pontos quentes fixos; erupção ergue terreno **para sempre**

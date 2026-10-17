@@ -4,6 +4,7 @@ import type { Layers } from '../render/colors';
 import { packRect } from '../render/dirty';
 import type { DirtyRect } from '../render/globe-renderer';
 import type { Vec3 } from '../world/cubesphere';
+import type { DisasterEvent, DisasterKind } from '../world/disasters/types';
 import type { WorkCounters } from '../ui/benchmark';
 
 /**
@@ -51,6 +52,9 @@ export type ToWorker =
   | { type: 'plateRate'; rate: number }
   /** Controle de temperatura global (°C, T7). */
   | { type: 'climateControl'; control: number }
+  /** Desastre provocado pelo jogador (T8–T11) e nível de frequência dos naturais (índice de FREQUENCIES). */
+  | { type: 'disaster'; kind: DisasterKind; point: Vec3 }
+  | { type: 'disasterFrequency'; level: number }
   /** "Medir desempenho": racha agora o maior bloco soldado (ciclo de Wilson, G2). */
   | { type: 'forceRupture' }
   /** "Medir desempenho": começo de cenário, o "pior" passa a contar daqui. */
@@ -107,6 +111,8 @@ export type FromWorker =
       climate: { offset: number; seaLevel: number };
     }
   | { type: 'query'; id: number; cell: CellQuery }
+  /** Desastres que aconteceram neste passo (animação, aviso e lista na tela). */
+  | { type: 'disasters'; events: DisasterEvent[] }
   | { type: 'sharedProbe'; ok: boolean };
 
 /** Empacota os retângulos alterados (cada um no seu próprio buffer, para transferir). */

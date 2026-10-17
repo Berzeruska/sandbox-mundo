@@ -1,18 +1,23 @@
 import { seedFrom } from '../core/rng';
-import { Clock } from '../core/time';
-import { applyBrush } from '../input/tools';
-import { buildColors, colorCacheBytes, NO_LAYERS, withRing, type Layers } from '../render/colors';
+import { Clock, TICKS_PER_YEAR } from '../core/time';
+import { applyBrush, RAISE_RATE } from '../input/tools';
+import { buildColors, colorCacheBytes, NO_LAYERS, tintMark, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
 import { applyClimateOffset, climateCacheBytes, climateOffsetAt, CONTROL_APPLY_STEP, CONTROL_MAX, CONTROL_MIN, glideToward, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellPool } from '../world/cell-pool';
 import { createWorld, WORLD_STAGES } from '../world/create';
+import { DEFAULT_FREQUENCY, Disasters, FREQUENCIES, type DisasterOutcome } from '../world/disasters';
+import { Tool } from '../input/tools';
 import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
 import { CONTINENTAL_DEPTH, Crust } from '../world/plates';
 import { REVEALED_BIT } from '../world/resources';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
 import { emptyWork, type WorkCounters } from '../ui/benchmark';
-import { makePatches, transferables, type FromWorker, type ToWorker } from './protocol';
+import { makePatches, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
+
+/** De quantos em quantos anos as marcas dos desastres são repintadas enquanto somem. */
+const MARK_FADE_YEARS = 3;
 import {
   APPLY_DELAY_TICKS,
   COMPOSED_FIELDS,
@@ -151,6 +156,9 @@ export class SimulationCore {
   private cellRef: Int32Array = new Int32Array(0);
   /** Pinceladas desde a última recomposição aplicada: valem de novo sobre a composição seguinte. */
   private brushLog: { tick: number; delta: BrushDelta }[] = [];
+  /** Desastres do mundo atual (T8–T12) e o nível de frequência escolhido (vale para os mundos novos). */
+  disasters: Disasters | null = null;
+  private disasterFrequency = DEFAULT_FREQUENCY;
   /** Deriva no relógio (a mesma soma da tectônica) e a composição mostrada, para os ângulos. */
   private drift = 0;
   private shown: ShownComposition = { angles: [], speeds: [], drift: 0 };
@@ -191,6 +199,13 @@ export class SimulationCore {
       case 'layers':
         this.setLayers(msg.layers);
         break;
+      case 'disaster':
+        if (this.world && this.disasters) this.applyDisasters(this.disasters.trigger(msg.kind, msg.point, this.clock.tick));
+        break;
+      case 'disasterFrequency':
+        this.disasterFrequency = Math.max(0, Math.min(FREQUENCIES.length - 1, Math.round(msg.level)));
+        if (this.disasters) this.disasters.frequency = this.disasterFrequency;
+        break;
       case 'climateControl':
         this.climateTarget = Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, msg.control));
         if (!this.world) this.climateControl = this.climateGlide = this.climateTarget;
@@ -229,6 +244,7 @@ export class SimulationCore {
     // Solta o mundo antigo antes de gerar o novo: no celular, ter os dois na memória ao mesmo
     // tempo força o coletor de lixo e deixa a geração bem mais lenta.
     this.world = null;
+    this.disasters = null;
     this.geology.stop();
     this.buffers = null;
     this.colors = new Uint8Array(0);
@@ -242,6 +258,8 @@ export class SimulationCore {
     const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3 }, this.grid, stage, this.geology.pool);
     stage('cores');
     this.world = world;
+    this.disasters = new Disasters(world);
+    this.disasters.frequency = this.disasterFrequency;
     this.colors = new Uint8Array(world.cellCount * 4);
     buildColors(world, this.colors, undefined, this.layers);
     this.cellRef = new Int32Array(world.cellCount);
@@ -302,10 +320,21 @@ export class SimulationCore {
   }
 
   private brush(msg: Extract<ToWorker, { type: 'brush' }>): void {
-    const world = this.world;
-    if (!world) return;
     const t0 = this.now();
-    const { region, revealed } = applyBrush(world, msg.tool, msg.point, msg.radius, msg.dt);
+    const done = this.stroke(msg.tool, msg.point, msg.radius, msg.dt);
+    if (!done) return;
+    const brushMs = this.now() - t0;
+    this.send(done.revealed ? { type: 'patch', patches: done.patches, brushMs, deposits: done.revealed } : { type: 'patch', patches: done.patches, brushMs });
+  }
+
+  /**
+   * Uma pincelada (do jogador ou de um desastre, ex.: erupção que ergue o terreno): muda o mundo, grava
+   * na placa e devolve os remendos de cor (e as jazidas, se revelou petróleo).
+   */
+  private stroke(tool: Tool, point: Vec3, radius: number, dt: number): { patches: Patch[]; revealed: Uint8Array | null } | null {
+    const world = this.world;
+    if (!world) return null;
+    const { region, revealed } = applyBrush(world, tool, point, radius, dt);
     const revealedSet = new Set(revealed);
     // A pincelada fica gravada na placa: anda junto quando ela se mover. Vai para o motor com o passo
     // em que aconteceu e fica guardada até a próxima recomposição aparecer (que ainda não a tem).
@@ -333,10 +362,50 @@ export class SimulationCore {
     this.geology.send({ type: 'brush', world: this.worldId, tick: this.clock.tick, delta });
     const painted = withRing(world.grid, region);
     buildColors(world, this.colors, painted, this.layers);
+    this.tintMarks(painted);
     const patches = makePatches(this.colors, world.params.n, dirtyRects(world.grid, painted));
     // Petróleo revelado: a tela recebe as jazidas de novo (raro: só quando o Rebaixar acha petróleo).
-    const brushMs = this.now() - t0;
-    this.send(revealed.length ? { type: 'patch', patches, brushMs, deposits: world.deposit.slice() } : { type: 'patch', patches, brushMs });
+    return { patches, revealed: revealed.length ? world.deposit.slice() : null };
+  }
+
+  /** Pinta por cima as marcas dos desastres (alagado, cinzas, queimado, seco) nas células dadas. */
+  private tintMarks(cells: Iterable<number>): void {
+    const d = this.disasters?.disturbance;
+    if (!d || !d.active.size) return;
+    const tick = this.clock.tick;
+    for (const c of cells) if (d.kind[c]) tintMark(this.colors, c, d.kind[c] as number, d.strength(c, tick));
+  }
+
+  /** Aplica o que os desastres fizeram: relevo erguido, marcas novas ou vencidas, e avisa a tela. */
+  private applyDisasters(o: DisasterOutcome): void {
+    const world = this.world;
+    if (!world) return;
+    const patches: Patch[] = [];
+    let deposits: Uint8Array | null = null;
+    for (const u of o.uplifts) {
+      const done = this.stroke(Tool.Raise, u.point, u.radius, u.meters / RAISE_RATE);
+      if (!done) continue;
+      patches.push(...done.patches);
+      deposits = done.revealed ?? deposits;
+    }
+    if (o.marked.length) {
+      buildColors(world, this.colors, o.marked, this.layers);
+      this.tintMarks(o.marked);
+      patches.push(...makePatches(this.colors, world.params.n, dirtyRects(world.grid, o.marked)));
+    }
+    if (patches.length) this.send(deposits ? { type: 'patch', patches, brushMs: -1, deposits } : { type: 'patch', patches, brushMs: -1 });
+    if (o.events.length) this.send({ type: 'disasters', events: o.events });
+  }
+
+  /** As marcas vão sumindo aos poucos: repinta as que estão ativas (a cada MARK_FADE_YEARS anos). */
+  private fadeMarks(): void {
+    const world = this.world;
+    const d = this.disasters?.disturbance;
+    if (!world || !d || !d.active.size) return;
+    const cells = [...d.active];
+    buildColors(world, this.colors, cells, this.layers);
+    this.tintMarks(cells);
+    this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
   }
 
   /** Repinta o mundo todo e manda as 6 faces como remendos (brushMs -1: não é pincelada). */
@@ -369,6 +438,7 @@ export class SimulationCore {
       this.geology.send({ type: 'consumed', world: this.worldId, index: r.index });
       this.brushLog = this.brushLog.filter((b) => b.tick >= r.tick);
       if (this.brushLog.length) this.replayBrushes(world);
+      if (this.disasters) this.tintMarks(this.disasters.disturbance.active);
       const changed: number[] = [];
       for (let c = 0; c < world.cellCount; c++) {
         const o = c * 4;
@@ -386,6 +456,11 @@ export class SimulationCore {
     this.geology.send({ type: 'consumed', world: this.worldId, index: r.index });
     this.brushLog = this.brushLog.filter((b) => b.tick >= r.tick);
     if (this.brushLog.length) this.replayBrushes(world);
+    if (this.disasters) {
+      // Fronteiras novas para a tensão; as marcas por cima das cores novas.
+      this.disasters.onRecompose();
+      this.tintMarks(this.disasters.disturbance.active);
+    }
     const n = world.params.n;
     const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
     this.send({ type: 'recomposed', patches: makePatches(this.colors, n, faces), plateCells: r.plateCells, angles: r.angles, plates: r.motion, deposits: world.deposit.slice() });
@@ -524,6 +599,11 @@ export class SimulationCore {
     if (this.geology.perTick) this.geology.send({ type: 'advance', world: this.worldId, tick });
     while (this.pending.length && (this.pending[0] as GeologyResult).tick + APPLY_DELAY_TICKS <= tick) {
       this.applyResult(this.pending.shift() as GeologyResult);
+    }
+    if (this.disasters) {
+      const o = this.disasters.step(tick, this.plateRate);
+      if (o) this.applyDisasters(o);
+      if (tick % (MARK_FADE_YEARS * TICKS_PER_YEAR) === 0) this.fadeMarks();
     }
   }
 
