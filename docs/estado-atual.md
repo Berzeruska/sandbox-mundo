@@ -1,34 +1,33 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-17**, branch `marco-2`. A prévia tem o fim do bloco Minerais e clima (T6 e T7).
+Atualizado em: **2026-10-17**, branch `marco-2`. Rodada de correções do teste da `50f0dca` feita;
+próximo: bloco Desastres (T8 a T12).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
-- **Bloco atual:** Minerais e clima (T6, T7) **terminado, esperando o teste do usuário no celular**
-  (lista numerada na mensagem de fim de bloco; resultados na especificação, T6 e T7). Próximo bloco:
-  Desastres (T8 a T12).
-- **Esperando decisões do usuário** (propostas com imagem, sem trocar ainda; especificação, "Teste
-  rápido da T6 no celular"): (1) pedrinhas rústicas (`docs/img/m2-t6-pedras-rusticas.png`);
-  (2) poucas jazidas: maiores, mais ou as duas; (3) costa reta em vez de bolhas
-  (`docs/img/m2-costa-reta.png`). Também: mais pontes de terra exigiriam plataformas continentais
-  mais largas (pergunta, se o usuário quiser).
-- **Feito no bloco:** T6 (19 tipos de jazidas, formação na deriva, camada "Ver recursos"), correção do
-  remendo nas fronteiras de placa, T7 (ciclo glacial forte com mar baixando, controle de temperatura,
-  calota acima de ~62°, gelo com cara de gelo, neve pela chuva, erosão pelo clima, biomas menos secos,
-  camada "Ver biomas"). Metas de "de perto" registradas (≥ 60 parado/girando; ≥ 30, nunca < 20, com
-  placas).
+- **Aparelho-alvo mudou (decisão do usuário, 2026-10-17): o notebook** (Vivobook Go E1504FA, Ubuntu,
+  Radeon 610M, tela 1080p 60 Hz com toque). O celular saiu do projeto, sem meta. O "Medir desempenho"
+  roda no notebook. **Metas novas propostas em `docs/decisoes.md`, esperando aprovação**; até lá, não
+  piorar o relatório de 2026-10-17 (60 fps em tudo, nenhum quadro > 50 ms, geração 0,79 s).
+- **Feito na rodada do teste da `50f0dca`** (detalhes em `docs/decisoes.md` e na especificação):
+  pontos rosa/azuis no gelo corrigidos (cor estourava o byte); costa reta; quadrados a partir de 3–6 px
+  (sem formas redondas entre os pixels); faixas arrastadas nas fronteiras de placa de longe corrigidas;
+  minério em pixels quadrados; jazidas maiores (mesmo número) formando-se a cada 1.000–10.000 anos por
+  frente; plataforma continental larga (pontes de terra no máximo glacial); controle de temperatura
+  suave (1 °C/s); setas ↑/↓ zoom e ←/→ giro, mãozinha sobre o globo, toque curto mostra bioma e jazida.
+- **Esperando o usuário:** (1) aprovar as metas do notebook; (2) proposta dos polos
+  (`docs/img/m2-polos-proposta.png`: borda em lobos, placas soltas, fino e azulado na borda); (3)
+  norte/sul pelo teclado não existe (arrastar faz) — o usuário pediu para ser avisado.
+- **Fronteiras de placa:** o usuário disse "ainda não está bom" sem detalhar; corrigido o que se viu
+  (faixas arrastadas de longe, formas redondas de média distância). Sobram filetes finos na fenda
+  quando as placas acabaram de se afastar (é a fenda nova, desenhada como vale ou dorsal).
 - **Limite:** a textura de cores guarda o bioma em 4 bits (16 biomas, o número de hoje). Bioma novo
-  exige mudar isso (o teste avisa); bioma novo só perguntando ao usuário, com o custo.
-- **Planeta cubado:** o que sobra (hexágonos perto dos 8 cantos, células desencontradas nas emendas) em
-  "O que ainda sobra" na especificação (`docs/img/m2-perto-restos.png`); o usuário gostou dos
-  hexágonos. A proposta de costa reta (item 3 acima) muda a vista de perto de novo.
-- **Acompanhar:** primeira abertura da página 5,0 s no celular (antes 4,6).
+  exige mudar isso; bioma novo só perguntando ao usuário, com o custo.
 - **Decidido em 2026-10-16 (teste do Bloco G):** `42` é falha conhecida de latitude; critério de
   formas mantido; pedacinhos de terra no oceano depois de colisões são aceitáveis; polos, neve demais
-  e biomas pouco variados vão para a T7; o Hot 50i continua aparelho-alvo até o fim do M2 (o usuário
-  decide com o relatório).
+  e biomas pouco variados vão para a T7.
 - **Direção geral do usuário (2026-10-16):** o mundo real é a base, não uma cópia exata; o que precisar
   mudar para o jogo funcionar bem pode mudar, com o usuário decidindo o que tiver efeito de jogo.
 - **Regra reforçada pelo usuário (2026-10-16):** mecanismo novo com efeito de jogo, mesmo para fazer
@@ -98,22 +97,20 @@ sobre "onde estamos", vale este.
   vira mar; rifte parado fica como vale em terra (aulacógeno, opção 1 do usuário).
 
 ## Pendente no M2
-- [ ] Confirmar no celular: vale de rifte sem neve (`docs/bugs.md`), remendo nas fronteiras corrigido.
-- [ ] Travadas: confirmar no celular se caíram com menos lixo de memória no ajudante 2; se não, ver
-  "recomposição há X s" (GPU ou disputa de núcleos).
-- [ ] Medir no celular "de perto, girando" e "idem, de perto" (cenários novos do "Medir desempenho")
-  depois da correção; julgar o que sobra do cubo no teste do fim do bloco Minerais e clima.
+- [ ] Confirmar no notebook: vale de rifte sem neve (`docs/bugs.md`), fronteiras de placa.
 - [ ] **Falha conhecida:** semente `42` com 33% da terra acima de 60° em N = 256 aos 10 min.
-- [ ] **Falha conhecida:** semente `7` com 0,44% da terra acima de 4.000 m aos 10 min (alvo 0,5%).
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] Confirmar no celular: travamento em 92% e lagos retos (`docs/bugs.md`).
 - [ ] T8 em diante (desastres, avisos, teste longo).
-- [ ] Geração estimada ~2,93 s no celular depois da T6 e da T7 (meta 3 s): medir no teste do bloco.
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
-## Últimas medições no celular (Infinix Hot 50i)
+## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
+- 2026-10-17, 1920×1080: 60 fps (teto da tela) em todos os cenários, inclusive de perto e placas 100%;
+  pior quadro 17 ms; geração 0,79 s (primeira abertura 1,48 s); recomposição ~330 ms, relógio sem
+  esperar; clima ~88 ms no ajudante.
+
+## Histórico: medições no celular (Infinix Hot 50i, fora do projeto desde 2026-10-17)
 - Metas: pausado ≥ 85 fps; tempo rodando ≥ 60; placas em deriva ≥ 30 (nunca < 20); geração ≤ 3 s.
 - `0155233d` (rodada depois do Bloco G, relatado pelo usuário): geração **2,8 s** (meta 3 s); metas de
   fps batidas; primeira abertura 5,0 s (antes 4,6); travadas 147 da tela e 11 da data, todas de

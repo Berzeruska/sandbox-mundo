@@ -4,7 +4,8 @@
 - **TypeScript** (modo estrito) + **Vite** (servidor e build) + **Vitest** (testes) + ESLint.
 - **WebGL2** para desenhar o planeta (shader). **Canvas 2D** sobreposto para interface e marcações.
 - Sem engine de jogo. Sem framework de UI no início (HTML + CSS simples para botões).
-- PWA (manifest + service worker) para instalar no celular.
+- PWA (manifest + service worker) para instalar (o service worker também dá o isolamento da memória
+  compartilhada).
 - Deploy: GitHub Actions → GitHub Pages.
 
 Motivo do TypeScript: o compilador pega uma classe inteira de erro antes de rodar, o que importa
@@ -16,7 +17,7 @@ num projeto escrito majoritariamente por IA.
   globo, **polos sem distorção** e editáveis como qualquer outra região.
 - Custo: vizinhança nas bordas entre faces exige mapeamento. Isso vive isolado em
   `src/world/cubesphere.ts`, com testes exaustivos.
-- Resolução inicial: `N = 256` (≈ 393 mil células). Ajustável; medir no celular antes de subir.
+- Resolução inicial: `N = 256` (≈ 393 mil células). Ajustável; medir no notebook antes de subir.
 
 ## Câmera: zoom contínuo, sem troca de modo
 - O globo é sempre desenhado em projeção ortográfica (como uma bola vista de longe).
@@ -77,7 +78,8 @@ relógio já ficam com eles; ajudante a mais só gasta memória e coordenação.
   antes de seguir com cópia (+45–48 MB em vez de ~+15–20 MB).
 
 ### Teto de memória
-- **Dados do jogo ≤ 150 MB de RAM** no aparelho-alvo (Hot 50i com 4 GB), medido no fim de cada marco.
+- **Dados do jogo ≤ 150 MB de RAM** (teto do tempo do celular com 4 GB; com o notebook de 16 GB ele
+  pode subir, a decidir junto com as metas novas), medido no fim de cada marco.
   Não contam o próprio navegador (~100–150 MB) nem a memória de vídeo (~20–40 MB).
 - Estimativa por marco (N = 256, ~393 mil células): hoje 53 MB ao abrir → 66 aos 15 min (medido);
   fim do M2 70–85; M3 85–115; M4 95–130; M5 100–140 (crônica com teto, a antiga resumida);
@@ -110,24 +112,25 @@ docs/
 ```
 
 ## Orçamento de desempenho
-- **Aparelho-alvo (2026-10-15): Infinix Hot 50i** — MediaTek Helio G81 (só 2 núcleos fortes
-  Cortex-A75 a 2,0 GHz + 6 Cortex-A55), GPU **Mali-G52 MP2**, tela 720p a 120 Hz. Tudo é otimizado
-  pensando nele. Consequências: o worker e a thread principal disputam os 2 núcleos fortes (o worker
-  só trabalha quando há o que fazer); a GPU tem pouca banda e pouco cálculo por pixel (shader leve,
-  sem trabalho repetido por quadro).
+- **Aparelho-alvo (2026-10-17, decisão do usuário): o notebook** — ASUS Vivobook Go E1504FA com
+  Ubuntu: Ryzen 5 7520U (4 núcleos Zen 2, 8 threads), GPU integrada **Radeon 610M**, 16 GB, tela
+  1920×1080 a 60 Hz, com toque (o usuário joga pelo toque). **O celular saiu do projeto, sem meta
+  nenhuma** (manter os dois dobraria o trabalho). O que foi feito pensando no Hot 50i continua valendo
+  (shader leve, ajudantes com folga), mas deixa de ser limite.
 - **Sem opção de qualidade** (decisão do usuário): o jogo inteiro tem que rodar bem no aparelho-alvo.
-- Metas no aparelho-alvo: pausado ≥ 85 fps; tempo rodando ≥ 60 fps; placas em deriva ≥ 30 fps,
-  nunca abaixo de 20; geração de mundo ≤ 3 s. **De perto** (zoom máximo; decisão do usuário,
-  2026-10-17): parado ou girando ≥ 60 fps; com placas andando ≥ 30, nunca abaixo de 20 (cenários
-  "de perto, girando" e "idem, de perto" do "Medir desempenho"). Notebook: 60 fps.
-- Estimativa antes de pedir medição ao usuário: navegador com CPU desacelerada 6× (emulação).
-  O relatório do botão "Medir desempenho" (painel Dados), rodado no aparelho, é a verdade.
+- **Metas no notebook: propostas em `docs/decisoes.md` (2026-10-17), esperando aprovação.** Até lá,
+  vale não piorar o relatório de 2026-10-17 (60 fps — o teto da tela — em todos os cenários, nenhum
+  quadro > 50 ms, geração ~0,8 s, recomposição ~330 ms sem o relógio esperar).
+- Metas antigas do celular (histórico, não valem mais): pausado ≥ 85 fps; tempo rodando ≥ 60;
+  placas ≥ 30 (nunca < 20); geração ≤ 3 s; de perto ≥ 60 parado e ≥ 30 com placas.
+- O relatório do botão "Medir desempenho" (painel Dados), rodado no notebook, é a verdade. A tela é de
+  60 Hz: o fps não passa de 60; folga se vê no "pior quadro" e no tempo de GPU.
 - Um painel de depuração (fps, ms por tick, células) acessível por botão, desde o Marco 1.
 - Se o orçamento estourar, reduzir resolução antes de cortar mecânica (mas sem opção de qualidade:
   o que valer, vale para todos).
 
 ### Como medir (o que funciona e o que engana)
-- **Verdade:** o relatório do botão "Medir desempenho" (Mundo → Dados), rodado no aparelho-alvo.
+- **Verdade:** o relatório do botão "Medir desempenho" (Mundo → Dados), rodado no notebook.
   ~2 min: pausado, girando, tempo 20× com placas paradas (também com o painel aberto com e sem o
   desfoque antigo), placas 100%, deriva longa com colisões e geração; mostra GPU, fps médio/mínimo/
   pior quadro, trabalho da tela, worker por passo e por parte da recomposição, soldas e pedaços.

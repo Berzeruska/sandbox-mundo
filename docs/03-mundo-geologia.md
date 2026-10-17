@@ -284,12 +284,15 @@ Ideia do usuário registrada em 2026-10-15.
   | Indústria | Sal | bacias secas e riftes antigos | evaporitos |
   | Indústria | Enxofre | vulcões dos arcos e domos de sal | gases vulcânicos; bactérias no sal |
   | Indústria | Calcário | mares rasos antigos, **comum** | conchas e recifes |
-- Formam-se **na geração e durante a deriva**: frente ativa há tempo (medido no relógio da deriva) pode
-  ganhar uma jazida a 2–4 células para dentro do continente (arco: cobre, ouro, prata, enxofre, lítio
+- Formam-se **na geração e durante a deriva**: cada frente ativa ganha uma jazida a cada intervalo
+  sorteado de **1.000 a 10.000 anos de jogo** (pedido do usuário, 2026-10-17; ~2,5 jazidas novas por
+  1.000 anos no mundo todo com placas 100%), uma jazida a 2–4 células para dentro do continente (arco: cobre, ouro, prata, enxofre, lítio
   se seco e alto; colisão: ouro, estanho, cromo) ou no próprio vale (rifte continental: petróleo, sal).
   Crosta que afunda leva a jazida junto. A margem passiva não forma jazida nova (fica para depois, se
   fizer falta).
-- Tamanho: pequena 1–2 células, média 3–6, grande 8–15; 1 célula de folga entre jazidas.
+- Tamanho: pequena 3–6 células, média 10–20, grande 25–45 (maiores desde 2026-10-17: apareciam pouco);
+  1 célula de folga entre jazidas. ~45–55 jazidas por mundo, ~0,7% da terra.
+- De perto: mosaico 3×3 de pixels quadrados na cor do tipo (sem bolinhas).
 - **Petróleo fica escondido** no subsolo até o terreno ser cavado (Rebaixar; os humanos no M4).
   Na camada "Ver recursos" o jogador vê tudo; "escondido" vale para os humanos.
 - Cada depósito tem tipo, quantidade e profundidade, e **pertence a uma placa: move-se junto

@@ -142,8 +142,9 @@ mundos evoluem.
 ## Tarefas (fazer em ordem; cada uma = um commit)
 
 **Blocos de teste (regra do usuário, 2026-10-16):** sigo de tarefa em tarefa e só paro no fim de
-cada bloco, com a prévia e a lista numerada do que testar no celular (paradas obrigatórias no meio:
-decisão de design, teste de portão, meta de desempenho quebrada na estimativa).
+cada bloco, com a prévia e a lista numerada do que testar no notebook (aparelho-alvo desde
+2026-10-17; paradas obrigatórias no meio: decisão de design, teste de portão, meta de desempenho
+quebrada na medição).
 1. **Bloco G:** correção 2, G3, G4.
 2. **Minerais e clima:** T6, T7.
 3. **Desastres:** T8 a T12.
@@ -446,6 +447,21 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
      e costas viram retas: quadrados (degraus) no meio das faces e hexágonos perto dos 8 cantos do cubo,
      sem a dobra das emendas. Custo medido no notebook: igual (384 e 403 fps de perto); no celular deve
      ser igual ou um pouco menor (menos contas por pixel).
+
+  **Teste da `50f0dca` no notebook (2026-10-17) — o que mudou** (detalhes em `docs/decisoes.md`):
+  - Decididas: minério sem bolinhas (mosaico de pixels quadrados); jazidas maiores, mesmo número,
+    surgindo a cada 1.000–10.000 anos por frente; costa reta aprovada; plataforma larga (pontes de
+    terra no máximo glacial: terra 30% → ~32–33,5%).
+  - Corrigidos: pontos rosa/azuis no gelo (cor estourando o byte); controle de temperatura brusco (agora
+    anda 1 °C/s até o valor); formas redondas entre os pixels (quadrados a partir de 3–6 px); faixas
+    arrastadas nas fronteiras de placa de longe (borda orgânica lia a outra placa).
+  - Notebook: setas ↑/↓ zoom, ←/→ giro, mãozinha sobre o globo, toque curto mostra bioma e jazida.
+  - **Proposta dos polos esperando o usuário** (`docs/img/m2-polos-proposta.png`, em cima hoje,
+    embaixo a proposta): o gelo marinho deixa de ser um disco liso — borda em lobos grandes (ruído
+    fixo por mundo, ±8 °C), uma faixa de ±3 °C na borda partida em placas soltas de algumas células, e
+    a cor pela espessura (fino e azulado perto da borda, deixando ver o mar; grosso e branco no miolo),
+    com tons por placa de gelo. Custo medido: um ruído calculado uma vez por mundo, +~60 ms na geração
+    (0,87 → 0,93 s em 5 sementes, N = 256, sem o ajudante); o desenho não muda.
 
 - [ ] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa

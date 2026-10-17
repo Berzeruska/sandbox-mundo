@@ -11,7 +11,8 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 - Dionatan é o designer e o testador. Ele joga, relata e decide o design.
 - Ele está aprendendo programação com o projeto. Ao terminar cada tarefa, explique em 3–5 linhas
   o que foi feito e por que, sem jargão desnecessário.
-- Ele testa no celular e no notebook. Toda mudança precisa funcionar nos dois.
+- Ele testa e joga no **notebook** (Vivobook Go, Ubuntu), pela tela de toque. O celular saiu do
+  projeto (decisão do usuário, 2026-10-17): sem meta nem teste nele.
 
 ## Ordem de leitura antes de qualquer trabalho
 0. `docs/estado-atual.md` — onde paramos, o que está pendente.
@@ -35,13 +36,13 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
    Mesma semente = mesmo mundo. Nunca use `Math.random()` na simulação.
 5. **Simulação separada da renderização.** A simulação nunca toca no DOM, no canvas ou no WebGL.
    A renderização só lê o estado.
-6. **Orçamento de celular.** Aparelho-alvo: **Infinix Hot 50i** (Helio G81, só 2 núcleos fortes A75
-   + 6 A55, GPU Mali-G52 MP2, tela 720p 120 Hz). Otimize pensando nele; não há opção de qualidade:
-   o jogo inteiro tem que rodar bem nele. Metas no aparelho: pausado ≥ 85 fps, tempo rodando
-   ≥ 60, placas em deriva ≥ 30 (nunca abaixo de 20), geração ≤ 3 s; de perto (zoom máximo) ≥ 60
-   parado ou girando e ≥ 30 (nunca < 20) com placas andando; notebook 60 fps. Estime com CPU
-   desacelerada 6× antes de pedir medição; o relatório "Medir desempenho" do aparelho é a verdade.
-   Se uma mudança derrubar isso, conserte antes de seguir.
+6. **Orçamento do notebook** (decisão do usuário, 2026-10-17; antes era o celular Infinix Hot 50i,
+   que saiu sem meta nenhuma). Aparelho-alvo: **ASUS Vivobook Go E1504FA** (Ryzen 5 7520U, 4 núcleos
+   / 8 threads, GPU integrada Radeon 610M, 16 GB, tela 1920×1080 a 60 Hz com toque), Ubuntu. Não há
+   opção de qualidade. **Metas novas: propostas em `docs/decisoes.md`, ainda não aprovadas**; até a
+   aprovação, nenhuma mudança pode piorar o relatório "Medir desempenho" de 2026-10-17 no notebook
+   (60 fps em todos os cenários, nenhum quadro > 50 ms, geração ~0,8 s). O relatório rodado no
+   notebook é a verdade. Se uma mudança derrubar a meta, conserte antes de seguir.
 7. **Sem dependência nova sem justificativa.** Antes de instalar um pacote, diga qual, por que e o
    tamanho aproximado. Registre em `docs/decisoes.md`.
 8. **Nada do WorldBox.** Não copie, descompile nem reproduza código, sprites, sons ou nomes de
@@ -53,11 +54,11 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
     - Siga direto de tarefa em tarefa (commit, push e `docs/estado-atual.md` a cada uma) e só pare
       no **fim de cada bloco** do marco. Os blocos estão na especificação do marco.
     - No fim do bloco: publique a prévia do branch (`/previa/<branch>/`), passe o link e uma **lista
-      completa e numerada do que testar no celular, tarefa por tarefa**: o que fazer, o que deve
+      completa e numerada do que testar no notebook, tarefa por tarefa**: o que fazer, o que deve
       aparecer e o que seria defeito. Inclua o "Medir desempenho".
     - **Paradas obrigatórias, mesmo no meio do bloco:** decisão de design (regra 9); teste de
       portão, que muda o caminho conforme o resultado (ex.: um recurso do navegador funcionar no
-      celular); meta de desempenho quebrada na estimativa no notebook.
+      notebook); meta de desempenho quebrada na medição no notebook.
 12. **Nenhum teste depende do relógio real** (regra do usuário): lógica com tempo vira função pura
     com tempos sintéticos. Medições de desempenho não são testes de aprovação.
 13. **Desempenho a cada marco** (regra do usuário): ao fim de cada marco, medir de novo nas condições
@@ -75,7 +76,7 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 
 ## Documentação viva
 - **Ao fim de cada tarefa: commit e push no branch do marco**, com `docs/estado-atual.md` reescrito
-  no mesmo commit (marco e tarefa atuais, feito, pendente, últimas medições do celular, decisões
+  no mesmo commit (marco e tarefa atuais, feito, pendente, últimas medições do notebook, decisões
   abertas, ideias para marcos futuros). O Project de orientação do usuário (claude.ai) lê os docs
   direto do GitHub, no branch mais recente do marco atual: o que não está no git não existe para ele.
   Nada de conhecimento só local no notebook (scratchpad, pastas fora do repositório, memória da sessão).
@@ -84,7 +85,7 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 - Bug encontrado pelo usuário? Registre em `docs/bugs.md` com: como reproduzir, causa, correção.
 
 ## Comandos
-- `npm run dev` — servidor local (acessível pelo celular na mesma rede: use `--host`).
+- `npm run dev` — servidor local.
 - `npm run check` — tipos + lint + testes. Obrigatório antes de commit.
 - `npm run build` — build de produção.
 - `npm test` — só os testes.

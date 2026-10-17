@@ -664,3 +664,50 @@ Formato: data — decisão — motivo — alternativa descartada.
   - **Erosão pela chuva:** taxa × chuva/700 mm, entre 0,25× e 2×.
   - **Fronteira de placas de perto:** só células da própria placa (bit de "encosta em outra placa" da
     textura de placas decide quando olhar); a cópia de tolerância continua só de longe (células < 6 px).
+
+- **2026-10-17 — Aparelho-alvo passa a ser o notebook (decisão do usuário).**
+  - **Decisão:** o alvo é o ASUS Vivobook Go E1504FA com Ubuntu (Ryzen 5 7520U, Radeon 610M, 16 GB,
+    tela 1080p a 60 Hz com toque). O celular (Infinix Hot 50i) sai do projeto **sem meta nenhuma**.
+    O "Medir desempenho" passa a ser rodado no notebook. O usuário joga pelo toque.
+  - **Motivo:** manter dois aparelhos dobraria o trabalho.
+  - **Descartado:** manter o celular como alvo mínimo.
+  - **Medição de partida (notebook, 1920×1080, Chrome, versão de 2026-10-17):** 60 fps (teto da tela)
+    em todos os cenários, inclusive "de perto" e placas 100%; pior quadro 17 ms, nenhum > 50 ms;
+    geração 0,79 s (primeira abertura 1,48 s); recomposição média ~330 ms (pior 505), relógio sem
+    esperar; recálculo do clima ~88 ms no ajudante.
+  - **Metas propostas (esperando aprovação do usuário; até lá não valem):**
+    1. Todos os cenários (pausado, girando, de perto, tempo 20×, placas 100%, deriva longa, ruptura):
+       **60 fps de média** (o teto da tela), **mínimo ≥ 50**, **nenhum quadro > 50 ms**.
+    2. **Geração ≤ 1,5 s** do pedido ao globo (primeira abertura ≤ 2,5 s).
+    3. **Recomposição ≤ 1 s** no ajudante e o relógio **nunca esperando** em 20× com placas 100%.
+    4. **Folga para os marcos seguintes:** o desenho do globo ≤ 8 ms de GPU por quadro em 1080p (metade
+       do quadro de 60 Hz), medido com consulta de tempo de GPU.
+    5. Memória: o teto de 150 MB de dados vira **≤ 400 MB** (o notebook tem 16 GB).
+
+- **2026-10-17 — Teste da 50f0dca: correções e decisões.**
+  - **Pontos rosa e azuis no gelo:** a cor do gelo claro passava de 255 e a textura (`Uint8Array`) dava
+    a volta (260 → 4). Cor presa em 0–255. Não era o limite de 16 biomas (são 16 exatos, cabem).
+  - **Costa reta (aprovada):** de perto fica a célula de centro mais perto, sem alisamento por pesos;
+    o contorno sai da diferença de distância (√) até a célula de outro bioma. Custo menor por pixel.
+  - **Quadrados mais cedo:** as células viram quadrados a partir de 3–6 px (antes 6–14). Entre 6 e
+    14 px a borda orgânica ainda agia sobre pixels já visíveis e fazia formas redondas e "lascas"
+    pontudas na costa. A borda orgânica fica só onde a célula tem menos de ~3–6 px.
+  - **Fronteiras de placa de longe:** a borda orgânica desloca o ponto até ~0,7 célula e perto da
+    fronteira ele caía na textura da outra placa, lida com a rotação desta: faixas arrastadas ao longo
+    da costa, maiores quanto mais as placas andaram. Agora, se o ponto deslocado é de outra placa, lê
+    sem o deslocamento (1 leitura de textura a mais por pixel, só com placas fora da composição).
+  - **Minério de perto:** mosaico 3×3 de pixels quadrados na cor do tipo (sem bolinhas). Jazidas
+    maiores (pequena 3–6, média 10–20, grande 25–45 células), mesmo número (~45–55): 0,67% da terra.
+  - **Formação de jazidas pelo relógio do jogo:** cada frente ativa forma uma jazida a cada intervalo
+    sorteado de 1.000–10.000 anos (pedido do usuário). Medido: ~2,5 jazidas novas por 1.000 anos no
+    mundo todo com placas 100%. A formação só roda nas recomposições (placas paradas = geologia parada).
+  - **Plataforma continental larga:** a faixa rasa da geração vai a 28% da faixa de profundidades
+    (antes 6%), até −160 m. No máximo glacial (mar −120 m) a terra sobe de 30% para ~32–33,5% (antes
+    ~30,5%). Efeito colateral: a crosta continental (acima de −500 m) passa de ~31% para ~35% do
+    planeta (a Terra tem ~40%); a semente "7" passou a cumprir o critério de altitudes (era falha
+    conhecida); dois testes longos passaram por menos de uma amostra e ganharam essa folga.
+  - **Controle de temperatura suave:** o controle manda o alvo já ao arrastar; o aplicado anda até ele
+    a 1 °C por segundo real (também pausado) e o mundo é refeito a cada 0,5 °C.
+  - **Teclado e mouse no notebook:** setas ↑/↓ aproximam/afastam no centro, ←/→ giram (velocidade na
+    tela igual em qualquer zoom); mãozinha (grab/grabbing) sobre o globo no modo mover; toque curto no
+    modo mover sempre mostra o bioma e a jazida à vista. Norte/sul pelo teclado: não há (arrastar faz).

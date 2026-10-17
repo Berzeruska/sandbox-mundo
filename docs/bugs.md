@@ -190,3 +190,12 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **Correção:** qualquer toque no globo desliga o giro de teste (o botão volta a "Girar (fps)").
   Conferido no notebook: só o morro no ponto tocado. Se a listra aparecer com o giro desligado, é outro
   caso.
+
+## 2026-10-17 — Pontos azul-forte e rosa no gelo e nas montanhas nevadas (notebook, `50f0dca`)
+- **Como reproduzir:** clima frio (ou gelo pintado com o pincel); olhar a calota e os picos nevados.
+  Mais pontos no gelo pintado (mais alto, mais claro).
+- **Causa:** a cor do gelo claro (bioma claro × brilho de altitude × sombreado + variação) passava de
+  255, e a textura de cores é `Uint8Array`, que dá a volta em vez de prender (260 vira 4): um canal ia
+  a quase 0 e a célula ficava rosa ou azul. Não era o limite de 16 biomas (são 16, cabem nos 4 bits).
+- **Correção:** cada canal preso em 0–255 antes de gravar (`clampByte` em `src/render/colors.ts`);
+  teste em `tests/render/colors.test.ts` (falha sem a correção).
