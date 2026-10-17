@@ -44,6 +44,7 @@ describe('menu de ferramentas: conteúdo', () => {
       ['Incêndio', true],
       ['Frequência', true],
       ['Ver tensão', true],
+      ['Lista', true],
     ]);
     expect(itemsOf('clima').map((i) => [i.label, i.available])).toEqual([['Temperatura', true], ['Ver biomas', true], ['Nuvens', true]]);
     expect(itemsOf('geologia').map((i) => [i.label, i.available])).toEqual([['Ver placas', true], ['Ver recursos', true], ['Velocidade', true]]);

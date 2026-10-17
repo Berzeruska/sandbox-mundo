@@ -68,6 +68,7 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: true, disaster: DisasterKind.Fire },
   { id: 'disasterFreq', category: 'desastres', label: 'Frequência', icon: '🎲', kind: 'tool', available: true },
   { id: 'stressLayer', category: 'desastres', label: 'Ver tensão', icon: '📈', kind: 'toggle', available: true },
+  { id: 'disasterList', category: 'desastres', label: 'Lista', icon: '📜', kind: 'action', available: true },
 
   { id: 'platesLayer', category: 'geologia', label: 'Ver placas', icon: '🧩', kind: 'toggle', available: true },
   { id: 'resourcesLayer', category: 'geologia', label: 'Ver recursos', icon: '💎', kind: 'toggle', available: true },

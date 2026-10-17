@@ -5,8 +5,11 @@ import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
 import { KeyControls } from './input/keys';
 import { DisasterFx } from './render/disaster-fx';
+import { DisasterLog, isToast, type LogEntry } from './ui/disaster-log';
+import { DisasterListPanel, DisasterToasts } from './ui/disaster-panel';
 import { MAX_STORMS } from './render/shaders';
 import type { DisasterEvent, DisasterKind } from './world/disasters/types';
+import type { Vec3 } from './world/cubesphere';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
 import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectonics';
@@ -38,6 +41,8 @@ const GENERATION_WATCHDOG_MS = 20_000;
 const VERSION_RELOAD_KEY = 'sandbox-mundo:recarga-por-versao';
 /** Duração da transição suave entre a composição anterior e a nova (ms). */
 const FADE_MS = 350;
+/** Duração do voo da câmera até um desastre (ms). */
+const FLY_MS = 800;
 
 /**
  * Thread principal: câmera, entrada, interface e desenho. O mundo vive no Web Worker
@@ -106,6 +111,11 @@ export class App {
   private legend!: ResourceLegend;
   private biomeLegend!: BiomeLegend;
   private stressLegend!: BiomeLegend;
+  /** Lista e avisos de desastres (T12) e o voo da câmera até um deles. */
+  private disasterLog = new DisasterLog();
+  private toasts!: DisasterToasts;
+  private disasterList!: DisasterListPanel;
+  private flight: { from: Vec3; to: Vec3; start: number } | null = null;
   /** Ferramenta de desastre ativa (tocar no globo provoca), ou null. */
   private disasterTool: DisasterKind | null = null;
   private tip!: DepositTip;
@@ -205,6 +215,7 @@ export class App {
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
           if (action === 'newWorld') this.worldDialog.show(this.info?.seedText ?? '');
+          if (action === 'disasterList') this.disasterList.toggle();
           if (action === 'debug') {
             this.debug.toggle();
             this.updateDebug();
@@ -262,6 +273,8 @@ export class App {
       order.map((b) => BIOME_INFO[b]?.name ?? ''),
       order.map((b) => BIOME_LAYER_COLORS[b] ?? [0, 0, 0]),
     );
+    this.toasts = new DisasterToasts(this.hud.root, (p) => this.flyTo(p));
+    this.disasterList = new DisasterListPanel(this.hud.root, this.disasterLog, (p) => this.flyTo(p));
     // Camada "Ver tensão" (T11): a escala de cores das fronteiras.
     this.stressLegend = new BiomeLegend(this.hud.root, ['Tensão baixa', 'média', 'alta: terremoto perto'], STRESS_COLORS);
     this.errorScreen = new ErrorScreen(root, () => void retry());
@@ -333,6 +346,9 @@ export class App {
     this.worldRequestedAt = performance.now();
     this.lastGenerationSignal = this.worldRequestedAt;
     this.fx.clear();
+    this.toasts?.clear();
+    this.disasterLog.clear();
+    this.disasterList?.changed();
     this.sim.newWorld(seedText, DEFAULT_N);
   }
 
@@ -479,10 +495,34 @@ export class App {
     return changed;
   }
 
-  /** Desastres que aconteceram: animação (e, na T12, aviso e lista). */
+  /** Desastres que aconteceram: animação, aviso (só os grandes naturais) e lista. */
   private onDisasters(events: DisasterEvent[]): void {
     const now = performance.now();
     for (const e of events) this.fx.add(e, now);
+    const added = this.disasterLog.add(events);
+    events.forEach((e, k) => {
+      if (isToast(e)) this.toasts.show(added[k] as LogEntry);
+    });
+    this.disasterList.changed();
+  }
+
+  /** Leva a câmera até um ponto do planeta, suave (~0,8 s). */
+  private flyTo(point: Vec3): void {
+    this.camera.stopSpin();
+    this.flight = { from: this.camera.centerPoint(), to: point, start: performance.now() };
+    this.requestDraw();
+  }
+
+  /** Um quadro do voo da câmera (interpolação na esfera, com aceleração suave). */
+  private updateFlight(): boolean {
+    const f = this.flight;
+    if (!f) return false;
+    const u = Math.min(1, (performance.now() - f.start) / FLY_MS);
+    const t = u * u * (3 - 2 * u);
+    const p: Vec3 = [f.from[0] + (f.to[0] - f.from[0]) * t, f.from[1] + (f.to[1] - f.from[1]) * t, f.from[2] + (f.to[2] - f.from[2]) * t];
+    if (Math.hypot(p[0], p[1], p[2]) > 1e-6) this.camera.lookAt(p);
+    if (u >= 1) this.flight = null;
+    return true;
   }
 
   private onPatch(patches: Patch[], brushMs: number, deposits?: Uint8Array): void {
@@ -596,6 +636,7 @@ export class App {
     }
     if (this.camera.update(dt)) this.needsDraw = true;
     if (this.keys.update(this.camera, dt)) this.needsDraw = true;
+    if (this.updateFlight()) this.needsDraw = true;
     if (this.input.update(dt)) this.needsDraw = true;
     if (this.updateMotion()) this.needsDraw = true;
     const gate = this.paintGate.frame(performance.now());

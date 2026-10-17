@@ -685,3 +685,92 @@ body {
   padding: 0 4px;
   min-width: 0;
 }
+
+/* Avisos de desastre grande (T12): no alto, no meio; tocar leva a câmera até lá. */
+.dis-toasts {
+  position: absolute;
+  top: calc(var(--gap) + env(safe-area-inset-top) + 40px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 3;
+  pointer-events: none;
+  max-width: calc(100vw - 20px);
+}
+
+.dis-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 18px;
+  background: rgba(120, 30, 20, 0.92);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  animation: dis-in 0.25s ease-out;
+}
+
+@keyframes dis-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.dis-icon {
+  font-size: 16px;
+}
+
+/* Lista de desastres (T12). */
+.dis-panel {
+  right: 10px;
+  top: calc(48px + env(safe-area-inset-top));
+  width: min(calc(100vw - 20px), 380px);
+  max-height: calc(100% - 140px - env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dis-head {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dis-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dis-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+  color: inherit;
+}
+
+.dis-row.big {
+  background: rgba(180, 50, 30, 0.35);
+  font-weight: 600;
+}
+
+.dis-empty {
+  font-size: 12px;
+  opacity: 0.7;
+}

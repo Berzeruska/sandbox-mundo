@@ -529,9 +529,13 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   verde-amarelo (pouca tensão) a vermelho (terremoto perto), com legenda; repintada a cada 2 anos.
   "Ver placas" continua em Geologia.
 
-- [ ] **T12 — Avisos e lista de desastres**
+- [x] **T12 — Avisos e lista de desastres**
   Aviso curto só para desastres grandes; lista completa no painel; tocar leva a câmera ao local.
   (Não é a crônica permanente, que fica no M5.)
+  **Feito (2026-10-17):** aviso no alto da tela só para desastre grande e natural (o provocado o jogador
+  já está vendo), 6 s, até 3 ao mesmo tempo; "Lista" no menu Desastres abre o painel com os últimos 300
+  (mais recentes primeiro, os grandes em destaque, "(provocado)" nos do jogador); tocar num aviso ou
+  numa linha leva a câmera até o lugar (voo de 0,8 s). Mundo novo limpa a lista.
 
 - [ ] **T13 — Teste longo de estabilidade**
   Teste automático: partindo da Pangeia, em velocidade padrão, depois de X passos existem ≥ 3
