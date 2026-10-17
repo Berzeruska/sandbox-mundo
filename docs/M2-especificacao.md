@@ -833,6 +833,9 @@ Pedidos antes do bloco Minerais e clima:
         assunto de outro marco.
    - **Recomendação:** (a) agora, ou (b) se incomodar no jogo. A (c) resolve melhor a aparência, mas
      troca um defeito visível parado por um "escorregar" visível ao girar. **Decisão do usuário.**
+   - **Decisão do usuário (2026-10-17):** "não pode ficar cubado; dá um jeito de alisar e manter
+     funcional". Feito um alisamento só no desenho (ver `docs/decisoes.md`, "Vista de perto alisada"):
+     costas e divisas curvas, sem dobra nas emendas, contorno também nas emendas.
 
 Registrado também: ideia para depois de **zoom maior**, para caberem humanos pequenos (montanha de 50
 pixels com homem de 5 fica estranho): marcos 3, 4 e 8 (`docs/02-marcos.md`).

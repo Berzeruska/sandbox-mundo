@@ -16,7 +16,8 @@ sobre "onde estamos", vale este.
     (−83%), recomposição 24% mais rápida, mesmo mundo (teste de impressão digital novo). O registro
     mostra "recomposição há X s" e a causa virou "fora do código da tela (GPU, núcleo ocupado, limpeza
     de memória ou sistema)". Falta o celular dizer se as travadas sumiram.
-  - Proposta das emendas e cantos do cubo de perto (opções a–d com custo): **decisão do usuário**.
+  - Planeta "cubado" de perto: alisado só no desenho (costas e divisas curvas, sem dobra nas emendas).
+    De perto ~40% mais pesado no notebook; falta medir no celular.
 - **Acompanhar:** primeira abertura da página 5,0 s no celular (antes 4,6).
 - **Decidido em 2026-10-16 (teste do Bloco G):** `42` é falha conhecida de latitude; critério de
   formas mantido; pedacinhos de terra no oceano depois de colisões são aceitáveis; polos, neve demais
@@ -95,7 +96,7 @@ sobre "onde estamos", vale este.
   pelo clima (lado chuvoso vira escarpa, planalto seco sobrevive).
 - [ ] Travadas: confirmar no celular se caíram com menos lixo de memória no ajudante 2; se não, ver
   "recomposição há X s" (GPU ou disputa de núcleos).
-- [ ] Decisão do usuário: emendas e cantos do cubo de perto (opções a–d na especificação).
+- [ ] Medir no celular o fps de perto com o alisamento (notebook: ~200 contra ~330).
 - [ ] **Falha conhecida:** semente `42` com 33% da terra acima de 60° em N = 256 aos 10 min.
 - [ ] **Falha conhecida:** semente `7` com 0,44% da terra acima de 4.000 m aos 10 min (alvo 0,5%).
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
@@ -130,9 +131,6 @@ sobre "onde estamos", vale este.
   sementes passam aos 3 min).
 
 ## Decisões abertas (do usuário)
-- **Emendas e cantos do cubo de perto** (costa dobrando em ângulo reto, losangos perto dos cantos):
-  (a) deixar; (b) disfarçar só ali com bordas orgânicas, ~1 dia; (c) quadrados alinhados à tela, ~2–3
-  dias, a malha escorrega ao girar; (d) trocar a grade, semanas, outro marco. Recomendação: (a) ou (b).
 - **"Tamanho fixo" das placas:** hoje ficam fixas a identidade e a forma; placas oceânicas podem
   encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
 

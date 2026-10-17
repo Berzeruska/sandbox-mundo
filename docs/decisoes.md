@@ -559,3 +559,22 @@ Formato: data — decisão — motivo — alternativa descartada.
   código dela: pode ser GPU, outro trabalho no mesmo núcleo, limpeza de memória (inclusive a provocada
   pelo ajudante) ou o sistema. O tempo desde a última recomposição mostra se as travadas coincidem com
   ela.
+
+- **2026-10-17 — Vista de perto alisada: o planeta não fica "cubado" (decisão do usuário: "dá um jeito
+  de alisar e manter funcional").** De perto, cada ponto olha as 4 células em volta do canto de célula
+  mais perto (também do outro lado de uma emenda do cubo) e mostra o bioma com mais peso somado (peso
+  pela distância ao centro, 1 no centro e 0 a 1 célula). A cor vem da célula mais perto com esse
+  bioma, então cada célula guarda a sua cor e variação. Divisas e costas viram curvas: sem escadinha,
+  sem a dobra em ângulo reto nas emendas, e o contorno entre biomas passa a existir também nas emendas
+  (largura fixa na tela). Só desenho: a simulação, o pincel e os dados continuam na grade.
+  - **Custo (notebook, sem limite de fps):** de longe igual (~610); de perto ~200 contra ~330 antes. A
+    tangente de cada centro sai de uma série curta a partir da tangente do ponto (a Mali-G52 é lenta em
+    tangente). Falta o celular medir de perto.
+  - **Limite:** perto dos 8 cantos do cubo o miolo das células continua um pouco torto (vira um mosaico
+    arredondado), mas sem quina.
+  - **Descartado:** trocar a grade (semanas, outro marco); malha de quadrados presa à tela (escorrega ao
+    girar); só misturar bordas orgânicas nas emendas (dois estilos na mesma tela).
+  - Imagens: `docs/img/m2-perto-alisado-emendas.png` (em cima antes, embaixo agora: emenda e canto do
+    cubo, semente `42`) e `docs/img/m2-perto-alisado-face.png` (meio de uma face, do zoom máximo ao
+    médio).
+
