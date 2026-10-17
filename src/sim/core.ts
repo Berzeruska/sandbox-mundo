@@ -222,7 +222,9 @@ export class SimulationCore {
         break;
       case 'forceRupture':
         // Racha no passo atual; o mundo rachado aparece APPLY_DELAY_TICKS passos depois.
-        if (this.world) this.geology.send({ type: 'rupture', world: this.worldId, tick: this.clock.tick });
+        // No próximo passo: o atual já rodou e o motor pode já ter dito ao relógio que terminou ele
+        // (uma recomposição com o passo atual chegaria tarde demais para um ajudante atrasado).
+        if (this.world) this.geology.send({ type: 'rupture', world: this.worldId, tick: this.clock.tick + 1 });
         break;
     }
   }

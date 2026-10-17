@@ -199,3 +199,15 @@ Formato: data — como reproduzir — causa — correção — commit.
   a quase 0 e a célula ficava rosa ou azul. Não era o limite de 16 biomas (são 16, cabem nos 4 bits).
 - **Correção:** cada canal preso em 0–255 antes de gravar (`clampByte` em `src/render/colors.ts`);
   teste em `tests/render/colors.test.ts` (falha sem a correção).
+
+## 2026-10-17 — Ruptura forçada podia aparecer 1 passo atrasada com o ajudante 2 atrasado (achado nos testes)
+- **Como reproduzir:** teste "o mundo é o mesmo com o motor no relógio ou num ajudante atrasado"
+  (`tests/sim/geology.test.ts`) depois da T9: com o ajudante "muito atrasado", a recomposição da
+  ruptura do passo 12.000 aparecia no 12.481 em vez do 12.480, e o mundo divergia dali em diante.
+- **Causa:** o comando de ruptura era carimbado com o passo atual do relógio, que já tinha rodado. Se
+  nesse mesmo passo outro comando (uma erupção, que ergue o terreno) fazia o motor avisar "terminei o
+  passo T", a ruptura chegava depois com o mesmo passo T e entregava uma recomposição de T que o
+  relógio já não esperava. Existia antes; os desastres só mudaram a ordem das mensagens.
+- **Correção:** a ruptura vale no passo seguinte (T + 1); e o motor, enquanto um comando do passo T
+  espera, só avisa T − 1. O commit `ec4976c` foi publicado com este teste falhando (o encadeamento do
+  commit não olhou o código de saída do `npm run check`); corrigido no commit seguinte.

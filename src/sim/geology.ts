@@ -272,17 +272,20 @@ export class GeologyEngine {
         if (!this.stepOnce()) return this.progress();
       }
       if (!cmd) break;
-      if (cmd.type === 'rupture' && this.unconsumed >= 0) return this.progress();
+      // A ruptura do passo T ainda vai entregar uma recomposição do passo T: até lá, o relógio só pode
+      // contar com T − 1 (senão ele passa de T + APPLY_DELAY_TICKS sem ela; achado com os desastres).
+      if (cmd.type === 'rupture' && this.unconsumed >= 0) return this.progress(this.tick - 1);
       this.queue.shift();
       this.apply(cmd);
     }
     this.progress();
   }
 
-  private progress(): void {
-    if (this.tick === this.lastProgress) return;
-    this.lastProgress = this.tick;
-    this.emit({ type: 'progress', world: this.worldId, tick: this.tick });
+  /** Avisa o relógio até onde o motor já entregou tudo (`tick`: padrão, o passo atual). */
+  private progress(tick = this.tick): void {
+    if (tick <= this.lastProgress) return;
+    this.lastProgress = tick;
+    this.emit({ type: 'progress', world: this.worldId, tick });
   }
 
   /** O clima precisa ser refeito no passo `tick` (desvio andou CLIMATE_STEP, ou o mar mudou de degrau)? */

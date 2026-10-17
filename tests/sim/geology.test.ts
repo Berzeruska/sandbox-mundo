@@ -233,7 +233,10 @@ describe('mundo novo com o ajudante ocupado', () => {
     expect(port.stops).toBe(2);
     expect(port.engine).not.toBe(old);
     port.results.length = 0;
-    // Mundo novo começa limpo: nenhuma recomposição do velho aparece nele.
+    // Mundo novo começa limpo: nenhuma recomposição do velho aparece nele. Sem desastres (os pontos
+    // quentes erguem o terreno com as placas andando, de propósito; aqui só interessa o vazamento).
+    core.handle({ type: 'disasterFrequency', level: 0 });
+    core.disasters!.hotspots = [];
     core.handle({ type: 'speed', speed: 20 });
     const fresh = Array.from(core.world!.elevation);
     for (let i = 0; i < 4; i++) {
@@ -241,7 +244,7 @@ describe('mundo novo com o ajudante ocupado', () => {
       port.deliver();
     }
     expect(core.world!.params.seedText).toBe('outro');
-    // Placas paradas no mundo novo (padrão): nenhuma recomposição, nada mudou no relevo.
+    // Nenhuma recomposição apareceu ainda (o motor novo não entregou nenhuma), nada mudou no relevo.
     expect(port.results).toHaveLength(0);
     expect(Array.from(core.world!.elevation)).toEqual(fresh);
   });
