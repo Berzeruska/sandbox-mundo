@@ -6,6 +6,23 @@ import { Disturbance, Mark, MARK_YEARS } from './disturbance';
 import { buildFaults, type Fault, feltRadius, MAX_MAGNITUDE, NOTABLE_MAGNITUDE, sampleMagnitude, stressDrop, yearlyStress } from './quakes';
 import { propagateTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, wavePoints } from './tsunami';
 import { decimal, DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './types';
+import {
+  ashRadius,
+  ERUPTIONS_PER_YEAR,
+  eruptionUplift,
+  HOTSPOT_ERUPTION_CHANCE,
+  HOTSPOT_MAX_PER_YEAR,
+  HOTSPOT_METERS_PER_CELL,
+  HOTSPOT_YEARS,
+  hotspotPulse,
+  makeHotspots,
+  MAX_VEI,
+  NOTABLE_VEI,
+  sampleVei,
+  ventCell,
+} from './volcanoes';
+import { Boundary, Crust } from '../plates';
+import { MAX_PLATE_RATE } from '../tectonics';
 
 export { DisasterKind, FREQUENCIES, DEFAULT_FREQUENCY, DISASTER_NAMES, type DisasterEvent } from './types';
 export { Mark } from './disturbance';
@@ -37,6 +54,9 @@ export class Disasters {
   frequency = DEFAULT_FREQUENCY;
   private rng: Rng;
   private faults = new Map<number, Fault>();
+  /** Pontos quentes (fixos no manto: direções no mundo) e quanto (células) a placa já andou por cima. */
+  hotspots: Vec3[];
+  private hotspotTravel: number[] = [];
   private nextId = 1;
   /** Contagem por tipo (para testes e o painel). */
   readonly counts = new Array<number>(7).fill(0);
@@ -44,6 +64,7 @@ export class Disasters {
   constructor(private world: WorldState) {
     this.rng = createRng((world.params.seed ^ 0x6d15a57e) >>> 0);
     this.disturbance = new Disturbance(world.cellCount);
+    this.hotspots = makeHotspots(createRng((world.params.seed ^ 0x40750f07) >>> 0));
     this.onRecompose();
   }
 
@@ -60,8 +81,16 @@ export class Disasters {
     if (tick % TICKS_PER_YEAR !== 0) return null;
     const out: DisasterOutcome = { events: [], marked: this.disturbance.expire(tick), uplifts: [] };
     const factor = FREQUENCIES[this.frequency]?.factor ?? 0;
+    if (plateRate > 0) this.hotspotGrowth(tick, plateRate, factor, out);
     if (factor > 0 && plateRate > 0) {
       for (const f of this.faults.values()) {
+        // Erupção num arco (forte) ou numa dorsal (fraca).
+        const rate = ERUPTIONS_PER_YEAR[f.type];
+        if (rate && this.rng.next() < rate * f.length * f.speed * factor) {
+          const cell = ventCell(this.world, f.cells[this.rng.int(0, f.cells.length - 1)] as number, f.type, this.rng);
+          const vei = f.type === Boundary.Convergent ? sampleVei(this.rng.next(), 2, MAX_VEI) : sampleVei(this.rng.next(), 0, 2);
+          this.eruption(cell, vei, tick, false, f.type === Boundary.Convergent ? 'arco vulcânico' : 'dorsal', out);
+        }
         f.stress += yearlyStress(f) * factor;
         if (f.stress < f.threshold) continue;
         const max = MAX_MAGNITUDE[f.type] ?? 7;
@@ -72,7 +101,7 @@ export class Disasters {
         this.quake(cell, m, tick, false, out);
       }
     }
-    return out.events.length || out.marked.length ? out : null;
+    return out.events.length || out.marked.length || out.uplifts.length ? out : null;
   }
 
   /** Desastre provocado pelo jogador no ponto `point` (funciona com qualquer frequência). */
@@ -84,6 +113,9 @@ export class Disasters {
       // Do jogador: sempre forte (7 a 9), do tamanho que a fronteira mais perto permite.
       const max = Math.max(8, MAX_MAGNITUDE[world.boundary[cell] as number] ?? 8.5);
       this.quake(cell, 7 + (max - 7) * this.rng.next(), tick, true, out);
+    } else if (kind === DisasterKind.Volcano) {
+      // Do jogador: sempre forte (IEV 4 a 6) e ergue mais (no mar raso já vira ilha).
+      this.eruption(cell, 4 + this.rng.int(0, 2), tick, true, '', out, 900);
     } else if (kind === DisasterKind.Tsunami) {
       const sea = nearestWater(world, cell, 12);
       if (sea >= 0) this.quake(sea, 8.3 + 0.9 * this.rng.next(), tick, true, out);
@@ -98,6 +130,64 @@ export class Disasters {
       const v = Math.min(1, f.stress / f.threshold);
       for (const c of f.cells) out[c] = v;
     }
+  }
+
+  /**
+   * Pontos quentes: a placa que passa por cima vai sendo erguida (sem aviso), na medida certa para
+   * formar ilhas em fila; de vez em quando, uma erupção visível.
+   */
+  private hotspotGrowth(tick: number, plateRate: number, factor: number, out: DisasterOutcome): void {
+    const world = this.world;
+    const year = tick / TICKS_PER_YEAR;
+    for (let k = 0; k < this.hotspots.length; k++) {
+      const p = this.hotspots[k] as Vec3;
+      const cell = world.grid.pointToCell(p[0], p[1], p[2]);
+      const continental = world.crust[cell] === Crust.Continental;
+      if (year % HOTSPOT_YEARS === 0) {
+        // Velocidade da placa no ponto (rad/ano) e quanto erguer para dar ~1 ilha por célula andada.
+        const w = world.plates[world.plate[cell] as number]?.omega ?? [0, 0, 0];
+        const v = Math.hypot(w[1] * p[2] - w[2] * p[1], w[2] * p[0] - w[0] * p[2], w[0] * p[1] - w[1] * p[0]) * MAX_PLATE_RATE * plateRate * TICKS_PER_YEAR;
+        const cells = (v * HOTSPOT_YEARS) / world.grid.cellAngle;
+        const travel = (this.hotspotTravel[k] ?? 0) + cells;
+        this.hotspotTravel[k] = travel;
+        const perYear = Math.min(HOTSPOT_MAX_PER_YEAR, (HOTSPOT_METERS_PER_CELL * cells) / HOTSPOT_YEARS);
+        // Debaixo de continente o magma quase não sobe (vira planalto, não ilha).
+        const meters = perYear * HOTSPOT_YEARS * hotspotPulse(travel) * (continental ? 0.25 : 1);
+        if (meters > 1) out.uplifts.push({ point: p, radius: 1.3, meters });
+      }
+      // Debaixo de continente a erupção é rara (o magma junta por muito tempo) e explosiva.
+      if (factor > 0 && this.rng.next() < HOTSPOT_ERUPTION_CHANCE * factor * (continental ? 0.15 : 1)) {
+        // No oceano, lava mansa (IEV 0–2); debaixo de continente, rara e explosiva (IEV 3–7).
+        const vei = continental ? sampleVei(this.rng.next(), 3, MAX_VEI) : sampleVei(this.rng.next(), 0, 2);
+        this.eruption(cell, vei, tick, false, 'ponto quente', out);
+      }
+    }
+  }
+
+  /** Erupção: ergue o terreno para sempre e espalha cinzas em terra. */
+  private eruption(cell: number, vei: number, tick: number, manual: boolean, source: string, out: DisasterOutcome, extraMeters = 0): void {
+    const world = this.world;
+    const point = cellPoint(world, cell);
+    const up = eruptionUplift(vei);
+    out.uplifts.push({ point, radius: up.radius, meters: up.meters + extraMeters });
+    const ash = ashRadius(vei);
+    for (const c of world.grid.cellsInCap(point[0], point[1], point[2], ash * world.grid.cellAngle)) {
+      if (world.isWater(c)) continue;
+      this.disturbance.mark(c, Mark.Ash, tick, MARK_YEARS[Mark.Ash], TICKS_PER_YEAR);
+      out.marked.push(c);
+    }
+    this.count(DisasterKind.Volcano);
+    out.events.push({
+      id: this.nextId++,
+      kind: DisasterKind.Volcano,
+      tick,
+      point,
+      magnitude: vei,
+      notable: vei >= NOTABLE_VEI,
+      manual,
+      label: `Erupção IEV ${vei}${source ? ` · ${source}` : ''}`,
+      radius: ash * world.grid.cellAngle,
+    });
   }
 
   private count(kind: DisasterKind): void {

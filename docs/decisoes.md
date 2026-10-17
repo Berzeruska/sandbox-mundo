@@ -723,3 +723,8 @@ Formato: data — decisão — motivo — alternativa descartada.
     cada 3 anos enquanto somem; o relógio pinta por cima das cores que vêm do ajudante 2.
   - **Onda com velocidade mínima de 0,4** da do oceano fundo: com √profundidade pura ela ficava presa
     na plataforma continental larga.
+- **2026-10-17 — T9, vulcões: decisões técnicas.** Erupção ergue o terreno pelo mesmo caminho do pincel
+  de Elevar (gravado na placa, anda com ela). Ponto quente medido pela distância que a placa anda por
+  cima (3.500 m por célula em média, em pulsos de 3 células, teto 150 m/ano): sem o pulso nascia uma
+  crista contínua em vez de ilhas em fila. O crescimento do ponto quente não é desastre (não conta na
+  frequência); só as erupções visíveis dependem dela.

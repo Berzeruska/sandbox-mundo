@@ -174,3 +174,95 @@ describe('desastres: marcas temporárias', () => {
     expect(d.kind[1]).toBe(Mark.Ash);
   });
 });
+
+describe('desastres (T9): vulcões e pontos quentes', () => {
+  it('erupções naturais só em arcos e dorsais (perto das fronteiras) ou sobre os pontos quentes', () => {
+    const w = worldOf('42');
+    const { d, events } = run(w, 6000);
+    const eruptions = events.filter((e) => e.kind === DisasterKind.Volcano);
+    expect(eruptions.length).toBeGreaterThan(20);
+    const dist = boundaryDistance(w);
+    const hot = new Set(d.hotspots.map((p) => w.grid.pointToCell(p[0], p[1], p[2])));
+    for (const e of eruptions) {
+      const c = w.grid.pointToCell(e.point[0], e.point[1], e.point[2]);
+      expect(dist[c]! <= 4 || hot.has(c), e.label).toBe(true);
+    }
+  });
+
+  it('a erupção ergue o relevo para sempre e as cinzas somem', () => {
+    const core = new SimulationCore(() => undefined, () => 0);
+    core.handle({ type: 'newWorld', seedText: 'terra', n: 64 });
+    core.handle({ type: 'disasterFrequency', level: 0 });
+    const w = core.world!;
+    const land = [...Array(w.cellCount).keys()].find((c) => w.heightAboveSea(c) > 100 && w.heightAboveSea(c) < 1000 && !w.boundary[c])!;
+    const h0 = w.elevation[land]!;
+    core.handle({ type: 'disaster', kind: DisasterKind.Volcano, point: cellPoint(w, land) });
+    expect(w.elevation[land]!).toBeGreaterThan(h0 + 1000);
+    expect(core.disasters!.disturbance.active.size).toBeGreaterThan(0);
+    core.handle({ type: 'plateRate', rate: 0 });
+    core.handle({ type: 'speed', speed: 20 });
+    while (core.clock.tick < 40 * TICKS_PER_YEAR) core.advance(0.25);
+    expect(core.disasters!.disturbance.active.size).toBe(0);
+    expect(w.elevation[land]!).toBeGreaterThan(h0 + 1000);
+  });
+
+  it('ponto quente sob placa andando forma uma cadeia de ilhas', () => {
+    // Mesmo mundo com e sem o ponto quente, no mar mais longe de terra: as ilhas a mais são dele.
+    const islandsNear = (hotspot: boolean): number => {
+      const core = new SimulationCore(() => undefined, () => 0);
+      core.handle({ type: 'newWorld', seedText: 'terra', n: 64 });
+      core.handle({ type: 'disasterFrequency', level: 0 });
+      const w = core.world!;
+      const dist = new Int32Array(w.cellCount).fill(-1);
+      let frontier: number[] = [];
+      for (let c = 0; c < w.cellCount; c++) {
+        if (!w.isWater(c)) {
+          dist[c] = 0;
+          frontier.push(c);
+        }
+      }
+      for (let s = 1; frontier.length; s++) {
+        const next: number[] = [];
+        for (const c of frontier) {
+          for (let k = 0; k < 4; k++) {
+            const j = w.grid.neighbors[c * 4 + k]!;
+            if (dist[j] === -1) {
+              dist[j] = s;
+              next.push(j);
+            }
+          }
+        }
+        frontier = next;
+      }
+      let far = 0;
+      for (let c = 0; c < w.cellCount; c++) if (dist[c]! > dist[far]!) far = c;
+      const p = cellPoint(w, far);
+      core.disasters!.hotspots = hotspot ? [p] : [];
+      core.handle({ type: 'plateRate', rate: 1 });
+      core.handle({ type: 'speed', speed: 20 });
+      while (core.clock.tick < 4000 * TICKS_PER_YEAR) core.advance(0.25);
+      // Ilhas (pedaços de terra) que encostam no círculo de 0,25 rad em volta do ponto quente.
+      const near = new Set(w.grid.cellsInCap(p[0], p[1], p[2], 0.25));
+      const seen = new Uint8Array(w.cellCount);
+      let islands = 0;
+      for (const s of near) {
+        if (seen[s] || w.isWater(s)) continue;
+        islands++;
+        const stack = [s];
+        seen[s] = 1;
+        while (stack.length) {
+          const c = stack.pop()!;
+          for (let k = 0; k < 4; k++) {
+            const j = w.grid.neighbors[c * 4 + k]!;
+            if (!seen[j] && !w.isWater(j)) {
+              seen[j] = 1;
+              stack.push(j);
+            }
+          }
+        }
+      }
+      return islands;
+    };
+    expect(islandsNear(true) - islandsNear(false)).toBeGreaterThanOrEqual(2);
+  }, 300_000);
+});

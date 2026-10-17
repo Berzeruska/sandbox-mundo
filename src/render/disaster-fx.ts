@@ -19,6 +19,7 @@ interface Fx {
 const FX_MS: Record<number, number> = {
   [DisasterKind.Quake]: 1800,
   [DisasterKind.Tsunami]: 6000,
+  [DisasterKind.Volcano]: 3200,
 };
 /** Animações ao mesmo tempo, no máximo (em "Muitos" a 20× chegam várias por segundo). */
 const MAX_FX = 24;
@@ -48,6 +49,7 @@ export class DisasterFx {
       const u = (now - f.start) / f.ms;
       if (f.e.kind === DisasterKind.Quake) drawQuake(ctx, camera, f.e, u, dpr);
       else if (f.e.kind === DisasterKind.Tsunami) drawWave(ctx, camera, f.e, u, dpr);
+      else if (f.e.kind === DisasterKind.Volcano) drawEruption(ctx, camera, f.e, u, f.e.id, dpr);
     }
   }
 }
@@ -91,8 +93,49 @@ function drawWave(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEven
   }
 }
 
+/** Erupção: brilho de lava no centro, fagulhas e a nuvem de cinzas que se abre e some. */
+function drawEruption(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, u: number, id: number, dpr: number): void {
+  const c = camera.worldToScreen(e.point);
+  if (!c.visible) return;
+  // Nuvem de cinzas: abre até o raio das cinzas.
+  const grow = Math.min(1, u * 1.6);
+  const fade = u < 0.6 ? 1 : 1 - (u - 0.6) / 0.4;
+  pathCap(ctx, camera, e.point, Math.max(e.radius * grow, 1e-4));
+  ctx.fillStyle = `rgba(95, 90, 88, ${(0.45 * fade).toFixed(3)})`;
+  ctx.fill();
+  // Brilho no centro, pulsando.
+  const glow = (e.notable ? 7 : 4) * dpr * (1 + 0.3 * Math.sin(u * 30));
+  ctx.fillStyle = `rgba(255, ${Math.round(120 + 80 * (1 - u))}, 40, ${(0.95 * fade).toFixed(3)})`;
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, glow, 0, Math.PI * 2);
+  ctx.fill();
+  // Fagulhas: riscos curtos saindo do centro, em direções fixas por erupção.
+  if (u < 0.5) {
+    ctx.strokeStyle = `rgba(255, 170, 60, ${(1 - u / 0.5).toFixed(3)})`;
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    const n = e.notable ? 10 : 6;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + id;
+      const r0 = glow + u * 30 * dpr;
+      const r1 = r0 + 6 * dpr;
+      ctx.moveTo(c.x + Math.cos(a) * r0, c.y + Math.sin(a) * r0);
+      ctx.lineTo(c.x + Math.cos(a) * r1, c.y + Math.sin(a) * r1);
+    }
+    ctx.stroke();
+  }
+}
+
 /** Contorno de um círculo de raio `angle` (rad) na superfície (some atrás do globo). */
 export function strokeCap(ctx: CanvasRenderingContext2D, camera: Camera, center: Vec3, angle: number, style: string, width: number): void {
+  pathCap(ctx, camera, center, angle);
+  ctx.lineWidth = width;
+  ctx.strokeStyle = style;
+  ctx.stroke();
+}
+
+/** Caminho (beginPath…) do círculo de raio `angle` na superfície, só a parte visível. */
+function pathCap(ctx: CanvasRenderingContext2D, camera: Camera, center: Vec3, angle: number): void {
   let ax = center[2];
   let az = -center[0];
   let ay = 0;
@@ -122,7 +165,4 @@ export function strokeCap(ctx: CanvasRenderingContext2D, camera: Camera, center:
     else ctx.moveTo(q.x, q.y);
     penDown = true;
   }
-  ctx.lineWidth = width;
-  ctx.strokeStyle = style;
-  ctx.stroke();
 }

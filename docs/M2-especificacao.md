@@ -479,11 +479,19 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   sumindo e tingem a cor. Animações em tempo real na camada de cima (anéis do terremoto, frente da
   onda), independentes da velocidade do jogo. Testes em `tests/world/disasters.test.ts`.
 
-- [ ] **T9 — Vulcões e pontos quentes**
+- [x] **T9 — Vulcões e pontos quentes**
   Arcos de subducção, dorsais (fraco), pontos quentes fixos; erupção ergue terreno **para sempre**
   (pode criar ilha) e espalha cinzas temporárias.
   Testes: ponto quente sob placa em movimento forma uma cadeia de ilhas; erupções só em lugares
   permitidos; relevo vulcânico persiste e as cinzas somem.
+  **Feito (2026-10-17):** erupções em arcos (a 2–3 células da fronteira convergente, na placa de cima;
+  IEV 2–7, cada nível 4× mais raro) e dorsais (IEV 0–2), com taxa por comprimento × velocidade da
+  fronteira; 3–6 pontos quentes fixos no manto que erguem a placa que passa por cima, medido pela
+  distância andada (cadeia igual com placa rápida ou lenta) e em pulsos (ativo em metade de cada 3
+  células andadas: ilhas separadas em fila); debaixo de continente ergue pouco e a erupção é rara e
+  explosiva. Toda erupção ergue o terreno para sempre (pincel de Elevar gravado na placa) e espalha
+  cinzas em terra por 25 anos. Grande a partir de IEV 4 (~1 a cada 500–1.000 anos em "Raro").
+  Animação: brilho, fagulhas e nuvem de cinzas. Medido: 3 ilhas em fila em 4.000 anos (N = 64).
 
 - [ ] **T10 — Desastres climáticos**
   Anomalias de chuva (seca, enchente), furacões com trajetória, incêndios; perturbação temporária
