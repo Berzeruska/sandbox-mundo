@@ -68,7 +68,8 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'resourcesLayer', category: 'geologia', label: 'Ver recursos', icon: '💎', kind: 'toggle', available: true },
   { id: 'plateSpeed', category: 'geologia', label: 'Velocidade', icon: '⏩', kind: 'tool', available: true },
 
-  { id: 'temperature', category: 'clima', label: 'Temperatura', icon: '🌡️', kind: 'tool', available: false },
+  { id: 'temperature', category: 'clima', label: 'Temperatura', icon: '🌡️', kind: 'tool', available: true },
+  { id: 'biomesLayer', category: 'clima', label: 'Ver biomas', icon: '🗺️', kind: 'toggle', available: true },
 
   { id: 'newWorld', category: 'mundo', label: 'Novo mundo', icon: '🌍', kind: 'action', available: true },
   { id: 'debug', category: 'mundo', label: 'Dados', icon: '🐞', kind: 'action', available: true },

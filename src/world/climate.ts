@@ -1,16 +1,72 @@
-import { classifyCell, type CellClimate } from './biomes';
+import { classifyCell, MOUNTAIN_HEIGHT, SNOW_MIN_PRECIP, type CellClimate } from './biomes';
+
+export { SNOW_MIN_PRECIP };
 import { newArray } from '../core/shared';
 import type { CubeSphere } from './cubesphere';
 import { IceMode, type WorldState } from './state';
 
 /** Queda de temperatura com a altitude: 6,5 °C por km. */
 export const LAPSE_RATE = 6.5 / 1000;
-/** Terra abaixo desta temperatura média vira calota de gelo. */
-export const LAND_ICE_TEMP = -12;
+/**
+ * Terra abaixo desta temperatura média vira calota de gelo: no clima normal, terra acima de ~62–65° de
+ * latitude (decisão do usuário, 2026-10-17); no máximo glacial, até ~45–50°. Medido em 5 sementes
+ * (`docs/decisoes.md`, T7).
+ */
+export const LAND_ICE_TEMP = -10;
+/** Montanha só vira geleira mais fria que isso e com neve caindo (chuva ≥ SNOW_MIN_PRECIP). */
+export const MOUNTAIN_ICE_TEMP = -12;
+/** Abaixo desta temperatura tudo vira gelo, mesmo seco (deserto polar). */
+export const DEEP_FREEZE_TEMP = -18;
 /** Mar abaixo desta temperatura média congela. */
 export const SEA_ICE_TEMP = -10;
-/** Alcance da umidade do oceano, em radianos de arco (~1.150 km num planeta do tamanho da Terra). */
-export const MOISTURE_RANGE = 0.25;
+/** Variação (±°C) do limite do gelo marinho por correntes: borda irregular, não um círculo. */
+export const SEA_ICE_NOISE = 4;
+
+/**
+ * Ciclo glacial (T7, decisão do usuário: forte). O desvio global esfria devagar até GLACIAL_AMPLITUDE
+ * e esquenta rápido (como os ciclos da Terra), em GLACIAL_PERIOD_TICKS passos (10 mil anos de jogo,
+ * ~8 min reais a 20×). Começa no clima normal.
+ */
+export const GLACIAL_AMPLITUDE = 8;
+export const GLACIAL_PERIOD_TICKS = 120_000;
+const GLACIAL_COOLING = 0.8;
+/** Controle de temperatura global do jogador (°C), somado ao ciclo. */
+export const CONTROL_MIN = -10;
+export const CONTROL_MAX = 10;
+/** O mar desce 15 m por grau de esfriamento (−120 m no máximo glacial), em degraus de 10 m. */
+export const SEA_DROP_PER_DEGREE = 15;
+export const SEA_LEVEL_STEP = 10;
+
+/** Desvio do ciclo glacial no passo `tick` (°C, ≤ 0). Função pura do tempo: determinístico. */
+export function glacialOffset(tick: number): number {
+  const phase = (((tick / GLACIAL_PERIOD_TICKS) % 1) + 1) % 1;
+  const smooth = (x: number) => x * x * (3 - 2 * x);
+  const cold = phase < GLACIAL_COOLING ? smooth(phase / GLACIAL_COOLING) : 1 - smooth((phase - GLACIAL_COOLING) / (1 - GLACIAL_COOLING));
+  return -GLACIAL_AMPLITUDE * cold + 0; // + 0: sem "−0" no começo do ciclo
+}
+
+/** Desvio total: ciclo + controle do jogador. */
+export function climateOffsetAt(tick: number, control: number): number {
+  return glacialOffset(tick) + Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, control));
+}
+
+/** Nível do mar para um desvio de temperatura (só desce: o gelo em terra guarda a água). */
+export function seaLevelFor(base: number, offset: number): number {
+  return base + Math.round((Math.min(0, offset) * SEA_DROP_PER_DEGREE) / SEA_LEVEL_STEP) * SEA_LEVEL_STEP;
+}
+
+/**
+ * Quanto o desvio global pesa em cada latitude: os polos esfriam mais que os trópicos (como na Terra:
+ * na última era glacial ~−4 °C nos trópicos e muito mais perto dos polos). 0,5 no equador, 1,8 no polo.
+ */
+export function polarAmplification(lat: number): number {
+  return 0.5 + (1.3 * Math.abs(lat)) / (Math.PI / 2);
+}
+/**
+ * Alcance da umidade do oceano, em radianos de arco (~3.700 km num planeta do tamanho da Terra). Era 0,25:
+ * o interior dos continentes secava demais (desertos 27% da terra, chuva mediana 350 mm; T7).
+ */
+export const MOISTURE_RANGE = 0.8;
 /** Distância (radianos) que a sombra de chuva olha contra o vento. */
 export const SHADOW_REACH = 0.1;
 export const SHADOW_STEPS = 8;
@@ -31,7 +87,7 @@ export function seaLevelTemperature(lat: number): number {
  */
 export function latitudePrecipitation(lat: number): number {
   const a = (Math.abs(lat) * 180) / Math.PI;
-  return 2200 * Math.exp(-((a / 10) ** 2)) + 1300 * Math.exp(-(((a - 50) / 14) ** 2)) + 150;
+  return 1.35 * (2200 * Math.exp(-((a / 10) ** 2)) + 1300 * Math.exp(-(((a - 50) / 14) ** 2))) + 150;
 }
 
 /**
@@ -163,8 +219,7 @@ function computeTemperatureAndRain(world: WorldState, table: Int32Array, i: numb
   const height = world.heightAboveSea(i);
   const land = height > 0;
 
-  world.temperature[i] =
-    seaLevelTemperature(lat) + TEMP_VARIATION * (world.tempNoise[i] as number) - (land ? height * LAPSE_RATE : 0);
+  world.temperature[i] = temperatureOf(world, latitudeTables(world.grid), i, height);
 
   let rain = latitudePrecipitation(lat) * Math.exp(RAIN_VARIATION * (world.rainNoise[i] as number));
   if (land) {
@@ -247,12 +302,22 @@ function upwindBarrier(world: WorldState, table: Int32Array, i: number, height: 
 
 const cellScratch: CellClimate = { height: 0, temp: 0, precip: 0, ice: false, nearWater: false };
 
+/**
+ * Gelo pela temperatura (e pela neve, na montanha): calota em terra fria; geleira na montanha só com
+ * neve caindo (montanha alta e seca fica rocha); mar congelado com a borda irregular (correntes).
+ */
+export function naturalIce(world: WorldState, i: number, height: number, temp: number): boolean {
+  if (height <= 0) return temp + SEA_ICE_NOISE * (world.rainNoise[i] as number) < SEA_ICE_TEMP;
+  if (temp < DEEP_FREEZE_TEMP) return true;
+  if (height >= MOUNTAIN_HEIGHT) return temp < MOUNTAIN_ICE_TEMP && (world.precipitation[i] as number) >= SNOW_MIN_PRECIP;
+  return temp < LAND_ICE_TEMP;
+}
+
 function computeIceAndBiome(world: WorldState, i: number): void {
   const height = world.heightAboveSea(i);
   const temp = world.temperature[i] as number;
   const mode = world.iceMode[i];
-  const naturalIce = temp < (height > 0 ? LAND_ICE_TEMP : SEA_ICE_TEMP);
-  const ice = mode === IceMode.Painted || (mode === IceMode.Auto && naturalIce);
+  const ice = mode === IceMode.Painted || (mode === IceMode.Auto && naturalIce(world, i, height, temp));
   world.ice[i] = ice ? 1 : 0;
 
   let nearWater = false;
@@ -269,4 +334,65 @@ function computeIceAndBiome(world: WorldState, i: number): void {
   cell.ice = ice;
   cell.nearWater = nearWater;
   world.biome[i] = classifyCell(cell);
+}
+
+/** Por célula e fixo por grade: temperatura ao nível do mar pela latitude e amplificação polar. */
+interface LatitudeTables {
+  base: Float32Array;
+  amp: Float32Array;
+}
+const latitudeTableCache = new WeakMap<CubeSphere, LatitudeTables>();
+
+function latitudeTables(grid: CubeSphere): LatitudeTables {
+  let t = latitudeTableCache.get(grid);
+  if (!t) {
+    t = { base: newArray(Float32Array, grid.cellCount), amp: newArray(Float32Array, grid.cellCount) };
+    for (let i = 0; i < grid.cellCount; i++) {
+      const lat = Math.asin(Math.max(-1, Math.min(1, grid.positions[i * 3 + 1] as number)));
+      t.base[i] = seaLevelTemperature(lat);
+      t.amp[i] = polarAmplification(lat);
+    }
+    latitudeTableCache.set(grid, t);
+  }
+  return t;
+}
+
+/** Temperatura média da célula: latitude, variação regional, altitude e desvio global. */
+function temperatureOf(world: WorldState, t: LatitudeTables, i: number, height: number): number {
+  return (
+    (t.base[i] as number) +
+    TEMP_VARIATION * (world.tempNoise[i] as number) -
+    (height > 0 ? height * LAPSE_RATE : 0) +
+    world.climateOffset * (t.amp[i] as number)
+  );
+}
+
+/**
+ * Recálculo parcial (T7): só o desvio global mudou (mesmo nível do mar). Temperatura, gelo e bioma são
+ * refeitos; chuva, vento e distância até a água não mudam (bem mais barato que `updateClimate`). Dá
+ * exatamente o mesmo resultado que o recálculo total (mesma conta).
+ */
+export function shiftClimate(world: WorldState, offset: number): void {
+  world.climateOffset = offset;
+  const tables = latitudeTables(world.grid);
+  for (let i = 0; i < world.cellCount; i++) world.temperature[i] = temperatureOf(world, tables, i, world.heightAboveSea(i));
+  for (let i = 0; i < world.cellCount; i++) computeIceAndBiome(world, i);
+}
+
+/**
+ * Leva o clima do mundo para o desvio `offset`: com o mesmo nível do mar, o recálculo parcial; se o
+ * mar mudou de degrau, a costa anda e tudo é refeito (distância até a água, chuva). Retorna true se
+ * o nível do mar mudou.
+ */
+export function applyClimateOffset(world: WorldState, offset: number): boolean {
+  const sea = seaLevelFor(world.params.seaLevel, offset);
+  if (sea === world.seaLevel) {
+    shiftClimate(world, offset);
+    return false;
+  }
+  world.seaLevel = sea;
+  world.climateOffset = offset;
+  computeWaterDistance(world);
+  updateClimate(world);
+  return true;
 }

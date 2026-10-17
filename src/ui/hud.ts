@@ -22,6 +22,8 @@ export interface HudCallbacks {
   onBrushSize(size: number): void;
   /** Controle "Placas" (0 a 100%). */
   onPlateRate(percent: number): void;
+  /** Controle de temperatura global (°C, T7). */
+  onClimateControl(degrees: number): void;
   onNorthUp(): void;
   /** Ação do menu (ex.: 'newWorld', 'debug'). */
   onAction(action: string): void;
@@ -59,6 +61,7 @@ export class Hud {
   private speed: Speed = 1;
   private brushSize: number;
   private platePercent: number;
+  private climateDegrees = 0;
   private lastDate = '';
 
   private dateText: HTMLSpanElement;
@@ -189,6 +192,27 @@ export class Hud {
     return wrap;
   }
 
+  /** Controle de temperatura global, −10 a +10 °C (T7). Manda ao soltar (refazer o clima custa). */
+  private climateSlider(): HTMLElement {
+    const wrap = el('span', 'hud-brush');
+    const range = el('input', 'hud-brush-range hud-climate-range');
+    range.type = 'range';
+    range.min = '-10';
+    range.max = '10';
+    range.step = '1';
+    range.value = String(this.climateDegrees);
+    range.setAttribute('aria-label', 'Temperatura global');
+    const label = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)} °C`;
+    const value = el('span', 'hud-brush-value hud-climate-value', label(this.climateDegrees));
+    range.addEventListener('input', () => {
+      this.climateDegrees = Number(range.value);
+      for (const v of this.root.querySelectorAll<HTMLElement>('.hud-climate-value')) v.textContent = label(this.climateDegrees);
+    });
+    range.addEventListener('change', () => this.cb.onClimateControl(this.climateDegrees));
+    wrap.append(range, value);
+    return wrap;
+  }
+
   private render(): void {
     const paused = this.speed === 0;
     this.speedBadge.textContent = paused ? 'pausado' : speedLabel(this.speed);
@@ -229,6 +253,10 @@ export class Hud {
     if (item.brush !== undefined) {
       name.append(el('small', '', 'pincel'));
       card.append(name, this.brushSlider());
+    } else if (item.id === 'temperature') {
+      name.textContent = 'Temperatura';
+      name.append(el('small', '', 'global, somada ao ciclo'));
+      card.append(name, this.climateSlider());
     } else if (item.id === 'plateSpeed') {
       name.textContent = 'Placas';
       name.append(el('small', '', this.platePercent === 0 ? 'congeladas' : 'velocidade'));

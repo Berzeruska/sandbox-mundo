@@ -313,7 +313,7 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   - Os números de custo são estimativas; meço no notebook (GPU real e CPU 6× mais lenta) ao
     implementar, e o "Medir desempenho" do celular decide no fim do bloco.
 
-- [ ] **T7 — Clima que acompanha a deriva, eras glaciais e temperatura global**
+- [x] **T7 — Clima que acompanha a deriva, eras glaciais e temperatura global**
   Recálculo periódico no worker e envio só do que mudou; ciclo glacial automático e suave; controle
   de temperatura global em Clima, somado ao ciclo.
   Testes: o recálculo parcial bate com o total; a área de gelo cresce com a temperatura global
@@ -383,6 +383,69 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   5. **Biomas.** (a) mais chuva no interior dos continentes (a umidade do mar chega mais longe):
      menos deserto, mais floresta e campo, sem bioma novo; (b) (a) e biomas novos: arbustal
      mediterrâneo, manguezal, prado alpino (quais?); (c) deixar como está.
+
+  **T7 — Decisões do usuário (2026-10-17):** ciclo glacial (b) forte, −8 °C, gelo até ~45°, mar caindo
+  e abrindo pontes de terra; controle −10 a +10 °C no menu Clima, somado ao ciclo; gelo e polos (b),
+  cara melhor e terra acima de ~62° vira calota; remendo nas fronteiras aprovado; biomas: corrigir a
+  distribuição (bioma novo só perguntando, com o custo; limite atual 16); camada "Ver biomas" e biomas
+  legíveis de longe.
+
+  **T7 — Resultado (2026-10-17).**
+  - **Temperatura global** = ciclo glacial + controle do jogador, com os polos esfriando mais que os
+    trópicos (0,5× no equador, 1,8× no polo). Ciclo: esfria devagar (80% do ciclo) até −8 °C e esquenta
+    rápido; 10 mil anos de jogo (~8 min reais a 20×); começa no clima normal. Linha "clima" no painel
+    Dados (desvio, controle e nível do mar).
+  - **Gelo:** calota em terra abaixo de −10 °C de média: no clima normal 24% da terra a 62°, 61% a 65°,
+    96% a 70°; no máximo glacial 25% a 45°, 61% a 50°, 90% a 55° (5 sementes). Mar congelado com a
+    borda irregular (correntes, ±4 °C). Cara: calota branca com borda azulada e variação; gelo marinho
+    mais fino (deixa ver o mar), mais azul na borda; de perto, fendas raras na calota. Jazida coberta de
+    gelo não aparece (só na camada "Ver recursos").
+  - **Mar:** desce 15 m por grau (−120 m no máximo glacial), em degraus de 10 m; a costa anda e o clima é
+    refeito. **Ressalva medida:** as plataformas continentais geradas são estreitas, então −120 m só
+    acrescentam ~0,5% de terra (30,0 → 30,5%): pontes de terra aparecem só onde o estreito é raso. Se
+    o usuário quiser mais pontes, o caminho é plataformas mais largas (geração e tectônica): perguntar.
+    A geologia usa o nível de referência fixo (o mar baixo não muda as placas).
+  - **Neve:** pico nevado e geleira de montanha só com frio e chuva ≥ 250 mm/ano; montanha alta e seca
+    fica rocha. Vale de rifte (mais baixo e mais seco) deve perder a neve: confirmar no celular.
+  - **Erosão pelo clima:** a erosão das montanhas multiplicada pela chuva (0,25× seco, até 2× chuvoso).
+    Os testes de altitude aos 10 min e de formas continuam passando.
+  - **Biomas (diagnóstico pedido):** o problema era a distribuição (clima seco demais), não falta de
+    bioma. Umidade do mar chega mais longe e chuva base +35%: chuva mediana na terra 348 → 595 mm,
+    desertos 27 → 16%, florestas ~10 → 19%, estepe 14%, campo 8%, savana 10%, tundra 7%, taiga 10%.
+    Paleta mais separada (floresta mais escura, deserto mais claro, campo mais verde, savana dourada).
+  - **Camada "Ver biomas"** (menu Clima): cada bioma numa cor forte e lisa, legenda embaixo, toque curto
+    (modo Mover) mostra o nome.
+  - **Clima ao longo do tempo:** o ajudante 2 refaz o clima a cada 0,2 °C de mudança (ou degrau do mar),
+    mesmo com placas paradas: só temperatura, gelo e biomas (parcial, 22 ms no notebook) ou tudo quando
+    o mar muda (65 ms); a tela recebe só os pedaços com cor nova. O controle do jogador vale na hora
+    (prévia no relógio). As pinceladas agora também entram no mundo do ajudante.
+  - **Remendo nas fronteiras (aprovado):** de perto, cada pixel só usa células da própria placa (sem a
+    cópia deslocada); a fenda entre continentes é pintada como vale (marrom), não como oceano. Os
+    pontos que o usuário viu no celular ficam na lista de teste do fim do bloco.
+  - **Custo:** de perto igual no notebook (~390 girando, 340–400 com placas). Pintar as cores do mundo
+    20 → 30 ms no notebook (gelo, jazidas, cantos): geração estimada no celular ~2,93 s (meta 3 s, no
+    limite).
+  - Testes novos (`tests/world/climate-cycle.test.ts`): parcial = total; gelo cresce com menos
+    temperatura e recua com mais; ciclo e controle se somam; forma do ciclo; mar −120 m e geologia
+    igual; neve depende da chuva; erosão maior no lado chuvoso; clima segue o ciclo no jogo com placas
+    paradas; controle muda o clima na hora.
+
+  **Teste rápido da T6 no celular (2026-10-17) — propostas esperando o usuário (sem trocar ainda):**
+  1. **Pedrinhas "fofinhas":** proposta rústica em `docs/img/m2-t6-pedras-rusticas.png` (em cima hoje,
+     embaixo a proposta): pedras angulosas de duas faces (uma clara, uma na sombra), cor puxada para
+     rocha, meio enterradas, e um veio do minério riscando o solo. Custo: igual (só nas células com
+     jazida, ~1% da terra).
+  2. **"Achei poucos" — diagnóstico:** são as duas coisas. Há 45–70 jazidas por mundo, ~0,2% da terra
+     (250–300 células de ~118 mil). E elas são pequenas na tela: no zoom 1 uma célula tem ~1,4 pixel,
+     então uma jazida grande (8–15 células) tem ~5 pixels e uma pequena (1–2) quase some; o tom no solo
+     é fraco (22%) de propósito. Opções: (a) jazidas maiores (pequena 3–6, média 10–20, grande 25–45
+     células), mesmo número (recomendado: continuam "poucas e importantes" e aparecem); (b) o dobro de
+     jazidas, mesmo tamanho; (c) as duas.
+  3. **Costa em "bolhas":** proposta reta em `docs/img/m2-costa-reta.png` (em cima hoje, embaixo a
+     proposta): cada ponto mostra só a célula de centro mais perto, sem o alisamento por pesos. Divisas
+     e costas viram retas: quadrados (degraus) no meio das faces e hexágonos perto dos 8 cantos do cubo,
+     sem a dobra das emendas. Custo medido no notebook: igual (384 e 403 fps de perto); no celular deve
+     ser igual ou um pouco menor (menos contas por pixel).
 
 - [ ] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa

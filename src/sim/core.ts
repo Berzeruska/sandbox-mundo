@@ -3,7 +3,7 @@ import { Clock } from '../core/time';
 import { applyBrush } from '../input/tools';
 import { buildColors, colorCacheBytes, NO_LAYERS, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
-import { climateCacheBytes, updateClimate, updateWaterDistance } from '../world/climate';
+import { applyClimateOffset, climateCacheBytes, climateOffsetAt, CONTROL_MAX, CONTROL_MIN, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellPool } from '../world/cell-pool';
 import { createWorld, WORLD_STAGES } from '../world/create';
 import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
@@ -127,6 +127,8 @@ export class SimulationCore {
   /** Camadas opcionais ligadas no menu (ex.: "Ver placas"). */
   layers: Layers = NO_LAYERS;
   plateRate = DEFAULT_PLATE_RATE;
+  /** Controle de temperatura global do jogador (°C, T7), somado ao ciclo glacial. */
+  climateControl = 0;
   /** Tempo da última recomposição com clima e cores (ms), para o painel Dados. */
   private geologyMs = 0;
   /** Contadores acumulados de trabalho (para o "Medir desempenho"). */
@@ -185,6 +187,9 @@ export class SimulationCore {
         break;
       case 'layers':
         this.setLayers(msg.layers);
+        break;
+      case 'climateControl':
+        this.setClimateControl(msg.control);
         break;
       case 'speed':
         this.clock.speed = msg.speed;
@@ -251,7 +256,7 @@ export class SimulationCore {
     // O motor da geologia começa com o mundo recém-gerado; a tectônica nasce no primeiro passo
     // com placas ligadas.
     this.geology.start(
-      { world: this.worldId, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: this.plateRate, layers: this.layers },
+      { world: this.worldId, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: this.plateRate, layers: this.layers, climateControl: this.climateControl },
       this.grid,
     );
     this.send({
@@ -310,7 +315,7 @@ export class SimulationCore {
     };
     for (let k = 0; k < count; k++) {
       const c = region[k] as number;
-      world.crust[c] = world.heightAboveSea(c) > CONTINENTAL_DEPTH ? Crust.Continental : Crust.Oceanic;
+      world.crust[c] = world.heightAboveBase(c) > CONTINENTAL_DEPTH ? Crust.Continental : Crust.Oceanic;
       delta.plate[k] = world.plate[c] as number;
       delta.ref[k] = this.cellRef[c] as number;
       delta.elevation[k] = world.elevation[c] as number;
@@ -347,9 +352,27 @@ export class SimulationCore {
     const buffers = this.buffers;
     if (!world || !buffers) return;
     const t0 = this.now();
+    const before = r.kind === 'climate' ? this.colors.slice() : null;
     for (const k of COMPOSED_FIELDS) world[k].set(buffers.arrays[k]);
     this.colors.set(buffers.colors);
     this.cellRef.set(buffers.cellRef);
+    world.climateOffset = r.climateOffset;
+    world.seaLevel = r.seaLevel;
+    if (before) {
+      // Só o clima mudou: a tela recebe só os pedaços com cor nova (gelo e biomas que andaram).
+      this.geology.send({ type: 'consumed', world: this.worldId, index: r.index });
+      this.brushLog = this.brushLog.filter((b) => b.tick >= r.tick);
+      if (this.brushLog.length) this.replayBrushes(world);
+      const changed: number[] = [];
+      for (let c = 0; c < world.cellCount; c++) {
+        const o = c * 4;
+        if (before[o] !== this.colors[o] || before[o + 1] !== this.colors[o + 1] || before[o + 2] !== this.colors[o + 2] || before[o + 3] !== this.colors[o + 3]) changed.push(c);
+      }
+      if (changed.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, changed)), brushMs: -1 });
+      this.work.climateUpdates++;
+      this.work.climateUpdateMs += r.climateMs + r.colorsMs;
+      return;
+    }
     world.plates = r.plates;
     this.shown = { angles: r.angles, speeds: r.motion.map((m) => m.speed), drift: r.drift };
     this.platesMoving = true;
@@ -400,6 +423,19 @@ export class SimulationCore {
     updateWaterDistance(world, cells);
     updateClimate(world, cells);
     buildColors(world, this.colors, withRing(world.grid, cells), this.layers);
+  }
+
+  /**
+   * Controle de temperatura global (T7): vale a partir do passo atual no motor; a tela vê já uma prévia
+   * feita aqui (o resultado do motor chega depois e é o mesmo cálculo).
+   */
+  private setClimateControl(control: number): void {
+    this.climateControl = Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, control));
+    const world = this.world;
+    if (!world) return;
+    this.geology.send({ type: 'climate', world: this.worldId, tick: this.clock.tick, control: this.climateControl });
+    applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl));
+    this.sendAllColors();
   }
 
   /** Liga/desliga camadas: repinta o mundo todo e manda as 6 faces como remendos. */
@@ -518,6 +554,7 @@ export class SimulationCore {
       memoryMb: this.memoryBytes() / 1e6,
       angles: this.currentAngles(),
       work: { ...this.work },
+      climate: this.world ? { offset: this.world.climateOffset, seaLevel: this.world.seaLevel } : { offset: 0, seaLevel: 0 },
     });
   }
 }

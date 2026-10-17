@@ -33,9 +33,18 @@ floresta tropical, pântano/mangue, montanha, pico nevado.
 Cada bioma tem uma cor fixa de pixel definida em `src/world/biomes.ts` (paleta única, consultável).
 
 ## Polos e calotas
-- Calotas existem nos dois polos e respondem à temperatura.
 - O jogador pode pintar e apagar gelo em qualquer lugar.
-- No Marco 2, gelo pode avançar ou recuar com o clima (eras glaciais leves).
+### Como está implementado (M2, T7)
+- **Temperatura global** = ciclo glacial + controle do jogador (menu Clima, −10 a +10 °C), mais forte
+  nos polos que nos trópicos. Ciclo forte (decisão do usuário): esfria devagar até −8 °C e esquenta
+  rápido, a cada 10 mil anos de jogo (~8 min reais a 20×).
+- **Calota em terra** abaixo de −10 °C de média: no clima normal a partir de ~62–65°; no máximo
+  glacial desce até ~45–50°. **Geleira de montanha** e **pico nevado** só com neve caindo (chuva
+  ≥ 250 mm/ano); montanha alta e seca fica rocha. **Mar congelado** abaixo de −10 °C, com a borda
+  irregular (correntes).
+- **Nível do mar** desce 15 m por grau de esfriamento (−120 m no máximo glacial): a costa anda e
+  aparecem pontes de terra onde o estreito é raso. A geologia não muda com isso.
+- O clima é refeito com o tempo (mesmo sem placas) no ajudante 2.
 
 ## Pincéis do jogador (Marco 1)
 Elevar terreno, rebaixar terreno, água, gelo, apagar gelo. Tamanho do pincel ajustável.

@@ -8,7 +8,9 @@ Formato: data — como reproduzir — causa — correção — commit.
   que se abre entre as duas montanhas pintadas aparece com neve.
 - **Causa provável (a confirmar):** o fundo do vale fica só 300–800 m abaixo das bordas; entre
   montanhas altas ele continua acima da linha de neve.
-- **Correção:** na T7 (clima e neve), por decisão do usuário. Não corrigir antes.
+- **Correção:** na T7 (clima e neve), por decisão do usuário. Feito em 2026-10-17: neve e geleira de
+  montanha só com chuva ≥ 250 mm; o vale (mais baixo, 2–5 °C mais quente, e na sombra de chuva das
+  bordas) tende a ficar sem neve. **Confirmar no celular** (lista do fim do bloco Minerais e clima).
 
 ## 2026-10-16 — "Elevar" numa fronteira de placa forma um buraco (celular, `c0660ea5`)
 

@@ -61,7 +61,10 @@ export class WorldState {
   readonly waterDistance: Uint16Array;
   /** Jazida mineral de cada célula (T6, código em `resources.ts`); 0 = nenhuma. */
   readonly deposit: Uint8Array;
+  /** Nível do mar atual (m): desce nas eras glaciais (T7). A geologia usa o nível de referência fixo. */
   seaLevel: number;
+  /** Desvio da temperatura global (°C, ciclo glacial + controle do jogador), na média do planeta (T7). */
+  climateOffset = 0;
 
   constructor(params: WorldParams, grid: CubeSphere = new CubeSphere(params.n)) {
     if (grid.n !== params.n) throw new Error('Grade com resolução diferente dos parâmetros');
@@ -91,6 +94,14 @@ export class WorldState {
   /** Altura acima do nível do mar (negativa = profundidade). */
   heightAboveSea(i: number): number {
     return (this.elevation[i] as number) - this.seaLevel;
+  }
+
+  /**
+   * Altura acima do nível de referência (o mar da geração). A geologia (crosta continental ou
+   * oceânica) usa esta: o mar baixando numa era glacial não muda as placas.
+   */
+  heightAboveBase(i: number): number {
+    return (this.elevation[i] as number) - this.params.seaLevel;
   }
 
   landFraction(): number {

@@ -49,6 +49,8 @@ export type ToWorker =
   | { type: 'speed'; speed: Speed }
   | { type: 'layers'; layers: Layers }
   | { type: 'plateRate'; rate: number }
+  /** Controle de temperatura global (°C, T7). */
+  | { type: 'climateControl'; control: number }
   /** "Medir desempenho": racha agora o maior bloco soldado (ciclo de Wilson, G2). */
   | { type: 'forceRupture' }
   /** "Medir desempenho": começo de cenário, o "pior" passa a contar daqui. */
@@ -92,7 +94,18 @@ export type FromWorker =
   | { type: 'progress'; stage: string; fraction: number }
   /** `deposits`: todas as jazidas, só quando uma pincelada revelou petróleo (T6). */
   | { type: 'patch'; patches: Patch[]; brushMs: number; deposits?: Uint8Array }
-  | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number; geologyMs: number; memoryMb: number; angles: number[]; work: WorkCounters }
+  | {
+      type: 'clock';
+      tick: number;
+      speed: Speed;
+      ticksPerSecond: number;
+      geologyMs: number;
+      memoryMb: number;
+      angles: number[];
+      work: WorkCounters;
+      /** Desvio da temperatura global (°C) e nível do mar (m) mostrados (T7). */
+      climate: { offset: number; seaLevel: number };
+    }
   | { type: 'query'; id: number; cell: CellQuery }
   | { type: 'sharedProbe'; ok: boolean };
 

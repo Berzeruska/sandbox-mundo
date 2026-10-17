@@ -50,6 +50,11 @@ desastres surgem onde a geologia e o clima indicam.
 ## Marco 3 — Ecologia
 Plantas e animais em nível agregado e individual, cadeia alimentar, migração, dragão como predador
 de topo, avisos de espécie em risco e de último indivíduo. Ver `docs/04-ecologia.md`.
+Anotado em 2026-10-17 (usuário): **floresta grande afeta o clima** (umidade, temperatura); a camada
+"Ver biomas" (feita na T7) é a base para ver isso. **Criaturas vistas de cima**, no estilo de um
+sandbox de deus visto do alto (conteúdo nosso, regra 8): ao especificar o M3, confirmar que a vista de
+perto e a escala do planeta permitem bonecos legíveis (junto com a ideia já registrada de zoom maior
+para bonecos pequenos).
 Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a
 **escala visual** pequena dos indivíduos (`docs/00-visao.md`).
 
@@ -91,6 +96,8 @@ Ver `docs/05-civilizacao-politica.md` e `docs/07-cronica-nomes.md`.
 ## Marco 6 — Guerra
 Frentes fluidas, conquista contínua, trincheiras, logística, moral de tropa, combate visível de perto.
 **Doutrinas ligadas a cultura, terreno e tecnologia** (ex.: guerra de túneis). Ver `docs/06-guerra.md`.
+Anotado em 2026-10-17 (usuário): **floresta grande muda a doutrina de guerra** (cobertura, mobilidade,
+emboscada).
 
 ## Marco 7 — Tecnologia militar
 Árvore tecnológica militar; tanques, aviões, bombardeio, operados pela IA dos humanos.

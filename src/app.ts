@@ -16,8 +16,8 @@ import { Overlay } from './render/overlay';
 import { SimClient } from './sim/client';
 import { applyPatch, type Patch, type PlateMotionInfo, type WorldInfo } from './sim/protocol';
 import { Hud } from './ui/hud';
-import { DepositTip, ResourceLegend } from './ui/resource-legend';
-import { NO_LAYERS, type Layers } from './render/colors';
+import { BiomeLegend, DepositTip, ResourceLegend } from './ui/resource-legend';
+import { BIOME_LAYER_COLORS, NO_LAYERS, type Layers } from './render/colors';
 import { depositLabel } from './world/resources';
 import { activeBrush, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
@@ -94,9 +94,13 @@ export class App {
   private lastRunningSpeed: Speed = 1;
   /** Giro contínuo para medir fps (redesenha todo quadro). */
   private stressSpin = false;
+  /** Temperatura global (desvio, °C) e nível do mar (m) do mundo mostrado, e o controle do jogador (T7). */
+  private climate = { offset: 0, seaLevel: 0 };
+  private climateControl = 0;
   /** Camadas ligadas no menu e o filtro da legenda de recursos (T6). */
   private layers: Layers = { ...NO_LAYERS };
   private legend!: ResourceLegend;
+  private biomeLegend!: BiomeLegend;
   private tip!: DepositTip;
   /** Onde o dedo encostou (para saber se andou: com a camada de recursos, andar = pincelada). */
   private pressAt: { x: number; y: number } | null = null;
@@ -141,7 +145,7 @@ export class App {
       onCameraChange: () => this.requestDraw(),
       onPaint: (sx, sy, phase) => this.onPaint(sx, sy, phase),
       onTap: (sx, sy) => {
-        if (this.layers.resources) void this.showDepositAt(sx, sy);
+        if (this.layers.resources || this.layers.biomes) void this.showDepositAt(sx, sy);
       },
       onHover: (sx, sy) => {
         this.brushScreen = { x: sx, y: sy };
@@ -173,6 +177,10 @@ export class App {
           this.requestDraw();
         },
         onPlateRate: (percent) => this.setPlateRate(percent / 100),
+        onClimateControl: (degrees) => {
+          this.climateControl = degrees;
+          this.sim.setClimateControl(degrees);
+        },
         onSpeed: (speed) => this.setSpeed(speed),
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
@@ -184,12 +192,15 @@ export class App {
         },
         onToggle: (id, on) => {
           if (id === 'platesLayer') this.layers = { ...this.layers, plates: on };
+          if (id === 'biomesLayer') this.layers = { ...this.layers, biomes: on };
           if (id === 'resourcesLayer') {
             this.layers = { ...this.layers, resources: on };
-            this.legend.show(on);
             if (!on) this.tip.hide();
             if (this.renderer) this.renderer.resourcesLayer = on;
           }
+          // Uma legenda por vez: a de recursos tem prioridade (a camada de recursos fica por cima).
+          this.legend.show(this.layers.resources);
+          this.biomeLegend.show(this.layers.biomes && !this.layers.resources);
           this.sim.setLayers(this.layers);
           this.requestDraw();
         },
@@ -216,6 +227,13 @@ export class App {
       this.sim.setLayers(this.layers);
     });
     this.tip = new DepositTip(this.hud.root);
+    // Legenda dos biomas: oceanos e gelo primeiro, depois a terra do frio ao quente.
+    const order = [Biome.Ice, Biome.Tundra, Biome.Taiga, Biome.TemperateForest, Biome.Grassland, Biome.Steppe, Biome.ColdDesert, Biome.HotDesert, Biome.Savanna, Biome.TropicalForest, Biome.Swamp, Biome.Mountain, Biome.SnowyPeak, Biome.Beach];
+    this.biomeLegend = new BiomeLegend(
+      this.hud.root,
+      order.map((b) => BIOME_INFO[b]?.name ?? ''),
+      order.map((b) => BIOME_LAYER_COLORS[b] ?? [0, 0, 0]),
+    );
     this.errorScreen = new ErrorScreen(root, () => void retry());
     // Erros não tratados em qualquer parte da tela também aparecem (em vez de travar em silêncio).
     window.addEventListener('error', (e) => this.fail(`${e.message}${e.filename ? ` (${e.filename}:${e.lineno})` : ''}`));
@@ -251,7 +269,8 @@ export class App {
         this.showProgress(stage, fraction);
       },
       onPatch: (patches, brushMs, deposits) => this.onPatch(patches, brushMs, deposits),
-      onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work) => {
+      onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
+        this.climate = climate;
         this.stats.memoryMb = memoryMb;
         this.work = work;
         if (angles.length) {
@@ -494,11 +513,15 @@ export class App {
     const p = this.camera.pick(sx, sy);
     if (!p) return false;
     const cell = await this.sim.query(p);
-    if (!cell.deposit || !this.layers.resources) return false;
     const rect = this.canvas.getBoundingClientRect();
     const k = rect.width / this.canvas.width;
-    this.tip.show(depositLabel(cell.deposit), rect.left + sx * k, rect.top + sy * k);
-    return true;
+    if (cell.deposit && this.layers.resources) {
+      this.tip.show(depositLabel(cell.deposit), rect.left + sx * k, rect.top + sy * k);
+      return true;
+    }
+    // Camada "Ver biomas": toque curto (modo Mover) mostra o nome do bioma.
+    if (this.layers.biomes && !this.layers.resources) this.tip.show(BIOME_INFO[cell.biome]?.name ?? '', rect.left + sx * k, rect.top + sy * k);
+    return false;
   }
 
   private applyBrushAtScreen(dt: number): void {
@@ -613,6 +636,7 @@ export class App {
       version: __BUILD_ID__,
       sharedMemory: `${this.sim.sharedMemory} · recargas p/ isolar ${isolationReloads()}`,
       cycle: `${CYCLE_PHASES[this.work.cyclePhase] ?? '—'} · ${this.work.supercontinents} supercontinentes · ${this.work.ruptures} rupturas`,
+      climate: `${signed(this.climate.offset)} °C (controle ${signed(this.climateControl)}) · mar ${signed(this.climate.seaLevel, 0)} m`,
       stalls: this.stalls.lines(4, clockTime),
     });
   }
@@ -787,4 +811,11 @@ export function setSeedInUrl(seedText: string): void {
   const url = new URL(window.location.href);
   url.searchParams.set('seed', seedText);
   window.history.replaceState(null, '', url);
+}
+
+/** Número com sinal, em português (vírgula decimal): "+1,5", "−3,2", "0". */
+function signed(v: number, digits = 1): string {
+  const r = Number(v.toFixed(digits));
+  if (r === 0) return '0';
+  return `${r > 0 ? '+' : '−'}${Math.abs(r).toFixed(digits).replace('.', ',')}`;
 }

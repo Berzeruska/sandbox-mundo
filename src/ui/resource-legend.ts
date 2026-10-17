@@ -125,3 +125,32 @@ export class DepositTip {
     this.el.hidden = true;
   }
 }
+
+/** Legenda da camada "Ver biomas" (T7): a cor de cada bioma, só para ler (tocar no mapa mostra o nome). */
+export class BiomeLegend {
+  readonly root: HTMLDivElement;
+
+  constructor(parent: HTMLElement, names: readonly string[], colors: readonly (readonly [number, number, number])[]) {
+    this.root = document.createElement('div');
+    this.root.className = 'res-legend';
+    this.root.hidden = true;
+    const row = document.createElement('div');
+    row.className = 'res-row';
+    names.forEach((name, k) => {
+      const chip = document.createElement('span');
+      chip.className = 'res-chip';
+      const dot = document.createElement('span');
+      dot.className = 'res-dot';
+      const c = colors[k] ?? [0, 0, 0];
+      dot.style.background = css(c);
+      chip.append(dot, name);
+      row.append(chip);
+    });
+    this.root.append(row);
+    parent.append(this.root);
+  }
+
+  show(on: boolean): void {
+    this.root.hidden = !on;
+  }
+}

@@ -642,3 +642,25 @@ Formato: data — decisão — motivo — alternativa descartada.
     pixels.
   - **Toque com a camada ligada:** o pincel espera 300 ms parado (ou começa ao arrastar) para separar
     toque curto de pincelada; o nome vem do relógio (`query`), na célula tocada ou numa vizinha.
+
+- **2026-10-17 — T7, clima: decisões técnicas.**
+  - **Desvio global com amplificação polar** (0,5 + 1,3·|lat|/90°): "−8 °C" do usuário é o valor do
+    ciclo; o equador esfria ~4 °C e os polos ~14 °C. Calibrado em 5 sementes (calota em ~62–65° no
+    clima normal, ~45–50° no máximo glacial). Limites: calota em terra −10 °C, geleira de montanha
+    −12 °C com chuva ≥ 250 mm, tudo gelo abaixo de −18 °C, mar −10 °C ± 4 °C de corrente.
+  - **Nível do mar** só desce (o gelo em terra guarda a água): 15 m/°C, degraus de 10 m. A geologia
+    passa a usar `heightAboveBase` (nível de referência fixo): crosta continental ou oceânica não muda
+    com o mar baixo. Clima, água e biomas usam o nível atual.
+  - **Recálculo do clima no ajudante 2** a cada 0,2 °C ou degrau do mar, entregue como "composição de
+    clima" (mesma fila e mesmo atraso de 480 passos das recomposições, determinístico). Parcial (só
+    temperatura, gelo e bioma; mesma conta do total, testado) quando o mar não muda. A tela recebe só
+    os retângulos com cor nova.
+  - **Pinceladas no mundo do ajudante:** a tectônica diz em que célula está cada amostra
+    (`syncSample` devolve a célula); o motor grava a pincelada e refaz o clima dela. Sem isso, um
+    recálculo de clima entre duas recomposições desfazia o morro pintado.
+  - **Controle de temperatura:** manda ao soltar o controle; o relógio faz uma prévia na hora (o mesmo
+    cálculo do ajudante, que chega depois).
+  - **Umidade:** alcance 0,25 → 0,8 rad e chuva base ×1,35 (chuva mediana 595 mm, desertos 16%).
+  - **Erosão pela chuva:** taxa × chuva/700 mm, entre 0,25× e 2×.
+  - **Fronteira de placas de perto:** só células da própria placa (bit de "encosta em outra placa" da
+    textura de placas decide quando olhar); a cópia de tolerância continua só de longe (células < 6 px).

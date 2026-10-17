@@ -222,6 +222,14 @@ const MARGIN_AGE = 30_000;
  */
 const EROSION_START = 2500;
 const EROSION_RATE = 0.005;
+/**
+ * Erosão pelo clima (T7, pedido do usuário): a erosão acima multiplicada pela chuva da célula (relativa a
+ * EROSION_RAIN mm/ano), entre EROSION_DRY e EROSION_WET. O lado chuvoso de uma cordilheira desgasta
+ * mais e vira escarpa; o planalto seco sobrevive.
+ */
+const EROSION_RAIN = 700;
+const EROSION_DRY = 0.25;
+const EROSION_WET = 2;
 /** Acima desta altura (m) o relevo suaviza com as vizinhas (cordilheiras viram faixas, não riscos). */
 const SMOOTH_START = 1200;
 const SMOOTH_RATE = 0.03;
@@ -597,13 +605,37 @@ export class Tectonics {
    * referencial dela passa a ter esta altura e crosta (o mesmo que `syncCells` faz por célula).
    * Amostra que já não existe (consumida, ou passada para outra placa) é ignorada.
    */
-  syncSample(plate: number, ref: number, elevation: number, crust: number, depositBits = 0): void {
+  syncSample(plate: number, ref: number, elevation: number, crust: number, depositBits = 0): number {
     const i = this.find(plate, ref);
-    if (i < 0) return;
+    if (i < 0) return -1;
     this.sElev[i] = elevation;
     this.sCrust[i] = crust;
     // Só liga bits (petróleo revelado pelo Rebaixar): o motor pode ter uma jazida mais nova que o relógio.
     if (this.sDeposit[i]) this.sDeposit[i] = (this.sDeposit[i] as number) | depositBits;
+    return this.cellOf(i);
+  }
+
+  /**
+   * Célula do mundo que mostra a amostra `i` na composição atual (-1 = escondida). Mapa refeito sob
+   * demanda depois de cada recomposição (o motor da geologia usa para pôr as pinceladas no mundo dele).
+   */
+  private cellOfSampleMap: Int32Array | null = null;
+  private cellOf(i: number): number {
+    let map = this.cellOfSampleMap;
+    if (!map || map.length < this.count) {
+      map = new Int32Array(Math.max(this.count, this.sPlate.length)).fill(-1);
+      for (let c = 0; c < this.world.cellCount; c++) {
+        const s = this.cellSample[c] as number;
+        if (s >= 0) map[s] = c;
+      }
+      this.cellOfSampleMap = map;
+    }
+    return i < map.length ? (map[i] as number) : -1;
+  }
+
+  /** A composição mudou: o mapa amostra → célula precisa ser refeito. */
+  invalidateCellMap(): void {
+    this.cellOfSampleMap = null;
   }
 
   /** Jazida de cada célula na composição atual (T6), a partir das amostras. */
@@ -763,6 +795,7 @@ export class Tectonics {
 
   /** Recompõe o mapa do mundo a partir das amostras das placas. */
   recompose(): void {
+    this.cellOfSampleMap = null;
     const world = this.world;
     const { positions, neighbors, cellAngle } = world.grid;
     const n = world.cellCount;
@@ -1239,7 +1272,7 @@ export class Tectonics {
           dist[k] = d;
           next.push(k);
           // Só em terra (a ombreira não faz plataforma submersa virar terra).
-          if (d < SHOULDER_NEAR || (elev[k] as number) <= world.seaLevel) continue;
+          if (d < SHOULDER_NEAR || (elev[k] as number) <= world.params.seaLevel) continue;
           const i = this.cellSample[k] as number;
           const ref = i >= 0 ? (this.sRef[i] as number) : k;
           const v = 0.5 + 0.5 * this.marginNoise.sample((positions[ref * 3] as number) * freq - 13, (positions[ref * 3 + 1] as number) * freq, (positions[ref * 3 + 2] as number) * freq);
@@ -1479,7 +1512,8 @@ export class Tectonics {
       let mean = 0;
       for (let d = 0; d < 4; d++) mean += elev[neighbors[c * 4 + d] as number] as number;
       mean /= 4;
-      const eroded = e > EROSION_START ? e - EROSION_RATE * (e - EROSION_START) : e;
+      const rain = Math.min(EROSION_WET, Math.max(EROSION_DRY, (world.precipitation[c] as number) / EROSION_RAIN));
+      const eroded = e > EROSION_START ? e - EROSION_RATE * rain * (e - EROSION_START) : e;
       // Só puxa para a média quando a vizinhança também é terra alta (não "derrete" a costa).
       elev[c] = mean > 0 ? eroded + SMOOTH_RATE * (mean - eroded) : eroded;
     }
@@ -1489,7 +1523,7 @@ export class Tectonics {
       const i = this.cellSample[c] as number;
       if (i < 0) continue;
       this.sElev[i] = elev[c] as number;
-      const crust = world.heightAboveSea(c) > CONTINENTAL_DEPTH ? Crust.Continental : Crust.Oceanic;
+      const crust = world.heightAboveBase(c) > CONTINENTAL_DEPTH ? Crust.Continental : Crust.Oceanic;
       // Crosta continental não vira oceânica só por afundar na margem; arco que emerge vira continental.
       if (crust === Crust.Continental) this.sCrust[i] = crust;
       world.crust[c] = this.sCrust[i] as number;
@@ -2243,7 +2277,7 @@ export class Tectonics {
       region[c] = 1;
       label[c] = i;
     }
-    const height = (c: number) => world.heightAboveSea(c);
+    const height = (c: number) => world.heightAboveBase(c);
     const res = retraceBorders({ grid, region, label, height, rng: this.rng, failChance: parts.length >= 3 ? FAILED_ARM_CHANCE : 0 });
     // Pedaços juntados por braço que falhou.
     const kept: [number, number][] = res.kept.map((k) => [k.a, k.b]);
@@ -2933,7 +2967,7 @@ export class Tectonics {
       const i = this.cellSample[c] as number;
       if (i < 0 || !this.sAlive[i]) continue;
       this.sElev[i] = world.elevation[c] as number;
-      this.sCrust[i] = world.heightAboveSea(c) > CONTINENTAL_DEPTH ? Crust.Continental : Crust.Oceanic;
+      this.sCrust[i] = world.heightAboveBase(c) > CONTINENTAL_DEPTH ? Crust.Continental : Crust.Oceanic;
       world.crust[c] = this.sCrust[i] as number;
     }
   }

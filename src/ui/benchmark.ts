@@ -31,13 +31,16 @@ export interface WorkCounters {
   ruptures: number;
   supercontinents: number;
   cyclePhase: number;
+  /** Recálculos só de clima (ciclo glacial ou controle, T7) e o tempo deles no ajudante 2 (ms). */
+  climateUpdates: number;
+  climateUpdateMs: number;
 }
 
 /** Nomes das fases do ciclo, pelo código em `WorkCounters.cyclePhase` (0 = sem placas andando ainda). */
 export const CYCLE_PHASES = ['—', 'dispersão', 'reunião', 'supercontinente'] as const;
 
 export function emptyWork(): WorkCounters {
-  return { ms: 0, ticks: 0, recompositions: 0, plates: 0, climate: 0, colors: 0, send: 0, worstGeology: 0, waitMs: 0, clockMessages: 0, welds: 0, fragments: 0, ruptures: 0, supercontinents: 0, cyclePhase: 0 };
+  return { ms: 0, ticks: 0, recompositions: 0, plates: 0, climate: 0, colors: 0, send: 0, worstGeology: 0, waitMs: 0, clockMessages: 0, welds: 0, fragments: 0, ruptures: 0, supercontinents: 0, cyclePhase: 0, climateUpdates: 0, climateUpdateMs: 0 };
 }
 
 /**
@@ -61,6 +64,8 @@ export function workDelta(a: WorkCounters, b: WorkCounters): WorkCounters {
     ruptures: Math.max(0, b.ruptures - a.ruptures),
     supercontinents: Math.max(0, b.supercontinents - a.supercontinents),
     cyclePhase: b.cyclePhase,
+    climateUpdates: b.climateUpdates - a.climateUpdates,
+    climateUpdateMs: b.climateUpdateMs - a.climateUpdateMs,
   };
 }
 
@@ -185,7 +190,8 @@ function workLine(r: ScenarioResult): string {
   const secs = r.frames.durationMs / 1000;
   if (w.ticks === 0) return 'worker parado';
   const busy = secs > 0 ? (100 * w.ms) / 1000 / secs : 0;
-  const base = `worker ${f0(w.ticks / Math.max(secs, 1e-9))} passos/s · ${(w.ms / w.ticks).toFixed(3)} ms/passo · ocupado ${f0(busy)}% · ${f0(w.clockMessages / Math.max(secs, 1e-9))} msg/s`;
+  const climate = w.climateUpdates ? ` · clima ${w.climateUpdates}× (média ${f0(w.climateUpdateMs / w.climateUpdates)} ms no ajudante)` : '';
+  const base = `worker ${f0(w.ticks / Math.max(secs, 1e-9))} passos/s · ${(w.ms / w.ticks).toFixed(3)} ms/passo · ocupado ${f0(busy)}% · ${f0(w.clockMessages / Math.max(secs, 1e-9))} msg/s${climate}`;
   if (!w.recompositions) return base;
   const k = w.recompositions;
   return (

@@ -58,6 +58,8 @@ export class GlobeRenderer {
   resourcesLayer = false;
   /** Cor do fundo oceânico novo (fenda aberta entre placas antes da recomposição), 0–1. */
   ridgeColor: [number, number, number] = [0.08, 0.18, 0.39];
+  /** Cor da fenda nova entre dois continentes (vale de rifte, como a simulação faz), 0–1. */
+  riftColor: [number, number, number] = [0.36, 0.3, 0.24];
   private vao: WebGLVertexArrayObject | null = null;
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private rot = new Float32Array(9);
@@ -138,7 +140,7 @@ export class GlobeRenderer {
     }
     // Se até o simplificado falhar, o erro sobe e aparece na tela (App).
     this.program ??= linkProgram(gl, VERTEX_SHADER, fragmentShader(false));
-    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev', 'uDeposits', 'uDepositsPrev', 'uResLayer']) {
+    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev', 'uDeposits', 'uDepositsPrev', 'uResLayer', 'uRiftColor']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.vao = gl.createVertexArray();
@@ -334,6 +336,7 @@ export class GlobeRenderer {
       gl.uniform1f(u.uMaxDelta ?? null, motion.maxDelta);
       gl.uniform1f(u.uMaxDeltaPrev ?? null, motion.maxDeltaPrev);
       gl.uniform3f(u.uRidgeColor ?? null, this.ridgeColor[0], this.ridgeColor[1], this.ridgeColor[2]);
+      gl.uniform3f(u.uRiftColor ?? null, this.riftColor[0], this.riftColor[1], this.riftColor[2]);
     }
     gl.uniform1i(u.uN ?? null, this.n);
     // gl_FragCoord tem origem embaixo; a câmera usa origem em cima.

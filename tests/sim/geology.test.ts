@@ -22,7 +22,8 @@ class DeferredGeology implements GeologyPort {
   start(init: GeologyInit, grid: CubeSphere): void {
     this.outbox = [];
     this.engine = new GeologyEngine(init, grid, (event) => {
-      if (event.type === 'result') this.results.push({ index: event.result.index, tick: event.result.tick });
+      // Só as recomposições (as entregas só de clima, T7, também passam pelo outbox).
+      if (event.type === 'result' && event.result.kind === 'recompose') this.results.push({ index: event.result.index, tick: event.result.tick });
       this.outbox.push(event);
     }, () => 0);
     this.core.onGeologyBuffers(this.engine.buffers);

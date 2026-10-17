@@ -1,42 +1,29 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-17**, branch `marco-2`. O jogo publicado na prévia é o da rodada de correções
-depois do teste da vista de perto (último commit do `marco-2` com mudança no jogo).
+Atualizado em: **2026-10-17**, branch `marco-2`. A prévia tem o fim do bloco Minerais e clima (T6 e T7).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
-- **Bloco atual:** Bloco G fechado (aprovado no celular em `0155233d`: "está bonito de perto", geração
-  2,8 s, metas de fps batidas). **Agora:** bloco Minerais e clima (T6, T7). **Parado na T6:**
-  decisões do usuário registradas (19 tipos, nascem também na deriva, províncias com poucas jazidas
-  importantes, nome só ao tocar, petróleo escondido até cavar); **esperando aprovação da proposta do
-  visual e do custo** e a escolha de como o toque no nome convive com o pincel. Tudo em
-  `docs/M2-especificacao.md`, na T6. Nenhum código da T6 ainda.
-- **Vista de perto aprovada no celular** (`751d6e39`): 61 fps girando, 46 (mín. 33) com placas;
-  travadas 147 → 1. Metas novas de "de perto" registradas (≥ 60 parado/girando; ≥ 30, nunca < 20, com
-  placas andando).
-- **Remendo nas fronteiras de placa (de perto):** diagnosticado, correção esperando aprovação (muda o
-  visual). Causas e proposta na especificação, "Teste no celular (2026-10-17, `751d6e39`)".
-- **T6 feita** (recursos minerais; resultado na especificação, `3c8fbc0`, na prévia).
-- **Parado na T7** esperando 5 decisões do usuário (ciclo glacial, faixa do controle de temperatura,
-  gelo e polos, remendo nas fronteiras de placa, biomas): diagnóstico medido e perguntas na
-  especificação, T7, "Perguntas da T7". Nenhum código da T7 ainda.
-- **Limite novo:** a textura de cores guarda o bioma em 4 bits (16 biomas, o número de hoje). Bioma
-  novo na T7 exige mudar isso (o teste avisa).
-- **Planeta cubado:** o que sobra depois do alisamento (hexágonos perto dos 8 cantos, células
-  desencontradas numa faixa de ~1 célula nas emendas, divisa reta curta ao longo da emenda perto do
-  canto) está descrito na especificação ("O que ainda sobra") com a imagem
-  `docs/img/m2-perto-restos.png`; o usuário julga no teste do fim do bloco, junto com o fps de perto.
-- **Feito agora** (detalhes em "Teste da rodada no celular" na especificação):
-  - Bug do Elevar que subia uma listra: era o "Girar (fps)" do painel Dados girando o globo por baixo
-    do dedo; agora qualquer toque desliga o giro de teste.
-  - Travadas "fora do jogo": o ajudante 2 criava ~117 MB de lixo por recomposição; agora ~20 MB
-    (−83%), recomposição 24% mais rápida, mesmo mundo (teste de impressão digital novo). O registro
-    mostra "recomposição há X s" e a causa virou "fora do código da tela (GPU, núcleo ocupado, limpeza
-    de memória ou sistema)". Falta o celular dizer se as travadas sumiram.
-  - Planeta "cubado" de perto: alisado só no desenho (costas e divisas curvas, sem dobra nas emendas).
-    De perto ~40% mais pesado no notebook; falta medir no celular.
+- **Bloco atual:** Minerais e clima (T6, T7) **terminado, esperando o teste do usuário no celular**
+  (lista numerada na mensagem de fim de bloco; resultados na especificação, T6 e T7). Próximo bloco:
+  Desastres (T8 a T12).
+- **Esperando decisões do usuário** (propostas com imagem, sem trocar ainda; especificação, "Teste
+  rápido da T6 no celular"): (1) pedrinhas rústicas (`docs/img/m2-t6-pedras-rusticas.png`);
+  (2) poucas jazidas: maiores, mais ou as duas; (3) costa reta em vez de bolhas
+  (`docs/img/m2-costa-reta.png`). Também: mais pontes de terra exigiriam plataformas continentais
+  mais largas (pergunta, se o usuário quiser).
+- **Feito no bloco:** T6 (19 tipos de jazidas, formação na deriva, camada "Ver recursos"), correção do
+  remendo nas fronteiras de placa, T7 (ciclo glacial forte com mar baixando, controle de temperatura,
+  calota acima de ~62°, gelo com cara de gelo, neve pela chuva, erosão pelo clima, biomas menos secos,
+  camada "Ver biomas"). Metas de "de perto" registradas (≥ 60 parado/girando; ≥ 30, nunca < 20, com
+  placas).
+- **Limite:** a textura de cores guarda o bioma em 4 bits (16 biomas, o número de hoje). Bioma novo
+  exige mudar isso (o teste avisa); bioma novo só perguntando ao usuário, com o custo.
+- **Planeta cubado:** o que sobra (hexágonos perto dos 8 cantos, células desencontradas nas emendas) em
+  "O que ainda sobra" na especificação (`docs/img/m2-perto-restos.png`); o usuário gostou dos
+  hexágonos. A proposta de costa reta (item 3 acima) muda a vista de perto de novo.
 - **Acompanhar:** primeira abertura da página 5,0 s no celular (antes 4,6).
 - **Decidido em 2026-10-16 (teste do Bloco G):** `42` é falha conhecida de latitude; critério de
   formas mantido; pedacinhos de terra no oceano depois de colisões são aceitáveis; polos, neve demais
@@ -111,8 +98,7 @@ sobre "onde estamos", vale este.
   vira mar; rifte parado fica como vale em terra (aulacógeno, opção 1 do usuário).
 
 ## Pendente no M2
-- [ ] T7: vale de rifte entre montanhas com neve (`docs/bugs.md`); nem toda montanha com neve; erosão
-  pelo clima (lado chuvoso vira escarpa, planalto seco sobrevive).
+- [ ] Confirmar no celular: vale de rifte sem neve (`docs/bugs.md`), remendo nas fronteiras corrigido.
 - [ ] Travadas: confirmar no celular se caíram com menos lixo de memória no ajudante 2; se não, ver
   "recomposição há X s" (GPU ou disputa de núcleos).
 - [ ] Medir no celular "de perto, girando" e "idem, de perto" (cenários novos do "Medir desempenho")
@@ -123,10 +109,8 @@ sobre "onde estamos", vale este.
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
 - [ ] Confirmar no celular: travamento em 92% e lagos retos (`docs/bugs.md`).
-- [ ] T7 em diante (clima, desastres, avisos, teste longo).
-- [ ] Geração estimada ~2,88 s no celular depois da T6 (meta 3 s): medir no fim do bloco.
-- [ ] T7 inclui o que o usuário viu em 2026-10-16: terra em latitude alta sem gelo, polos
-  simplificados demais, neve fraca (registrado na T7, não mexer antes).
+- [ ] T8 em diante (desastres, avisos, teste longo).
+- [ ] Geração estimada ~2,93 s no celular depois da T6 e da T7 (meta 3 s): medir no teste do bloco.
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
 ## Últimas medições no celular (Infinix Hot 50i)
@@ -157,7 +141,10 @@ sobre "onde estamos", vale este.
 
 ## Ideias registradas para marcos futuros (não fazer agora)
 - M3: escala do planeta × tamanho dos humanos (sem humanos de 1 pixel; 3 opções em `docs/02-marcos.md`);
-  base do feedback ambiental.
+  base do feedback ambiental; floresta grande afeta o clima; criaturas vistas de cima (confirmar na
+  especificação do M3 que a vista de perto e a escala permitem).
+- M6: floresta grande muda a doutrina de guerra.
+- M3/M4: água potável; M4: humanos escavando revelam petróleo; M4/M7: fontes de energia para usinas.
 - M3, M4 e M8: zoom maior que o de hoje, para caberem humanos pequenos (montanha de 50 pixels com homem
   de 5 fica estranho).
 - T10 (neste marco): nuvens translúcidas que somem ao aproximar; tempestades e furacões em redemoinho

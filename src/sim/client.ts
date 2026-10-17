@@ -15,7 +15,16 @@ export interface SimEvents {
   onError(message: string, versionMismatch?: boolean): void;
   /** Qualquer mensagem do worker (para o vigia de "sem resposta"). */
   onAlive?(): void;
-  onClock(tick: number, speed: Speed, ticksPerSecond: number, geologyMs: number, memoryMb: number, angles: number[], work: WorkCounters): void;
+  onClock(
+    tick: number,
+    speed: Speed,
+    ticksPerSecond: number,
+    geologyMs: number,
+    memoryMb: number,
+    angles: number[],
+    work: WorkCounters,
+    climate: { offset: number; seaLevel: number },
+  ): void;
 }
 
 /**
@@ -93,6 +102,11 @@ export class SimClient {
     this.send({ type: 'layers', layers });
   }
 
+  /** Controle de temperatura global (°C, T7). */
+  setClimateControl(control: number): void {
+    this.send({ type: 'climateControl', control });
+  }
+
   setSpeed(speed: Speed): void {
     this.send({ type: 'speed', speed });
   }
@@ -148,7 +162,7 @@ export class SimClient {
         }
         break;
       case 'clock':
-        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.memoryMb, msg.angles, msg.work);
+        this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.memoryMb, msg.angles, msg.work, msg.climate);
         break;
       case 'query':
         this.queries.get(msg.id)?.(msg.cell);

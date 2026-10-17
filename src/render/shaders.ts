@@ -1,4 +1,4 @@
-import { BIOME_COUNT, BIOME_INFO } from '../world/biomes';
+import { Biome, BIOME_COUNT, BIOME_INFO } from '../world/biomes';
 import { FACES, type Vec3 } from '../world/cubesphere';
 import { BIOME_BITS, DECOR_BIT } from './colors';
 import { Resource, RESOURCE_INFO } from '../world/resources';
@@ -54,7 +54,7 @@ export const SQUARE_TO_PX = 14;
  * biomas e a sombra na água saem da distância até a divisa com a vizinha, então valem também nas
  * emendas. A distância até os centros usa a métrica local da grade (ver `tileGlsl`).
  */
-function tileGlsl(sfx: string, cells: string, deposits: string): string {
+function tileGlsl(sfx: string, cells: string, deposits: string, plates = ''): string {
   // As 4 células em volta são escritas por extenso (k = 0…3), sem arrays nem laços, e cada uma guarda só
   // o bioma, a distância e o endereço; a cor é lida uma vez, no fim, só da escolhida (array lido com
   // índice variável vai para a memória lenta da GPU). Medidas em `docs/decisoes.md`, "Vista de perto
@@ -83,11 +83,17 @@ function tileGlsl(sfx: string, cells: string, deposits: string): string {
     }
     int b${k} = int(texelFetch(${cells}, t${k}c, 0).a * 255.0 + 0.5) & ${mask};`;
   // Peso pela distância: 1 no centro, 0 a 1 célula.
+  // Na fronteira com placas andando, só valem células da própria placa (sem misturar com a outra placa
+  // onde ela estava na última recomposição). Célula de outra placa: peso 0 e nunca escolhida.
+  const owner = (k: number): string =>
+    plates
+      ? `    bool ok${k} = !line || int(texelFetch(${plates}, ${k === 0 ? 't0c' : `t${k}c`}, 0).r & ${PLATE_MASK}u) == ownPlate;`
+      : `    bool ok${k} = true;`;
   const weight = (k: number): string =>
-    `    float w${k} = max(0.0, 1.0 - d${k} * inv2); w${k} *= w${k};`;
+    `    float w${k} = ok${k} ? max(0.0, 1.0 - d${k} * inv2) : 0.0; w${k} *= w${k};`;
   return `
 // Célula de perto no ponto q. Devolve a cor (antes da luz) e a célula escolhida em "cell".
-vec3 tile${sfx}(vec3 q, float cellPx, float sq, out vec4 cell) {
+vec3 tile${sfx}(vec3 q, float cellPx, float sq, int ownPlate, out vec4 cell) {
   int face; vec3 n; vec3 u; vec3 v;
   faceFrame(q, face, n, u, v);
   vec2 xy = vec2(dot(q, u), dot(q, v)) / dot(q, n); // tangentes do ponto na face
@@ -118,7 +124,9 @@ ${ks.map(dist).join('\n')}
   float m = 1.0; // folga do bioma vencedor sobre o segundo (0 na divisa; 1 = sem divisa)
   // Canto da célula do lado de q (bits em src/render/colors.ts).
   int corner = (s.x > 0 ? 1 : 0) + (s.y > 0 ? 2 : 0);
-  if (((v0 >> (${BIOME_BITS} + corner)) & 1) != 0) {
+  // Célula encostada em outra placa, com placas andando: vai para o caminho que separa as placas.
+  bool line = ${plates ? `ownPlate >= 0 && (texelFetch(${plates}, t0c, 0).r & ${LINE_BIT}u) != 0u` : 'false'};
+  if (!line && ((v0 >> (${BIOME_BITS} + corner)) & 1) != 0) {
     // Caso comum (miolo de um bioma, longe da emenda; bit do canto marcado nas cores): as 4 células
     // têm o mesmo bioma, então fica a de centro mais perto, sem divisa.
     float best = d0;
@@ -127,17 +135,19 @@ ${[1, 2, 3].map((k) => `    if (d${k} < best) { best = d${k}; pickT = ivec3(t0 +
     int b0 = b;
 ${[1, 2, 3].map(neighbor).join('\n')}
     float inv2 = 1.0 / (uCellAngle * uCellAngle);
+${ks.map(owner).join('\n')}
+    if (!(ok0 || ok1 || ok2 || ok3)) { ok0 = true; ok1 = true; ok2 = true; ok3 = true; }
 ${ks.map(weight).join('\n')}
     // Alisamento: ganha o bioma com mais peso somado (empate: o da célula mais perto). As divisas viram
     // curvas, sem escadinha nem quina na emenda; a cor vem da célula mais perto com o bioma vencedor.
 ${ks.map((k) => `    float sc${k} = ${ks.map((j) => (j === k ? `w${j}` : `(b${j} == b${k} ? w${j} : 0.0)`)).join(' + ')};`).join('\n')}
-    float top = sc0;
-    float near = d0;
-${[1, 2, 3].map((k) => `    if (sc${k} > top || (sc${k} == top && d${k} < near)) { top = sc${k}; b = b${k}; near = d${k}; }`).join('\n')}
+    float top = -1.0;
+    float near = 1e9;
+${ks.map((k) => `    if (ok${k} && (sc${k} > top || (sc${k} == top && d${k} < near))) { top = sc${k}; b = b${k}; near = d${k}; }`).join('\n')}
     near = 1e9;
-${ks.map((k) => `    if (b${k} == b && d${k} < near) { near = d${k}; pickT = ${k === 0 ? 't0c' : `t${k}c`}; }`).join('\n')}
+${ks.map((k) => `    if (ok${k} && b${k} == b && d${k} < near) { near = d${k}; pickT = ${k === 0 ? 't0c' : `t${k}c`}; }`).join('\n')}
     float second = 0.0;
-${ks.map((k) => `    if (b${k} != b && sc${k} > second) { second = sc${k}; other = b${k}; }`).join('\n')}
+${ks.map((k) => `    if (ok${k} && b${k} != b && sc${k} > second) { second = sc${k}; other = b${k}; }`).join('\n')}
     m = second > 0.0 ? (top - second) / (top + second) : 1.0;
   }
   cell = pickT == t0c ? col0 : texelFetch(${cells}, pickT, 0);
@@ -147,6 +157,18 @@ ${ks.map((k) => `    if (b${k} != b && sc${k} > second) { second = sc${k}; other
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(lum), col, 1.0 + 0.25 * sq);
   col *= 1.0 + (water ? 0.03 : 0.08) * (cellHash(pickT) - 0.5) * sq;
+  // Calota de perto (T7): uma fenda fina e azulada em ~1 de cada 5 células, em direção sorteada. O
+  // gelo marinho fica só com o mosaico de tons (placas de gelo). Mar congelado: cor marcada nas cores
+  // com o azul do mar misturado (canal azul acima do vermelho).
+  if (b == ${Biome.Ice} && pickT.z == face && cell.b - cell.r < 0.06 && hashK(pickT, 39) < 0.2) {
+    vec2 f = g - vec2(pickT.xy) - 0.5;
+    float a = hashK(pickT, 40) * 3.1416;
+    float off = (hashK(pickT, 50) - 0.5) * 0.5;
+    float d = abs(dot(f, vec2(cos(a), sin(a))) - off);
+    float len = abs(dot(f, vec2(-sin(a), cos(a))));
+    float crack = (1.0 - smoothstep(0.01, 0.025, d)) * (1.0 - smoothstep(0.3, 0.48, len));
+    col = mix(col, col * vec3(0.66, 0.78, 0.9), crack * sq);
+  }
   // Jazida (T6): só nas células marcadas nas cores (bit baixo do azul) lê a textura das jazidas.
   if ((int(cell.b * 255.0 + 0.5) & ${DECOR_BIT}) != 0 && pickT.z == face) {
     col = decorate(col, texelFetch(${deposits}, pickT, 0).r, g - vec2(pickT.xy), pickT, sq);
@@ -275,9 +297,11 @@ void tryPlate${sfx}(int pl, vec3 p, inout int best, inout bool bestCont, inout v
 // Qual placa está em p agora (-1 = fenda nova onde as placas se afastam). Candidatas: a placa que
 // estava em p e as que estavam em volta, até a distância que as placas andaram. Fenda sem
 // afastamento (só arredondamento) fica com a placa que estava em p, como a recomposição faz.
-int plateNow${sfx}(vec3 p, out vec3 fix) {
+int plateNow${sfx}(vec3 p, out vec3 fix, out bool contGap) {
   fix = vec3(0.0);
   uvec2 v0 = plateAt${sfx}(p);
+  // Fenda (sem dona): a célula da composição ali era continental? Então é continente se abrindo (vale).
+  contGap = (v0.x & ${CONTINENTAL_BIT}u) != 0u;
   int pl0 = int(v0.x & ${PLATE_MASK}u);
   float dist = ${maxDelta} * 1.5;
   int c1; int c2; int c3; int c4;
@@ -316,7 +340,7 @@ int plateNow${sfx}(vec3 p, out vec3 fix) {
   return pl0;
 }
 
-${tileGlsl(sfx, cells, deposits)}
+${tileGlsl(sfx, cells, deposits, plates)}
 
 // Cor da superfície no ponto p (antes da luz), com o conjunto de texturas ${sfx || "atual"}.
 vec3 surface${sfx}(vec3 p, float cellPx) {
@@ -326,8 +350,9 @@ vec3 surface${sfx}(vec3 p, float cellPx) {
   bool gap = false;
   vec3 anchor = p;
   vec3 fix = vec3(0.0);
+  bool contGap = false;
   if (uMoving == 1) {
-    pl = plateNow${sfx}(p, fix);
+    pl = plateNow${sfx}(p, fix, contGap);
     if (pl < 0) gap = true;
     else anchor = toPlate(pl, p);
   }
@@ -342,14 +367,18 @@ vec3 surface${sfx}(vec3 p, float cellPx) {
     vec3 w = noise3(anchor * f) + 0.5 * noise3(anchor.zxy * f * 2.03 + 17.0);
     q = normalize(anchor + w * (uCellAngle * 0.7 * warpAmount));
   }
-  if (pl >= 0) q = toTexture${sfx}(pl, q) + fix;
+  // De longe, a tolerância de arredondamento lê o ponto vizinho que é da placa ("fix", menos de 1 pixel).
+  // De perto isso virava faixas de células esticadas na fronteira: lá a escolha entre as células da
+  // própria placa é feita na vista de perto (remendo nas fronteiras, 2026-10-17).
+  if (pl >= 0) q = toTexture${sfx}(pl, q) + (sq > 0.0 ? vec3(0.0) : fix);
   vec4 cell;
   vec3 base;
   if (gap) {
-    cell = vec4(uRidgeColor, 0.0);
+    // Fenda nova: entre dois continentes é vale de rifte (como a simulação faz), no oceano é dorsal.
+    cell = vec4(contGap ? uRiftColor : uRidgeColor, 0.0);
     base = cell.rgb;
   } else if (sq > 0.0) {
-    base = tile${sfx}(q, cellPx, sq, cell);
+    base = tile${sfx}(q, cellPx, sq, pl, cell);
   } else {
     cell = cellAt${sfx}(q);
     base = cell.rgb;
@@ -390,7 +419,7 @@ vec3 surface(vec3 p, float cellPx) {
   vec4 cell;
   vec3 base;
   if (sq > 0.0) {
-    base = tile(q, cellPx, sq, cell);
+    base = tile(q, cellPx, sq, -1, cell);
   } else {
     cell = cellAt(q);
     base = cell.rgb;
@@ -428,6 +457,7 @@ uniform vec2 uPlateBasePrev[${MAX_SHADER_PLATES}]; // ângulos da composição a
 uniform float uMaxDelta;                // maior rotação desde a composição (raio de busca)
 uniform float uMaxDeltaPrev;            // idem, desde a composição anterior (transição suave)
 uniform vec3 uRidgeColor;               // fundo oceânico novo (fenda ainda sem crosta)
+uniform vec3 uRiftColor;                // fenda nova entre dois continentes (vale de rifte)
 
 vec3 rotCS(vec3 v, vec3 k, float c, float s) {
   return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c);

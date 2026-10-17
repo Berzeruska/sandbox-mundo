@@ -32,6 +32,8 @@ export interface DebugStats {
   sharedMemory: string;
   /** Ciclo de Wilson: fase, supercontinentes e rupturas (G2). */
   cycle: string;
+  /** Temperatura global (ciclo glacial + controle) e nível do mar (T7). */
+  climate: string;
   /** Registro de travadas: resumo e as últimas (`stalls.ts`). */
   stalls: string[];
 }
@@ -139,6 +141,7 @@ export class DebugPanel {
       `worker  ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms · ~${s.memoryMb.toFixed(0)} MB`,
       `placas  ${s.recompositions} recomposições · última ${s.geologyMs.toFixed(0)} ms`,
       `ciclo   ${s.cycle}`,
+      `clima   ${s.climate}`,
       `desenho ${s.drawing} · versão ${s.version}`,
       `memória compartilhada ${s.sharedMemory}`,
       ...s.stalls,

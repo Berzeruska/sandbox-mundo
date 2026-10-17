@@ -13,12 +13,14 @@ import type { WorldState } from '../world/state';
 /** Camadas opcionais desenhadas por cima dos biomas (escolhidas no menu). */
 export interface Layers {
   plates: boolean;
+  /** Camada "Ver biomas" (T7): cada bioma numa cor forte e lisa, para ler de longe. */
+  biomes: boolean;
   /** Camada "Ver recursos" (T6) e os tipos mostrados nela (bit = código do tipo). */
   resources: boolean;
   resourceMask: number;
 }
 
-export const NO_LAYERS: Layers = { plates: false, resources: false, resourceMask: ALL_RESOURCES };
+export const NO_LAYERS: Layers = { plates: false, biomes: false, resources: false, resourceMask: ALL_RESOURCES };
 
 /**
  * Bit mais baixo do azul na textura de cores: a célula tem algo a desenhar de perto (pedrinhas,
@@ -30,6 +32,58 @@ export const DECOR_BIT = 1;
 const SOIL_TINT = 0.22;
 /** Petróleo revelado: mancha escura (em terra e no mar). */
 const OIL_STAIN: readonly [number, number, number] = [22, 20, 26];
+
+/**
+ * Cores da camada "Ver biomas" (T7, pedido do usuário: floresta, deserto e campo legíveis de longe):
+ * uma cor forte e bem diferente por bioma. Índice = código do bioma.
+ */
+export const BIOME_LAYER_COLORS: readonly (readonly [number, number, number])[] = [
+  [18, 36, 86], // oceano profundo
+  [40, 92, 160], // oceano raso
+  [250, 234, 168], // praia
+  [255, 255, 255], // gelo
+  [150, 196, 206], // tundra
+  [26, 92, 84], // taiga
+  [38, 150, 58], // floresta temperada
+  [158, 214, 76], // campo
+  [214, 204, 120], // estepe
+  [250, 196, 76], // deserto quente
+  [196, 160, 126], // deserto frio
+  [228, 150, 52], // savana
+  [8, 96, 28], // floresta tropical
+  [120, 92, 160], // pântano
+  [126, 106, 96], // montanha
+  [232, 232, 246], // pico nevado
+];
+
+/**
+ * Gelo (T7, "não parecia gelo"): calota em terra branca com a borda azulada e um pouco de variação;
+ * gelo marinho mais fino, deixando ver um pouco do mar, e mais azul na borda (onde ele quebra).
+ */
+const iceOut = new Float64Array(3);
+const SEA_COLOR = BIOME_INFO[1]?.color ?? [44, 98, 160];
+
+/** Escreve em `iceOut` (sem criar array por célula: roda no mundo todo a cada recálculo de clima). */
+function iceColor(world: WorldState, i: number, h: number, r: number, g: number, b: number): void {
+  const { neighbors } = world.grid;
+  let edge = false;
+  for (let d = 0; d < 4 && !edge; d++) edge = !world.ice[neighbors[i * 4 + d] as number];
+  const v = ((Math.imul(i ^ 0x5bd1e995, 0x27d4eb2d) >>> 0) / 4294967296 - 0.5) * 10;
+  if (h > 0) {
+    const kr = edge ? 0.82 : 1;
+    const kg = edge ? 0.9 : 1;
+    const kb = edge ? 0.98 : 1;
+    iceOut[0] = r * kr + v;
+    iceOut[1] = g * kg + v;
+    iceOut[2] = b * kb + v;
+    return;
+  }
+  // Mar congelado: mistura com o azul do mar (fino), mais azul e mais escuro na borda.
+  const t = edge ? 0.45 : 0.18;
+  iceOut[0] = r + ((SEA_COLOR[0] as number) - r) * t + v;
+  iceOut[1] = g + ((SEA_COLOR[1] as number) - g) * t + v;
+  iceOut[2] = b + ((SEA_COLOR[2] as number) - b) * t + v;
+}
 
 /** Cores das fronteiras de placa na camada "Ver placas", por tipo (`Boundary`). */
 export const BOUNDARY_COLORS: readonly (readonly [number, number, number])[] = [
@@ -93,7 +147,21 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   let r = Math.min(255, info.color[0] * k);
   let g = Math.min(255, info.color[1] * k);
   let b = Math.min(255, info.color[2] * k);
-  const code = world.deposit[i] as number;
+  if (world.ice[i]) {
+    iceColor(world, i, h, r, g, b);
+    r = iceOut[0] as number;
+    g = iceOut[1] as number;
+    b = iceOut[2] as number;
+  }
+  if (layers.biomes && !layers.resources) {
+    // Cor forte e lisa por bioma (sem sombreado nem gelo marinho misturado): para ler de longe.
+    const c = BIOME_LAYER_COLORS[world.biome[i] as number] ?? [255, 0, 255];
+    r = c[0];
+    g = c[1];
+    b = c[2];
+  }
+  // Jazida coberta de gelo não aparece (nem pedrinhas): só na camada "Ver recursos".
+  const code = world.ice[i] && !layers.resources ? 0 : (world.deposit[i] as number);
   let decor = false;
   if (layers.resources) {
     // Terreno acinzentado e escurecido; jazidas do filtro fortes na cor do tipo.

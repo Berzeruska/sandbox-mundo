@@ -173,7 +173,7 @@ describe('recursos minerais (T6): formação durante a deriva', () => {
         results++;
         consumed.push(e.result.index);
       };
-      const engine: GeologyEngine = new GeologyEngine({ world: 1, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: 1, layers: NO_LAYERS }, grid, emit, () => 0);
+      const engine: GeologyEngine = new GeologyEngine({ world: 1, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: 1, layers: NO_LAYERS, climateControl: 0 }, grid, emit, () => 0);
       let tick = 0;
       while (results < 120) {
         tick += 20;
