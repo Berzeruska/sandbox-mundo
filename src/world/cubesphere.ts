@@ -250,6 +250,15 @@ export class CubeSphere {
     return face * n * n + gy * n + gx;
   }
 
+  /**
+   * O mesmo que `pointToCell(v[0], v[1], v[2])`. Recebe o vetor em vez dos três números: nas buscas
+   * por célula da recomposição (centenas de milhares por vez), passar números com vírgula para uma
+   * função não embutida cria um objeto por número, e isso virava lixo para a limpeza de memória.
+   */
+  pointToCellOf(v: ArrayLike<number>): number {
+    return this.pointToCell(v[0] as number, v[1] as number, v[2] as number);
+  }
+
   neighbor(i: number, dir: number): number {
     return this.neighbors[i * 4 + dir] as number;
   }

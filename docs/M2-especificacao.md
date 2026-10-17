@@ -770,6 +770,73 @@ como aparelho-alvo até o fim do M2.
    foi mexida no visual: é regra do gelo (T7); pintar por cima faria o mapa mostrar outra coisa que o
    mundo.
 
+### Teste da rodada no celular (2026-10-17, `0155233d`): aprovado, e correções antes de T6/T7
+Relato do usuário: "está bonito de perto", aproximação limpa, quadrados andam bem com as placas,
+geração 2,8 s, metas de fps batidas. Primeira abertura da página 5,0 s (antes 4,6; só acompanhar).
+Pedidos antes do bloco Minerais e clima:
+
+1. **Bug: Elevar sobe uma listra.** Reproduzido no notebook: com o "Girar (fps)" do painel Dados
+   ligado, o globo continua girando por baixo do dedo e o pincel, aplicado a cada quadro, desenha uma
+   faixa leste–oeste. A inércia parava no toque; o giro de teste, não. **Correção:** qualquer toque no
+   globo desliga o giro de teste (o botão volta para "Girar (fps)"). Sem o giro, o pincel faz morro no
+   ponto tocado (conferido parado, com placas a 20×, de perto, num mundo antigo e nas emendas do cubo).
+   Se a listra aparecer com o giro desligado, é outro caso: o usuário avisa.
+2. **Travadas "fora do jogo".** Registro do celular: 147 da tela e 11 da data, todas de 110–130 ms,
+   placas 100% a 20×. **O jogo provoca limpeza de memória, sim, mas no ajudante 2:**
+   - Medido no Chromium (perfil de memória por worker, 10 s a 20× com placas 100%): tela quase nada
+     (3–4 limpezas pequenas em 20 s), relógio ~1 MB, **ajudante 2: 270 MB criados e jogados fora**
+     (205 limpezas em 20 s). No Node, N = 256: **117 MB por recomposição**.
+   - Origem: objetos pequenos criados por célula a cada recomposição (vetores `[x, y, z]`, listas
+     zeradas com `length = 0`, que fazem o motor do JavaScript jogar fora o espaço e criar outro, um
+     objeto de parâmetros por célula no bioma, números com vírgula passados a funções não embutidas)
+     e arrays do tamanho do mundo recriados a cada vez.
+   - **Correção** (mesmo resultado: impressão digital idêntica em 300 recomposições, N = 64, e 14 em
+     N = 128; teste novo `tests/sim/geology-golden.test.ts`): áreas de trabalho reaproveitadas,
+     `pointToCellOf` (célula a partir de um vetor), contas sem vetores temporários, somas em blocos.
+     **117 → 20 MB por recomposição (−83%)** e a recomposição ficou **24% mais rápida** (404 → 308 ms
+     no Node, N = 256). No Chromium: 270 → 55 MB em 10 s; limpezas no ajudante 205 → 64 em 20 s.
+   - **O que não está provado:** no notebook não aparece nenhuma travada (nem com o processador 6×
+     mais lento), então não dá para confirmar aqui que era isso. A limpeza no ajudante usa outros
+     núcleos ao mesmo tempo, e o Hot 50i só tem 2 fortes para tela, relógio e ajudante. Outra causa
+     possível, que o registro não separa, é a GPU: "fora do jogo" quer dizer só que a tela não estava
+     trabalhando no código dela. **Registro melhorado:** a causa agora se chama "fora do código da tela
+     (GPU, núcleo ocupado, limpeza de memória ou sistema)" e cada travada mostra "recomposição há X s".
+     Se as travadas continuarem e caírem logo depois das recomposições, o próximo passo é a GPU ou a
+     disputa de núcleos.
+3. **Proposta (sem código): de perto, perto dos polos, o planeta fica "blocado", com partes
+   distorcidas e costa dobrando em ângulo reto.** Imagem: `docs/img/m2-perto-emendas.png` (semente
+   `42`, zoom máximo; 1 e 2: costa na emenda entre a face do polo e a face do lado; 3 e 4: perto de
+   um canto do cubo).
+   - **De onde vem:** a grade é um cubo inflado. O polo é o centro de uma face (lá as células são
+     quadradas e retas). A ~35°–45° de latitude ficam as **emendas** entre faces: as fileiras de
+     células mudam de direção ali, então uma costa que segue a grade dobra, como a quina de uma
+     caixa. Nos **8 cantos do cubo** (latitude ~35°) as células viram losangos de ~120°. De longe as
+     bordas orgânicas escondem isso; de perto, com células quadradas, aparece. É geometria da grade
+     (nenhum desenho de cubo evita), não dado do mundo.
+   - **Opções:**
+     a. **Deixar como está.** Custo zero.
+     b. **Disfarçar só nas emendas e cantos:** de perto, até ~3 células das emendas e cantos, o
+        shader mistura de volta um pouco das bordas orgânicas, e o resto continua quadrado. A dobra
+        fica arredondada, mas aí os quadrados se misturam com bordas tortas (dois estilos na mesma
+        tela). Custo: ~1 dia, só shader, desempenho praticamente igual.
+     c. **Quadrados alinhados à tela:** de perto, em vez de desenhar as células da grade, desenha uma
+        malha de quadrados retos e alinhados com o norte, presa ao ponto que a câmera olha; cada
+        quadrado pega a cor da célula embaixo do centro dele. Fim das dobras e dos losangos na tela.
+        Contra: quadrado e célula deixam de ser a mesma coisa: perto das emendas uma célula pode
+        aparecer como 2 quadrados ou sumir, e a malha "escorrega" sobre o terreno ao girar o globo (é
+        presa à câmera, não ao chão). O pincel continua agindo nas células. Custo: ~2–3 dias, só
+        shader, desempenho parecido com hoje.
+     d. **Trocar a grade** (por exemplo, hexágonos num icosaedro, 12 pentágonos no lugar dos cantos):
+        sem emendas em ângulo reto, todas as células quase do mesmo tamanho. Mas é refazer quase tudo
+        (grade, vizinhança de 4 para 6, clima, tectônica, texturas, desenho, testes, sementes mudam) e
+        a cara deixa de ser de quadrados. Custo: semanas; risco alto de desempenho no celular. Seria
+        assunto de outro marco.
+   - **Recomendação:** (a) agora, ou (b) se incomodar no jogo. A (c) resolve melhor a aparência, mas
+     troca um defeito visível parado por um "escorregar" visível ao girar. **Decisão do usuário.**
+
+Registrado também: ideia para depois de **zoom maior**, para caberem humanos pequenos (montanha de 50
+pixels com homem de 5 fica estranho): marcos 3, 4 e 8 (`docs/02-marcos.md`).
+
 ### G4 — Andamento (2026-10-16): feito, parado na erosão (decisão do usuário)
 **Decisões do usuário:** fontes de variedade 1 a 5 aprovadas; ombreira de rifte (6) entra no G4; se a
 erosão atual apagar a variedade antes do teste dos 10 min, avisar antes de mexer nela.

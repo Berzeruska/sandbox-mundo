@@ -12,6 +12,8 @@ export interface InputHandlers {
   /** Mouse passando por cima sem apertar (null = saiu do canvas). */
   onHover(sx: number, sy: number): void;
   onLeave(): void;
+  /** Um dedo (ou botão) tocou o globo, antes de decidir entre girar, pintar ou pinça. */
+  onPress(): void;
 }
 
 interface PointerState {
@@ -103,6 +105,7 @@ export class PointerInput {
     const p = this.toCanvas(e);
     this.pointers.set(e.pointerId, { x: p.x, y: p.y, startX: p.x, startY: p.y, startTime: e.timeStamp });
     this.camera.stopSpin();
+    this.handlers.onPress();
     this.zoomAnim = null;
     this.history = [];
 

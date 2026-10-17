@@ -1,5 +1,5 @@
 import { createRng, type Rng } from '../core/rng';
-import type { Vec3 } from './cubesphere';
+import type { CubeSphere, Vec3 } from './cubesphere';
 import { fbm, Noise3D } from './noise';
 import { FAILED_ARM_CHANCE, MICROCONTINENT_CHANCE, MICRO_SHARE_MAX, MICRO_SHARE_MIN, MICRO_SHARE_FLOOR, retraceBorders, sliverAlong, traceArm } from './rifts';
 import type { WorldState } from './state';
@@ -637,34 +637,58 @@ const BOUNDARY_VOTE_STEPS = 3;
 export function smoothBoundaries(world: WorldState): void {
   const { neighbors } = world.grid;
   const n = world.cellCount;
-  const original = Uint8Array.from(world.boundary);
-  const seen = new Int32Array(n).fill(-1);
-  const votes = [0, 0, 0, 0];
+  const sc = boundaryScratch(world.grid, n);
+  const original = sc.original;
+  original.set(world.boundary);
+  const seen = sc.seen.fill(-1);
+  let frontier = sc.frontier;
+  let next = sc.next;
+  const votes = sc.votes;
   for (let i = 0; i < n; i++) {
     if (!original[i]) continue;
     votes.fill(0);
     // Busca em largura limitada, só por células de fronteira.
-    let frontier = [i];
+    frontier[0] = i;
+    let count = 1;
     seen[i] = i;
-    for (let step = 0; step <= BOUNDARY_VOTE_STEPS && frontier.length; step++) {
-      const next: number[] = [];
-      for (const c of frontier) {
+    for (let step = 0; step <= BOUNDARY_VOTE_STEPS && count; step++) {
+      let nextCount = 0;
+      for (let k = 0; k < count; k++) {
+        const c = frontier[k] as number;
         votes[original[c] as number] = (votes[original[c] as number] as number) + 1;
         if (step === BOUNDARY_VOTE_STEPS) continue;
         for (let d = 0; d < 4; d++) {
           const nb = neighbors[c * 4 + d] as number;
           if (original[nb] && seen[nb] !== i) {
             seen[nb] = i;
-            next.push(nb);
+            next[nextCount++] = nb;
           }
         }
       }
+      const t = frontier;
       frontier = next;
+      next = t;
+      count = nextCount;
     }
     let best = original[i] as number;
     for (let k = 1; k <= 3; k++) if ((votes[k] as number) > (votes[best] as number)) best = k;
     world.boundary[i] = best;
   }
+}
+
+/**
+ * Arrays de trabalho do voto das fronteiras, um conjunto por grade: ele roda duas vezes a cada
+ * recomposição, e recriar tudo virava lixo para a limpeza de memória.
+ */
+const boundaryScratches = new WeakMap<CubeSphere, { original: Uint8Array; seen: Int32Array; frontier: Int32Array; next: Int32Array; votes: Int32Array }>();
+
+function boundaryScratch(grid: CubeSphere, n: number) {
+  let s = boundaryScratches.get(grid);
+  if (!s) {
+    s = { original: new Uint8Array(n), seen: new Int32Array(n), frontier: new Int32Array(n), next: new Int32Array(n), votes: new Int32Array(4) };
+    boundaryScratches.set(grid, s);
+  }
+  return s;
 }
 
 /**
@@ -768,10 +792,14 @@ export function plateVelocity(plate: Plate, p: Vec3): Vec3 {
  * Aproximando = convergente; afastando = divergente; deslizando de lado = transformante.
  */
 export function classifyBoundary(world: WorldState, i: number): Boundary {
+  // Mesma conta de antes (normalize, cross, dot), escrita sem criar vetores: roda em todas as
+  // células a cada recomposição, e os vetores temporários eram lixo para a limpeza de memória.
   const { positions, neighbors } = world.grid;
   const plates = world.plates;
   const pi = world.plate[i] as number;
-  const p: Vec3 = [positions[i * 3] as number, positions[i * 3 + 1] as number, positions[i * 3 + 2] as number];
+  const px = positions[i * 3] as number;
+  const py = positions[i * 3 + 1] as number;
+  const pz = positions[i * 3 + 2] as number;
   let bestNormal = 0;
   let bestTangent = 0;
   let found = false;
@@ -783,13 +811,29 @@ export function classifyBoundary(world: WorldState, i: number): Boundary {
     const b = plates[pj];
     if (!a || !b) continue;
     found = true;
-    const q: Vec3 = [positions[j * 3] as number, positions[j * 3 + 1] as number, positions[j * 3 + 2] as number];
-    const toward = normalize([q[0] - p[0], q[1] - p[1], q[2] - p[2]]);
-    const va = plateVelocity(a, p);
-    const vb = plateVelocity(b, q);
-    const rel: Vec3 = [va[0] - vb[0], va[1] - vb[1], va[2] - vb[2]];
-    const normal = dot(rel, toward); // > 0: esta placa avança sobre a vizinha
-    const tangent = Math.hypot(rel[0] - normal * toward[0], rel[1] - normal * toward[1], rel[2] - normal * toward[2]);
+    const qx = positions[j * 3] as number;
+    const qy = positions[j * 3 + 1] as number;
+    const qz = positions[j * 3 + 2] as number;
+    const tx0 = qx - px;
+    const ty0 = qy - py;
+    const tz0 = qz - pz;
+    const l = Math.hypot(tx0, ty0, tz0) || 1;
+    const tx = tx0 / l;
+    const ty = ty0 / l;
+    const tz = tz0 / l;
+    const wa = a.omega;
+    const wb = b.omega;
+    const vax = wa[1] * pz - wa[2] * py;
+    const vay = wa[2] * px - wa[0] * pz;
+    const vaz = wa[0] * py - wa[1] * px;
+    const vbx = wb[1] * qz - wb[2] * qy;
+    const vby = wb[2] * qx - wb[0] * qz;
+    const vbz = wb[0] * qy - wb[1] * qx;
+    const rx = vax - vbx;
+    const ry = vay - vby;
+    const rz = vaz - vbz;
+    const normal = rx * tx + ry * ty + rz * tz; // > 0: esta placa avança sobre a vizinha
+    const tangent = Math.hypot(rx - normal * tx, ry - normal * ty, rz - normal * tz);
     if (Math.abs(normal) + tangent > Math.abs(bestNormal) + bestTangent) {
       bestNormal = normal;
       bestTangent = tangent;

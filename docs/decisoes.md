@@ -537,3 +537,25 @@ Formato: data — decisão — motivo — alternativa descartada.
   - Polos (duas manchas brancas que não interagem com as placas e não parecem gelo), neve demais (vale
     do rifte e todas as montanhas) e biomas pouco variados: **T7**.
   - O Hot 50i continua como aparelho-alvo; no fim do M2, com o relatório, o usuário decide se mantém.
+
+- **2026-10-17 — Sem lixo de memória nos caminhos quentes da recomposição (técnica).** O ajudante 2
+  criava ~117 MB de objetos temporários por recomposição (N = 256). Regras para código que roda em
+  todas as células a cada recomposição ou passo: nada de vetor `[x, y, z]` temporário, nada de lista
+  zerada com `length = 0` a cada célula (use array tipado e contador), nada de objeto de parâmetros por
+  célula, e não passar números com vírgula soltos a funções que podem não ser embutidas (use
+  `pointToCellOf(vetor)` ou passe a célula). Arrays do tamanho do mundo usados só durante a conta ficam
+  guardados e são reaproveitados. Resultado: ~20 MB por recomposição, 24% mais rápida, mesmo mundo.
+  - **Guarda:** `tests/sim/geology-golden.test.ts` (impressão digital do motor da geologia depois de 40
+    recomposições). Otimização não pode mudar o mundo; se o teste falhar sem mudança de regra de
+    propósito, a otimização errou.
+  - **Descartado:** reescrever as funções grandes (`recompose`, `relief`) em pedaços menores só para o
+    otimizador do navegador; o que sobrou (~20 MB) está espalhado e cada corte daria pouco.
+
+- **2026-10-17 — Toque no globo desliga o giro de teste (correção de bug).** O "Girar (fps)" do painel
+  Dados para no primeiro toque, como a inércia. Com ele ligado, segurar o pincel desenhava uma listra.
+
+- **2026-10-17 — Registro de travadas: "fora do código da tela" e "recomposição há X s".** O nome
+  antigo ("fora do jogo") sugeria que o jogo não tinha culpa. Quer dizer só que a tela não estava no
+  código dela: pode ser GPU, outro trabalho no mesmo núcleo, limpeza de memória (inclusive a provocada
+  pelo ajudante) ou o sistema. O tempo desde a última recomposição mostra se as travadas coincidem com
+  ela.

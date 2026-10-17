@@ -1,0 +1,47 @@
+import { describe, expect, it } from 'vitest';
+import { seedFrom } from '../../src/core/rng';
+import { GeologyEngine, worldArrays, type GeologyEvent } from '../../src/sim/geology';
+import { CubeSphere } from '../../src/world/cubesphere';
+import { createWorld } from '../../src/world/create';
+
+/** FNV-1a de 32 bits sobre os bytes (impressão digital simples, sem dependência). */
+function fnv(h: number, bytes: Uint8Array): number {
+  for (let i = 0; i < bytes.length; i++) h = Math.imul(h ^ (bytes[i] as number), 0x01000193);
+  return h >>> 0;
+}
+
+const bytesOf = (a: ArrayBufferView): Uint8Array => new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+
+/**
+ * Guarda o resultado exato do motor da geologia (recomposição, clima, cores, textura das placas).
+ * Otimização de desempenho não pode mudar o mundo: se este teste falhar sem uma mudança de regra
+ * de propósito, a otimização mudou o resultado. Valores conferidos contra o código de antes da
+ * limpeza de lixo de memória (2026-10-16), com 300 recomposições em N = 64 e 14 em N = 128.
+ */
+describe('motor da geologia: mesmo resultado', () => {
+  it('impressão digital depois de 40 recomposições (terra, N = 64)', () => {
+    const grid = new CubeSphere(64);
+    const world = createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: 64, seaLevel: 0, landFraction: 0.3 }, grid);
+    let h = 0x811c9dc5;
+    let results = 0;
+    const consumed: number[] = [];
+    const emit = (e: GeologyEvent) => {
+      if (e.type !== 'result') return;
+      results++;
+      const arrays = engine.buffers.arrays as Record<string, ArrayBufferView>;
+      for (const k of Object.keys(arrays).sort()) h = fnv(h, bytesOf(arrays[k] as ArrayBufferView));
+      h = fnv(h, engine.colors);
+      h = fnv(h, bytesOf(engine.cellRef));
+      h = fnv(h, e.result.plateCells);
+      consumed.push(e.result.index);
+    };
+    const engine: GeologyEngine = new GeologyEngine({ world: 1, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: 1, layers: { plates: false } }, grid, emit, () => 0);
+    let tick = 0;
+    while (results < 40) {
+      tick += 20;
+      engine.receive({ type: 'advance', world: 1, tick });
+      for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
+    }
+    expect(h.toString(16)).toBe('4520602e');
+  });
+});

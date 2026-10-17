@@ -173,3 +173,18 @@ Formato: data — como reproduzir — causa — correção — commit.
   mede quadros lentos da tela nem a tela aplicando uma recomposição. No notebook não aparece.
 - **Correção:** registro de travadas no painel Dados (hora, duração e causa provável de cada uma), para
   o próximo teste no celular dizer de onde vem.
+- **2026-10-17 (`0155233d`):** o registro mostrou 147 travadas da tela e 11 da data, todas de
+  110–130 ms, "fora do jogo". Achado: o ajudante 2 criava e jogava fora ~117 MB por recomposição
+  (N = 256), forçando limpeza de memória o tempo todo. Reduzido para ~20 MB (−83%), recomposição 24%
+  mais rápida, mesmo mundo (detalhes na especificação do M2, "Teste da rodada no celular"). Não dá para
+  provar no notebook que era a causa (lá não trava); o registro agora mostra "recomposição há X s" em
+  cada travada para o próximo teste separar limpeza de memória, GPU e disputa de núcleos.
+
+## 2026-10-17 — "Elevar" sobe uma listra em vez de um morro (celular, `0155233d`)
+- **Como reproduzir:** painel Dados → "Girar (fps)" ligado; fechar o painel; Elevar e segurar o dedo
+  num ponto. Sai uma faixa leste–oeste atravessando o continente.
+- **Causa:** o giro de teste continuava com o dedo na tela (a inércia parava no toque; o giro de teste
+  não). O pincel é aplicado a cada quadro no ponto embaixo do dedo, e o globo andava por baixo dele.
+- **Correção:** qualquer toque no globo desliga o giro de teste (o botão volta a "Girar (fps)").
+  Conferido no notebook: só o morro no ponto tocado. Se a listra aparecer com o giro desligado, é outro
+  caso.

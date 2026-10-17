@@ -63,6 +63,9 @@ Hoje, com um planeta do tamanho da Terra, cada célula tem ~33–39 km. Opções
    independente da escala física do terreno).
 Avaliar desempenho no celular, coerência com a simulação agregada × individual e com a escala
 visual pequena pedida (`docs/00-visao.md`).
+Ideia do usuário (2026-10-17), para M3, M4 e M8: **zoom maior que o de hoje**, para caberem bonecos
+pequenos de humanos (uma montanha de 50 pixels com um homem de 5 fica estranho). Entra junto desta
+questão de escala.
 
 **Aceite:** 1.000 anos acelerados sem extinção em massa e sem estagnação (teste automático +
 observação do usuário).
@@ -73,6 +76,8 @@ Aldeias, agricultura, caça, fome, doença, domesticação, crescimento de povoa
 povoados bem pequenos no mapa. Ver `docs/05-civilizacao-politica.md` e `docs/04-ecologia.md`.
 Pedido do usuário (2026-10-16): os humanos **começam nômades**, com técnicas de caça, antes da
 agricultura.
+Ideia do usuário (2026-10-17): zoom maior para caberem humanos pequenos (ver a questão de escala do
+M3).
 
 ## Marco 5 — Política e mente
 Evolução de regimes, botão divino de concessão, ideologias, sistemas econômicos, líderes com
@@ -96,3 +101,5 @@ pessoas e cidades.
 Sprites melhores, animações, possível pseudo-3D, som.
 Pedido do usuário (2026-10-16): formações de erosão vistas de perto (pilares de arenito como os da
 China, grandes "braços" de pedra); a erosão pelo clima em si é da T7 do M2.
+Ideia do usuário (2026-10-17): zoom maior que o de hoje, para humanos pequenos ficarem
+proporcionais ao relevo (ver a questão de escala do M3).

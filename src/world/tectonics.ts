@@ -236,6 +236,9 @@ export function oceanDepthAt(age: number): number {
   return RIDGE_DEPTH - ABYSSAL_EXTRA * Math.sqrt(Math.min(1, Math.max(0, age) / AGE_FULL_TICKS));
 }
 
+/** Células por bloco na soma do fundo oceânico de cada placa (`preparePolarity`). */
+const POLARITY_CHUNK = 4096;
+
 export class Tectonics {
   readonly world: WorldState;
   /** Ângulo acumulado de cada placa (rad) e o ângulo na última recomposição. */
@@ -271,6 +274,15 @@ export class Tectonics {
   failedArms: { a: number; b: number; drift: number }[] = [];
   /** Relógio da deriva (rad de giro a velocidade 1) e onde termina o estágio de cada placa. */
   private drift = 0;
+  /** Áreas de trabalho de `rotation`, `centerNow` e `closing` (chamadas por célula: sem lixo). */
+  private readonly rodrigues = new Float64Array(9);
+  private readonly centerMatrix = new Float64Array(9);
+  private readonly centerA = new Float64Array(3);
+  private readonly centerB = new Float64Array(3);
+  /** Arrays de trabalho do `recompose` (do tamanho do mundo), reaproveitados a cada recomposição. */
+  private readonly scratchBand: Uint8Array;
+  private readonly scratchPrevPlate: Uint8Array;
+  private readonly scratchSample: Int32Array;
   private stageEnd: Float64Array;
   /** Sorteios dos eventos da tectônica (estágios), separados dos da geração. */
   private rng: Rng;
@@ -397,6 +409,9 @@ export class Tectonics {
     this.marginNoise = new Noise3D(createRng((world.params.seed ^ 0x2545f491) >>> 0));
     this.provinceNoise = new Noise3D(createRng((world.params.seed ^ 0x51ed270b) >>> 0));
     this.cellSample = new Int32Array(n);
+    this.scratchBand = new Uint8Array(n);
+    this.scratchPrevPlate = new Uint8Array(n);
+    this.scratchSample = new Int32Array(n);
     // O ciclo começa na dispersão da Pangeia, a partir do centro da crosta continental.
     {
       let x = 0;
@@ -468,7 +483,7 @@ export class Tectonics {
   /** Memória aproximada usada pela tectônica (bytes), para o painel Dados. */
   get bytes(): number {
     const perSample = 1 + 4 + 4 + 1 + 4 + 1 + 1;
-    return this.sPlate.length * perSample + this.cellSample.byteLength + this.initialPlate.byteLength + this.extra.size * 40;
+    return this.sPlate.length * perSample + this.cellSample.byteLength + this.initialPlate.byteLength + this.scratchBand.byteLength * 2 + this.scratchSample.byteLength + this.extra.size * 40;
   }
 
   private kill(i: number): void {
@@ -598,11 +613,16 @@ export class Tectonics {
     const s = Math.sin(a);
     const t = 1 - c;
     // Rodrigues em forma de matriz.
-    const r = [
-      c + kx * kx * t, kx * ky * t - kz * s, kx * kz * t + ky * s,
-      ky * kx * t + kz * s, c + ky * ky * t, ky * kz * t - kx * s,
-      kz * kx * t - ky * s, kz * ky * t + kx * s, c + kz * kz * t,
-    ];
+    const r = this.rodrigues;
+    r[0] = c + kx * kx * t;
+    r[1] = kx * ky * t - kz * s;
+    r[2] = kx * kz * t + ky * s;
+    r[3] = ky * kx * t + kz * s;
+    r[4] = c + ky * ky * t;
+    r[5] = ky * kz * t - kx * s;
+    r[6] = kz * kx * t - ky * s;
+    r[7] = kz * ky * t + kx * s;
+    r[8] = c + kz * kz * t;
     const m = this.rot0;
     const b = p * 9;
     for (let i = 0; i < 3; i++) {
@@ -624,8 +644,8 @@ export class Tectonics {
   }
 
   /** Centro atual da placa (o centro original girado). */
-  private centerNow(p: number, out: Vec3): void {
-    const m = new Float64Array(9);
+  private centerNow(p: number, out: Vec3 | Float64Array): void {
+    const m = this.centerMatrix;
     this.rotation(p, m);
     const x = this.center0[p * 3] as number;
     const y = this.center0[p * 3 + 1] as number;
@@ -648,7 +668,11 @@ export class Tectonics {
    * Compara as velocidades na direção que vai do centro de a para o de b.
    */
   /** Velocidade relativa entre as placas a e b no ponto (módulo). */
-  private relativeSpeed(a: number, b: number, x: number, y: number, z: number): number {
+  private relativeSpeed(a: number, b: number, c: number): number {
+    const { positions } = this.world.grid;
+    const x = positions[c * 3] as number;
+    const y = positions[c * 3 + 1] as number;
+    const z = positions[c * 3 + 2] as number;
     const sa = this.speed[a] as number;
     const sb = this.speed[b] as number;
     const wx = (this.axis[a * 3] as number) * sa - (this.axis[b * 3] as number) * sb;
@@ -657,29 +681,39 @@ export class Tectonics {
     return Math.hypot(wy * z - wz * y, wz * x - wx * z, wx * y - wy * x);
   }
 
-  private closing(a: number, b: number, x: number, y: number, z: number): number {
-    const ca: Vec3 = [0, 0, 0];
-    const cb: Vec3 = [0, 0, 0];
+  /** No centro da célula `c`. Recebe a célula, não o ponto: sem números soltos na chamada (sem lixo). */
+  private closing(a: number, b: number, c: number): number {
+    const { positions } = this.world.grid;
+    const x = positions[c * 3] as number;
+    const y = positions[c * 3 + 1] as number;
+    const z = positions[c * 3 + 2] as number;
+    const ca = this.centerA;
+    const cb = this.centerB;
     this.centerNow(a, ca);
     this.centerNow(b, cb);
-    let dx = cb[0] - ca[0];
-    let dy = cb[1] - ca[1];
-    let dz = cb[2] - ca[2];
+    let dx = (cb[0] as number) - (ca[0] as number);
+    let dy = (cb[1] as number) - (ca[1] as number);
+    let dz = (cb[2] as number) - (ca[2] as number);
     const along = dx * x + dy * y + dz * z;
     dx -= along * x;
     dy -= along * y;
     dz -= along * z;
     const len = Math.hypot(dx, dy, dz) || 1;
-    const vel = (p: number): Vec3 => {
-      const s = this.speed[p] as number;
-      const kx = (this.axis[p * 3] as number) * s;
-      const ky = (this.axis[p * 3 + 1] as number) * s;
-      const kz = (this.axis[p * 3 + 2] as number) * s;
-      return [ky * z - kz * y, kz * x - kx * z, kx * y - ky * x];
-    };
-    const va = vel(a);
-    const vb = vel(b);
-    return ((va[0] - vb[0]) * dx + (va[1] - vb[1]) * dy + (va[2] - vb[2]) * dz) / len;
+    const sa = this.speed[a] as number;
+    const akx = (this.axis[a * 3] as number) * sa;
+    const aky = (this.axis[a * 3 + 1] as number) * sa;
+    const akz = (this.axis[a * 3 + 2] as number) * sa;
+    const sb = this.speed[b] as number;
+    const bkx = (this.axis[b * 3] as number) * sb;
+    const bky = (this.axis[b * 3 + 1] as number) * sb;
+    const bkz = (this.axis[b * 3 + 2] as number) * sb;
+    const va0 = aky * z - akz * y;
+    const va1 = akz * x - akx * z;
+    const va2 = akx * y - aky * x;
+    const vb0 = bky * z - bkz * y;
+    const vb1 = bkz * x - bkx * z;
+    const vb2 = bkx * y - bky * x;
+    return ((va0 - vb0) * dx + (va1 - vb1) * dy + (va2 - vb2) * dz) / len;
   }
 
   /** Recompõe o mapa do mundo a partir das amostras das placas. */
@@ -701,7 +735,7 @@ export class Tectonics {
 
     // Faixa perto das fronteiras antigas, onde pode haver sobreposição ou buraco.
     const reach = Math.ceil(maxMove / cellAngle) + 2;
-    const band = new Uint8Array(n);
+    const band = this.scratchBand.fill(0);
     let frontier: number[] = [];
     for (let c = 0; c < n; c++) {
       const pc = world.plate[c];
@@ -727,16 +761,17 @@ export class Tectonics {
       frontier = next;
     }
 
-    const prevPlate = Uint8Array.from(world.plate);
-    const newSample = new Int32Array(n).fill(-1);
+    const prevPlate = this.scratchPrevPlate;
+    prevPlate.set(world.plate);
+    const newSample = this.scratchSample.fill(-1);
     const q: Vec3 = [0, 0, 0];
     const pull = (p: number, c: number): number => {
       this.toPlate(p, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, inv, q);
-      return this.find(p, world.grid.pointToCell(q[0], q[1], q[2]));
+      return this.find(p, world.grid.pointToCellOf(q));
     };
     const refOf = (p: number, c: number): number => {
       this.toPlate(p, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, inv, q);
-      return world.grid.pointToCell(q[0], q[1], q[2]);
+      return world.grid.pointToCellOf(q);
     };
     // Frente de colisão continental de cada par nesta recomposição: células onde houve consumo.
     const front = new Map<number, number[]>();
@@ -747,7 +782,9 @@ export class Tectonics {
     };
 
     const gaps: number[] = [];
-    const covering: number[] = [];
+    // Amostras que cobrem a célula (no máximo uma por placa). Array fixo: zerar uma lista a cada célula
+    // fazia o motor jogar fora o espaço dela e criar outro (lixo para a limpeza de memória).
+    const covering = new Int32Array(plates);
     // Crosta consumida nesta recomposição. Só morre no fim da composição e se não estiver aparecendo
     // em outra célula: duas células do mundo podem cair na mesma célula do referencial da placa, e
     // matar a amostra deixava a vizinha apontando para crosta morta (virava buraco na recomposição
@@ -763,26 +800,23 @@ export class Tectonics {
           continue;
         }
       }
-      covering.length = 0;
+      let coverCount = 0;
       for (let p = 0; p < plates; p++) {
         const i = pull(p, c);
-        if (i >= 0) covering.push(i);
+        if (i >= 0) covering[coverCount++] = i;
       }
-      if (covering.length === 0) {
+      if (coverCount === 0) {
         gaps.push(c);
         continue;
       }
-      if (covering.length === 1) {
+      if (coverCount === 1) {
         newSample[c] = covering[0] as number;
         if ((this.sPlate[covering[0] as number] as number) !== prevPlate[c]) switched.push(c);
         continue;
       }
       // Sobreposição: escolhe a vencedora; a perdedora só é consumida se for aproximação de verdade.
-      const x = positions[c * 3] as number;
-      const y = positions[c * 3 + 1] as number;
-      const z = positions[c * 3 + 2] as number;
       let win = covering[0] as number;
-      for (let k = 1; k < covering.length; k++) {
+      for (let k = 1; k < coverCount; k++) {
         const other = covering[k] as number;
         if (this.beats(other, win, prevPlate[c] as number)) win = other;
       }
@@ -790,11 +824,12 @@ export class Tectonics {
       // verdade (só arredondamento, ex.: falha transformante), a célula fica com a dona de antes.
       // Sem isso, a dona trocava toda vez que o arredondamento trocava (oscilação de 1 célula).
       const prevOwner = prevPlate[c] as number;
-      if ((this.sPlate[win] as number) !== prevOwner && this.closing(prevOwner, this.sPlate[win] as number, x, y, z) <= 0) {
-        for (const i of covering) if ((this.sPlate[i] as number) === prevOwner) win = i;
+      if ((this.sPlate[win] as number) !== prevOwner && this.closing(prevOwner, this.sPlate[win] as number, c) <= 0) {
+        for (let k = 0; k < coverCount; k++) if ((this.sPlate[covering[k] as number] as number) === prevOwner) win = covering[k] as number;
       }
       newSample[c] = win;
-      for (const i of covering) {
+      for (let k = 0; k < coverCount; k++) {
+        const i = covering[k] as number;
         if (i === win) continue;
         const loser = this.sPlate[i] as number;
         const winner = this.sPlate[win] as number;
@@ -803,7 +838,7 @@ export class Tectonics {
         // que a vencedora já tinha (a célula e as 4 vizinhas eram dela): isso não é arredondamento.
         // Antes só valia o primeiro teste (direção entre os centros, grosseira na borda), e crosta
         // ficava escondida sob a outra placa, acumulando e reaparecendo depois como pedaços soltos.
-        const closing = this.closing(loser, winner, x, y, z);
+        const closing = this.closing(loser, winner, c);
         if (closing <= 0 && !deepInside(c, winner)) continue;
         doomed.push(i);
         // Só aproximação de verdade é frente de colisão: o consumo por arredondamento (deepInside sem
@@ -820,7 +855,7 @@ export class Tectonics {
           else front.set(key, [c]);
           // G4: a crosta que entra por baixo vira montanha na placa de cima (a que venceu).
           const mass = Math.max(0, (this.sElev[i] as number) - COLLISION_BASE);
-          const rel = this.relativeSpeed(loser, winner, x, y, z);
+          const rel = this.relativeSpeed(loser, winner, c);
           const normal = rel > 1e-12 ? Math.min(1, closing / rel) : 1;
           const d = this.deposits.get(c);
           if (d && d.plate === winner) {
@@ -851,10 +886,7 @@ export class Tectonics {
       }
       if (same < 2 || from < 0) continue;
       const intruder = newSample[c] as number;
-      const x = positions[c * 3] as number;
-      const y = positions[c * 3 + 1] as number;
-      const z = positions[c * 3 + 2] as number;
-      const converging = this.closing(this.sPlate[intruder] as number, owner, x, y, z) > 0;
+      const converging = this.closing(this.sPlate[intruder] as number, owner, c) > 0;
       // Na frente de uma placa que avança por cima da outra (aproximando e ela vence a sobreposição),
       // 2 vizinhas bastam (degrau de borda diagonal à grade); fora disso, só dente de verdade (3).
       const front = converging && this.beats(from, intruder, owner);
@@ -875,22 +907,23 @@ export class Tectonics {
     // dois continentes ainda é estreita; senão, cicatriza copiando.
     // Processa de fora para dentro, para cada buraco ter um vizinho já resolvido.
     let pending = gaps;
+    // Votos das placas vizinhas de cada buraco (array fixo, zerado por buraco: sem lixo).
+    const ownerVotes = new Int32Array(plates);
     for (let guard = 0; pending.length && guard < 1000; guard++) {
       const still: number[] = [];
       for (const c of pending) {
         let fromSample = -1;
-        let ownerVotes: number[] | null = null;
         let covered = 0;
         for (let d = 0; d < 4; d++) {
           const nb = neighbors[c * 4 + d] as number;
           const s = newSample[nb] as number;
           if (s < 0) continue;
           covered++;
-          ownerVotes ??= new Array<number>(plates).fill(0);
+          if (covered === 1) ownerVotes.fill(0);
           ownerVotes[this.sPlate[s] as number] = (ownerVotes[this.sPlate[s] as number] as number) + 1;
           if (this.sPlate[s] === prevPlate[c] || fromSample < 0) fromSample = s;
         }
-        if (!ownerVotes || fromSample < 0) {
+        if (covered === 0 || fromSample < 0) {
           still.push(c);
           continue;
         }
@@ -904,10 +937,7 @@ export class Tectonics {
             other = p;
           }
         }
-        const x = positions[c * 3] as number;
-        const y = positions[c * 3 + 1] as number;
-        const z = positions[c * 3 + 2] as number;
-        const opening = other >= 0 && this.closing(owner, other, x, y, z) < 0;
+        const opening = other >= 0 && this.closing(owner, other, c) < 0;
         // Cicatriza (copia a vizinha) só buraco isolado de arredondamento, cercado de crosta.
         // Fenda de verdade vira fundo oceânico novo, mesmo sem afastamento claro: copiar
         // continente ali arrastava tiras de terra atrás das placas que deslizam de lado.
@@ -1513,32 +1543,41 @@ export class Tectonics {
       ring = out;
     }
     const stamp = new Int32Array(n).fill(-1);
-    const seenPairs: number[] = [];
-    let frontier: number[] = [];
-    let next: number[] = [];
+    // Listas de tamanho fixo: zerar listas comuns a cada célula fazia o motor jogar fora o espaço
+    // delas e criar outro (lixo para a limpeza de memória). A ordem dos pares é a mesma de antes.
+    const seenPairs = new Int32Array(this.angle.length);
+    let frontier = new Int32Array(n);
+    let next = new Int32Array(n);
     for (let c = 0; c < n; c++) {
       const p = world.plate[c] as number;
       if (!near[c] || !involved[p] || world.crust[c] !== Crust.Continental) continue;
-      seenPairs.length = 0;
-      frontier.length = 0;
-      frontier.push(c);
+      let pairCount = 0;
+      frontier[0] = c;
+      let count = 1;
       stamp[c] = c;
       for (let step = 0; step < SUTURE_REACH; step++) {
-        next.length = 0;
-        for (const k of frontier) {
+        let nextCount = 0;
+        for (let f = 0; f < count; f++) {
+          const k = frontier[f] as number;
           for (let d = 0; d < 4; d++) {
             const nb = neighbors[k * 4 + d] as number;
             if (stamp[nb] === c) continue;
             stamp[nb] = c;
-            next.push(nb);
+            next[nextCount++] = nb;
             const q = world.plate[nb] as number;
-            if (q !== p && world.crust[nb] === Crust.Continental && !seenPairs.includes(q)) seenPairs.push(q);
+            if (q === p || world.crust[nb] !== Crust.Continental) continue;
+            let seen = false;
+            for (let k2 = 0; k2 < pairCount && !seen; k2++) seen = seenPairs[k2] === q;
+            if (!seen) seenPairs[pairCount++] = q;
           }
         }
-        [frontier, next] = [next, frontier];
+        const t = frontier;
+        frontier = next;
+        next = t;
+        count = nextCount;
       }
-      for (const q of seenPairs) {
-        const key = pairKey(p, q);
+      for (let k = 0; k < pairCount; k++) {
+        const key = pairKey(p, seenPairs[k] as number);
         contact.set(key, (contact.get(key) ?? 0) + 1);
       }
     }
@@ -2581,13 +2620,11 @@ export class Tectonics {
     const depth = new Float64Array(plates);
     const count = new Float64Array(plates);
     const world = this.world;
-    for (let c = 0; c < world.cellCount; c++) {
-      const i = this.cellSample[c] as number;
-      if (i < 0 || this.sCrust[i] !== Crust.Oceanic) continue;
-      const p = this.sPlate[i] as number;
-      birth[p] = (birth[p] as number) + (this.sBirth[i] as number);
-      depth[p] = (depth[p] as number) + (this.sElev[i] as number);
-      count[p] = (count[p] as number) + 1;
+    // Em blocos, por uma função pequena: chamada muitas vezes, ela fica otimizada de uma recomposição
+    // para a outra. Num laço único, cada recomposição começava sem otimizar e cada soma criava lixo.
+    // Mesma ordem de soma (mesmo resultado).
+    for (let c = 0; c < world.cellCount; c += POLARITY_CHUNK) {
+      this.sumOcean(c, Math.min(world.cellCount, c + POLARITY_CHUNK), birth, depth, count);
     }
     for (let p = 0; p < plates; p++) {
       const k = (count[p] as number) || 1;
@@ -2595,6 +2632,18 @@ export class Tectonics {
       depth[p] = (depth[p] as number) / k;
     }
     this.plateOcean = { birth, depth };
+  }
+
+  private sumOcean(from: number, to: number, birth: Float64Array, depth: Float64Array, count: Float64Array): void {
+    const { cellSample, sCrust, sPlate, sBirth, sElev } = this;
+    for (let c = from; c < to; c++) {
+      const i = cellSample[c] as number;
+      if (i < 0 || sCrust[i] !== Crust.Oceanic) continue;
+      const p = sPlate[i] as number;
+      birth[p] = (birth[p] as number) + (sBirth[i] as number);
+      depth[p] = (depth[p] as number) + (sElev[i] as number);
+      count[p] = (count[p] as number) + 1;
+    }
   }
 
   /**
@@ -2764,7 +2813,7 @@ export class Tectonics {
     const q: Vec3 = [0, 0, 0];
     const old = this.cellSample[c] as number;
     this.toPlate(to, positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number, inv, q);
-    const ref = world.grid.pointToCell(q[0], q[1], q[2]);
+    const ref = world.grid.pointToCellOf(q);
     // Se a nova dona já tem amostra ali (escondida sob o pedaço), ela recebe a crosta do pedaço.
     let i = this.find(to, ref);
     if (i >= 0) {

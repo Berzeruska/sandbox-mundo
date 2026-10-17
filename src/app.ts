@@ -139,6 +139,13 @@ export class App {
         this.brushScreen = null;
         this.requestDraw();
       },
+      // O giro de teste ("Girar (fps)") para no toque, como a inércia: com ele ligado, segurar o
+      // pincel arrastava o globo por baixo do dedo e o morro virava uma listra.
+      onPress: () => {
+        if (!this.stressSpin || this.bench) return;
+        this.stressSpin = false;
+        this.debug.setSpinning(false);
+      },
     });
 
     this.hud = new Hud(

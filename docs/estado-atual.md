@@ -1,21 +1,23 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-16**, branch `marco-2`. O jogo publicado na prévia é o do fim do Bloco G
-(`f18969a2`).
+Atualizado em: **2026-10-17**, branch `marco-2`. O jogo publicado na prévia é o da rodada de correções
+depois do teste da vista de perto (último commit do `marco-2` com mudança no jogo).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
-- **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** rodada de correções depois do teste do Bloco G (geração, relatório, travadas, vista de
-  perto), publicada na prévia. **Parado** esperando o teste no celular: o usuário aprova a vista de
-  perto ("está bonito") e manda o relatório com o registro de travadas. Depois: bloco Minerais e clima
-  (T6, T7).
-- **Feito nesta rodada** (detalhes em "Rodada depois do teste do Bloco G" na especificação):
-  geração com o ajudante largando o mundo velho na hora, reserva já carregado e terreno dividido entre
-  os dois (mesmo mundo); "desenhados X de Y" e meta de pausado medida girando; registro de travadas no
-  painel Dados e no relatório; células quadradas de perto, com cor viva, contorno e sombra na água.
+- **Bloco atual:** Bloco G fechado (aprovado no celular em `0155233d`: "está bonito de perto", geração
+  2,8 s, metas de fps batidas). **Próximo:** bloco Minerais e clima (T6, T7).
+- **Feito agora** (detalhes em "Teste da rodada no celular" na especificação):
+  - Bug do Elevar que subia uma listra: era o "Girar (fps)" do painel Dados girando o globo por baixo
+    do dedo; agora qualquer toque desliga o giro de teste.
+  - Travadas "fora do jogo": o ajudante 2 criava ~117 MB de lixo por recomposição; agora ~20 MB
+    (−83%), recomposição 24% mais rápida, mesmo mundo (teste de impressão digital novo). O registro
+    mostra "recomposição há X s" e a causa virou "fora do código da tela (GPU, núcleo ocupado, limpeza
+    de memória ou sistema)". Falta o celular dizer se as travadas sumiram.
+  - Proposta das emendas e cantos do cubo de perto (opções a–d com custo): **decisão do usuário**.
+- **Acompanhar:** primeira abertura da página 5,0 s no celular (antes 4,6).
 - **Decidido em 2026-10-16 (teste do Bloco G):** `42` é falha conhecida de latitude; critério de
   formas mantido; pedacinhos de terra no oceano depois de colisões são aceitáveis; polos, neve demais
   e biomas pouco variados vão para a T7; o Hot 50i continua aparelho-alvo até o fim do M2 (o usuário
@@ -91,9 +93,9 @@ sobre "onde estamos", vale este.
 ## Pendente no M2
 - [ ] T7: vale de rifte entre montanhas com neve (`docs/bugs.md`); nem toda montanha com neve; erosão
   pelo clima (lado chuvoso vira escarpa, planalto seco sobrevive).
-- [ ] Confirmar no celular: geração ≤ 3 s (estimativa ~2,7–2,9 s) e "ajudante fez ~50% do terreno".
-- [ ] Aprovar no celular a vista de perto (células quadradas).
-- [ ] Achar a causa das travadas com o registro (`docs/bugs.md`).
+- [ ] Travadas: confirmar no celular se caíram com menos lixo de memória no ajudante 2; se não, ver
+  "recomposição há X s" (GPU ou disputa de núcleos).
+- [ ] Decisão do usuário: emendas e cantos do cubo de perto (opções a–d na especificação).
 - [ ] **Falha conhecida:** semente `42` com 33% da terra acima de 60° em N = 256 aos 10 min.
 - [ ] **Falha conhecida:** semente `7` com 0,44% da terra acima de 4.000 m aos 10 min (alvo 0,5%).
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
@@ -107,6 +109,9 @@ sobre "onde estamos", vale este.
 
 ## Últimas medições no celular (Infinix Hot 50i)
 - Metas: pausado ≥ 85 fps; tempo rodando ≥ 60; placas em deriva ≥ 30 (nunca < 20); geração ≤ 3 s.
+- `0155233d` (rodada depois do Bloco G, relatado pelo usuário): geração **2,8 s** (meta 3 s); metas de
+  fps batidas; primeira abertura 5,0 s (antes 4,6); travadas 147 da tela e 11 da data, todas de
+  110–130 ms, com placas 100% a 20× (tratado na rodada seguinte, falta medir).
 - `f18969a2` (fim do Bloco G, relatado pelo usuário): geração **3,9 s (acima da meta; corrigido na
   rodada seguinte, falta medir)**; pausado parado 81 (a tela não desenha nada nesse cenário; a meta
   agora vale para "pausado, girando"); "relógio esperou 0 ms", mas o usuário viu a imagem engasgar e a
@@ -125,12 +130,17 @@ sobre "onde estamos", vale este.
   sementes passam aos 3 min).
 
 ## Decisões abertas (do usuário)
+- **Emendas e cantos do cubo de perto** (costa dobrando em ângulo reto, losangos perto dos cantos):
+  (a) deixar; (b) disfarçar só ali com bordas orgânicas, ~1 dia; (c) quadrados alinhados à tela, ~2–3
+  dias, a malha escorrega ao girar; (d) trocar a grade, semanas, outro marco. Recomendação: (a) ou (b).
 - **"Tamanho fixo" das placas:** hoje ficam fixas a identidade e a forma; placas oceânicas podem
   encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
 
 ## Ideias registradas para marcos futuros (não fazer agora)
 - M3: escala do planeta × tamanho dos humanos (sem humanos de 1 pixel; 3 opções em `docs/02-marcos.md`);
   base do feedback ambiental.
+- M3, M4 e M8: zoom maior que o de hoje, para caberem humanos pequenos (montanha de 50 pixels com homem
+  de 5 fica estranho).
 - T10 (neste marco): nuvens translúcidas que somem ao aproximar; tempestades e furacões em redemoinho
   alterando só o clima da região.
 - M4: humanos começam nômades, com caça, antes da agricultura; uso econômico dos minerais; desmatamento; cidade sobre terreno que muda.

@@ -22,6 +22,8 @@ export interface StallEntry {
   cause: string;
   /** Velocidade e placas naquela hora (ex.: "20× · placas 100%"). */
   context: string;
+  /** Quanto tempo antes do fim da travada chegou a última recomposição à tela (ms; -1: nenhuma ainda). */
+  sinceRecomposition: number;
 }
 
 export class StallLog {
@@ -36,6 +38,7 @@ export class StallLog {
   private received: [number, number][] = [];
   /** Fim e começo da última travada de tela (para explicar uma travada de data junto). */
   private lastScreenStall: [number, number] = [-1, -1];
+  private lastRecompositionAt = -1;
 
   /** Recomeça a contagem dos intervalos (página escondida, mundo novo, pausa). Não apaga o registro. */
   restart(): void {
@@ -47,6 +50,7 @@ export class StallLog {
   noteRecomposition(now: number, ms: number): void {
     this.received.push([now, ms]);
     if (this.received.length > 8) this.received.shift();
+    this.lastRecompositionAt = now;
   }
 
   /** Começo de um quadro. */
@@ -54,7 +58,7 @@ export class StallLog {
     const gap = this.lastFrame < 0 ? 0 : now - this.lastFrame;
     if (gap > FRAME_STALL_MS) {
       this.lastScreenStall = [now, this.lastFrame];
-      this.add({ kind: 'tela', wall, ms: gap, cause: this.screenCause(now, gap), context });
+      this.add({ kind: 'tela', wall, ms: gap, cause: this.screenCause(now, gap), context, sinceRecomposition: this.since(now) });
     }
     this.lastFrame = now;
   }
@@ -71,7 +75,7 @@ export class StallLog {
   clock(now: number, wall: number, running: boolean, waitMs: number, recompositions: number, context: string): void {
     const gap = this.lastClock < 0 || !running ? 0 : now - this.lastClock;
     if (gap > DATE_STALL_MS) {
-      this.add({ kind: 'data', wall, ms: gap, cause: this.dateCause(now, gap, waitMs - this.lastWait, recompositions - this.lastRecompositions), context });
+      this.add({ kind: 'data', wall, ms: gap, cause: this.dateCause(now, gap, waitMs - this.lastWait, recompositions - this.lastRecompositions), context, sinceRecomposition: this.since(now) });
     }
     this.lastClock = running ? now : -1;
     this.lastWait = waitMs;
@@ -84,7 +88,9 @@ export class StallLog {
     const receiving = got.reduce((sum, [, ms]) => sum + ms, 0);
     if (got.length && receiving >= 0.3 * gap) return `tela aplicando recomposição (${Math.round(receiving)} ms)`;
     if (this.lastWork >= 0.5 * gap) return `desenho do quadro (${Math.round(this.lastWork)} ms)`;
-    return 'fora do jogo (navegador, sistema ou limpeza de memória)';
+    // A tela não trabalhou: o tempo foi para fora do código dela (GPU, outro trabalho no núcleo,
+    // limpeza de memória do navegador ou o sistema). "recomposição há" ajuda a ver se coincide.
+    return 'fora do código da tela (GPU, núcleo ocupado, limpeza de memória ou sistema)';
   }
 
   private dateCause(now: number, gap: number, waited: number, recomposed: number): string {
@@ -93,6 +99,10 @@ export class StallLog {
     if (waited > 0) return `relógio esperou o ajudante ${Math.round(waited)} ms`;
     if (recomposed > 0) return 'relógio aplicando recomposição';
     return 'relógio atrasou (núcleo ocupado)';
+  }
+
+  private since(now: number): number {
+    return this.lastRecompositionAt < 0 ? -1 : now - this.lastRecompositionAt;
   }
 
   private add(e: StallEntry): void {
@@ -105,6 +115,7 @@ export class StallLog {
   lines(count: number, timeOf: (wall: number) => string): string[] {
     const head = `travadas ${this.counts.tela} da tela · ${this.counts.data} da data`;
     const last = this.entries.slice(-count).reverse();
-    return [head, ...last.map((e) => `  ${timeOf(e.wall)} ${e.kind} ${Math.round(e.ms)} ms · ${e.cause} · ${e.context}`)];
+    const since = (e: StallEntry) => (e.sinceRecomposition < 0 ? '' : ` · recomposição há ${(e.sinceRecomposition / 1000).toFixed(1).replace('.', ',')} s`);
+    return [head, ...last.map((e) => `  ${timeOf(e.wall)} ${e.kind} ${Math.round(e.ms)} ms · ${e.cause} · ${e.context}${since(e)}`)];
   }
 }

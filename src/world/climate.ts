@@ -1,4 +1,4 @@
-import { classifyCell } from './biomes';
+import { classifyCell, type CellClimate } from './biomes';
 import { newArray } from '../core/shared';
 import type { CubeSphere } from './cubesphere';
 import { IceMode, type WorldState } from './state';
@@ -245,6 +245,8 @@ function upwindBarrier(world: WorldState, table: Int32Array, i: number, height: 
   return highest - Math.max(0, height);
 }
 
+const cellScratch: CellClimate = { height: 0, temp: 0, precip: 0, ice: false, nearWater: false };
+
 function computeIceAndBiome(world: WorldState, i: number): void {
   const height = world.heightAboveSea(i);
   const temp = world.temperature[i] as number;
@@ -258,5 +260,13 @@ function computeIceAndBiome(world: WorldState, i: number): void {
     const { neighbors } = world.grid;
     for (let d = 0; d < 4 && !nearWater; d++) nearWater = world.isWater(neighbors[i * 4 + d] as number);
   }
-  world.biome[i] = classifyCell({ height, temp, precip: world.precipitation[i] as number, ice, nearWater });
+  // Um objeto só, reaproveitado: um objeto novo por célula virava lixo para a limpeza de memória
+  // (o navegador nem sempre consegue evitar a criação).
+  const cell = cellScratch;
+  cell.height = height;
+  cell.temp = temp;
+  cell.precip = world.precipitation[i] as number;
+  cell.ice = ice;
+  cell.nearWater = nearWater;
+  world.biome[i] = classifyCell(cell);
 }

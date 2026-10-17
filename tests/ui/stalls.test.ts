@@ -30,11 +30,17 @@ describe('registro de travadas', () => {
     expect(log.entries[0]?.cause).toContain('recomposição');
   });
 
-  it('quadro longo sem nada do jogo: fora do jogo', () => {
+  it('quadro longo sem nada do jogo: fora do código da tela, com o tempo desde a recomposição', () => {
     const log = new StallLog();
     frames(log, 0, 100);
     log.frame(400, 400, ctx);
-    expect(log.entries[0]?.cause).toContain('fora do jogo');
+    expect(log.entries[0]?.cause).toContain('fora do código da tela');
+    expect(log.entries[0]?.sinceRecomposition).toBe(-1);
+    log.noteRecomposition(450, 2);
+    frames(log, 410, 600);
+    log.frame(850, 850, ctx);
+    expect(log.entries[1]?.sinceRecomposition).toBe(400);
+    expect(log.lines(1, time)[1]).toContain('recomposição há 0,4 s');
   });
 
   it('desenho lento: a causa é o desenho', () => {

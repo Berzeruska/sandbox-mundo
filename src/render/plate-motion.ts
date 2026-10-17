@@ -28,9 +28,14 @@ export const NEAR_REACH_CELLS = 3.5;
 export const MAX_SHADER_PLATES = 16;
 
 export function packPlateCell(plate: number, continental: boolean, line = false, others: readonly number[] = []): number {
+  return packPlateCellOf(plate, continental, line, others[0] ?? plate, others[1] ?? plate);
+}
+
+/** O mesmo, com as duas outras placas já escolhidas (a própria placa quando não há outra). Sem lista. */
+export function packPlateCellOf(plate: number, continental: boolean, line: boolean, other1: number, other2: number): number {
   const r = (plate & PLATE_MASK) | (continental ? CONTINENTAL_BIT : 0) | (line ? LINE_BIT : 0);
-  const o1 = (others[0] ?? plate) & PLATE_MASK;
-  const o2 = (others[1] ?? plate) & PLATE_MASK;
+  const o1 = other1 & PLATE_MASK;
+  const o2 = other2 & PLATE_MASK;
   return r | ((o1 | (o2 << 4)) << 8);
 }
 
