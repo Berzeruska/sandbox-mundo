@@ -1,7 +1,8 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-17**, branch `marco-2`. Rodada de correções do teste da `50f0dca` feita;
-bloco Desastres: T8 a T11 feitas; seguindo para a T12.
+Atualizado em: **2026-10-17**, branch `marco-2`. Rodada de correções do teste da `50f0dca` feita e
+**bloco Desastres (T8–T12) terminado, esperando o teste do usuário no notebook**. Próximo bloco:
+Final (T13 teste longo, T14 medição).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -17,11 +18,13 @@ sobre "onde estamos", vale este.
   minério em pixels quadrados; jazidas maiores (mesmo número) formando-se a cada 1.000–10.000 anos por
   frente; plataforma continental larga (pontes de terra no máximo glacial); controle de temperatura
   suave (1 °C/s); setas ↑/↓ zoom e ←/→ giro, mãozinha sobre o globo, toque curto mostra bioma e jazida.
-- **Bloco Desastres (T8–T12), em andamento:** T8 feita (terremotos por tensão nas fronteiras,
+- **Bloco Desastres (T8–T12), terminado:** T8 feita (terremotos por tensão nas fronteiras,
   tsunamis que andam pelo mar e alagam costa baixa, marcas temporárias, animações na camada de cima);
   T9 feita (vulcões em arcos e dorsais, pontos quentes formando cadeias de ilhas, cinzas que somem);
   T10 feita (seca, enchente, furacão com trilha, incêndio sob seca, nuvens com furacões em espiral);
-  T11 feita (provocar cada desastre tocando no globo, frequência de Nenhum a Muitos, "Ver tensão").
+  T11 feita (provocar cada desastre tocando no globo, frequência de Nenhum a Muitos, "Ver tensão");
+  T12 feita (aviso dos grandes no alto, "Lista" no menu Desastres, tocar leva a câmera até lá).
+  Medido no notebook (1080p): 60 fps com "Muitos" a 20× e placas 100%, de longe e de perto.
 - **Esperando o usuário:** (1) aprovar as metas do notebook; (2) proposta dos polos
   (`docs/img/m2-polos-proposta.png`: borda em lobos, placas soltas, fino e azulado na borda); (3)
   norte/sul pelo teclado não existe (arrastar faz) — o usuário pediu para ser avisado.
@@ -111,6 +114,9 @@ sobre "onde estamos", vale este.
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
+- Fim do bloco Desastres (`b357aaa`), 1920×1080: "Medir desempenho" 60 fps em todos os cenários (com
+  as nuvens), pior quadro 17 ms; desastres em "Muitos" a 20× com placas 100%: 60 fps, pior quadro
+  16,7 ms, relógio a 240 passos/s sem esperar.
 - 2026-10-17, 1920×1080: 60 fps (teto da tela) em todos os cenários, inclusive de perto e placas 100%;
   pior quadro 17 ms; geração 0,79 s (primeira abertura 1,48 s); recomposição ~330 ms, relógio sem
   esperar; clima ~88 ms no ajudante.
