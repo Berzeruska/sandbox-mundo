@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PAINT_DELAY_MS, PaintGate } from '../../src/input/paint-gate';
+import { PAINT_DELAY_MS, PaintGate, TAP_HOLD_MS } from '../../src/input/paint-gate';
 
 // Tempos sintéticos em ms: nada aqui depende do relógio real.
 describe('PaintGate (quando um toque vira pincelada)', () => {
@@ -47,5 +47,27 @@ describe('PaintGate (quando um toque vira pincelada)', () => {
     g.start(500);
     expect(g.frame(550)).toBe('none');
     expect(g.frame(580)).toBe('first');
+  });
+
+  it('com a camada de recursos: toque curto não pinta antes de soltar (vira consulta do nome)', () => {
+    const g = new PaintGate();
+    g.start(0, TAP_HOLD_MS);
+    expect(g.frame(PAINT_DELAY_MS + 50)).toBe('none');
+    expect(g.end()).toBe(true);
+  });
+
+  it('com a camada de recursos: segurar parado pinta depois da espera longa', () => {
+    const g = new PaintGate();
+    g.start(0, TAP_HOLD_MS);
+    expect(g.frame(TAP_HOLD_MS - 1)).toBe('none');
+    expect(g.frame(TAP_HOLD_MS)).toBe('first');
+    expect(g.end()).toBe(false);
+  });
+
+  it('com a camada de recursos: arrastar pinta já (depois da espera curta)', () => {
+    const g = new PaintGate();
+    g.start(0, TAP_HOLD_MS);
+    g.move();
+    expect(g.frame(PAINT_DELAY_MS)).toBe('first');
   });
 });

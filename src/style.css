@@ -596,3 +596,78 @@ body {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* ---- Camada "Ver recursos" (T6): legenda com filtro e balão com o nome da jazida ---- */
+.res-legend {
+  position: absolute;
+  left: calc(var(--gap) + env(safe-area-inset-left));
+  right: calc(var(--gap) + env(safe-area-inset-right));
+  bottom: calc(var(--gap) + env(safe-area-inset-bottom) + 52px + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 2;
+  max-width: 560px;
+  margin-left: auto;
+  pointer-events: none;
+}
+
+.res-legend[hidden],
+.res-row[hidden],
+.res-tip[hidden] {
+  display: none;
+}
+
+.res-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+
+.res-row::-webkit-scrollbar {
+  display: none;
+}
+
+.hud .res-chip {
+  flex: none;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: var(--hud-bg);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.hud .res-chip.on {
+  background: var(--hud-accent);
+}
+
+.res-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+
+.res-tip {
+  position: fixed;
+  transform: translate(-50%, calc(-100% - 14px));
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--hud-bg);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Com o menu aberto, a legenda sai da frente (o menu fica por cima da parte de baixo da tela). */
+.hud.menu-open .res-legend {
+  display: none;
+}

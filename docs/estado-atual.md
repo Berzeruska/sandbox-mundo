@@ -18,7 +18,8 @@ sobre "onde estamos", vale este.
   placas andando).
 - **Remendo nas fronteiras de placa (de perto):** diagnosticado, correção esperando aprovação (muda o
   visual). Causas e proposta na especificação, "Teste no celular (2026-10-17, `751d6e39`)".
-- **T6 aprovada** (visual e toque opção a): em andamento.
+- **T6 feita** (recursos minerais; resultado na especificação). **Agora: T7** (clima que acompanha a
+  deriva, eras glaciais, temperatura global, e os pontos do usuário sobre gelo, neve e biomas).
 - **Limite novo:** a textura de cores guarda o bioma em 4 bits (16 biomas, o número de hoje). Bioma
   novo na T7 exige mudar isso (o teste avisa).
 - **Planeta cubado:** o que sobra depois do alisamento (hexágonos perto dos 8 cantos, células
@@ -120,7 +121,8 @@ sobre "onde estamos", vale este.
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
 - [ ] Confirmar no celular: travamento em 92% e lagos retos (`docs/bugs.md`).
-- [ ] T6 em diante (minerais, clima, desastres, avisos, teste longo).
+- [ ] T7 em diante (clima, desastres, avisos, teste longo).
+- [ ] Geração estimada ~2,88 s no celular depois da T6 (meta 3 s): medir no fim do bloco.
 - [ ] T7 inclui o que o usuário viu em 2026-10-16: terra em latitude alta sem gelo, polos
   simplificados demais, neve fraca (registrado na T7, não mexer antes).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).

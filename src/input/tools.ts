@@ -1,6 +1,7 @@
 import { SHADOW_REACH, updateClimate, updateWaterDistance } from '../world/climate';
 import type { Vec3 } from '../world/cubesphere';
 import { MAX_DEPTH } from '../world/generation';
+import { isHiddenOil, REVEALED_BIT } from '../world/resources';
 import { IceMode, type WorldState } from '../world/state';
 
 export const Tool = {
@@ -53,7 +54,12 @@ export function softLimit(elevation: number, direction: 1 | -1): number {
 export interface BrushResult {
   /** Células cujo clima, bioma e cor foram recalculados. */
   region: number[];
+  /** Células em que o Rebaixar revelou petróleo escondido (T6). */
+  revealed: number[];
 }
+
+/** Parte do pincel (fração do raio) em que o Rebaixar cava o bastante para achar petróleo. */
+export const REVEAL_REACH = 0.7;
 
 /**
  * Aplica um pincel centrado no ponto (unitário) da esfera, com raio em células.
@@ -67,6 +73,7 @@ export function applyBrush(world: WorldState, tool: Tool, center: Vec3, radiusCe
   const { positions } = grid;
   let crossedSea = false;
   let changedTerrain = false;
+  const revealed: number[] = [];
 
   for (const c of cells) {
     const wasWater = world.isWater(c);
@@ -80,6 +87,11 @@ export function applyBrush(world: WorldState, tool: Tool, center: Vec3, radiusCe
       const delta = RAISE_RATE * dt * brushFalloff(t) * softLimit(e, tool === Tool.Raise ? 1 : -1);
       world.elevation[c] = Math.min(MAX_ELEVATION, Math.max(MIN_ELEVATION, e + delta));
       changedTerrain = true;
+      // Cavar em cima de petróleo escondido o revela (fica revelado para sempre).
+      if (tool === Tool.Lower && t < REVEAL_REACH && isHiddenOil(world.deposit[c] as number)) {
+        world.deposit[c] = (world.deposit[c] as number) | REVEALED_BIT;
+        revealed.push(c);
+      }
     } else if (tool === Tool.Water) {
       world.elevation[c] = Math.min(world.elevation[c] as number, world.seaLevel - PAINTED_WATER_DEPTH);
       changedTerrain = true;
@@ -93,7 +105,7 @@ export function applyBrush(world: WorldState, tool: Tool, center: Vec3, radiusCe
     // Gelo não muda o clima: basta reclassificar o pincel e a vizinhança imediata (praias).
     const region = grid.cellsInCap(center[0], center[1], center[2], radius + 2 * grid.cellAngle);
     updateClimate(world, region);
-    return { region };
+    return { region, revealed };
   }
 
   // Terreno muda temperatura (altitude), umidade (distância até a água) e sombra de chuva a favor do vento.
@@ -101,5 +113,5 @@ export function applyBrush(world: WorldState, tool: Tool, center: Vec3, radiusCe
   const region = grid.cellsInCap(center[0], center[1], center[2], radius + margin);
   if (crossedSea) updateWaterDistance(world, region);
   updateClimate(world, region);
-  return { region };
+  return { region, revealed };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { seedFrom } from '../../src/core/rng';
-import { BIOME_BITS } from '../../src/render/colors';
+import { BIOME_BITS, NO_LAYERS } from '../../src/render/colors';
 import { GeologyEngine, worldArrays, type GeologyEvent } from '../../src/sim/geology';
 import { CubeSphere } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
@@ -17,7 +17,9 @@ const bytesOf = (a: ArrayBufferView): Uint8Array => new Uint8Array(a.buffer, a.b
  * Guarda o resultado exato do motor da geologia (recomposição, clima, cores, textura das placas).
  * Otimização de desempenho não pode mudar o mundo: se este teste falhar sem uma mudança de regra
  * de propósito, a otimização mudou o resultado. Valores conferidos contra o código de antes da
- * limpeza de lixo de memória (2026-10-16), com 300 recomposições em N = 64 e 14 em N = 128.
+ * limpeza de lixo de memória (2026-10-16), com 300 recomposições em N = 64 e 14 em N = 128. Valor
+ * novo na T6 (2026-10-17): entraram as jazidas e o tom delas nas cores; sem jazidas e sem cores, o
+ * valor do código de antes e do novo é o mesmo (c4bd0869).
  */
 describe('motor da geologia: mesmo resultado', () => {
   it('impressão digital depois de 40 recomposições (terra, N = 64)', () => {
@@ -37,13 +39,13 @@ describe('motor da geologia: mesmo resultado', () => {
       h = fnv(h, e.result.plateCells);
       consumed.push(e.result.index);
     };
-    const engine: GeologyEngine = new GeologyEngine({ world: 1, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: 1, layers: { plates: false } }, grid, emit, () => 0);
+    const engine: GeologyEngine = new GeologyEngine({ world: 1, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: 1, layers: NO_LAYERS }, grid, emit, () => 0);
     let tick = 0;
     while (results < 40) {
       tick += 20;
       engine.receive({ type: 'advance', world: 1, tick });
       for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
     }
-    expect(h.toString(16)).toBe('4520602e');
+    expect(h.toString(16)).toBe('435f9d09');
   });
 });

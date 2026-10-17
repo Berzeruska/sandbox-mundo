@@ -31,11 +31,11 @@ describe('menu de ferramentas: conteúdo', () => {
     expect(itemsOf('tempo').map((i) => i.speed)).toEqual([0, 1, 2, 5, 20, 'max']);
   });
 
-  it('Desastres e Clima ainda estão "em breve"; Geologia tem "Ver placas" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
+  it('Desastres e Clima ainda estão "em breve"; Geologia tem "Ver placas", "Ver recursos" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
     for (const c of ['desastres', 'clima'] as const) {
       expect(itemsOf(c).every((i) => !i.available)).toBe(true);
     }
-    expect(itemsOf('geologia').map((i) => [i.label, i.available])).toEqual([['Ver placas', true], ['Velocidade', true]]);
+    expect(itemsOf('geologia').map((i) => [i.label, i.available])).toEqual([['Ver placas', true], ['Ver recursos', true], ['Velocidade', true]]);
     expect(itemsOf('mundo').map((i) => i.label)).toEqual(['Novo mundo', 'Dados']);
   });
 });

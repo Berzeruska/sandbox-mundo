@@ -2,7 +2,7 @@ import { isolationReloads } from './ui/isolation';
 import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
 import { Clock, formatDate, type Speed } from './core/time';
 import { STALL_KEEP, StallLog } from './ui/stalls';
-import { PaintGate } from './input/paint-gate';
+import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
 import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectonics';
@@ -16,6 +16,9 @@ import { Overlay } from './render/overlay';
 import { SimClient } from './sim/client';
 import { applyPatch, type Patch, type PlateMotionInfo, type WorldInfo } from './sim/protocol';
 import { Hud } from './ui/hud';
+import { DepositTip, ResourceLegend } from './ui/resource-legend';
+import { NO_LAYERS, type Layers } from './render/colors';
+import { depositLabel } from './world/resources';
 import { activeBrush, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
@@ -91,6 +94,12 @@ export class App {
   private lastRunningSpeed: Speed = 1;
   /** Giro contínuo para medir fps (redesenha todo quadro). */
   private stressSpin = false;
+  /** Camadas ligadas no menu e o filtro da legenda de recursos (T6). */
+  private layers: Layers = { ...NO_LAYERS };
+  private legend!: ResourceLegend;
+  private tip!: DepositTip;
+  /** Onde o dedo encostou (para saber se andou: com a camada de recursos, andar = pincelada). */
+  private pressAt: { x: number; y: number } | null = null;
   private stats = {
     frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0, brushMs: 0, ticksPerSecond: 0,
     minGap: Infinity, maxGap: 0, lastMinGap: 0, lastMaxGap: 0, prevTime: 0, geologyMs: 0, recompositions: 0, memoryMb: 0,
@@ -131,6 +140,9 @@ export class App {
       getMode: () => this.mode,
       onCameraChange: () => this.requestDraw(),
       onPaint: (sx, sy, phase) => this.onPaint(sx, sy, phase),
+      onTap: (sx, sy) => {
+        if (this.layers.resources) void this.showDepositAt(sx, sy);
+      },
       onHover: (sx, sy) => {
         this.brushScreen = { x: sx, y: sy };
         if (this.mode === 'paint') this.requestDraw();
@@ -171,7 +183,15 @@ export class App {
           }
         },
         onToggle: (id, on) => {
-          if (id === 'platesLayer') this.sim.setLayers({ plates: on });
+          if (id === 'platesLayer') this.layers = { ...this.layers, plates: on };
+          if (id === 'resourcesLayer') {
+            this.layers = { ...this.layers, resources: on };
+            this.legend.show(on);
+            if (!on) this.tip.hide();
+            if (this.renderer) this.renderer.resourcesLayer = on;
+          }
+          this.sim.setLayers(this.layers);
+          this.requestDraw();
         },
         onNorthUp: () => {
           this.camera.stopSpin();
@@ -191,6 +211,11 @@ export class App {
       () => void this.runBenchmark(),
     );
     this.worldDialog = new NewWorldDialog(this.hud.root, (text) => this.newWorld(text));
+    this.legend = new ResourceLegend(this.hud.root, (mask) => {
+      this.layers = { ...this.layers, resourceMask: mask };
+      this.sim.setLayers(this.layers);
+    });
+    this.tip = new DepositTip(this.hud.root);
     this.errorScreen = new ErrorScreen(root, () => void retry());
     // Erros não tratados em qualquer parte da tela também aparecem (em vez de travar em silêncio).
     window.addEventListener('error', (e) => this.fail(`${e.message}${e.filename ? ` (${e.filename}:${e.lineno})` : ''}`));
@@ -219,13 +244,13 @@ export class App {
 
     this.sim = new SimClient({
       onError: (message, versionMismatch) => this.fail(message, versionMismatch),
-      onWorld: (info, colors, plateCells) => this.onWorld(info, colors, plateCells),
-      onRecomposed: (patches, plateCells, angles, plates) => this.onRecomposed(patches, plateCells, angles, plates),
+      onWorld: (info, colors, plateCells, deposits) => this.onWorld(info, colors, plateCells, deposits),
+      onRecomposed: (patches, plateCells, angles, plates, deposits) => this.onRecomposed(patches, plateCells, angles, plates, deposits),
       onProgress: (stage, fraction) => {
         this.lastGenerationSignal = performance.now();
         this.showProgress(stage, fraction);
       },
-      onPatch: (patches, brushMs) => this.onPatch(patches, brushMs),
+      onPatch: (patches, brushMs, deposits) => this.onPatch(patches, brushMs, deposits),
       onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work) => {
         this.stats.memoryMb = memoryMb;
         this.work = work;
@@ -290,7 +315,7 @@ export class App {
     this.loadingFill.style.width = `${pct}%`;
   }
 
-  private onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array): void {
+  private onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array, deposits: Uint8Array): void {
     const receiveStart = performance.now();
     this.worldTotalMs = receiveStart - this.worldRequestedAt;
     this.firstLoad ??= { pageToGlobeMs: receiveStart, requestToGlobeMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs };
@@ -300,6 +325,8 @@ export class App {
     if (!this.renderer) this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
     else this.renderer.setWorld(info.n, colors);
     this.renderer.setPlates(plateCells);
+    this.renderer.setDeposits(deposits);
+    this.renderer.resourcesLayer = this.layers.resources;
     this.renderer.ridgeColor = ridgeColor();
     // Mundo novo: placas nos ângulos 0.
     const zeros = info.plates.map(() => 0);
@@ -330,7 +357,7 @@ export class App {
   }
 
   /** As placas andaram: textura nova composta nos ângulos `angles`; o desenho suave continua dali. */
-  private onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[], plates: PlateMotionInfo[]): void {
+  private onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[], plates: PlateMotionInfo[], deposits: Uint8Array): void {
     if (!this.info || !this.renderer) return;
     // Eixo, velocidade e centro de cada placa nesta composição (o eixo muda quando placas se soldam).
     this.info.plates = plates;
@@ -339,7 +366,7 @@ export class App {
     const receiveStart = performance.now();
     for (const p of patches) applyPatch(this.colors, this.info.n, p);
     // A composição atual vira a anterior e as duas se misturam por FADE_MS (sem salto na troca).
-    this.renderer.recomposed(plateCells);
+    this.renderer.recomposed(plateCells, deposits);
     this.motion.prevAngles = this.motion.baseAngles;
     this.motion.baseAngles = angles;
     this.motion.fadeStart = performance.now();
@@ -399,10 +426,11 @@ export class App {
     return changed;
   }
 
-  private onPatch(patches: Patch[], brushMs: number): void {
+  private onPatch(patches: Patch[], brushMs: number, deposits?: Uint8Array): void {
     if (!this.info || !this.renderer) return;
     for (const p of patches) applyPatch(this.colors, this.info.n, p);
     this.renderer.upload(patches);
+    if (deposits) this.renderer.setDeposits(deposits);
     if (brushMs >= 0) this.stats.brushMs = brushMs;
     this.requestDraw();
   }
@@ -438,11 +466,39 @@ export class App {
 
   private onPaint(sx: number, sy: number, phase: PaintPhase): void {
     this.brushScreen = { x: sx, y: sy };
-    if (phase === 'start') this.paintGate.start(performance.now());
-    else if (phase === 'cancel') this.paintGate.cancel();
-    // Toque rápido (soltou antes da espera): aplica uma vez, com efeito visível.
-    else if (phase === 'end' && this.paintGate.end()) this.applyBrushAtScreen(1 / 20);
+    const resources = this.layers.resources;
+    if (phase === 'start') {
+      // Com a camada de recursos, espera mais: toque curto mostra o nome da jazida (opção a do usuário).
+      this.paintGate.start(performance.now(), resources ? TAP_HOLD_MS : undefined);
+      this.pressAt = { x: sx, y: sy };
+    } else if (phase === 'move') {
+      const slop = 12 * (window.devicePixelRatio || 1);
+      if (this.pressAt && Math.hypot(sx - this.pressAt.x, sy - this.pressAt.y) > slop) this.paintGate.move();
+    } else if (phase === 'cancel') this.paintGate.cancel();
+    // Toque rápido (soltou antes da espera): aplica uma vez, com efeito visível; com a camada de
+    // recursos, se tocou numa jazida, mostra o nome e não pinta.
+    else if (phase === 'end' && this.paintGate.end()) {
+      if (resources) {
+        void this.showDepositAt(sx, sy).then((found) => {
+          if (found) return;
+          this.brushScreen = { x: sx, y: sy };
+          this.applyBrushAtScreen(1 / 20);
+        });
+      } else this.applyBrushAtScreen(1 / 20);
+    }
     this.requestDraw();
+  }
+
+  /** Nome da jazida no ponto tocado (pixels do canvas), num balão. Retorna se achou uma. */
+  private async showDepositAt(sx: number, sy: number): Promise<boolean> {
+    const p = this.camera.pick(sx, sy);
+    if (!p) return false;
+    const cell = await this.sim.query(p);
+    if (!cell.deposit || !this.layers.resources) return false;
+    const rect = this.canvas.getBoundingClientRect();
+    const k = rect.width / this.canvas.width;
+    this.tip.show(depositLabel(cell.deposit), rect.left + sx * k, rect.top + sy * k);
+    return true;
   }
 
   private applyBrushAtScreen(dt: number): void {

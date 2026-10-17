@@ -59,6 +59,8 @@ export class WorldState {
   aulacogens: number[][] = [];
   /** Distância (em células) até a água mais próxima; 0 na água. Usada pela umidade. */
   readonly waterDistance: Uint16Array;
+  /** Jazida mineral de cada célula (T6, código em `resources.ts`); 0 = nenhuma. */
+  readonly deposit: Uint8Array;
   seaLevel: number;
 
   constructor(params: WorldParams, grid: CubeSphere = new CubeSphere(params.n)) {
@@ -79,6 +81,7 @@ export class WorldState {
     this.crust = newArray(Uint8Array, this.cellCount);
     this.boundary = newArray(Uint8Array, this.cellCount);
     this.waterDistance = newArray(Uint16Array, this.cellCount);
+    this.deposit = newArray(Uint8Array, this.cellCount);
   }
 
   isWater(i: number): boolean {

@@ -3,14 +3,15 @@ import type { CellPool } from './cell-pool';
 import type { CubeSphere } from './cubesphere';
 import { generateTerrain } from './generation';
 import { generatePlates } from './plates';
+import { generateDeposits } from './resources';
 import { WorldState, type WorldParams } from './state';
 
 /** Etapas da criação do mundo, na ordem (para medir tempo e mostrar progresso). */
-export const WORLD_STAGES = ['terreno', 'placas', 'água', 'clima'] as const;
+export const WORLD_STAGES = ['terreno', 'placas', 'água', 'clima', 'recursos'] as const;
 export type WorldStage = (typeof WORLD_STAGES)[number];
 
 /**
- * Cria um planeta completo: terreno, distância até a água, clima e biomas.
+ * Cria um planeta completo: terreno, distância até a água, clima, biomas e jazidas minerais.
  * `onStage` é avisado durante as etapas (etapa e fração dela): só medição e progresso, não muda
  * o resultado.
  */
@@ -30,5 +31,7 @@ export function createWorld(
   computeWaterDistance(world);
   onStage?.('clima', 0);
   updateClimate(world);
+  onStage?.('recursos', 0);
+  generateDeposits(world);
   return world;
 }

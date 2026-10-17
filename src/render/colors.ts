@@ -1,5 +1,6 @@
 import { newArray } from '../core/shared';
 import { BIOME_INFO } from '../world/biomes';
+import { ALL_RESOURCES, depositType, isHiddenOil, isRevealed, Resource, RESOURCE_INFO } from '../world/resources';
 import type { CubeSphere } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
 
@@ -12,9 +13,23 @@ import type { WorldState } from '../world/state';
 /** Camadas opcionais desenhadas por cima dos biomas (escolhidas no menu). */
 export interface Layers {
   plates: boolean;
+  /** Camada "Ver recursos" (T6) e os tipos mostrados nela (bit = código do tipo). */
+  resources: boolean;
+  resourceMask: number;
 }
 
-export const NO_LAYERS: Layers = { plates: false };
+export const NO_LAYERS: Layers = { plates: false, resources: false, resourceMask: ALL_RESOURCES };
+
+/**
+ * Bit mais baixo do azul na textura de cores: a célula tem algo a desenhar de perto (pedrinhas,
+ * petróleo revelado ou, com a camada ligada, petróleo escondido). Assim o shader só lê a textura das
+ * jazidas nessas células (~1% da terra). Mudar o azul em 1/255 não aparece.
+ */
+export const DECOR_BIT = 1;
+/** Quanto a cor do minério puxa o solo, de longe (visão normal). */
+const SOIL_TINT = 0.22;
+/** Petróleo revelado: mancha escura (em terra e no mar). */
+const OIL_STAIN: readonly [number, number, number] = [22, 20, 26];
 
 /** Cores das fronteiras de placa na camada "Ver placas", por tipo (`Boundary`). */
 export const BOUNDARY_COLORS: readonly (readonly [number, number, number])[] = [
@@ -26,7 +41,48 @@ export const BOUNDARY_COLORS: readonly (readonly [number, number, number])[] = [
 /** Quanto a cor da placa tinge o bioma na camada "Ver placas". */
 const PLATE_TINT = 0.38;
 
-export function writeCellColor(world: WorldState, i: number, out: Uint8Array, layers: Layers = NO_LAYERS): void {
+/**
+ * Halo das jazidas na camada "Ver recursos": cada jazida do filtro tinge até HALO_CELLS células em volta
+ * (mais fraco com a distância), para aparecer de longe, onde uma célula tem 1–2 pixels. Valor: tipo nos
+ * bits 0–4 e distância (1–HALO_CELLS) nos bits 5–7; 0 = longe. Guardado por mundo e filtro: as jazidas
+ * só mudam numa recomposição, que repinta tudo.
+ */
+const HALO_CELLS = 5;
+const halos = new WeakMap<WorldState, { mask: number; halo: Uint8Array }>();
+
+function resourceHalo(world: WorldState, mask: number, rebuild: boolean): Uint8Array {
+  const cached = halos.get(world);
+  if (cached && !rebuild && cached.mask === mask) return cached.halo;
+  const n = world.cellCount;
+  const halo = cached && cached.halo.length === n ? cached.halo : new Uint8Array(n);
+  halo.fill(0);
+  const { neighbors } = world.grid;
+  let frontier: number[] = [];
+  for (let c = 0; c < n; c++) {
+    const type = depositType(world.deposit[c] as number);
+    if (type && (mask >>> type) & 1) frontier.push(c);
+  }
+  const seen = new Uint8Array(n);
+  for (const c of frontier) seen[c] = 1;
+  for (let d = 1; d <= HALO_CELLS && frontier.length; d++) {
+    const next: number[] = [];
+    for (const c of frontier) {
+      const type = d === 1 ? depositType(world.deposit[c] as number) : (halo[c] as number) & 31;
+      for (let k = 0; k < 4; k++) {
+        const j = neighbors[c * 4 + k] as number;
+        if (seen[j]) continue;
+        seen[j] = 1;
+        halo[j] = type | (d << 5);
+        next.push(j);
+      }
+    }
+    frontier = next;
+  }
+  halos.set(world, { mask, halo });
+  return halo;
+}
+
+export function writeCellColor(world: WorldState, i: number, out: Uint8Array, layers: Layers = NO_LAYERS, halo?: Uint8Array): void {
   const info = BIOME_INFO[world.biome[i] as number];
   if (!info) throw new Error(`Bioma inválido na célula ${i}`);
   const h = world.heightAboveSea(i);
@@ -37,6 +93,54 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   let r = Math.min(255, info.color[0] * k);
   let g = Math.min(255, info.color[1] * k);
   let b = Math.min(255, info.color[2] * k);
+  const code = world.deposit[i] as number;
+  let decor = false;
+  if (layers.resources) {
+    // Terreno acinzentado e escurecido; jazidas do filtro fortes na cor do tipo.
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    r = lum * 0.5 + 18;
+    g = lum * 0.5 + 20;
+    b = lum * 0.5 + 26;
+    const type = depositType(code);
+    if (type && (layers.resourceMask >>> type) & 1) {
+      const c = RESOURCE_INFO[type]?.color ?? [255, 255, 255];
+      // Petróleo escondido: listrado (células alternadas), o jogador sabe e os humanos não.
+      const n = world.grid.n;
+      const stripe = isHiddenOil(code) && ((i % n) + Math.floor(i / n)) % 2 === 0;
+      const t = stripe ? 0.35 : 0.9;
+      const target = type === Resource.Oil ? (isRevealed(code) ? OIL_STAIN : [12, 10, 14]) : c;
+      r += (target[0] - r) * t;
+      g += (target[1] - g) * t;
+      b += (target[2] - b) * t;
+    } else if (halo && halo[i]) {
+      const hv = halo[i] as number;
+      const c = RESOURCE_INFO[hv & 31]?.color ?? [255, 255, 255];
+      const t = 0.62 - 0.1 * (hv >> 5);
+      r += (c[0] - r) * t;
+      g += (c[1] - g) * t;
+      b += (c[2] - b) * t;
+    }
+    decor = code !== 0;
+  } else if (code) {
+    const type = depositType(code);
+    if (type === Resource.Oil) {
+      if (isRevealed(code)) {
+        const t = h > 0 ? 0.55 : 0.45;
+        r += (OIL_STAIN[0] - r) * t;
+        g += (OIL_STAIN[1] - g) * t;
+        b += (OIL_STAIN[2] - b) * t;
+        decor = true;
+      }
+    } else if (h > 0) {
+      const c = RESOURCE_INFO[type]?.color;
+      if (c) {
+        r += (c[0] - r) * SOIL_TINT;
+        g += (c[1] - g) * SOIL_TINT;
+        b += (c[2] - b) * SOIL_TINT;
+        decor = true;
+      }
+    }
+  }
   if (layers.plates) {
     const kind = world.boundary[i] as number;
     const tint = kind ? BOUNDARY_COLORS[kind] : world.plates[world.plate[i] as number]?.color;
@@ -50,7 +154,7 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   const o = i * 4;
   out[o] = r;
   out[o + 1] = g;
-  out[o + 2] = b;
+  out[o + 2] = (Math.min(255, Math.max(0, Math.round(b))) & ~DECOR_BIT) | (decor ? DECOR_BIT : 0);
   out[o + 3] = (world.biome[i] as number) | (sameCorners(world, i) << BIOME_BITS);
 }
 
@@ -180,6 +284,8 @@ export function hillshade(world: WorldState, i: number): number {
 
 /** Preenche as cores do mundo todo (ou só das células listadas). */
 export function buildColors(world: WorldState, out: Uint8Array, cells?: readonly number[], layers: Layers = NO_LAYERS): void {
-  if (cells) for (const c of cells) writeCellColor(world, c, out, layers);
-  else for (let i = 0; i < world.cellCount; i++) writeCellColor(world, i, out, layers);
+  // Repintura completa refaz o halo (as jazidas podem ter andado); a parcial (pincel) reaproveita.
+  const halo = layers.resources ? resourceHalo(world, layers.resourceMask, !cells) : undefined;
+  if (cells) for (const c of cells) writeCellColor(world, c, out, layers, halo);
+  else for (let i = 0; i < world.cellCount; i++) writeCellColor(world, i, out, layers, halo);
 }

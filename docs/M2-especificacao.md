@@ -220,7 +220,7 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   polinômio, texturas reaproveitadas. Encerrada pelo usuário: o relatório já bate as metas.
 - [x] **D5 — Geração ≤ 3 s no aparelho.** Relatório: 2,7 s (sem mudança necessária).
 
-- [ ] **T6 — Recursos minerais e petróleo** (`src/world/resources.ts`)
+- [x] **T6 — Recursos minerais e petróleo** (`src/world/resources.ts`)
   Depósitos de ferro, cobre, ouro, nióbio, petróleo, carvão (e outros) gerados pela geologia real:
   cobre (e ouro) em arcos de subducção; ferro (e ouro) em crátons antigos; petróleo e carvão em bacias
   sedimentares; nióbio em carbonatitos raros. Cada depósito pertence a uma placa e **se move com ela**.
@@ -257,7 +257,31 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   6. **Fora da T6, só anotados:** água potável (M3/M4), fontes de energia para usinas (M4/M7),
      humanos escavando também revelam petróleo (M4). Ver `docs/02-marcos.md`.
 
-  **T6 — Proposta do visual (2026-10-17, esperando aprovação; sem código).**
+  **T6 — Resultado (2026-10-17).** Visual aprovado pelo usuário (pedrinhas, cor leve no solo, petróleo
+  escondido até o Rebaixar, camada no menu Geologia) e toque opção (a). Feito:
+  - 19 tipos em províncias, ~45–70 jazidas por mundo na geração (5 sementes), 1–15 células cada, com 1
+    célula de folga entre jazidas; nióbio 1 por mundo. Etapa "recursos" da geração: 13–19 ms no
+    notebook (estimativa no celular 60–85 ms; geração estimada ~2,88 s, meta 3 s).
+  - Formação durante a deriva: arco (cobre, ouro, prata, enxofre, lítio se seco e alto), colisão (ouro,
+    estanho, cromo), rifte continental (petróleo, sal); ~1 jazida a cada ~50 s reais com placas a 100%
+    em 20×, medida no relógio da deriva (igual em qualquer resolução). Crosta que afunda leva a jazida.
+  - Visão normal: tom leve do minério no solo (de longe); de perto 3, 5 ou 6 pedrinhas na cor do tipo;
+    petróleo invisível até o Rebaixar cavar em cima (miolo do pincel), aí mancha preta brilhante (em
+    terra ou no mar), revelada para sempre.
+  - Camada "Ver recursos" (menu Geologia): terreno cinza, jazidas do filtro fortes na cor do tipo com um
+    halo de 5 células (senão de longe uma jazida tem 1–2 pixels), petróleo escondido listrado. Legenda
+    acima da barra de baixo: Todos · Metais · Energia · Agricultura · Indústria; o grupo abre os tipos
+    dele, com a cor de cada um; some com o menu aberto.
+  - Toque (opção a): com a camada ligada, toque curto numa jazida (ou numa vizinha) mostra
+    "Cobre · jazida grande" por 3 s e não pinta; toque fora de jazida pinta uma vez como antes; segurar
+    300 ms ou arrastar pinta. No modo Mover, o toque curto também mostra o nome.
+  - Desempenho de perto no notebook igual (~390 girando, ~410 com placas): só as células com jazida
+    leem a textura nova.
+  - Testes: ambiente certo para cada tipo, tamanho e terra/plataforma, quantidade e nióbio raro,
+    províncias, determinismo, jazidas giram com a placa, formação na deriva (tipo certo por frente,
+    determinística), Rebaixar revela e Elevar não, cores e filtro da camada, legenda, espera do toque.
+
+  **T6 — Proposta do visual (2026-10-17, aprovada pelo usuário).**
   - **Jazida = um grupinho de células** (pequena 1–2, média 3–6, grande 8–15), com a forma seguindo
     a geologia (ao longo do arco, dentro da bacia). Assim a jazida grande se vê de longe e a pequena
     só de perto.

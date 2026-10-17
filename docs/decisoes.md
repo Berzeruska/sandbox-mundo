@@ -617,3 +617,28 @@ Formato: data — decisão — motivo — alternativa descartada.
   de 20 (a mesma da deriva de longe). Medidas nos cenários "de perto, girando" e "idem, de perto" do
   "Medir desempenho". No Hot 50i, `751d6e39`: 61 e 46 (mínimo 33): batidas; travadas 147 → 1. "Não
   precisa otimizar mais agora."
+
+- **2026-10-17 — T6, recursos minerais: decisões técnicas.**
+  - **Código de 1 byte por célula** (tipo em 5 bits, tamanho em 2, petróleo revelado em 1), gravado na
+    amostra de crosta da tectônica: anda com a placa e some quando a crosta afunda, sem custo na
+    recomposição. Crosta nova ou copiada de vizinha não herda jazida (não duplica); crosta que passa de
+    placa (acréscimo) leva a jazida.
+  - **Pincelada só liga o bit de revelado** na amostra (nunca apaga nem troca o tipo): o motor da
+    geologia pode ter uma jazida mais nova que o mundo do relógio.
+  - **Formação medida no relógio da deriva**, não em recomposições (que dependem da resolução):
+    períodos 0,27 rad (arco), 0,34 (colisão), 0,2 (rifte), chance 0,6 a cada período; frente com menos
+    de 3 células não conta. Sorteios próprios na ordem das recomposições (determinístico; teste repete
+    e compara).
+  - **Geração em províncias com amostragem** (1 célula em 5 entra na busca de lugares; o ambiente,
+    inclusive o cráton pelo mesmo ruído das províncias do G4, só é calculado onde precisa): 13–19 ms no
+    notebook. Descartado: avaliar todas as células (27 ms) e filtrar candidatos por província (15 ms).
+  - **Desenho:** a tela recebe o array de jazidas inteiro (0,4 MB) com o mundo e a cada recomposição, e
+    numa pincelada só quando ela revela petróleo; vira uma textura de 1 byte por célula (e a cópia da
+    composição anterior, para a transição suave). O bit mais baixo do azul na textura de cores marca as
+    células com algo a desenhar de perto: só elas leem a textura das jazidas (desempenho de perto igual).
+  - **Filtro da legenda na CPU** (repinta as cores do mundo ao trocar, como "Ver placas"), não na GPU como
+    proposto: uma repintura por toque na legenda, sem código a mais no shader.
+  - **Halo de 5 células** em volta das jazidas, só com a camada ligada: de longe uma jazida tem 1–2
+    pixels.
+  - **Toque com a camada ligada:** o pincel espera 300 ms parado (ou começa ao arrastar) para separar
+    toque curto de pincelada; o nome vem do relógio (`query`), na célula tocada ou numa vizinha.

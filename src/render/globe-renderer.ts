@@ -50,6 +50,12 @@ export class GlobeRenderer {
   private prevTexture: WebGLTexture | null = null;
   private prevPlateTexture: WebGLTexture | null = null;
   private plateCells: Uint8Array | null = null;
+  /** Jazidas (T6): 1 byte por célula, código de `resources.ts`; atual e da composição anterior. */
+  private depositTexture: WebGLTexture | null = null;
+  private prevDepositTexture: WebGLTexture | null = null;
+  private deposits: Uint8Array | null = null;
+  /** Camada "Ver recursos" ligada (o petróleo escondido aparece listrado de perto). */
+  resourcesLayer = false;
   /** Cor do fundo oceânico novo (fenda aberta entre placas antes da recomposição), 0–1. */
   ridgeColor: [number, number, number] = [0.08, 0.18, 0.39];
   private vao: WebGLVertexArrayObject | null = null;
@@ -107,10 +113,13 @@ export class GlobeRenderer {
     if (!this.lost) {
       if (this.prevTexture) this.gl.deleteTexture(this.prevTexture);
       if (this.prevPlateTexture) this.gl.deleteTexture(this.prevPlateTexture);
+      if (this.prevDepositTexture) this.gl.deleteTexture(this.prevDepositTexture);
       this.prevTexture = null;
       this.prevPlateTexture = null;
+      this.prevDepositTexture = null;
       this.createTexture();
       this.createPlateTexture();
+      this.createDepositTexture();
     }
   }
 
@@ -129,21 +138,55 @@ export class GlobeRenderer {
     }
     // Se até o simplificado falhar, o erro sobe e aparece na tela (App).
     this.program ??= linkProgram(gl, VERTEX_SHADER, fragmentShader(false));
-    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev']) {
+    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev', 'uDeposits', 'uDepositsPrev', 'uResLayer']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.vao = gl.createVertexArray();
     this.createNoiseTexture();
     this.createTexture();
     this.createPlateTexture();
+    this.createDepositTexture();
+  }
+
+  /** Jazidas do mundo todo (mundo novo, ou petróleo revelado por uma pincelada). */
+  setDeposits(deposits: Uint8Array): void {
+    this.deposits = deposits;
+    if (this.lost) return;
+    if (this.depositTexture) this.fillDepositTexture();
+    else this.createDepositTexture();
+  }
+
+  private createDepositTexture(): void {
+    const gl = this.gl;
+    if (this.depositTexture) gl.deleteTexture(this.depositTexture);
+    this.depositTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.depositTexture);
+    gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.R8UI, this.n, this.n, 6);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    this.fillDepositTexture();
+  }
+
+  private fillDepositTexture(): void {
+    const gl = this.gl;
+    const data = this.deposits && this.deposits.length === this.n * this.n * 6 ? this.deposits : new Uint8Array(this.n * this.n * 6);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.depositTexture);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, 0, this.n, this.n, 6, gl.RED_INTEGER, gl.UNSIGNED_BYTE, data);
   }
 
   /**
    * Recomposição chegou: a composição atual vira a "anterior" (para a transição suave) e as cores
    * (já atualizadas no array) e as placas novas viram a atual.
    */
-  recomposed(plateCells: Uint8Array): void {
+  recomposed(plateCells: Uint8Array, deposits: Uint8Array): void {
     if (this.lost) return;
+    const spareDeposits = this.prevDepositTexture;
+    this.prevDepositTexture = this.depositTexture;
+    this.depositTexture = spareDeposits;
+    this.deposits = deposits;
+    if (this.depositTexture) this.fillDepositTexture();
+    else this.createDepositTexture();
     // Reaproveita as texturas da composição de duas recomposições atrás (sem uso há segundos): criar
     // e apagar textura na GPU a cada recomposição pode travar um quadro no celular.
     const spareColors = this.prevTexture;
@@ -266,6 +309,10 @@ export class GlobeRenderer {
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, fading ? this.prevTexture : this.texture);
     gl.activeTexture(gl.TEXTURE4);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, fading ? this.prevPlateTexture : this.plateTexture);
+    gl.activeTexture(gl.TEXTURE5);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.depositTexture);
+    gl.activeTexture(gl.TEXTURE6);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, fading && this.prevDepositTexture ? this.prevDepositTexture : this.depositTexture);
     gl.activeTexture(gl.TEXTURE0);
     const u = this.uniforms;
     gl.uniform1i(u.uCells ?? null, 0);
@@ -273,6 +320,9 @@ export class GlobeRenderer {
     gl.uniform1i(u.uPlates ?? null, 2);
     gl.uniform1i(u.uCellsPrev ?? null, 3);
     gl.uniform1i(u.uPlatesPrev ?? null, 4);
+    gl.uniform1i(u.uDeposits ?? null, 5);
+    gl.uniform1i(u.uDepositsPrev ?? null, 6);
+    gl.uniform1i(u.uResLayer ?? null, this.resourcesLayer ? 1 : 0);
     gl.uniform1f(u.uFade ?? null, fading && motion ? motion.fade : 1);
     gl.uniform1i(u.uMoving ?? null, moving ? 1 : 0);
     if (motion && moving) {

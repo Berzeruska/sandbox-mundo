@@ -6,10 +6,11 @@ import type { WorkCounters } from '../ui/benchmark';
 import { SHARED_PROBE_VALUE, sharedMemoryLabel, type CellQuery, type FromWorker, type Patch, type PlateMotionInfo, type ToWorker, type WorldInfo } from './protocol';
 
 export interface SimEvents {
-  onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array): void;
-  onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[], plates: PlateMotionInfo[]): void;
+  onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array, deposits: Uint8Array): void;
+  onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[], plates: PlateMotionInfo[], deposits: Uint8Array): void;
   onProgress(stage: string, fraction: number): void;
-  onPatch(patches: Patch[], brushMs: number): void;
+  /** `deposits`: todas as jazidas, só quando a pincelada revelou petróleo. */
+  onPatch(patches: Patch[], brushMs: number, deposits?: Uint8Array): void;
   /** Erro no worker, no protocolo ou versão diferente (`versionMismatch`). */
   onError(message: string, versionMismatch?: boolean): void;
   /** Qualquer mensagem do worker (para o vigia de "sem resposta"). */
@@ -127,16 +128,16 @@ export class SimClient {
         break;
       case 'world':
         this.brushInFlight = false;
-        this.events.onWorld(msg.info, msg.colors, msg.plateCells);
+        this.events.onWorld(msg.info, msg.colors, msg.plateCells, msg.deposits);
         break;
       case 'recomposed':
-        this.events.onRecomposed(msg.patches, msg.plateCells, msg.angles, msg.plates);
+        this.events.onRecomposed(msg.patches, msg.plateCells, msg.angles, msg.plates, msg.deposits);
         break;
       case 'progress':
         this.events.onProgress(msg.stage, msg.fraction);
         break;
       case 'patch':
-        this.events.onPatch(msg.patches, msg.brushMs);
+        this.events.onPatch(msg.patches, msg.brushMs, msg.deposits);
         // Só a resposta de uma pincelada libera a próxima (repintura de camada tem brushMs < 0).
         if (msg.brushMs < 0) break;
         this.brushInFlight = false;

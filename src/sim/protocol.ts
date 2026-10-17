@@ -77,6 +77,8 @@ export interface CellQuery {
   biome: number;
   water: boolean;
   ice: boolean;
+  /** Jazida na célula ou numa vizinha (código de `resources.ts`; 0 = nenhuma). */
+  deposit: number;
 }
 
 export type FromWorker =
@@ -84,11 +86,12 @@ export type FromWorker =
   | { type: 'hello'; version: string }
   /** Erro dentro do worker (em vez de travar em silêncio). */
   | { type: 'error'; message: string; stack?: string }
-  | { type: 'world'; info: WorldInfo; colors: Uint8Array; plateCells: Uint8Array }
-  /** As placas andaram: mundo todo repintado, placa de cada célula e ângulos desta composição. */
-  | { type: 'recomposed'; patches: Patch[]; plateCells: Uint8Array; angles: number[]; plates: PlateMotionInfo[] }
+  | { type: 'world'; info: WorldInfo; colors: Uint8Array; plateCells: Uint8Array; deposits: Uint8Array }
+  /** As placas andaram: mundo todo repintado, placa de cada célula, ângulos e jazidas desta composição. */
+  | { type: 'recomposed'; patches: Patch[]; plateCells: Uint8Array; angles: number[]; plates: PlateMotionInfo[]; deposits: Uint8Array }
   | { type: 'progress'; stage: string; fraction: number }
-  | { type: 'patch'; patches: Patch[]; brushMs: number }
+  /** `deposits`: todas as jazidas, só quando uma pincelada revelou petróleo (T6). */
+  | { type: 'patch'; patches: Patch[]; brushMs: number; deposits?: Uint8Array }
   | { type: 'clock'; tick: number; speed: Speed; ticksPerSecond: number; geologyMs: number; memoryMb: number; angles: number[]; work: WorkCounters }
   | { type: 'query'; id: number; cell: CellQuery }
   | { type: 'sharedProbe'; ok: boolean };
@@ -111,10 +114,14 @@ export function applyPatch(colors: Uint8Array, n: number, p: Patch): void {
 
 /** Buffers de uma mensagem que podem ser transferidos em vez de copiados. */
 export function transferables(msg: FromWorker): ArrayBuffer[] {
-  if (msg.type === 'world') return [msg.colors.buffer as ArrayBuffer, msg.plateCells.buffer as ArrayBuffer];
-  if (msg.type === 'patch') return msg.patches.map((p) => p.data.buffer as ArrayBuffer);
+  if (msg.type === 'world') return [msg.colors.buffer as ArrayBuffer, msg.plateCells.buffer as ArrayBuffer, msg.deposits.buffer as ArrayBuffer];
+  if (msg.type === 'patch') {
+    const out = msg.patches.map((p) => p.data.buffer as ArrayBuffer);
+    if (msg.deposits) out.push(msg.deposits.buffer as ArrayBuffer);
+    return out;
+  }
   if (msg.type === 'recomposed') {
-    return [...msg.patches.map((p) => p.data.buffer as ArrayBuffer), msg.plateCells.buffer as ArrayBuffer];
+    return [...msg.patches.map((p) => p.data.buffer as ArrayBuffer), msg.plateCells.buffer as ArrayBuffer, msg.deposits.buffer as ArrayBuffer];
   }
   return [];
 }

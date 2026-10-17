@@ -4,6 +4,7 @@ import { computeWaterDistance, updateClimate } from '../world/climate';
 import type { CellsRequest } from '../world/cell-pool';
 import type { CubeSphere } from '../world/cubesphere';
 import type { Plate } from '../world/plates';
+import { DepositFormation, REVEALED_BIT } from '../world/resources';
 import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, Tectonics } from '../world/tectonics';
 import { WorldState, type WorldParams } from '../world/state';
 import type { PlateMotionInfo } from './protocol';
@@ -39,6 +40,7 @@ export const COMPOSED_FIELDS = [
   'crust',
   'boundary',
   'waterDistance',
+  'deposit',
 ] as const;
 /** Arrays do mundo enviados na criação do motor (o resto nasce na geração e não muda). */
 export const WORLD_FIELDS = [...COMPOSED_FIELDS, 'iceMode', 'tempNoise', 'rainNoise'] as const;
@@ -56,6 +58,8 @@ export interface BrushDelta {
   elevation: Float32Array;
   crust: Uint8Array;
   iceMode: Uint8Array;
+  /** 1 = esta pincelada (Rebaixar) revelou o petróleo da célula (T6). */
+  reveal: Uint8Array;
 }
 
 /** Tudo de que o motor precisa para começar num mundo recém-gerado. */
@@ -99,6 +103,8 @@ export interface GeologyResult {
 export interface GeologyStats {
   welds: number;
   fragments: number;
+  /** Jazidas formadas durante a deriva até agora (T6). */
+  depositsFormed: number;
   ruptures: number;
   supercontinents: number;
   /** 1 dispersão, 2 montagem, 3 supercontinente. */
@@ -160,6 +166,8 @@ export class GeologyEngine {
   readonly world: WorldState;
   readonly worldId: number;
   tectonics: Tectonics | null = null;
+  /** Jazidas que nascem durante a deriva (T6). */
+  readonly formation: DepositFormation;
   readonly colors: Uint8Array;
   readonly cellRef: Int32Array;
   /** Passos já processados (o mesmo relógio do jogo). */
@@ -186,6 +194,7 @@ export class GeologyEngine {
     this.world = world;
     this.rate = init.rate;
     this.layers = init.layers;
+    this.formation = new DepositFormation(init.params.seed);
     this.colors = newArray(Uint8Array, world.cellCount * 4);
     this.cellRef = newArray(Int32Array, world.cellCount);
     for (let c = 0; c < world.cellCount; c++) this.cellRef[c] = c;
@@ -204,6 +213,7 @@ export class GeologyEngine {
     arrays.crust = w.crust;
     arrays.boundary = w.boundary;
     arrays.waterDistance = w.waterDistance;
+    arrays.deposit = w.deposit;
     return { world: this.worldId, arrays, colors: this.colors, cellRef: this.cellRef };
   }
 
@@ -292,13 +302,15 @@ export class GeologyEngine {
       const c = d.cells[k] as number;
       // O gelo pintado fica no lugar (não anda com a placa).
       world.iceMode[c] = d.iceMode[k] as number;
+      const reveal = d.reveal[k] ? REVEALED_BIT : 0;
       if (t) {
-        t.syncSample(d.plate[k] as number, d.ref[k] as number, d.elevation[k] as number, d.crust[k] as number);
+        t.syncSample(d.plate[k] as number, d.ref[k] as number, d.elevation[k] as number, d.crust[k] as number, reveal);
       } else {
         // Antes da primeira recomposição cada célula mostra a si mesma: o mundo é a fonte.
         const ref = d.ref[k] as number;
         world.elevation[ref] = d.elevation[k] as number;
         world.crust[ref] = d.crust[k] as number;
+        if (world.deposit[ref]) world.deposit[ref] = (world.deposit[ref] as number) | reveal;
       }
     }
   }
@@ -311,6 +323,9 @@ export class GeologyEngine {
     const t1 = this.now();
     computeWaterDistance(world);
     updateClimate(world);
+    // Jazidas: as da crosta (andaram com as placas) e as que nascem nas frentes ativas (T6).
+    tectonics.writeDeposits(world.deposit);
+    this.formation.step(world, tectonics.driftNow, (c, code) => tectonics.setDeposit(c, code));
     const t2 = this.now();
     buildColors(world, this.colors, undefined, this.layers);
     tectonics.writeCellRefs(this.cellRef);
@@ -332,6 +347,7 @@ export class GeologyEngine {
       stats: {
         welds: tectonics.welds,
         fragments: tectonics.fragmentsAbsorbed,
+        depositsFormed: this.formation.formed.length,
         ruptures: cycle.ruptures,
         supercontinents: cycle.supercontinents,
         cyclePhase: phaseNumber(cycle.phase),

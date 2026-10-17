@@ -14,6 +14,8 @@ export interface InputHandlers {
   onLeave(): void;
   /** Um dedo (ou botão) tocou o globo, antes de decidir entre girar, pintar ou pinça. */
   onPress(): void;
+  /** Toque curto no modo mover (sem arrastar), em pixels do canvas (T6: nome da jazida). */
+  onTap?(sx: number, sy: number): void;
 }
 
 interface PointerState {
@@ -207,6 +209,7 @@ export class PointerInput {
       this.lastTap.t = -Infinity;
     } else {
       this.lastTap = { t, x, y };
+      this.handlers.onTap?.(x, y);
     }
   }
 }

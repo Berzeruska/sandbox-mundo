@@ -1,6 +1,7 @@
 import { BIOME_COUNT, BIOME_INFO } from '../world/biomes';
 import { FACES, type Vec3 } from '../world/cubesphere';
-import { BIOME_BITS } from './colors';
+import { BIOME_BITS, DECOR_BIT } from './colors';
+import { Resource, RESOURCE_INFO } from '../world/resources';
 import { CONTINENTAL_BIT, LINE_BIT, MAX_SHADER_PLATES, NEAR_REACH_CELLS, PLATE_MASK } from './plate-motion';
 
 const vec = (v: Vec3): string => `vec3(${v.map((c) => c.toFixed(1)).join(', ')})`;
@@ -53,7 +54,7 @@ export const SQUARE_TO_PX = 14;
  * biomas e a sombra na água saem da distância até a divisa com a vizinha, então valem também nas
  * emendas. A distância até os centros usa a métrica local da grade (ver `tileGlsl`).
  */
-function tileGlsl(sfx: string, cells: string): string {
+function tileGlsl(sfx: string, cells: string, deposits: string): string {
   // As 4 células em volta são escritas por extenso (k = 0…3), sem arrays nem laços, e cada uma guarda só
   // o bioma, a distância e o endereço; a cor é lida uma vez, no fim, só da escolhida (array lido com
   // índice variável vai para a memória lenta da GPU). Medidas em `docs/decisoes.md`, "Vista de perto
@@ -146,6 +147,10 @@ ${ks.map((k) => `    if (b${k} != b && sc${k} > second) { second = sc${k}; other
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(lum), col, 1.0 + 0.25 * sq);
   col *= 1.0 + (water ? 0.03 : 0.08) * (cellHash(pickT) - 0.5) * sq;
+  // Jazida (T6): só nas células marcadas nas cores (bit baixo do azul) lê a textura das jazidas.
+  if ((int(cell.b * 255.0 + 0.5) & ${DECOR_BIT}) != 0 && pickT.z == face) {
+    col = decorate(col, texelFetch(${deposits}, pickT, 0).r, g - vec2(pickT.xy), pickT, sq);
+  }
   // Contorno fino (largura fixa na tela) onde o bioma muda, não entre os dois tons de oceano; sombra
   // na água junto da terra. fwidth fora de qualquer "if": a derivada precisa dos pixels vizinhos.
   float px = max(fwidth(m), 1e-4);
@@ -157,6 +162,63 @@ ${ks.map((k) => `    if (b${k} != b && sc${k} > second) { second = sc${k}; other
 }`;
 }
 
+const glslColor = (c: readonly number[]): string => `vec3(${c.map((v) => ((v as number) / 255).toFixed(3)).join(', ')})`;
+
+/**
+ * Jazida vista de perto (T6, visual aprovado pelo usuário): minério sólido vira 3 a 6 pedrinhas na cor
+ * do tipo; petróleo revelado vira uma mancha preta brilhante; petróleo escondido só aparece (listrado)
+ * com a camada "Ver recursos". `f`: posição dentro da célula (0–1). Tudo some de longe junto com `sq`.
+ */
+const DECORATE_GLSL = `
+const vec3 RES_COLOR[${RESOURCE_INFO.length}] = vec3[${RESOURCE_INFO.length}](${RESOURCE_INFO.map((r) => glslColor(r.color)).join(', ')});
+
+float hashK(ivec3 t, int k) {
+  uint h = uint(t.x) * 73856093u ^ uint(t.y) * 19349663u ^ uint(t.z) * 83492791u ^ uint(k) * 2654435761u;
+  h ^= h >> 13u;
+  h *= 1540483477u;
+  h ^= h >> 15u;
+  return float(h & 1023u) / 1023.0;
+}
+
+vec3 decorate(vec3 col, uint code, vec2 f, ivec3 t, float sq) {
+  int type = int(code & 31u);
+  bool revealed = (code & 128u) != 0u;
+  int size = int((code >> 5u) & 3u);
+  vec3 rc = RES_COLOR[clamp(type, 0, ${RESOURCE_INFO.length - 1})];
+  if (type == ${Resource.Oil}) {
+    vec2 d = f - 0.5;
+    if (!revealed) {
+      // Escondido: listras na diagonal, só com a camada ligada.
+      if (uResLayer == 1) col = mix(col, rc, 0.6 * step(0.5, fract((f.x + f.y) * 3.0)) * sq);
+      return col;
+    }
+    // Revelado: mancha preta de borda irregular, com um brilho.
+    float a = atan(d.y, d.x);
+    float h = hashK(t, 7) * 6.2832;
+    float r = 0.34 + 0.07 * sin(a * 3.0 + h) + 0.04 * sin(a * 5.0 + 2.0 * h);
+    float m = 1.0 - smoothstep(r - 0.04, r + 0.02, length(d));
+    vec3 stain = vec3(0.05, 0.045, 0.06) + vec3(0.32) * (1.0 - smoothstep(0.0, 0.08, length(d - vec2(-0.09, 0.1))));
+    return mix(col, stain, m * sq);
+  }
+  // Pedrinhas: 3 (pequena), 5 (média) ou 6 (grande), em lugares fixos por célula.
+  int count = size >= 3 ? 6 : size == 2 ? 5 : 3;
+  for (int k = 0; k < 6; k++) {
+    if (k >= count) break;
+    vec2 c = 0.2 + 0.6 * vec2(hashK(t, 2 * k), hashK(t, 2 * k + 1));
+    float rad = 0.09 + 0.05 * hashK(t, k + 20);
+    vec2 d = (f - c) / rad;
+    float l2 = dot(d, d);
+    if (l2 < 1.0) {
+      // Luz de cima à esquerda, borda escura e contorno suave.
+      vec3 p = rc * (0.8 + 0.3 * clamp(0.6 * d.y - 0.5 * d.x, -1.0, 1.0));
+      p = mix(p, p * 0.45, smoothstep(0.55, 1.0, l2));
+      col = mix(col, p, (1.0 - smoothstep(0.85, 1.0, l2)) * sq);
+      break;
+    }
+  }
+  return col;
+}`;
+
 /** Largura da sombra na água junto da terra, em fração da célula. */
 const SHADOW_WIDTH = 0.3;
 
@@ -165,7 +227,7 @@ const SHADOW_WIDTH = 0.3;
  * vezes: para a composição atual e para a anterior (transição suave). Gerar o código duas vezes
  * evita escolher a textura em tempo de execução: num ternário, muitas GPUs fazem as duas leituras.
  */
-function setFunctions(sfx: string, cells: string, plates: string, base: string, maxDelta: string): string {
+function setFunctions(sfx: string, cells: string, plates: string, base: string, maxDelta: string, deposits: string): string {
   return `
 // Célula que contém o ponto p da esfera: cor (rgb) e código do bioma (a).
 vec4 cellAt${sfx}(vec3 p) {
@@ -254,7 +316,7 @@ int plateNow${sfx}(vec3 p, out vec3 fix) {
   return pl0;
 }
 
-${tileGlsl(sfx, cells)}
+${tileGlsl(sfx, cells, deposits)}
 
 // Cor da superfície no ponto p (antes da luz), com o conjunto de texturas ${sfx || "atual"}.
 vec3 surface${sfx}(vec3 p, float cellPx) {
@@ -314,7 +376,7 @@ const SIMPLE_GLSL = `
 vec4 cellAt(vec3 p) {
   return texelFetch(uCells, texelOf(p), 0);
 }
-${tileGlsl('', 'uCells')}
+${tileGlsl('', 'uCells', 'uDeposits')}
 
 vec3 surface(vec3 p, float cellPx) {
   vec3 q = p;
@@ -349,6 +411,7 @@ const MOTION_GLSL = `
 // Composição anterior: durante a transição suave logo depois de uma recomposição, as duas são
 // desenhadas e misturadas.
 uniform sampler2DArray uCellsPrev;
+uniform highp usampler2DArray uDepositsPrev; // jazidas da composição anterior
 uniform float uFade; // 1 = só a atual; de 0 a 1 logo depois de uma recomposição
 
 // ---- Movimento suave das placas entre recomposições (mesma regra de src/render/plate-motion.ts) ----
@@ -385,8 +448,8 @@ float closing(int a, int b, vec3 p) {
   return dot(va - vb, d);
 }
 
-${setFunctions('', 'uCells', 'uPlates', 'uPlateBase', 'uMaxDelta')}
-${setFunctions('Prev', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uMaxDeltaPrev')}
+${setFunctions('', 'uCells', 'uPlates', 'uPlateBase', 'uMaxDelta', 'uDeposits')}
+${setFunctions('Prev', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uMaxDeltaPrev', 'uDepositsPrev')}
 `;
 
 /**
@@ -407,6 +470,8 @@ uniform float uRadius;  // raio do globo em pixels
 uniform mat3 uRot;      // visão -> mundo
 uniform vec3 uLight;    // direção da luz, em coordenadas de visão
 uniform float uCellAngle; // ângulo entre células vizinhas (radianos)
+uniform highp usampler2DArray uDeposits; // jazidas (T6): código de 1 byte por célula
+uniform int uResLayer;    // 1 = camada "Ver recursos" ligada
 
 // Intensidade da textura de detalhe por bioma (de BIOME_INFO).
 const float DETAIL[${BIOME_COUNT}] = float[${BIOME_COUNT}](${BIOME_INFO.map((b) => b.detail.toFixed(3)).join(', ')});
@@ -442,6 +507,8 @@ ivec3 texelOf(vec3 p) {
   ivec2 texel = clamp(ivec2(floor((ab + 1.0) * 0.5 * float(uN))), ivec2(0), ivec2(uN - 1));
   return ivec3(texel, face);
 }
+
+${DECORATE_GLSL}
 
 // Número fixo de 0 a 1 para cada célula (variação de cor por célula, sem textura).
 float cellHash(ivec3 t) {

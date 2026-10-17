@@ -8,6 +8,7 @@ import type { CellPool } from '../world/cell-pool';
 import { createWorld, WORLD_STAGES } from '../world/create';
 import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
 import { CONTINENTAL_DEPTH, Crust } from '../world/plates';
+import { REVEALED_BIT } from '../world/resources';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
 import { emptyWork, type WorkCounters } from '../ui/benchmark';
@@ -42,7 +43,7 @@ export const GENERATION_STAGES: readonly { name: string; weight: number }[] = [
   { name: 'grade', weight: 0.08 },
   ...WORLD_STAGES.map((name) => ({
     name,
-    weight: name === 'terreno' ? 0.52 : name === 'clima' ? 0.18 : name === 'placas' ? 0.12 : 0.02,
+    weight: name === 'terreno' ? 0.5 : name === 'clima' ? 0.18 : name === 'placas' ? 0.12 : 0.02,
   })),
   { name: 'cores', weight: 0.08 },
 ];
@@ -269,6 +270,7 @@ export class SimulationCore {
       // Cópia: o worker continua com as próprias cores; a cópia vai transferida.
       colors: this.colors.slice(),
       plateCells: packPlates(world),
+      deposits: world.deposit.slice(),
     });
     this.postClock(true);
   }
@@ -292,7 +294,8 @@ export class SimulationCore {
     const world = this.world;
     if (!world) return;
     const t0 = this.now();
-    const { region } = applyBrush(world, msg.tool, msg.point, msg.radius, msg.dt);
+    const { region, revealed } = applyBrush(world, msg.tool, msg.point, msg.radius, msg.dt);
+    const revealedSet = new Set(revealed);
     // A pincelada fica gravada na placa: anda junto quando ela se mover. Vai para o motor com o passo
     // em que aconteceu e fica guardada até a próxima recomposição aparecer (que ainda não a tem).
     const count = region.length;
@@ -303,6 +306,7 @@ export class SimulationCore {
       elevation: new Float32Array(count),
       crust: new Uint8Array(count),
       iceMode: new Uint8Array(count),
+      reveal: new Uint8Array(count),
     };
     for (let k = 0; k < count; k++) {
       const c = region[k] as number;
@@ -312,13 +316,16 @@ export class SimulationCore {
       delta.elevation[k] = world.elevation[c] as number;
       delta.crust[k] = world.crust[c] as number;
       delta.iceMode[k] = world.iceMode[c] as number;
+      delta.reveal[k] = revealedSet.has(c) ? 1 : 0;
     }
     this.brushLog.push({ tick: this.clock.tick, delta });
     this.geology.send({ type: 'brush', world: this.worldId, tick: this.clock.tick, delta });
     const painted = withRing(world.grid, region);
     buildColors(world, this.colors, painted, this.layers);
     const patches = makePatches(this.colors, world.params.n, dirtyRects(world.grid, painted));
-    this.send({ type: 'patch', patches, brushMs: this.now() - t0 });
+    // Petróleo revelado: a tela recebe as jazidas de novo (raro: só quando o Rebaixar acha petróleo).
+    const brushMs = this.now() - t0;
+    this.send(revealed.length ? { type: 'patch', patches, brushMs, deposits: world.deposit.slice() } : { type: 'patch', patches, brushMs });
   }
 
   /** Repinta o mundo todo e manda as 6 faces como remendos (brushMs -1: não é pincelada). */
@@ -352,7 +359,7 @@ export class SimulationCore {
     if (this.brushLog.length) this.replayBrushes(world);
     const n = world.params.n;
     const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
-    this.send({ type: 'recomposed', patches: makePatches(this.colors, n, faces), plateCells: r.plateCells, angles: r.angles, plates: r.motion });
+    this.send({ type: 'recomposed', patches: makePatches(this.colors, n, faces), plateCells: r.plateCells, angles: r.angles, plates: r.motion, deposits: world.deposit.slice() });
     const w = this.work;
     w.plates += r.platesMs;
     w.climate += r.climateMs;
@@ -368,11 +375,13 @@ export class SimulationCore {
   /** Pinceladas feitas depois da recomposição que acabou de aparecer: valem de novo sobre ela. */
   private replayBrushes(world: WorldState): void {
     const n = world.cellCount;
-    const shown = new Map<number, { elevation: number; crust: number }>();
+    const shown = new Map<number, { elevation: number; crust: number; reveal: number }>();
     const region = new Set<number>();
     for (const { delta } of this.brushLog) {
       for (let k = 0; k < delta.cells.length; k++) {
-        shown.set((delta.plate[k] as number) * n + (delta.ref[k] as number), { elevation: delta.elevation[k] as number, crust: delta.crust[k] as number });
+        const key = (delta.plate[k] as number) * n + (delta.ref[k] as number);
+        const reveal = (delta.reveal[k] as number) | (shown.get(key)?.reveal ?? 0);
+        shown.set(key, { elevation: delta.elevation[k] as number, crust: delta.crust[k] as number, reveal });
         world.iceMode[delta.cells[k] as number] = delta.iceMode[k] as number;
         region.add(delta.cells[k] as number);
       }
@@ -384,6 +393,7 @@ export class SimulationCore {
       if (!hit) continue;
       world.elevation[c] = hit.elevation;
       world.crust[c] = hit.crust;
+      if (hit.reveal && world.deposit[c]) world.deposit[c] = (world.deposit[c] as number) | REVEALED_BIT;
       region.add(c);
     }
     const cells = [...region];
@@ -406,7 +416,7 @@ export class SimulationCore {
     this.send({
       type: 'query',
       id,
-      cell: { elevation: world.elevation[c] as number, biome: world.biome[c] as number, water: world.isWater(c), ice: world.ice[c] === 1 },
+      cell: { elevation: world.elevation[c] as number, biome: world.biome[c] as number, water: world.isWater(c), ice: world.ice[c] === 1, deposit: depositNear(world, c) },
     });
   }
 
@@ -520,6 +530,20 @@ function typedBytes(obj: object | null | undefined): number {
   let total = 0;
   for (const v of Object.values(obj)) if (ArrayBuffer.isView(v)) total += v.byteLength;
   return total;
+}
+
+/**
+ * Jazida na célula tocada ou, se não houver, numa vizinha (o dedo não acerta uma célula de perto
+ * nem com as placas andando entre recomposições). 0 = nenhuma.
+ */
+export function depositNear(world: WorldState, c: number): number {
+  if (world.deposit[c]) return world.deposit[c] as number;
+  const { neighbors } = world.grid;
+  for (let d = 0; d < 4; d++) {
+    const j = neighbors[c * 4 + d] as number;
+    if (world.deposit[j]) return world.deposit[j] as number;
+  }
+  return 0;
 }
 
 /** Direção média da terra firme: onde a câmera começa olhando. */

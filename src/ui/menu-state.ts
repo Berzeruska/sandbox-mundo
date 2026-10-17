@@ -65,6 +65,7 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: false },
 
   { id: 'platesLayer', category: 'geologia', label: 'Ver placas', icon: '🧩', kind: 'toggle', available: true },
+  { id: 'resourcesLayer', category: 'geologia', label: 'Ver recursos', icon: '💎', kind: 'toggle', available: true },
   { id: 'plateSpeed', category: 'geologia', label: 'Velocidade', icon: '⏩', kind: 'tool', available: true },
 
   { id: 'temperature', category: 'clima', label: 'Temperatura', icon: '🌡️', kind: 'tool', available: false },

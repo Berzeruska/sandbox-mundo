@@ -239,6 +239,25 @@ export function oceanDepthAt(age: number): number {
 /** Células por bloco na soma do fundo oceânico de cada placa (`preparePolarity`). */
 const POLARITY_CHUNK = 4096;
 
+/** Ruído das províncias de crosta (G4) da semente: o mesmo na tectônica e na geração das jazidas. */
+export function provinceNoiseFor(seed: number): Noise3D {
+  return new Noise3D(createRng((seed ^ 0x51ed270b) >>> 0));
+}
+
+/**
+ * Rigidez da crosta (0 faixa móvel … 1 cráton) no ponto `ref` do referencial da placa `plate`.
+ * Crátons onde o ruído é alto (núcleos), faixas móveis no resto; transição suave.
+ */
+export function provinceRigidity(noise: Noise3D, positions: Float32Array, plate: number, ref: number): number {
+  const v = noise.sample(
+    (positions[ref * 3] as number) * PROVINCE_FREQ + plate * 7.3,
+    (positions[ref * 3 + 1] as number) * PROVINCE_FREQ,
+    (positions[ref * 3 + 2] as number) * PROVINCE_FREQ,
+  );
+  const t = Math.min(1, Math.max(0, (v - 0.05) / 0.4));
+  return t * t * (3 - 2 * t);
+}
+
 export class Tectonics {
   readonly world: WorldState;
   /** Ângulo acumulado de cada placa (rad) e o ângulo na última recomposição. */
@@ -328,6 +347,8 @@ export class Tectonics {
    * ali estavam encostados) afundam igual e o encaixe das costas não se apaga.
    */
   private sMargin: Uint8Array;
+  /** Jazida mineral (T6, `resources.ts`): anda com a placa e some junto com a crosta. 0 = nenhuma. */
+  private sDeposit: Uint8Array;
   private count = 0;
   private dead = 0;
   /**
@@ -405,9 +426,10 @@ export class Tectonics {
     this.sBirth = new Int32Array(cap);
     this.sAlive = new Uint8Array(cap);
     this.sMargin = new Uint8Array(cap);
+    this.sDeposit = new Uint8Array(cap);
     this.initialPlate = Uint8Array.from(world.plate);
     this.marginNoise = new Noise3D(createRng((world.params.seed ^ 0x2545f491) >>> 0));
-    this.provinceNoise = new Noise3D(createRng((world.params.seed ^ 0x51ed270b) >>> 0));
+    this.provinceNoise = provinceNoiseFor(world.params.seed);
     this.cellSample = new Int32Array(n);
     this.scratchBand = new Uint8Array(n);
     this.scratchPrevPlate = new Uint8Array(n);
@@ -429,6 +451,7 @@ export class Tectonics {
     // No início, o referencial de cada placa coincide com o mundo.
     for (let c = 0; c < n; c++) {
       const i = this.addSample(world.plate[c] as number, c, world.elevation[c] as number, world.crust[c] as number, ANCIENT);
+      this.sDeposit[i] = world.deposit[c] as number;
       this.cellSample[c] = i;
     }
     // Braços que falharam na quebra da Pangeia (geração v3): o vale aparece quando as placas andam.
@@ -469,6 +492,8 @@ export class Tectonics {
     this.sBirth[i] = birth;
     this.sAlive[i] = 1;
     this.sMargin[i] = 0;
+    // Crosta nova ou copiada da vizinha não herda jazida (não duplica).
+    this.sDeposit[i] = 0;
     if (i >= this.world.cellCount) this.extra.set(plate * this.world.cellCount + ref, i);
     return i;
   }
@@ -482,7 +507,7 @@ export class Tectonics {
 
   /** Memória aproximada usada pela tectônica (bytes), para o painel Dados. */
   get bytes(): number {
-    const perSample = 1 + 4 + 4 + 1 + 4 + 1 + 1;
+    const perSample = 1 + 4 + 4 + 1 + 4 + 1 + 1 + 1;
     return this.sPlate.length * perSample + this.cellSample.byteLength + this.initialPlate.byteLength + this.scratchBand.byteLength * 2 + this.scratchSample.byteLength + this.extra.size * 40;
   }
 
@@ -510,6 +535,7 @@ export class Tectonics {
     this.sBirth = g(this.sBirth, (k) => new Int32Array(k));
     this.sAlive = g(this.sAlive, (k) => new Uint8Array(k));
     this.sMargin = g(this.sMargin, (k) => new Uint8Array(k));
+    this.sDeposit = g(this.sDeposit, (k) => new Uint8Array(k));
   }
 
   /**
@@ -533,6 +559,7 @@ export class Tectonics {
       this.sCrust[w] = this.sCrust[i] as number;
       this.sBirth[w] = this.sBirth[i] as number;
       this.sMargin[w] = this.sMargin[i] as number;
+      this.sDeposit[w] = this.sDeposit[i] as number;
       this.sAlive[w] = 1;
       w++;
     }
@@ -570,11 +597,29 @@ export class Tectonics {
    * referencial dela passa a ter esta altura e crosta (o mesmo que `syncCells` faz por célula).
    * Amostra que já não existe (consumida, ou passada para outra placa) é ignorada.
    */
-  syncSample(plate: number, ref: number, elevation: number, crust: number): void {
+  syncSample(plate: number, ref: number, elevation: number, crust: number, depositBits = 0): void {
     const i = this.find(plate, ref);
     if (i < 0) return;
     this.sElev[i] = elevation;
     this.sCrust[i] = crust;
+    // Só liga bits (petróleo revelado pelo Rebaixar): o motor pode ter uma jazida mais nova que o relógio.
+    if (this.sDeposit[i]) this.sDeposit[i] = (this.sDeposit[i] as number) | depositBits;
+  }
+
+  /** Jazida de cada célula na composição atual (T6), a partir das amostras. */
+  writeDeposits(out: Uint8Array): void {
+    for (let c = 0; c < this.world.cellCount; c++) {
+      const i = this.cellSample[c] as number;
+      out[c] = i >= 0 ? (this.sDeposit[i] as number) : 0;
+    }
+  }
+
+  /** Grava uma jazida na crosta mostrada na célula (anda com a placa) e no mundo. */
+  setDeposit(c: number, code: number): void {
+    const i = this.cellSample[c] as number;
+    if (i < 0) return;
+    this.sDeposit[i] = code;
+    this.world.deposit[c] = code;
   }
 
   /** Ponto do referencial da placa mostrado em cada célula (-1 = nenhum), para `syncSample`. */
@@ -1063,15 +1108,7 @@ export class Tectonics {
     const ref = this.sRef[i] as number;
     const plate = this.sPlate[i] as number;
     if (this.rigidityOverride) return this.rigidityOverride(plate, ref);
-    const p = this.world.grid.positions;
-    const v = this.provinceNoise.sample(
-      (p[ref * 3] as number) * PROVINCE_FREQ + plate * 7.3,
-      (p[ref * 3 + 1] as number) * PROVINCE_FREQ,
-      (p[ref * 3 + 2] as number) * PROVINCE_FREQ,
-    );
-    // Crátons onde o ruído é alto (núcleos), faixas móveis no resto; transição suave.
-    const t = Math.min(1, Math.max(0, (v - 0.05) / 0.4));
-    return t * t * (3 - 2 * t);
+    return provinceRigidity(this.provinceNoise, this.world.grid.positions, plate, ref);
   }
 
   /**
@@ -2824,6 +2861,7 @@ export class Tectonics {
       i = this.addSample(to, ref, this.sElev[old] as number, this.sCrust[old] as number, this.sBirth[old] as number);
     }
     this.sMargin[i] = this.sMargin[old] as number;
+    this.sDeposit[i] = this.sDeposit[old] as number;
     this.kill(old);
     this.cellSample[c] = i;
     world.plate[c] = to;
