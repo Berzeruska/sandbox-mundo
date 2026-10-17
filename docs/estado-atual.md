@@ -18,8 +18,10 @@ sobre "onde estamos", vale este.
   placas andando).
 - **Remendo nas fronteiras de placa (de perto):** diagnosticado, correção esperando aprovação (muda o
   visual). Causas e proposta na especificação, "Teste no celular (2026-10-17, `751d6e39`)".
-- **T6 feita** (recursos minerais; resultado na especificação). **Agora: T7** (clima que acompanha a
-  deriva, eras glaciais, temperatura global, e os pontos do usuário sobre gelo, neve e biomas).
+- **T6 feita** (recursos minerais; resultado na especificação, `3c8fbc0`, na prévia).
+- **Parado na T7** esperando 5 decisões do usuário (ciclo glacial, faixa do controle de temperatura,
+  gelo e polos, remendo nas fronteiras de placa, biomas): diagnóstico medido e perguntas na
+  especificação, T7, "Perguntas da T7". Nenhum código da T7 ainda.
 - **Limite novo:** a textura de cores guarda o bioma em 4 bits (16 biomas, o número de hoje). Bioma
   novo na T7 exige mudar isso (o teste avisa).
 - **Planeta cubado:** o que sobra depois do alisamento (hexágonos perto dos 8 cantos, células

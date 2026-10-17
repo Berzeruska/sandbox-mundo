@@ -333,6 +333,57 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   diagnosticar primeiro se o clima (chuva e temperatura) varia pouco ou se faltam biomas na lista;
   bioma novo é decisão do usuário.
 
+  **T7 — Diagnóstico (2026-10-17, medido; sem código).** 5 sementes (`terra`, `mundo`, `42`, `7`,
+  `pangeia`), N = 256, na geração e depois de 3 min de placas a 100% em 20×.
+  - **Gelo e polos.** Gelo hoje é só temperatura média: terra abaixo de −12 °C, mar abaixo de −10 °C.
+    O mar congela a partir de ~73° de latitude (60–77% do mar entre 70° e 80°, 100% acima de 80°):
+    duas calotas redondas, que não dependem de haver continente ali e não mudam com nada. Terra entre
+    60° e 70° tem só 0–35% de gelo (tundra e taiga); entre 70° e 80°, 82–95%. É a Terra de hoje
+    (Sibéria e Canadá a 60–70° sem calota). O gelo é uma cor branca lisa (quase sem textura): de
+    perto não parece gelo.
+  - **Neve.** "Pico nevado" = montanha acima de 3.200 m abaixo de 0 °C, sem olhar a chuva: 762 dos 854
+    picos nevados de `42` têm chuva abaixo de 300 mm/ano (montanha seca e branca). Além disso, montanha
+    alta em latitude média passa de −12 °C e vira "Gelo" (calota) inteira. O vale de rifte entre duas
+    montanhas pintadas fica só 300–800 m abaixo delas (2–5 °C mais quente) e continua acima da linha
+    de neve (`docs/bugs.md`).
+  - **Biomas.** O clima varia (temperatura na terra de −13 a 23 °C, chuva de 90 a 1.500 mm), mas o mundo
+    é seco: chuva mediana na terra 350–600 mm (a Terra tem ~700); desertos quentes e frios somam 20–35%
+    da terra, floresta temperada só 2–6%, floresta tropical 5–10%, pântano < 0,5%. Estepe, desertos e
+    savana são beges parecidos: daí a cara de "pouco variado". Não falta bioma na lista para isso;
+    bioma novo seria escolha de gosto (pergunta 5).
+  - **Ciclo glacial e temperatura global:** não existem ainda. O clima só é recalculado na recomposição
+    das placas (no ajudante 2); com placas em 0 ele não muda.
+
+  **T7 — Proposta (esperando decisões do usuário).**
+  - **Técnico (decido eu):** o clima passa a ter uma temperatura global (ciclo + controle) e é
+    recalculado também sem placas, de tempos em tempos, no ajudante 2; a tela recebe só as células que
+    mudaram (gelo, bioma, cor). Teste: o recálculo parcial bate com o total.
+  - **Neve pelo que o usuário pediu (altura, latitude e chuva):** neve e geleira de montanha só com
+    frio **e** chuva bastante (≥ ~350 mm/ano); montanha alta e seca fica rocha (cinza). Com isso o vale
+    de rifte, mais baixo e mais seco (sombra das duas bordas), perde a neve; confiro no cenário do bug.
+  - **Erosão pelo clima:** a erosão de hoje (0,5% por recomposição) passa a depender da chuva: lado
+    chuvoso até 2× (vira escarpa), seco (< 300 mm) 0,25× (planalto sobrevive). Re-medir as altitudes
+    aos 10 min (alvo do mundo real).
+  - **Perguntas ao usuário:** ver "Perguntas da T7" logo abaixo.
+
+  **Perguntas da T7 (2026-10-17).**
+  1. **Ciclo glacial (ritmo e força).** (a) suave: −4 °C no máximo glacial, gelo em terra desce até
+     ~55°, ciclo de ~10 mil anos de jogo (~8 min reais a 20×); (b) forte: −8 °C, gelo desce até ~45°
+     e o **nível do mar cai** (plataformas viram terra, aparecem pontes de terra entre continentes),
+     mesmo ritmo; (c) outro ritmo/força.
+  2. **Controle de temperatura global** (menu Clima): faixa −10 a +10 °C somada ao ciclo (recomendado),
+     ou outra faixa.
+  3. **Gelo e polos.** (a) como a Terra hoje (60–70° sem calota; o gelo cresce no ciclo glacial) e só
+     melhorar a cara: textura de gelo (fendas, azul nas bordas), gelo marinho mais fino e com borda
+     irregular, calota em terra mais branca e espessa; (b) o mesmo e mais gelo já no clima normal:
+     terra acima de ~62° vira calota (limite −12 → −6 °C).
+  4. **Remendo nas fronteiras de placa** (diagnóstico acima, "Teste no celular (2026-10-17,
+     `751d6e39`)"): aprovar a proposta (cada pixel só escolhe células da própria placa; fenda entre
+     dois continentes pintada como vale de rifte)?
+  5. **Biomas.** (a) mais chuva no interior dos continentes (a umidade do mar chega mais longe):
+     menos deserto, mais floresta e campo, sem bioma novo; (b) (a) e biomas novos: arbustal
+     mediterrâneo, manguezal, prado alpino (quais?); (c) deixar como está.
+
 - [ ] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa
   temporariamente; desenho das ondas na camada sobreposta.
