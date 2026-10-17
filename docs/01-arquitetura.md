@@ -117,7 +117,9 @@ docs/
   sem trabalho repetido por quadro).
 - **Sem opção de qualidade** (decisão do usuário): o jogo inteiro tem que rodar bem no aparelho-alvo.
 - Metas no aparelho-alvo: pausado ≥ 85 fps; tempo rodando ≥ 60 fps; placas em deriva ≥ 30 fps,
-  nunca abaixo de 20; geração de mundo ≤ 3 s. Notebook: 60 fps.
+  nunca abaixo de 20; geração de mundo ≤ 3 s. **De perto** (zoom máximo; decisão do usuário,
+  2026-10-17): parado ou girando ≥ 60 fps; com placas andando ≥ 30, nunca abaixo de 20 (cenários
+  "de perto, girando" e "idem, de perto" do "Medir desempenho"). Notebook: 60 fps.
 - Estimativa antes de pedir medição ao usuário: navegador com CPU desacelerada 6× (emulação).
   O relatório do botão "Medir desempenho" (painel Dados), rodado no aparelho, é a verdade.
 - Um painel de depuração (fps, ms por tick, células) acessível por botão, desde o Marco 1.

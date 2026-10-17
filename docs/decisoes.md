@@ -611,3 +611,9 @@ Formato: data — decisão — motivo — alternativa descartada.
   - A impressão digital do motor da geologia (`tests/sim/geology-golden.test.ts`) passa a olhar só o
     bioma no canal alfa: com ela, o valor antigo bate (o mundo não mudou).
 
+
+- **2026-10-17 — Metas de desempenho "de perto" (decisão do usuário, depois do relatório `751d6e39`).**
+  De perto (zoom máximo), parado ou girando: ≥ 60 fps. De perto com placas andando: ≥ 30, nunca abaixo
+  de 20 (a mesma da deriva de longe). Medidas nos cenários "de perto, girando" e "idem, de perto" do
+  "Medir desempenho". No Hot 50i, `751d6e39`: 61 e 46 (mínimo 33): batidas; travadas 147 → 1. "Não
+  precisa otimizar mais agora."

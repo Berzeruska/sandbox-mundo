@@ -13,12 +13,12 @@ sobre "onde estamos", vale este.
   importantes, nome só ao tocar, petróleo escondido até cavar); **esperando aprovação da proposta do
   visual e do custo** e a escolha de como o toque no nome convive com o pincel. Tudo em
   `docs/M2-especificacao.md`, na T6. Nenhum código da T6 ainda.
-- **Corrigido agora (pedido do usuário, meta quebrada):** "de perto está travando muito". A vista de
-  perto ficou ~50% mais leve no notebook com a mesma imagem (hexágonos dos cantos mantidos): 264 →
-  ~395 fps girando (antes do alisamento 489). Cenários novos no "Medir desempenho": "de perto, girando"
-  e "idem, de perto". Detalhes em `docs/decisoes.md`, "Vista de perto mais leve". **Esperando o
-  relatório do celular**, e a resposta do item 2 da mensagem (aprovar o visual da T6 e escolher a/b/c
-  do toque no nome), que veio com os campos do modelo sem preencher.
+- **Vista de perto aprovada no celular** (`751d6e39`): 61 fps girando, 46 (mín. 33) com placas;
+  travadas 147 → 1. Metas novas de "de perto" registradas (≥ 60 parado/girando; ≥ 30, nunca < 20, com
+  placas andando).
+- **Remendo nas fronteiras de placa (de perto):** diagnosticado, correção esperando aprovação (muda o
+  visual). Causas e proposta na especificação, "Teste no celular (2026-10-17, `751d6e39`)".
+- **T6 aprovada** (visual e toque opção a): em andamento.
 - **Limite novo:** a textura de cores guarda o bioma em 4 bits (16 biomas, o número de hoje). Bioma
   novo na T7 exige mudar isso (o teste avisa).
 - **Planeta cubado:** o que sobra depois do alisamento (hexágonos perto dos 8 cantos, células

@@ -38,7 +38,8 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 6. **Orçamento de celular.** Aparelho-alvo: **Infinix Hot 50i** (Helio G81, só 2 núcleos fortes A75
    + 6 A55, GPU Mali-G52 MP2, tela 720p 120 Hz). Otimize pensando nele; não há opção de qualidade:
    o jogo inteiro tem que rodar bem nele. Metas no aparelho: pausado ≥ 85 fps, tempo rodando
-   ≥ 60, placas em deriva ≥ 30 (nunca abaixo de 20), geração ≤ 3 s; notebook 60 fps. Estime com CPU
+   ≥ 60, placas em deriva ≥ 30 (nunca abaixo de 20), geração ≤ 3 s; de perto (zoom máximo) ≥ 60
+   parado ou girando e ≥ 30 (nunca < 20) com placas andando; notebook 60 fps. Estime com CPU
    desacelerada 6× antes de pedir medição; o relatório "Medir desempenho" do aparelho é a verdade.
    Se uma mudança derrubar isso, conserte antes de seguir.
 7. **Sem dependência nova sem justificativa.** Antes de instalar um pacote, diga qual, por que e o

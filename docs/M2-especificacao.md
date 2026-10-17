@@ -917,6 +917,40 @@ perto mais leve". Cenários novos no relatório: "de perto, girando" e "idem, de
 O celular decide se basta: se "de perto, girando" ficar abaixo da meta de "pausado" (85), o próximo
 passo é discutir com o usuário (nenhuma meta de "de perto" foi definida ainda).
 
+### Teste no celular (2026-10-17, `751d6e39`): de perto aprovado; remendo nas fronteiras de placa
+- De perto: 61 fps girando; 46 (mínimo 33) com placas 100% a 20×; travadas 147 → 1. **Metas novas
+  (decisão do usuário):** de perto parado ou girando ≥ 60; de perto com placas andando ≥ 30, nunca < 20.
+  Batidas; "não precisa otimizar mais agora".
+- T6: visual aprovado (pedrinhas de perto, cor leve no solo de longe, petróleo escondido até o Rebaixar,
+  camada "Ver recursos" no menu Geologia); nome ao tocar: **opção (a)** (com a camada ligada, toque
+  curto numa jazida mostra o nome e não usa o pincel; arrastar continua pincelando).
+- **Defeito: de perto, onde as placas se encontram, o terreno parece um remendo.** Diagnóstico (sem
+  correção ainda: muda o visual, o usuário decide). Imagem `docs/img/m2-remendo-placas.png` (semente
+  `terra`, 8 s de placas 100% a 20×, pausado, 4 fronteiras em terra; em cima o jogo de hoje, embaixo um
+  experimento sem a causa 1).
+  Entre duas recomposições cada placa é desenhada girando de volta para a textura da última
+  recomposição (o "movimento suave"). Na fronteira isso tem 3 efeitos que de longe somem (menos de 1
+  pixel) e de perto aparecem:
+  1. **Cópia de tolerância (a maior parte do remendo):** o pixel na beira da placa que, girado de
+     volta, cai um pouco fora do território dela na textura (arredondamento em células) pega a cor de
+     um ponto 0,7 célula ao lado (leste, oeste, norte ou sul). De perto, isso vira faixas de células
+     esticadas e repetidas ao longo da fronteira. No experimento sem a cópia as faixas somem, mas abrem
+     furinhos (por isso ela existe).
+  2. **Alisamento misturando placas:** de perto, cada pixel olha as 4 células em volta na textura; na
+     fronteira, algumas são da outra placa **onde ela estava** na última recomposição, não onde está
+     agora. As divisas ficam com pedaços deslocados.
+  3. **Fenda nova pintada como fundo de oceano:** onde as placas se afastam, o desenho pinta azul-escuro
+     até a próxima recomposição, mesmo no meio de um continente, onde a simulação faz um vale de rifte
+     (correção 1). Aparece uma listra azul que depois vira terra.
+  **Proposta (esperando aprovação):**
+  - (1) e (2): de perto, na fronteira, cada pixel só escolhe entre as células **da própria placa**
+    (sem a cópia deslocada e sem misturar com a outra placa). Cada placa mantém seus quadrados e
+    hexágonos; a costura entre as duas é uma linha nítida que anda com elas; onde uma passa por cima
+    da outra, aparece a de cima (continente por cima, como hoje). Custo: leituras a mais só nos pixels
+    de fronteira (estimativa < 3% da tela).
+  - (3): fenda entre dois lados continentais pintada como vale de rifte (cor de terra mais escura),
+    não oceano; fenda com lado oceânico continua azul-escura. Combina com o que a simulação faz.
+
 Registrado também: ideia para depois de **zoom maior**, para caberem humanos pequenos (montanha de 50
 pixels com homem de 5 fica estranho): marcos 3, 4 e 8 (`docs/02-marcos.md`).
 
