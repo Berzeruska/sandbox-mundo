@@ -250,16 +250,35 @@ O jogador também pode provocar qualquer desastre manualmente.
 
 ## Recursos minerais e petróleo (geração no Marco 2; uso nos Marcos 4 e 7)
 Ideia do usuário registrada em 2026-10-15.
-- Depósitos de **ferro, cobre, ouro, nióbio, petróleo, carvão** (e outros, como estanho, prata,
-  urânio, sal), gerados pela **geologia real**, não espalhados ao acaso:
-  | Recurso | Onde se forma | Por quê (geologia real) |
-  |---------|---------------|-------------------------|
-  | Cobre (e ouro, molibdênio) | arcos de subducção | depósitos pórfiros acima da placa que afunda |
-  | Ferro | crátons antigos (interior estável e velho dos continentes) | formações ferríferas bandadas |
-  | Ouro | crátons antigos e zonas de colisão | cinturões de rochas verdes, veios em falhas |
-  | Petróleo e gás | bacias sedimentares (margens passivas, riftes, mares rasos antigos) | matéria orgânica soterrada e aquecida |
-  | Carvão | bacias sedimentares de antigas florestas pantanosas | vegetação soterrada |
-  | Nióbio | carbonatitos, **raros** (intraplaca e riftes) | magmas raros e alcalinos |
+- **19 tipos** (decisão do usuário, 2026-10-17), gerados pela **geologia real**, não espalhados ao
+  acaso, em **províncias**: regiões ricas num tipo, poucas jazidas grandes e várias pequenas, quase
+  nada fora delas; nenhum continente tem de tudo. Poucas jazidas e importantes, porque também se
+  formam com o tempo.
+  | Grupo | Recurso | Onde se forma | Por quê (geologia real) |
+  |-------|---------|---------------|-------------------------|
+  | Metais | Cobre (e molibdênio) | arcos de subducção | depósitos pórfiros acima da placa que afunda |
+  | Metais | Prata | arcos de subducção, junto do cobre | veios hidrotermais |
+  | Metais | Ouro | arcos, crátons antigos e zonas de colisão | cinturões de rochas verdes, veios em falhas |
+  | Metais | Ferro | crátons antigos | formações ferríferas bandadas |
+  | Metais | Manganês | mares rasos antigos sobre crátons | sedimentos de manganês |
+  | Metais | Cromo | ofiolitos (crosta oceânica empurrada nas colisões) e intrusões antigas em crátons (como o Bushveld) | magma do manto |
+  | Metais | Estanho | granitos das zonas de colisão | granitos de crosta derretida |
+  | Metais | Alumínio (bauxita) | terra antiga, plana, em clima tropical muito chuvoso | solo lavado pela chuva (laterita); fica como herança se o continente sair dos trópicos |
+  | Metais | Nióbio | carbonatitos, **raros** (intraplaca e riftes) | magmas raros e alcalinos |
+  | Metais | Terras raras | carbonatitos, junto do nióbio, **raras** | magmas raros e alcalinos |
+  | Metais | Lítio | salares em planaltos secos perto de arcos; pegmatitos | salmoura evaporada; granitos |
+  | Energia | Petróleo e gás | bacias sedimentares (margens passivas, riftes antigos, mares rasos), **também no mar raso** | matéria orgânica soterrada e aquecida |
+  | Energia | Carvão | bacias de antigas florestas pantanosas | vegetação soterrada |
+  | Energia | Urânio | crátons antigos e bacias | rochas antigas e arenitos |
+  | Agricultura | Potássio | bacias de mar que secou, junto do sal | evaporitos |
+  | Agricultura | Nitratos | desertos muito secos, **raros** | sais acumulados sem chuva (como o Atacama) |
+  | Indústria | Sal | bacias secas e riftes antigos | evaporitos |
+  | Indústria | Enxofre | vulcões dos arcos e domos de sal | gases vulcânicos; bactérias no sal |
+  | Indústria | Calcário | mares rasos antigos, **comum** | conchas e recifes |
+- Formam-se **na geração e durante a deriva** (arco ativo há tempo ganha cobre/ouro; rifte e margem
+  passiva antigos ganham petróleo; colisão ganha ouro); crosta que afunda leva a jazida junto.
+- **Petróleo fica escondido** no subsolo até o terreno ser cavado (Rebaixar; os humanos no M4).
+  Na camada "Ver recursos" o jogador vê tudo; "escondido" vale para os humanos.
 - Cada depósito tem tipo, quantidade e profundidade, e **pertence a uma placa: move-se junto
   com ela** na deriva.
 - Visível como **camada opcional** no menu Geologia ("Ver recursos").

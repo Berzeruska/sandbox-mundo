@@ -231,28 +231,63 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   (após girar uma placa, os depósitos dela giram junto); mesma semente, mesmos depósitos.
   Detalhes em `docs/03-mundo-geologia.md`.
 
-  **T6 — Proposta (2026-10-17, esperando decisão do usuário; sem código).** O que já está decidido:
-  tipos-base e onde cada um se forma, depósito com tipo, quantidade e profundidade, preso à placa,
-  camada opcional, uso só no M4/M7. O que a especificação não decide (muda o que o jogador vê):
-  1. **Quando os depósitos nascem.**
-     a. Só na geração; depois só andam com a placa e somem se a crosta deles afundar na subducção.
-     b. **(recomendado)** Na geração e também durante a deriva: arco de subducção ativo há tempo
-        ganha cobre/ouro, rifte e margem passiva antigos ganham petróleo, colisão ganha ouro;
-        crosta que afunda leva o depósito junto. Combina com "geologia viva" e dá motivo para olhar a
-        camada de novo depois de minutos. Custo: uma verificação por recomposição no ajudante 2.
-  2. **Como aparecem na camada "Ver recursos".**
-     a. **(recomendado)** Um ponto colorido por depósito, com cor por tipo e legenda, desenhado no
-        shader (sem custo de CPU), maior com o zoom; o terreno fica um pouco apagado por baixo.
-     b. As células do depósito tingidas pela cor do tipo (como "Ver placas"): manchas, não pontos.
-     c. Ícones (emoji) no canvas por cima: mais legível, mas pesado no celular com centenas de
-        depósitos.
-  3. **Quais tipos entram agora:** os 6 da lista (ferro, cobre, ouro, nióbio, petróleo, carvão) e,
-     opcionalmente, estanho, prata, urânio, sal; e se há petróleo no mar raso (plataforma continental).
-  4. **Quantos:** poucos (~150 no mundo, cada jazida importa nas disputas do M4/M7), médio (~400,
-     recomendado) ou muitos (~1.000, quase todo continente tem de tudo). Nióbio sempre raro (< 10).
-  Modelo técnico (decidido por mim, vale para qualquer resposta): o depósito fica gravado na amostra
-  de crosta da tectônica (a mesma que já anda presa à placa), então anda e some junto com ela, sem
-  custo extra na recomposição; a camada lê um código por célula numa textura.
+  **T6 — Decisões do usuário (2026-10-17).**
+  1. **Nascem na geração e durante a deriva:** arco de subducção ativo há tempo ganha cobre/ouro,
+     rifte e margem passiva antigos ganham petróleo, colisão ganha ouro; crosta que afunda leva o
+     depósito junto.
+  2. **19 tipos**, cada um com cor própria e grupo (filtro por tipo e por grupo na legenda):
+     - metais: ferro, cobre, ouro, prata, estanho, alumínio (bauxita), manganês, cromo, nióbio,
+       terras raras, lítio;
+     - energia: petróleo (também no mar raso, na plataforma continental), carvão, urânio;
+     - agricultura: potássio, nitratos;
+     - indústria: sal, enxofre, calcário.
+     Onde cada um se forma: `docs/03-mundo-geologia.md`. **Cromo** também em intrusões antigas dentro
+     de crátons (como o Bushveld), não só em ofiolitos. Urânio existe no território desde já; poder
+     usar é outra coisa (M7).
+  3. **Quantidade: províncias com jazidas desiguais, poucas e importantes** (menos que o "médio" de
+     ~400, já que elas também se formam com o tempo). Regiões ricas num tipo, poucas jazidas grandes e
+     várias pequenas, quase nada fora das províncias; nenhum continente tem de tudo. Raridade como no
+     mundo real (calcário e carvão comuns; nióbio, terras raras e nitratos raros).
+  4. **Nome só quando o jogador toca na jazida;** nada de nomes flutuando no mapa.
+  5. **Visual, só se não pesar no celular (proposta e custo abaixo, esperando aprovação):** minério
+     sólido aparece como pedrinhas ou solo diferente, não ponto colorido; petróleo fica escondido no
+     subsolo e aparece como buraco ou mancha escura quando o terreno é cavado com Rebaixar; na camada
+     "Ver recursos" o jogador vê tudo, inclusive o petróleo escondido ("escondido" vale para os
+     humanos, M4).
+  6. **Fora da T6, só anotados:** água potável (M3/M4), fontes de energia para usinas (M4/M7),
+     humanos escavando também revelam petróleo (M4). Ver `docs/02-marcos.md`.
+
+  **T6 — Proposta do visual (2026-10-17, esperando aprovação; sem código).**
+  - **Jazida = um grupinho de células** (pequena 1–2, média 3–6, grande 8–15), com a forma seguindo
+    a geologia (ao longo do arco, dentro da bacia). Assim a jazida grande se vê de longe e a pequena
+    só de perto.
+  - **Dados para o desenho:** uma textura nova com 1 byte por célula (tipo em 5 bits, tamanho em 2,
+    petróleo revelado em 1), enviada junto com as cores depois de cada recomposição e de cada pincel.
+    0,4 MB na GPU (mais 0,4 MB da cópia para a transição suave).
+  - **Visão normal, de longe:** o solo das células da jazida fica levemente puxado para a cor do
+    tipo (ferro avermelhado, cobre esverdeado, bauxita alaranjada, calcário claro, carvão escuro…),
+    misturado na cor da célula pelo ajudante 2, que já calcula as cores. **Custo na tela: zero.**
+  - **Visão normal, de perto** (células quadradas): 3 a 6 pedrinhas redondas por célula, na cor do
+    tipo, com borda escura, posições fixas por célula (não cintilam). Só a célula escolhida para o
+    pixel lê a textura nova (1 leitura a mais) e só as células com jazida (~1% da terra) desenham as
+    pedrinhas. **Custo estimado de perto: +3–6% de GPU**; de longe, nada.
+  - **Petróleo:** invisível na visão normal até ser cavado. Rebaixar numa célula com petróleo marca a
+    jazida como revelada: aparece uma mancha preta brilhante e irregular na célula (no mar raso, uma
+    mancha escura na água). Fica revelada para sempre (os humanos do M4 vão ler esse estado).
+  - **Camada "Ver recursos":** o terreno fica acinzentado e escurecido; as jazidas aparecem fortes,
+    na cor do tipo, com contorno; o petróleo ainda escondido aparece listrado (o jogador sabe, os
+    humanos não). O filtro da legenda é uma máscara de 19 bits mandada para a GPU: trocar filtro não
+    custa nada na CPU. Legenda compacta: 4 grupos; tocar num grupo abre os tipos dele; tocar num tipo
+    mostra só ele. **Custo estimado: +5–8% de GPU com a camada ligada** (1 leitura a mais por pixel);
+    desligada, nada.
+  - **Nome ao tocar:** um balão pequeno "Cobre · jazida grande" perto do dedo por 3 s. Precisa
+    decidir como convive com o pincel (pergunta ao usuário).
+  - **Custo na simulação:** formação durante a deriva só olha as fronteiras na recomposição do
+    ajudante 2 (estimativa < 5 ms em ~300 ms); a jazida vive na amostra de crosta da tectônica, então
+    andar com a placa e sumir na subducção não custa nada a mais. **Geração: +~50–100 ms estimados**,
+    com a geração em 2,8 s no celular (meta 3 s): no limite, medir antes de seguir.
+  - Os números de custo são estimativas; meço no notebook (GPU real e CPU 6× mais lenta) ao
+    implementar, e o "Medir desempenho" do celular decide no fim do bloco.
 
 - [ ] **T7 — Clima que acompanha a deriva, eras glaciais e temperatura global**
   Recálculo periódico no worker e envio só do que mudou; ciclo glacial automático e suave; controle
@@ -859,6 +894,18 @@ Pedidos antes do bloco Minerais e clima:
    - **Decisão do usuário (2026-10-17):** "não pode ficar cubado; dá um jeito de alisar e manter
      funcional". Feito um alisamento só no desenho (ver `docs/decisoes.md`, "Vista de perto alisada"):
      costas e divisas curvas, sem dobra nas emendas, contorno também nas emendas.
+   - **O que ainda sobra depois do alisamento** (2026-10-17, pedido do usuário para julgar no teste
+     do fim do bloco; imagem `docs/img/m2-perto-restos.png`, semente `42`, zoom máximo, ilhas criadas
+     com Elevar em cima da emenda e do canto):
+     1. **Meio da face:** quadrados, como pedido.
+     2. **Nas emendas:** numa faixa de ~1 célula as fileiras dos dois lados não batem; as células
+        ficam desencontradas como tijolos, e a costa que cruza a emenda ganha pequenos dentes. Sem
+        dobra em ângulo reto.
+     3. **Perto dos 8 cantos** (~3–5 células em volta): as células viram **hexágonos** em vez de
+        quadrados (lá três faces se encontram), e onde as áreas de duas faces se tocam pode sobrar
+        uma **divisa reta de 3–4 células** ao longo da emenda (na imagem, entre a montanha e a
+        floresta). No oceano, a textura das células muda de direção ao cruzar a emenda (fraco).
+     O usuário julga no teste do fim do bloco Minerais e clima; o fps de perto também entra no teste.
 
 Registrado também: ideia para depois de **zoom maior**, para caberem humanos pequenos (montanha de 50
 pixels com homem de 5 fica estranho): marcos 3, 4 e 8 (`docs/02-marcos.md`).

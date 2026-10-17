@@ -78,6 +78,9 @@ Pedido do usuário (2026-10-16): os humanos **começam nômades**, com técnicas
 agricultura.
 Ideia do usuário (2026-10-17): zoom maior para caberem humanos pequenos (ver a questão de escala do
 M3).
+Anotado na T6 (2026-10-17): **água potável** (rios, lagos, chuva, água subterrânea, calculada do
+clima e do relevo, a partir do M3/M4); humanos **escavando também revelam petróleo** escondido (o
+estado "revelado" das jazidas nasce na T6); quem tem urânio no território não sabe usá-lo antes do M7.
 
 ## Marco 5 — Política e mente
 Evolução de regimes, botão divino de concessão, ideologias, sistemas econômicos, líderes com
@@ -94,6 +97,11 @@ Frentes fluidas, conquista contínua, trincheiras, logística, moral de tropa, c
 Dissuasão e reconstrução para o mundo não se autodestruir. **Recursos estratégicos** (petróleo,
 nióbio...), doutrina de **batalha profunda**, e consequências ambientais da guerra (incêndio,
 contaminação, inverno nuclear) e do combustível fóssil (aquecimento).
+Anotado na T6 (2026-10-17): **fontes de energia para usinas** (M4/M7). Petróleo, carvão e urânio já
+são jazidas (T6); represa, calor da terra, vento e sol saem do mapa (rio com desnível, rifte ou
+vulcão, faixas de vento, sol por latitude) quando as usinas existirem. Usos pedidos pelo usuário:
+enxofre e nitratos para explosivos, manganês e cromo para armamento resistente, potássio para a
+plantação, lítio e terras raras para eletrônica.
 
 ## Marco 8 — Embelezamento
 Inclui o acabamento visual do menu de ferramentas (decidido no M2) e a escala visual pequena de
