@@ -33,6 +33,56 @@ void main() {
 
 
 /**
+ * Vista de perto (pedido do usuário, 2026-10-16): entre estes tamanhos de célula na tela (px), as
+ * bordas orgânicas e a textura manchada somem aos poucos e as células viram quadrados nítidos, com
+ * cor mais viva, variação leve por célula, contorno fino entre biomas e sombra na água junto da terra.
+ * De longe nada muda.
+ */
+export const SQUARE_FROM_PX = 6;
+export const SQUARE_TO_PX = 14;
+
+/** Acabamento das células quadradas para um conjunto de texturas (`cells`). */
+function tileGlsl(sfx: string, cells: string): string {
+  return `
+// Vizinha (dx, dy) da célula t: escurece a beira se o bioma muda (contorno fino; não entre os dois tons
+// de oceano) e, na água que encosta na terra, faz a sombra. e = distância até essa beira (fração).
+float edge${sfx}(ivec3 t, ivec2 d, float e, int b, bool water, float line) {
+  ivec2 o = t.xy + d;
+  if (o.x < 0 || o.y < 0 || o.x >= uN || o.y >= uN) return 0.0;
+  int ob = int(texelFetch(${cells}, ivec3(o, t.z), 0).a * 255.0 + 0.5);
+  if (ob == b) return 0.0;
+  bool otherWater = ob <= 1;
+  float dark = e < line && !(water && otherWater) ? 0.22 : 0.0;
+  if (water && !otherWater) dark = max(dark, 0.3 * (1.0 - e / ${SHADOW_WIDTH.toFixed(2)}));
+  return dark;
+}
+
+// Célula quadrada de perto. t: célula; f: posição dentro dela (0 a 1). sq: 0 = longe, 1 = perto.
+vec3 tile${sfx}(ivec3 t, vec2 f, vec4 cell, float cellPx, float sq) {
+  int b = int(cell.a * 255.0 + 0.5);
+  bool water = b <= 1;
+  // Cor mais viva e uma variação leve por célula (cada quadrado se distingue, sem borrão).
+  vec3 col = cell.rgb;
+  float lum = dot(col, vec3(0.299, 0.587, 0.114));
+  col = mix(vec3(lum), col, 1.0 + 0.25 * sq);
+  col *= 1.0 + (water ? 0.03 : 0.08) * (cellHash(t) - 0.5) * sq;
+  // Só lê a vizinha mais perto em x e em y, e só na faixa da beira (fina na terra, larga na água,
+  // por causa da sombra). Na aresta do cubo não desenha.
+  float line = clamp(1.5 / cellPx, 0.03, 0.2);
+  float band = water ? ${SHADOW_WIDTH.toFixed(2)} : line;
+  float ex = min(f.x, 1.0 - f.x);
+  float ey = min(f.y, 1.0 - f.y);
+  float dark = 0.0;
+  if (ex < band) dark = edge${sfx}(t, ivec2(f.x < 0.5 ? -1 : 1, 0), ex, b, water, line);
+  if (ey < band) dark = max(dark, edge${sfx}(t, ivec2(0, f.y < 0.5 ? -1 : 1), ey, b, water, line));
+  return clamp(col, 0.0, 1.0) * (1.0 - dark * sq);
+}`;
+}
+
+/** Largura da sombra na água junto da terra, em fração da célula. */
+const SHADOW_WIDTH = 0.3;
+
+/**
  * Funções que leem um conjunto de texturas (cores, placas, ângulos da composição), geradas duas
  * vezes: para a composição atual e para a anterior (transição suave). Gerar o código duas vezes
  * evita escolher a textura em tempo de execução: num ternário, muitas GPUs fazem as duas leituras.
@@ -126,6 +176,8 @@ int plateNow${sfx}(vec3 p, out vec3 fix) {
   return pl0;
 }
 
+${tileGlsl(sfx, cells)}
+
 // Cor da superfície no ponto p (antes da luz), com o conjunto de texturas ${sfx || "atual"}.
 vec3 surface${sfx}(vec3 p, float cellPx) {
   // Com placas em movimento, o ruído (bordas e textura) fica preso à placa e a busca na textura
@@ -143,18 +195,31 @@ vec3 surface${sfx}(vec3 p, float cellPx) {
   // Bordas orgânicas: desloca o ponto com ruído (até ~1 célula) antes de escolher a célula.
   // A simulação continua na grade; só o desenho das fronteiras vira curva.
   vec3 q = anchor;
-  float warpAmount = smoothstep(0.8, 2.5, cellPx);
+  float sq = smoothstep(${SQUARE_FROM_PX.toFixed(1)}, ${SQUARE_TO_PX.toFixed(1)}, cellPx);
+  float warpAmount = smoothstep(0.8, 2.5, cellPx) * (1.0 - sq);
   if (warpAmount > 0.0) {
     float f = 1.0 / (uCellAngle * 1.7);
     vec3 w = noise3(anchor * f) + 0.5 * noise3(anchor.zxy * f * 2.03 + 17.0);
     q = normalize(anchor + w * (uCellAngle * 0.7 * warpAmount));
   }
   if (pl >= 0) q = toTexture${sfx}(pl, q) + fix;
-  vec4 cell = gap ? vec4(uRidgeColor, 0.0) : cellAt${sfx}(q);
-  vec3 base = cell.rgb;
+  vec4 cell;
+  vec3 base;
+  if (gap) {
+    cell = vec4(uRidgeColor, 0.0);
+    base = cell.rgb;
+  } else if (sq > 0.0) {
+    vec2 f;
+    ivec3 t = texelFracOf(q, f);
+    cell = texelFetch(${cells}, t, 0);
+    base = tile${sfx}(t, f, cell, cellPx, sq);
+  } else {
+    cell = cellAt${sfx}(q);
+    base = cell.rgb;
+  }
 
-  // Textura sutil por bioma (floresta e montanha mais rugosas, água e gelo quase lisos).
-  float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius);
+  // Textura sutil por bioma (floresta e montanha mais rugosas, água e gelo quase lisos); some de perto.
+  float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius) * (1.0 - sq);
   if (detailAmount > 0.0) {
     int biome = clamp(int(cell.a * 255.0 + 0.5), 0, ${BIOME_COUNT - 1});
     float fd = 1.0 / (uCellAngle * 0.4);
@@ -174,18 +239,29 @@ const SIMPLE_GLSL = `
 vec4 cellAt(vec3 p) {
   return texelFetch(uCells, texelOf(p), 0);
 }
+${tileGlsl('', 'uCells')}
 
 vec3 surface(vec3 p, float cellPx) {
   vec3 q = p;
-  float warpAmount = smoothstep(0.8, 2.5, cellPx);
+  float sq = smoothstep(${SQUARE_FROM_PX.toFixed(1)}, ${SQUARE_TO_PX.toFixed(1)}, cellPx);
+  float warpAmount = smoothstep(0.8, 2.5, cellPx) * (1.0 - sq);
   if (warpAmount > 0.0) {
     float f = 1.0 / (uCellAngle * 1.7);
     vec3 w = noise3(p * f) + 0.5 * noise3(p.zxy * f * 2.03 + 17.0);
     q = normalize(p + w * (uCellAngle * 0.7 * warpAmount));
   }
-  vec4 cell = cellAt(q);
-  vec3 base = cell.rgb;
-  float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius);
+  vec4 cell;
+  vec3 base;
+  if (sq > 0.0) {
+    vec2 f;
+    ivec3 t = texelFracOf(q, f);
+    cell = texelFetch(uCells, t, 0);
+    base = tile(t, f, cell, cellPx, sq);
+  } else {
+    cell = cellAt(q);
+    base = cell.rgb;
+  }
+  float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius) * (1.0 - sq);
   if (detailAmount > 0.0) {
     int biome = clamp(int(cell.a * 255.0 + 0.5), 0, ${BIOME_COUNT - 1});
     float fd = 1.0 / (uCellAngle * 0.4);
@@ -293,6 +369,25 @@ ivec3 texelOf(vec3 p) {
   vec2 ab = atanQuarter(vec2(dot(p, u), dot(p, v)) / dn);
   ivec2 texel = clamp(ivec2(floor((ab + 1.0) * 0.5 * float(uN))), ivec2(0), ivec2(uN - 1));
   return ivec3(texel, face);
+}
+
+// Igual a texelOf, devolvendo também a posição do ponto dentro da célula (0 a 1).
+ivec3 texelFracOf(vec3 p, out vec2 f) {
+  int face; vec3 n; vec3 u; vec3 v;
+  faceFrame(p, face, n, u, v);
+  vec2 g = (atanQuarter(vec2(dot(p, u), dot(p, v)) / dot(p, n)) + 1.0) * 0.5 * float(uN);
+  ivec2 texel = clamp(ivec2(floor(g)), ivec2(0), ivec2(uN - 1));
+  f = clamp(g - vec2(texel), 0.0, 1.0);
+  return ivec3(texel, face);
+}
+
+// Número fixo de 0 a 1 para cada célula (variação de cor por célula, sem textura).
+float cellHash(ivec3 t) {
+  uint h = uint(t.x) * 73856093u ^ uint(t.y) * 19349663u ^ uint(t.z) * 83492791u;
+  h ^= h >> 13u;
+  h *= 1540483477u;
+  h ^= h >> 15u;
+  return float(h & 1023u) / 1023.0;
 }
 
 ${motion ? MOTION_GLSL : SIMPLE_GLSL}
