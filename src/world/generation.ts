@@ -1,6 +1,8 @@
-import { createRng } from '../core/rng';
+import { createRng, type Rng } from '../core/rng';
+import { newArray } from '../core/shared';
+import type { CellJob, CellPool } from './cell-pool';
 import type { WorldState } from './state';
-import { createNoise3D, fbm, ridged } from './noise';
+import { createNoise3D, fbm, ridged, type Noise3D } from './noise';
 import { latLonToPoint, type Vec3 } from './cubesphere';
 
 /** Bacias internas por mundo (mares internos e golfos), geração v2. */
@@ -43,18 +45,61 @@ export function moveAlong(p: Vec3, bearing: number, angle: number): Vec3 {
 
 /** Valor que deixa `fraction` dos elementos acima dele. */
 export function thresholdForFraction(values: Float32Array, fraction: number): number {
-  const sorted = Float32Array.from(values).sort();
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((1 - fraction) * sorted.length)));
-  return sorted[idx] as number;
+  const a = Float32Array.from(values);
+  const k = Math.min(a.length - 1, Math.max(0, Math.floor((1 - fraction) * a.length)));
+  return selectKth(a, k);
 }
 
 /**
- * Gera a elevação da Pangeia: um supercontinente (máscara num ponto aleatório, deformada por
- * ruído para não ficar redonda) somado a ruído fractal, com cordilheiras por ruído de crista.
- * A fração de terra é garantida escolhendo o limiar exato que deixa `landFraction` acima da água.
+ * O k-ésimo menor valor (o mesmo que ordenar e pegar a posição k), sem ordenar tudo: seleção rápida
+ * (Hoare), que só separa a parte onde o k está. Mexe na ordem de `a`.
  */
-export function generateTerrain(world: WorldState, onProgress?: (fraction: number) => void): void {
-  const { seed, landFraction } = world.params;
+function selectKth(a: Float32Array, k: number): number {
+  let lo = 0;
+  let hi = a.length - 1;
+  while (hi > lo) {
+    // Pivô: mediana do primeiro, do meio e do último (determinístico).
+    const mid = (lo + hi) >> 1;
+    const x = a[lo] as number;
+    const y = a[mid] as number;
+    const z = a[hi] as number;
+    const pivot = x < y ? (y < z ? y : x < z ? z : x) : x < z ? x : y < z ? z : y;
+    let i = lo;
+    let j = hi;
+    while (i <= j) {
+      while ((a[i] as number) < pivot) i++;
+      while ((a[j] as number) > pivot) j--;
+      if (i <= j) {
+        const t = a[i] as number;
+        a[i] = a[j] as number;
+        a[j] = t;
+        i++;
+        j--;
+      }
+    }
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else return a[k] as number;
+  }
+  return a[k] as number;
+}
+
+/** Sorteios e ruídos da primeira passada do terreno (os mesmos em qualquer worker). */
+interface TerrainSetup {
+  rng: Rng;
+  baseNoise: Noise3D;
+  warpNoise: Noise3D;
+  ridgeNoise: Noise3D;
+  ridgeMask: Noise3D;
+  tempNoise: Noise3D;
+  rainNoise: Noise3D;
+  center: Vec3;
+  radius: number;
+  lobes: { p: Vec3; r: number }[];
+  offset: number;
+}
+
+function terrainSetup(seed: number, landFraction: number): TerrainSetup {
   const rng = createRng(seed);
   const baseNoise = createNoise3D(rng);
   const warpNoise = createNoise3D(rng);
@@ -78,18 +123,24 @@ export function generateTerrain(world: WorldState, onProgress?: (fraction: numbe
     lobes.push({ p: moveAlong(center, dir, radius * rng.range(0.5, 1.05)), r: radius * rng.range(0.3, 0.5) });
   }
   const offset = rng.range(0, 100);
+  return { rng, baseNoise, warpNoise, ridgeNoise, ridgeMask, tempNoise, rainNoise, center, radius, lobes, offset };
+}
 
-  const { positions } = world.grid;
-  const n = world.cellCount;
-  const raw = new Float32Array(n);
-  const continent = new Float32Array(n);
+interface TerrainBaseOut {
+  raw: Float32Array;
+  continent: Float32Array;
+  tempNoise: Float32Array;
+  rainNoise: Float32Array;
+}
 
-  for (let i = 0; i < n; i++) {
-    if (onProgress && (i & PROGRESS_MASK) === 0) onProgress((0.8 * i) / n);
+/** Primeira passada do terreno nas células [from, to): só depende da célula (pura). */
+function baseCells(s: TerrainSetup, positions: Float32Array, from: number, to: number, out: TerrainBaseOut): void {
+  const { lobes, offset } = s;
+  for (let i = from; i < to; i++) {
     const x = positions[i * 3] as number;
     const y = positions[i * 3 + 1] as number;
     const z = positions[i * 3 + 2] as number;
-    const warp = 0.3 * fbm(warpNoise, x * 2 + offset, y * 2, z * 2, 3);
+    const warp = 0.3 * fbm(s.warpNoise, x * 2 + offset, y * 2, z * 2, 3);
     let mask = 0;
     for (const lobe of lobes) {
       const dot = Math.min(1, Math.max(-1, x * lobe.p[0] + y * lobe.p[1] + z * lobe.p[2]));
@@ -97,14 +148,55 @@ export function generateTerrain(world: WorldState, onProgress?: (fraction: numbe
       const m = smoothstep(lobe.r + 0.25, lobe.r - 0.25, d);
       if (m > mask) mask = m;
     }
-    continent[i] = mask;
+    out.continent[i] = mask;
     // Variação regional do clima (usada em climate.ts) para os biomas não virarem listras retas.
-    world.tempNoise[i] = fbm(tempNoise, x * 2.5, y * 2.5, z * 2.5, 3) * 1.6;
-    world.rainNoise[i] = fbm(rainNoise, x * 3, y * 3, z * 3, 4) * 1.6;
+    out.tempNoise[i] = fbm(s.tempNoise, x * 2.5, y * 2.5, z * 2.5, 3) * 1.6;
+    out.rainNoise[i] = fbm(s.rainNoise, x * 3, y * 3, z * 3, 4) * 1.6;
     // Ganho 0.6: as oitavas médias pesam mais, e a costa ganha baías e penínsulas.
     // Longe do continente o detalhe pesa menos, para o oceano não virar um arquipélago.
-    const detail = fbm(baseNoise, x * 3.5, y * 3.5, z * 3.5, 6, 0.6);
-    raw[i] = (mask * 2 - 1) * 0.5 + detail * (0.3 + 0.3 * mask);
+    const detail = fbm(s.baseNoise, x * 3.5, y * 3.5, z * 3.5, 6, 0.6);
+    out.raw[i] = (mask * 2 - 1) * 0.5 + detail * (0.3 + 0.3 * mask);
+  }
+}
+
+/** Sorteios da última semente pedida ao ajudante (os pedaços do mesmo mundo reaproveitam). */
+let jobSetup: { seed: number; landFraction: number; setup: TerrainSetup } | null = null;
+
+/** Lado do ajudante: um pedaço do trabalho dividido (`cell-pool.ts`). */
+export function runCellJob(job: CellJob, from: number, to: number): void {
+  if (!jobSetup || jobSetup.seed !== job.seed || jobSetup.landFraction !== job.landFraction) {
+    jobSetup = { seed: job.seed, landFraction: job.landFraction, setup: terrainSetup(job.seed, job.landFraction) };
+  }
+  baseCells(jobSetup.setup, job.positions, from, to, job);
+}
+
+/**
+ * Gera a elevação da Pangeia: um supercontinente (máscara num ponto aleatório, deformada por
+ * ruído para não ficar redonda) somado a ruído fractal, com cordilheiras por ruído de crista.
+ * A fração de terra é garantida escolhendo o limiar exato que deixa `landFraction` acima da água.
+ */
+export function generateTerrain(world: WorldState, onProgress?: (fraction: number) => void, pool?: CellPool): void {
+  const { seed, landFraction } = world.params;
+  const setup = terrainSetup(seed, landFraction);
+  const { rng, center, radius, ridgeNoise, ridgeMask } = setup;
+  const { positions } = world.grid;
+  const n = world.cellCount;
+  // Em memória compartilhada quando há: o ajudante 2 calcula parte da primeira passada (pool).
+  const raw = newArray(Float32Array, n);
+  const continent = newArray(Float32Array, n);
+  const out = { raw, continent, tempNoise: world.tempNoise, rainNoise: world.rainNoise };
+  if (pool) {
+    pool.run(
+      { kind: 'terrainBase', seed, landFraction, positions, ...out },
+      n,
+      (from, to) => baseCells(setup, positions, from, to, out),
+      onProgress && ((f) => onProgress(0.8 * f)),
+    );
+  } else {
+    for (let from = 0; from < n; from += PROGRESS_MASK + 1) {
+      onProgress?.((0.8 * from) / n);
+      baseCells(setup, positions, from, Math.min(n, from + PROGRESS_MASK + 1), out);
+    }
   }
 
   // --- Geração v2 (M2): costas recortadas e mares internos. Sorteios novos vêm depois dos antigos,

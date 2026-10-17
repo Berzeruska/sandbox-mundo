@@ -50,6 +50,13 @@ describe('medir desempenho: estatística dos quadros', () => {
     expect(s.workMaxMs).toBe(9);
   });
 
+  it('conta os quadros em que o globo foi desenhado (parado, nenhum)', () => {
+    const r = new FrameRecorder();
+    [true, false, false, true, true].forEach((drew, i) => r.frame(i * 11, 1, drew));
+    // O primeiro quadro é só a referência de tempo.
+    expect(r.summary()).toMatchObject({ frames: 4, drawn: 2 });
+  });
+
   it('sem quadros suficientes não quebra', () => {
     expect(new FrameRecorder().summary().fpsAvg).toBe(0);
     expect(record([]).summary().frames).toBe(0);
@@ -78,7 +85,7 @@ describe('medir desempenho: worker e relatório', () => {
           receiveMaxMs: 6,
         },
       ],
-      { totalMs: 4000, workerMs: 3500, stagesMs: { grade: 300, terreno: 2000 }, receiveMs: 120 },
+      { totalMs: 4000, workerMs: 3500, stagesMs: { grade: 300, terreno: 2000 }, helperShare: 0.48, receiveMs: 120 },
     );
     expect(text).toContain('Mali-G52');
     expect(text).toContain('memória compartilhada: sim');
@@ -88,5 +95,8 @@ describe('medir desempenho: worker e relatório', () => {
     expect(text).toContain('240 passos/s');
     expect(text).toContain('geração: 4000 ms');
     expect(text).toContain('terreno 2000');
+    expect(text).toContain('ajudante fez 48% do terreno');
+    expect(text).toContain('120 de 120');
+    expect(text).toContain('A meta de "pausado" vale para "pausado, girando"');
   });
 });

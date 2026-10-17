@@ -165,3 +165,11 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **Imagem:** `docs/img/m2-placas-antes-depois.png` (semente "mundo", 2 min; esquerda antes, direita
   depois; em cima o mapa, embaixo a vista de placas).
 - **Pendente:** confirmar no celular do usuário.
+
+## Imagem engasga e data pula com placas 100% a 20× (2026-10-16, `f18969a2`)
+- **Como reproduzir:** Hot 50i, placas 100%, tempo 20×. A imagem engasga e a data pula de 20 em 20
+  anos, mas o relatório diz "relógio esperou 0 ms".
+- **Causa:** em investigação. O "relógio esperou" só mede o relógio parado à espera do ajudante; não
+  mede quadros lentos da tela nem a tela aplicando uma recomposição. No notebook não aparece.
+- **Correção:** registro de travadas no painel Dados (hora, duração e causa provável de cada uma), para
+  o próximo teste no celular dizer de onde vem.

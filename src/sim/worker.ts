@@ -2,6 +2,7 @@
 import { enableSharedMemory, sharedMemoryEnabled } from '../core/shared';
 import { shadeWeightsFor } from '../render/colors';
 import { upwindTable } from '../world/climate';
+import { SharedCellPool } from '../world/cell-pool';
 import type { CubeSphere } from '../world/cubesphere';
 import { LocalGeology, SimulationCore, type GeologyPort } from './core';
 import type { GeologyCommand, GeologyInit, HelperReply, HelperRequest } from './geology';
@@ -20,11 +21,24 @@ enableSharedMemory(true);
 class RemoteGeology implements GeologyPort {
   readonly perTick = false;
   private helper: Worker;
+  /**
+   * Ajudante reserva, já carregado e sem mundo. Um worker criado pelo relógio só termina de carregar
+   * quando o relógio fica livre; criado na hora do mundo novo, chegaria tarde para ajudar na geração.
+   */
+  private spare: Worker | null;
   private engineBytes = 0;
+  /** A geração divide a primeira passada do terreno com o ajudante (que está livre nessa hora). */
+  readonly pool = new SharedCellPool((msg) => this.helper.postMessage(msg), () => performance.now());
 
   constructor(private core: SimulationCore) {
-    this.helper = new Worker(new URL('./geology-worker.ts', import.meta.url), { type: 'module' });
-    this.helper.onmessage = (e: MessageEvent<HelperReply>) => {
+    this.helper = this.spawn();
+    this.spare = this.spawn();
+  }
+
+  private spawn(): Worker {
+    const helper = new Worker(new URL('./geology-worker.ts', import.meta.url), { type: 'module' });
+    helper.onmessage = (e: MessageEvent<HelperReply>) => {
+      if (helper !== this.helper) return;
       const msg = e.data;
       try {
         if (msg.type === 'ready') this.core.onGeologyBuffers(msg.buffers);
@@ -37,10 +51,24 @@ class RemoteGeology implements GeologyPort {
       }
       wake();
     };
-    this.helper.onerror = (e) => {
+    helper.onerror = (e) => {
       e.preventDefault();
       report(new Error(`Ajudante da geologia não carregou: ${e.message || 'sem detalhes'}`));
     };
+    return helper;
+  }
+
+  /**
+   * Mundo novo: o ajudante é encerrado na hora (mesmo no meio de uma recomposição, que não dá para
+   * interromper por mensagem) e o reserva assume, vazio. Assim o velho não disputa os núcleos com a
+   * geração nem segura o mundo velho na memória, e o novo já ajuda na geração. A grade e a tabela
+   * do vento continuam na memória compartilhada do relógio.
+   */
+  stop(): void {
+    this.helper.terminate();
+    this.engineBytes = 0;
+    this.helper = this.spare ?? this.spawn();
+    this.spare = null;
   }
 
   private request(msg: HelperRequest): void {
@@ -56,6 +84,8 @@ class RemoteGeology implements GeologyPort {
       upwind: upwindTable(grid),
       shade: shadeWeightsFor(grid),
     });
+    // O próximo reserva carrega enquanto o relógio está livre (depois da geração).
+    this.spare ??= this.spawn();
   }
 
   send(cmd: GeologyCommand): void {

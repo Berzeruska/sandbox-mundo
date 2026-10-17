@@ -4,6 +4,7 @@ import { applyBrush } from '../input/tools';
 import { buildColors, colorCacheBytes, NO_LAYERS, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
 import { climateCacheBytes, updateClimate, updateWaterDistance } from '../world/climate';
+import type { CellPool } from '../world/cell-pool';
 import { createWorld, WORLD_STAGES } from '../world/create';
 import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
 import { CONTINENTAL_DEPTH, Crust } from '../world/plates';
@@ -64,6 +65,10 @@ export interface GeologyPort {
   /** Começa um mundo novo no motor. As respostas chegam por `SimulationCore.onGeology*`. */
   start(init: GeologyInit, grid: CubeSphere): void;
   send(cmd: GeologyCommand): void;
+  /** Divide com o motor o trabalho por célula da geração (só no ajudante, com memória compartilhada). */
+  readonly pool?: CellPool;
+  /** Larga o mundo atual na hora (antes de gerar outro): para de trabalhar e solta a memória. */
+  stop(): void;
   /** true: o relógio avisa o motor a cada passo (no próprio relógio); false: uma vez por laço. */
   readonly perTick: boolean;
   /** Bytes do motor que não estão no mundo do relógio (para o painel Dados). */
@@ -87,6 +92,10 @@ export class LocalGeology implements GeologyPort {
 
   send(cmd: GeologyCommand): void {
     this.engine?.receive(cmd);
+  }
+
+  stop(): void {
+    this.engine = null;
   }
 
   get bytes(): number {
@@ -210,6 +219,7 @@ export class SimulationCore {
     // Solta o mundo antigo antes de gerar o novo: no celular, ter os dois na memória ao mesmo
     // tempo força o coletor de lixo e deixa a geração bem mais lenta.
     this.world = null;
+    this.geology.stop();
     this.buffers = null;
     this.colors = new Uint8Array(0);
     this.worldId++;
@@ -219,7 +229,7 @@ export class SimulationCore {
     this.stats = null;
     stage('grade');
     if (!this.grid || this.grid.n !== n) this.grid = new CubeSphere(n);
-    const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3 }, this.grid, stage);
+    const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3 }, this.grid, stage, this.geology.pool);
     stage('cores');
     this.world = world;
     this.colors = new Uint8Array(world.cellCount * 4);
@@ -252,6 +262,7 @@ export class SimulationCore {
         seed: world.params.seed,
         generationMs,
         stagesMs,
+        helperShare: this.geology.pool?.helperShare ?? 0,
         landCenter: landCenter(world),
         plates: motion,
       },

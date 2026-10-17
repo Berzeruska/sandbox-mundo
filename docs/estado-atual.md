@@ -8,16 +8,18 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G (latitude, ciclo de Wilson, riftes).
-- **Agora:** **Bloco G fechado** e testado no celular. O teste trouxe 4 perguntas (geração 3,9 s,
-  pausado 81 fps, travada com "relógio esperou 0", células pontiagudas de perto). Diagnóstico e
-  propostas em "Teste do Bloco G no celular" na especificação. **Parado:** geração acima da meta
-  (regra 6: consertar antes de seguir) e decisões do usuário. Depois: bloco Minerais e clima (T6, T7).
-- **Decisões abertas do teste:** (1) aprovar as correções técnicas da geração (ajudante larga o mundo
-  velho na hora; etapa "placas" mais barata, mesmo mundo); (2) meta de pausado medida girando, com
-  "quadros desenhados" no relatório; (3) registro de travadas no painel Dados, e o usuário conta o que
-  travou; (4) aparência de perto: bordas orgânicas (hoje) ou células quadradas.
-- **Decisão aberta:** a semente `42` passa do critério de latitude do G1 em N = 256 (33% da terra acima
-  de 60° aos 10 min; antes do G3, 22%). Ver "Fim do Bloco G" na especificação.
+- **Agora:** rodada de correções depois do teste do Bloco G (geração, relatório, travadas, vista de
+  perto), publicada na prévia. **Parado** esperando o teste no celular: o usuário aprova a vista de
+  perto ("está bonito") e manda o relatório com o registro de travadas. Depois: bloco Minerais e clima
+  (T6, T7).
+- **Feito nesta rodada** (detalhes em "Rodada depois do teste do Bloco G" na especificação):
+  geração com o ajudante largando o mundo velho na hora, reserva já carregado e terreno dividido entre
+  os dois (mesmo mundo); "desenhados X de Y" e meta de pausado medida girando; registro de travadas no
+  painel Dados e no relatório; células quadradas de perto, com cor viva, contorno e sombra na água.
+- **Decidido em 2026-10-16 (teste do Bloco G):** `42` é falha conhecida de latitude; critério de
+  formas mantido; pedacinhos de terra no oceano depois de colisões são aceitáveis; polos, neve demais
+  e biomas pouco variados vão para a T7; o Hot 50i continua aparelho-alvo até o fim do M2 (o usuário
+  decide com o relatório).
 - **Direção geral do usuário (2026-10-16):** o mundo real é a base, não uma cópia exata; o que precisar
   mudar para o jogo funcionar bem pode mudar, com o usuário decidindo o que tiver efeito de jogo.
 - **Regra reforçada pelo usuário (2026-10-16):** mecanismo novo com efeito de jogo, mesmo para fazer
@@ -89,8 +91,10 @@ sobre "onde estamos", vale este.
 ## Pendente no M2
 - [ ] T7: vale de rifte entre montanhas com neve (`docs/bugs.md`); nem toda montanha com neve; erosão
   pelo clima (lado chuvoso vira escarpa, planalto seco sobrevive).
-- [ ] Geração 3,9 s no celular: consertar (propostas na especificação, esperando aprovação).
-- [ ] Decidir a latitude da `42` em N = 256.
+- [ ] Confirmar no celular: geração ≤ 3 s (estimativa ~2,7–2,9 s) e "ajudante fez ~50% do terreno".
+- [ ] Aprovar no celular a vista de perto (células quadradas).
+- [ ] Achar a causa das travadas com o registro (`docs/bugs.md`).
+- [ ] **Falha conhecida:** semente `42` com 33% da terra acima de 60° em N = 256 aos 10 min.
 - [ ] **Falha conhecida:** semente `7` com 0,44% da terra acima de 4.000 m aos 10 min (alvo 0,5%).
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
@@ -103,9 +107,10 @@ sobre "onde estamos", vale este.
 
 ## Últimas medições no celular (Infinix Hot 50i)
 - Metas: pausado ≥ 85 fps; tempo rodando ≥ 60; placas em deriva ≥ 30 (nunca < 20); geração ≤ 3 s.
-- `f18969a2` (fim do Bloco G, relatado pelo usuário): geração **3,9 s (acima da meta)**; pausado
-  parado 81 (a tela não desenha nada nesse cenário: é o ritmo do celular numa página parada);
-  "relógio esperou 0 ms", mas o usuário viu travar.
+- `f18969a2` (fim do Bloco G, relatado pelo usuário): geração **3,9 s (acima da meta; corrigido na
+  rodada seguinte, falta medir)**; pausado parado 81 (a tela não desenha nada nesse cenário; a meta
+  agora vale para "pausado, girando"); "relógio esperou 0 ms", mas o usuário viu a imagem engasgar e a
+  data pular de 20 em 20 anos com placas 100% a 20×.
 - `c0660ea5`:
 - Pausado: 80 fps parado (**abaixo da meta**, antes 91; vigiar no próximo relatório), 91 girando.
 - Tempo 20×, placas paradas: 91. Placas 100%: 82–85 (mín. 59). Deriva longa: 84. Ruptura forçada: 84.

@@ -1,6 +1,7 @@
 import { isolationReloads } from './ui/isolation';
 import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
 import { Clock, formatDate, type Speed } from './core/time';
+import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate } from './input/paint-gate';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
@@ -54,6 +55,8 @@ export class App {
   private canvas: HTMLCanvasElement;
   /** Controle "Placas" (0 a 1), espelho do que foi mandado ao worker. */
   private plateRate = DEFAULT_PLATE_RATE;
+  /** Travadas da tela e da data (painel Dados e relatório). */
+  private readonly stalls = new StallLog();
   /** Movimento das placas para o desenho suave: ângulos da composição, recebidos e mostrados. */
   private motion = {
     baseAngles: [] as number[],
@@ -233,8 +236,11 @@ export class App {
           this.hud.setSpeed(speed);
         }
         this.hud.setDate(formatDate(this.clock));
+        this.stalls.clock(performance.now(), Date.now(), speed !== 0 && this.loadingEl.hidden === true, work.waitMs, work.recompositions, this.stallContext());
       },
     });
+    // Página escondida (outro app por cima): o intervalo até voltar não é travada.
+    document.addEventListener('visibilitychange', () => this.stalls.restart());
     this.newWorld(seedText);
   }
 
@@ -331,7 +337,9 @@ export class App {
     this.motion.baseAngles = angles;
     this.motion.fadeStart = performance.now();
     this.requestDraw();
-    this.bench?.receive.push(performance.now() - receiveStart);
+    const receivedAt = performance.now();
+    this.stalls.noteRecomposition(receivedAt, receivedAt - receiveStart);
+    this.bench?.receive.push(receivedAt - receiveStart);
   }
 
   /**
@@ -441,6 +449,8 @@ export class App {
     const workStart = performance.now();
     const dt = this.lastTime ? Math.min(0.1, (time - this.lastTime) / 1000) : 0;
     this.lastTime = time;
+    if (!document.hidden && this.loadingEl.hidden) this.stalls.frame(time, Date.now(), this.stallContext());
+    else this.stalls.restart();
     this.frameDt = dt;
     // Vigia: geração sem nenhuma notícia há muito tempo vira erro na tela, nunca espera infinita.
     if (!this.loadingEl.hidden && !this.errorScreen.visible && performance.now() - this.lastGenerationSignal > GENERATION_WATCHDOG_MS) {
@@ -466,13 +476,15 @@ export class App {
       this.needsDraw = true;
     }
 
+    const drew = this.needsDraw;
     if (this.needsDraw) {
       renderer.draw(this.camera, this.motion.uniforms);
       this.drawOverlay();
       this.needsDraw = false;
     }
     const workMs = performance.now() - workStart;
-    this.bench?.recorder?.frame(time, workMs);
+    this.stalls.frameWork(workMs);
+    this.bench?.recorder?.frame(time, workMs, drew);
     this.measure(time, workMs);
   }
 
@@ -504,6 +516,13 @@ export class App {
     }
   }
 
+  /** Velocidade e placas agora, para cada travada registrada. */
+  private stallContext(): string {
+    const speed = this.clock.speed;
+    const time = speed === 0 ? 'pausado' : speed === 'max' ? 'máx' : `${speed}×`;
+    return `${time} · placas ${Math.round(this.plateRate * 100)}%${this.mode === 'paint' ? ' · pincel' : ''}`;
+  }
+
   private updateDebug(): void {
     if (!this.debug.visible || !this.info || (this.bench && !this.bench.panelOpen)) return;
     const renderer = this.renderer;
@@ -530,6 +549,7 @@ export class App {
       version: __BUILD_ID__,
       sharedMemory: `${this.sim.sharedMemory} · recargas p/ isolar ${isolationReloads()}`,
       cycle: `${CYCLE_PHASES[this.work.cyclePhase] ?? '—'} · ${this.work.supercontinents} supercontinentes · ${this.work.ruptures} rupturas`,
+      stalls: this.stalls.lines(4, clockTime),
     });
   }
 
@@ -617,7 +637,7 @@ export class App {
         this.newWorld(seedText);
       });
       const info = this.info as WorldInfo;
-      gen = { totalMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs, receiveMs };
+      gen = { totalMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs, helperShare: info.helperShare, receiveMs };
     } finally {
       spin(before.spin);
       this.setPlateRate(before.plateRate);
@@ -641,6 +661,7 @@ export class App {
       scenarios,
       gen,
       this.firstLoad,
+      this.stalls.lines(STALL_KEEP, clockTime),
     );
     this.debug.showReport(report);
     this.updateDebug();
@@ -680,6 +701,11 @@ function ridgeColor(): [number, number, number] {
   const c = BIOME_INFO[Biome.DeepOcean]?.color ?? [22, 52, 110];
   const k = 1.12 - 0.42 * Math.min(1, -RIDGE_DEPTH / 5000);
   return [(c[0] * k) / 255, (c[1] * k) / 255, (c[2] * k) / 255];
+}
+
+/** Hora do relógio de parede (hh:mm:ss) de uma travada. */
+function clockTime(wall: number): string {
+  return new Date(wall).toLocaleTimeString('pt-BR', { hour12: false });
 }
 
 /** Guarda a semente na URL: o link compartilhado abre o mesmo mundo. */

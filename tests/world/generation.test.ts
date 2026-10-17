@@ -45,6 +45,21 @@ describe('geração da Pangeia', () => {
     const t = thresholdForFraction(values, 0.3);
     expect(values.filter((v) => v > t).length).toBeCloseTo(300, -1);
   });
+
+  it('thresholdForFraction dá o mesmo valor que ordenar tudo (com repetidos e em qualquer ordem)', () => {
+    let s = 12345;
+    const next = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (const length of [1, 2, 3, 10, 999, 5000]) {
+      for (const levels of [3, 50, 1e9]) {
+        const values = Float32Array.from({ length }, () => Math.floor(next() * levels) - levels / 2);
+        for (const fraction of [0, 0.01, 0.3, 0.5, 0.99, 1]) {
+          const sorted = Float32Array.from(values).sort();
+          const k = Math.min(length - 1, Math.max(0, Math.floor((1 - fraction) * length)));
+          expect(thresholdForFraction(values, fraction)).toBe(sorted[k]);
+        }
+      }
+    }
+  });
 });
 
 describe('moveAlong', () => {

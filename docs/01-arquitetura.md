@@ -63,6 +63,10 @@ relógio já ficam com eles; ajudante a mais só gasta memória e coordenação.
   tende a ficar num A55 (estimado 2–3× mais lento que um A75). Os ajudantes 2 e 3 têm de ter folga para
   isso: com placas 100% a recomposição é pedida a cada ~3,6 s; num A55 ela levaria ~2–3,5 s hoje. Por
   isso a recomposição mais barata (opção a) vem depois, como complemento.
+- **Ajudante 2 também ajuda na geração (2026-10-16):** o relógio divide com ele a primeira passada
+  do terreno (`src/world/cell-pool.ts`, pedaços pegos de um contador em memória compartilhada; mesmo
+  mundo). Mundo novo encerra o ajudante na hora e um reserva já carregado assume (um worker criado pelo
+  relógio só carrega quando o relógio fica livre). Custa um worker parado a mais (poucos MB).
 - **Ajudante 2 feito (correção 2, 2026-10-16):** `src/sim/geology.ts` (motor, testável sem worker),
   `src/sim/geology-worker.ts` (adaptador), criado pelo worker do relógio. A recomposição do passo T
   aparece no passo T + `APPLY_DELAY_TICKS` (480); o relógio nunca passa disso à frente do motor e espera

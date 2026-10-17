@@ -245,6 +245,11 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   latitude e da chuva). E a erosão pelo clima: o lado chuvoso de uma cordilheira desgasta mais e vira
   escarpa; planalto seco sobrevive. Formações de erosão de perto (pilares de arenito, "braços" de
   pedra) são do Marco 8.
+  **Também (2026-10-16, teste do Bloco G):** os polos hoje são duas manchas brancas que não interagem
+  com as placas e não parecem gelo; neve demais (no vale do rifte e em todas as montanhas); biomas
+  pouco variados. Os três são regra do clima e do gelo, não desenho: entram aqui. Para os biomas,
+  diagnosticar primeiro se o clima (chuva e temperatura) varia pouco ou se faltam biomas na lista;
+  bioma novo é decisão do usuário.
 
 - [ ] **T8 — Terremotos e tsunamis** (`src/world/disasters/`)
   Tensão nas fronteiras, liberação e magnitude; tsunami que se propaga no oceano e alaga costa baixa
@@ -740,6 +745,30 @@ esperou 0 ms", mas ele viu o tempo travar; de perto, as células ficam puxadas e
    faces se encontram, as células são losangos de ~120°. Nenhum desenho do cubo evita isso. A
    superfície de perto já é praticamente plana, porque a parte visível é pequena. Um mapa plano de
    verdade (outro modo de câmera) é trabalho de outro marco. **Decisão do usuário** (aparência).
+
+### Rodada depois do teste do Bloco G (2026-10-16): decisões e o que foi feito
+Decisões do usuário: as duas correções técnicas da geração (meta de 3 s mantida); meta de pausado
+medida girando, com "desenhados X de Y"; registro de travadas no painel Dados; vista de perto com
+células quadradas (aprovar no celular); `42` como falha conhecida; formas mantido; pedacinhos de terra
+no oceano depois de colisões aceitáveis; polos, neve e variedade de biomas na T7; Hot 50i continua
+como aparelho-alvo até o fim do M2.
+
+1. **Geração.** O ajudante é encerrado na hora do mundo novo e um reserva já carregado assume; a
+   primeira passada do terreno é dividida entre o relógio e o ajudante (mesmo mundo: 26 mundos
+   idênticos byte a byte); o limiar da fração de terra sai sem ordenar tudo. Notebook com 3 núcleos,
+   geração logo depois da deriva: mediana 903 ms contra 893 da versão que deu 2,7 s no celular
+   (antes, +30%). O relatório mostra "ajudante fez X% do terreno". A primeira abertura da página não
+   tem ajuda (o ajudante ainda está carregando).
+2. **Relatório:** coluna "desenhados" por cenário e nota de que a meta de pausado vale girando.
+3. **Travadas** (`src/ui/stalls.ts`): tela acima de 100 ms e data parada acima de 300 ms com o tempo
+   correndo, com hora, duração, causa provável e velocidade/placas; últimas 4 no painel Dados, últimas
+   12 no relatório. **A data pulando:** a 20× correm 240 meses por segundo, e a tela recebe a data
+   até 10 vezes por segundo, então ela anda de 2 em 2 anos normalmente. Um pulo de 20 anos de uma vez
+   é a data parada ~1 s: travada (e aparece no registro).
+4. **Vista de perto:** ver `docs/decisoes.md`. Imagens: `docs/img/m2-perto-quadrado.png` (antes, novo
+   no zoom máximo, no meio do caminho, de longe) e `docs/img/m2-perto-costa.png` (costas). A neve não
+   foi mexida no visual: é regra do gelo (T7); pintar por cima faria o mapa mostrar outra coisa que o
+   mundo.
 
 ### G4 — Andamento (2026-10-16): feito, parado na erosão (decisão do usuário)
 **Decisões do usuário:** fontes de variedade 1 a 5 aprovadas; ombreira de rifte (6) entra no G4; se a

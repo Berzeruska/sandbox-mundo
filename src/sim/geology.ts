@@ -1,6 +1,7 @@
 import { newArray } from '../core/shared';
 import { buildColors, NO_LAYERS, type Layers } from '../render/colors';
 import { computeWaterDistance, updateClimate } from '../world/climate';
+import type { CellsRequest } from '../world/cell-pool';
 import type { CubeSphere } from '../world/cubesphere';
 import type { Plate } from '../world/plates';
 import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, Tectonics } from '../world/tectonics';
@@ -117,7 +118,9 @@ export type HelperRequest =
       upwind: Int32Array;
       shade: Float32Array;
     }
-  | { type: 'command'; cmd: GeologyCommand };
+  | { type: 'command'; cmd: GeologyCommand }
+  /** Pedaços da geração de um mundo novo (`cell-pool.ts`). */
+  | CellsRequest;
 
 /** Mensagens do ajudante 2 para o relógio: os buffers do mundo novo, ou um evento do motor. */
 export type HelperReply = { type: 'ready'; buffers: GeologyBuffers } | GeologyEvent;

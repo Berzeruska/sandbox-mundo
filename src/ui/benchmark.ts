@@ -77,16 +77,20 @@ export interface FrameSummary {
   /** Trabalho da thread principal por quadro (ms): média e máximo. */
   workAvgMs: number;
   workMaxMs: number;
+  /** Quadros em que o globo foi desenhado de fato (parado, nada muda e nada é desenhado). */
+  drawn: number;
 }
 
 /** Junta os quadros de um cenário. `frame` recebe o horário do quadro e o trabalho dele (ms). */
 export class FrameRecorder {
   private times: number[] = [];
   private work: number[] = [];
+  private drew: boolean[] = [];
 
-  frame(time: number, workMs: number): void {
+  frame(time: number, workMs: number, drew = true): void {
     this.times.push(time);
     this.work.push(workMs);
+    this.drew.push(drew);
   }
 
   summary(): FrameSummary {
@@ -124,6 +128,7 @@ export class FrameRecorder {
       slowFrames: slow,
       workAvgMs: work.length ? work.reduce((a, b) => a + b, 0) / work.length : 0,
       workMaxMs: work.length ? Math.max(...work) : 0,
+      drawn: this.drew.slice(1).filter(Boolean).length,
     };
   }
 }
@@ -141,6 +146,8 @@ export interface GenerationResult {
   totalMs: number;
   workerMs: number;
   stagesMs: Record<string, number>;
+  /** Fração do terreno feita pelo ajudante 2. */
+  helperShare: number;
   /** Tela: montar o globo com o mundo recebido (ms). */
   receiveMs: number;
 }
@@ -188,7 +195,13 @@ function workLine(r: ScenarioResult): string {
 }
 
 /** O relatório completo, em texto simples (o usuário copia e cola na conversa). */
-export function formatReport(device: DeviceInfo, scenarios: readonly ScenarioResult[], gen: GenerationResult | null, first: FirstLoad | null = null): string {
+export function formatReport(
+  device: DeviceInfo,
+  scenarios: readonly ScenarioResult[],
+  gen: GenerationResult | null,
+  first: FirstLoad | null = null,
+  stalls: readonly string[] = [],
+): string {
   const lines = [
     'Sandbox Mundo — medição de desempenho',
     `versão ${device.version} · ${device.date}`,
@@ -196,21 +209,30 @@ export function formatReport(device: DeviceInfo, scenarios: readonly ScenarioRes
     `desenho: ${device.drawing} · núcleos: ${device.cores} · memória compartilhada: ${device.sharedMemory} · ${device.screen}`,
     `navegador: ${device.userAgent}`,
     '',
-    `${pad('cenário', 26)}${lpad('fps méd', 8)}${lpad('mín', 6)}${lpad('pior quadro', 13)}${lpad('>50ms', 7)}${lpad('tela ms', 9)}`,
+    `${pad('cenário', 26)}${lpad('fps méd', 8)}${lpad('mín', 6)}${lpad('pior quadro', 13)}${lpad('>50ms', 7)}${lpad('tela ms', 9)}${lpad('desenhados', 13)}`,
   ];
   for (const s of scenarios) {
     const fr = s.frames;
     lines.push(
-      `${pad(s.name, 26)}${lpad(f0(fr.fpsAvg), 8)}${lpad(f0(fr.fpsMin), 6)}${lpad(`${f0(fr.worstFrameMs)} ms`, 13)}${lpad(String(fr.slowFrames), 7)}${lpad(`${f1(fr.workAvgMs)}/${f0(fr.workMaxMs)}`, 9)}`,
+      `${pad(s.name, 26)}${lpad(f0(fr.fpsAvg), 8)}${lpad(f0(fr.fpsMin), 6)}${lpad(`${f0(fr.worstFrameMs)} ms`, 13)}${lpad(String(fr.slowFrames), 7)}${lpad(`${f1(fr.workAvgMs)}/${f0(fr.workMaxMs)}`, 9)}${lpad(`${fr.drawn} de ${fr.frames}`, 13)}`,
     );
   }
-  lines.push('', '("tela ms" = trabalho da thread principal por quadro: média/pior)');
+  lines.push(
+    '',
+    '("tela ms" = trabalho da thread principal por quadro: média/pior; "desenhados" = quadros em que o globo',
+    ' foi desenhado. Parado, nada é desenhado e o fps é o ritmo que o aparelho dá a uma página parada.',
+    ' A meta de "pausado" vale para "pausado, girando".)',
+  );
   for (const s of scenarios) lines.push(`${s.name}: ${workLine(s)}`);
   if (gen) {
     const stages = Object.entries(gen.stagesMs)
       .map(([k, v]) => `${k} ${f0(v)}`)
       .join(' · ');
-    lines.push('', `geração: ${f0(gen.totalMs)} ms do pedido ao globo (worker ${f0(gen.workerMs)} · tela ao receber ${f0(gen.receiveMs)})`, `  etapas: ${stages}`);
+    lines.push(
+      '',
+      `geração: ${f0(gen.totalMs)} ms do pedido ao globo (worker ${f0(gen.workerMs)} · tela ao receber ${f0(gen.receiveMs)})`,
+      `  etapas: ${stages} · ajudante fez ${f0(gen.helperShare * 100)}% do terreno`,
+    );
   }
   if (first) {
     const stages = Object.entries(first.stagesMs)
@@ -221,5 +243,6 @@ export function formatReport(device: DeviceInfo, scenarios: readonly ScenarioRes
       `  etapas: ${stages}`,
     );
   }
+  if (stalls.length) lines.push('', 'desde que a página abriu (inclui a medição):', ...stalls);
   return lines.join('\n');
 }

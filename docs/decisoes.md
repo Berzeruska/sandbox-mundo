@@ -494,3 +494,46 @@ Formato: data — decisão — motivo — alternativa descartada.
   O que precisar mudar para o jogo funcionar bem pode mudar, desde que o usuário decida as mudanças com
   efeito de jogo.
 
+
+- **2026-10-16 — Geração de volta abaixo de 3 s (decisão do usuário: correções técnicas, mesmo mundo).**
+  - **Mundo novo larga o velho na hora:** o ajudante 2 é encerrado (mesmo no meio de uma recomposição)
+    e um **ajudante reserva**, já carregado e vazio, assume. Motivo do reserva: um worker criado pelo
+    relógio só termina de carregar quando o relógio fica livre; criado na hora do mundo novo, nunca
+    ajudava na geração.
+  - **Terreno dividido entre o relógio e o ajudante** (`src/world/cell-pool.ts`): a primeira passada
+    do terreno (16 ruídos por célula) vai em pedaços de 4.096 células, que os dois pegam de um contador
+    em memória compartilhada; cada célula é calculada pela mesma função, então o mundo é idêntico
+    (26 mundos conferidos byte a byte, N = 128 e 256). Se o ajudante sumir, o relógio refaz os
+    pedaços dele depois de 10 s.
+  - **Limiar da fração de terra sem ordenar tudo** (seleção rápida, mesmo valor exato).
+  - **Medido (notebook, Chromium preso a 3 núcleos, geração logo depois da deriva):** mediana 903 ms,
+    contra 893 da versão que deu 2,7 s no celular (antes destas correções, +30%). O relatório mostra
+    "ajudante fez X% do terreno".
+  - **Descartado:** cortar o custo da etapa "placas" do G3 (tudo espalhado em pedaços de 5–20 ms; o
+    ganho que sobrava com mesmo resultado era pequeno).
+
+- **2026-10-16 — Meta de "pausado" medida girando; "desenhados X de Y" (decisão do usuário).**
+  Pausado e parado, o jogo não desenha nada e o fps é o ritmo que o aparelho dá a uma página parada
+  (o Android baixa a taxa da tela). A meta de pausado (≥ 85) vale para "pausado, girando".
+
+- **2026-10-16 — Registro de travadas sempre ligado (pedido do usuário).** Painel Dados e relatório:
+  quadro da tela acima de 100 ms e data parada acima de 300 ms com o tempo correndo, com a hora, a
+  duração, a causa provável (tela aplicando recomposição, desenho, relógio esperando o ajudante,
+  relógio aplicando recomposição, fora do jogo) e a velocidade/placas. Lógica pura em `src/ui/stalls.ts`.
+
+- **2026-10-16 — Vista de perto: células quadradas (pedido do usuário; aparência a aprovar no celular).**
+  De longe nada muda (bordas orgânicas, globo redondo). Entre 6 e 14 px por célula, as bordas
+  orgânicas e a textura manchada somem aos poucos e entram: cor 25% mais saturada, variação leve por
+  célula (±4% na terra, ±1,5% na água), contorno fino onde o bioma muda (não entre os dois tons de
+  oceano) e sombra na água junto da terra. Só desenho: a simulação não muda.
+  - **Custo (notebook, sem limite de fps):** igual de longe e no zoom máximo; 10–15% mais lento no
+    meio do caminho (as duas aparências juntas na transição).
+  - **Limite conhecido:** perto dos 8 cantos do cubo as células são losangos, e na aresta entre duas
+    faces não há contorno.
+
+- **2026-10-16 — Registros do teste do Bloco G (decisões do usuário).**
+  - Semente `42` com terra demais perto dos polos (33% acima de 60° em N = 256): **falha conhecida**.
+  - Critério de formas mantido; pedacinhos de terra no oceano depois de colisões: aceitável.
+  - Polos (duas manchas brancas que não interagem com as placas e não parecem gelo), neve demais (vale
+    do rifte e todas as montanhas) e biomas pouco variados: **T7**.
+  - O Hot 50i continua como aparelho-alvo; no fim do M2, com o relatório, o usuário decide se mantém.

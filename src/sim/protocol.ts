@@ -25,6 +25,8 @@ export interface WorldInfo {
   /** Tempo do worker para gerar (ms), por etapa e total. */
   generationMs: number;
   stagesMs: Record<string, number>;
+  /** Fração do terreno que o ajudante 2 calculou (0 sem memória compartilhada). */
+  helperShare: number;
   /** Direção média da terra firme (para onde a câmera olha ao nascer o mundo). */
   landCenter: Vec3;
   /** Eixo, velocidade relativa e centro inicial de cada placa (para o desenho suave do movimento). */

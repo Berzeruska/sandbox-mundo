@@ -1,4 +1,5 @@
 import { computeWaterDistance, updateClimate } from './climate';
+import type { CellPool } from './cell-pool';
 import type { CubeSphere } from './cubesphere';
 import { generateTerrain } from './generation';
 import { generatePlates } from './plates';
@@ -17,10 +18,12 @@ export function createWorld(
   params: WorldParams,
   grid?: CubeSphere,
   onStage?: (stage: WorldStage, fraction: number) => void,
+  /** Outro worker para dividir o trabalho por célula (mesmo resultado, mais rápido). */
+  pool?: CellPool,
 ): WorldState {
   const world = new WorldState(params, grid);
   onStage?.('terreno', 0);
-  generateTerrain(world, onStage && ((f) => onStage('terreno', f)));
+  generateTerrain(world, onStage && ((f) => onStage('terreno', f)), pool);
   onStage?.('placas', 0);
   generatePlates(world);
   onStage?.('água', 0);

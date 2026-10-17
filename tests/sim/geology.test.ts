@@ -32,6 +32,14 @@ class DeferredGeology implements GeologyPort {
     this.engine?.receive(cmd);
   }
 
+  stop(): void {
+    this.engine = null;
+    this.outbox = [];
+    this.stops++;
+  }
+
+  stops = 0;
+
   /** Entrega ao relógio as respostas guardadas (todas, ou as `count` mais antigas). */
   deliver(count = Infinity): void {
     const now = this.outbox.splice(0, count);
@@ -204,5 +212,36 @@ describe('relógio esperando o ajudante', () => {
     core.advance(0.25);
     expect(core.clock.tick).toBeGreaterThan(APPLY_DELAY_TICKS);
     expect(core.work.waitMs).toBeGreaterThan(0);
+  });
+});
+
+describe('mundo novo com o ajudante ocupado', () => {
+  it('o motor velho é largado antes da geração, e respostas atrasadas dele não chegam ao mundo novo', () => {
+    const core = new SimulationCore(() => undefined, () => 0, (c) => new DeferredGeology(c));
+    const port = core.geology as DeferredGeology;
+    core.handle({ type: 'newWorld', seedText: SEED, n: N });
+    core.handle({ type: 'speed', speed: 20 });
+    core.handle({ type: 'plateRate', rate: 1 });
+    // O motor anda e faz uma recomposição, que ainda espera a vez de aparecer no relógio.
+    while (port.results.length === 0) {
+      core.advance(60 / 240);
+      port.deliver();
+    }
+    const old = port.engine;
+    core.handle({ type: 'newWorld', seedText: 'outro', n: N });
+    expect(port.stops).toBe(2);
+    expect(port.engine).not.toBe(old);
+    port.results.length = 0;
+    // Mundo novo começa limpo: nenhuma recomposição do velho aparece nele.
+    core.handle({ type: 'speed', speed: 20 });
+    const fresh = Array.from(core.world!.elevation);
+    for (let i = 0; i < 4; i++) {
+      core.advance(APPLY_DELAY_TICKS / 240);
+      port.deliver();
+    }
+    expect(core.world!.params.seedText).toBe('outro');
+    // Placas paradas no mundo novo (padrão): nenhuma recomposição, nada mudou no relevo.
+    expect(port.results).toHaveLength(0);
+    expect(Array.from(core.world!.elevation)).toEqual(fresh);
   });
 });

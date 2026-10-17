@@ -1,8 +1,10 @@
 /// <reference lib="webworker" />
 import { enableSharedMemory } from '../core/shared';
 import { adoptShadeWeights } from '../render/colors';
+import { helpWithCells } from '../world/cell-pool';
 import { adoptUpwindTable } from '../world/climate';
 import { CubeSphere } from '../world/cubesphere';
+import { runCellJob } from '../world/generation';
 import { GeologyEngine, type GeologyEvent, type HelperReply, type HelperRequest } from './geology';
 
 /**
@@ -29,6 +31,10 @@ function report(err: unknown): void {
 scope.onmessage = (e: MessageEvent<HelperRequest>) => {
   try {
     const msg = e.data;
+    if (msg.type === 'cells') {
+      helpWithCells(msg, runCellJob);
+      return;
+    }
     if (msg.type === 'init') {
       // A grade vem do relógio, em memória compartilhada: uma só para os dois ajudantes.
       if (!grid || grid.positions !== msg.grid.positions) {

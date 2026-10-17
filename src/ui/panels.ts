@@ -32,6 +32,8 @@ export interface DebugStats {
   sharedMemory: string;
   /** Ciclo de Wilson: fase, supercontinentes e rupturas (G2). */
   cycle: string;
+  /** Registro de travadas: resumo e as últimas (`stalls.ts`). */
+  stalls: string[];
 }
 
 /** Painel durante a medição: escondido (só o andamento) ou aberto, com ou sem o desfoque antigo. */
@@ -139,6 +141,7 @@ export class DebugPanel {
       `ciclo   ${s.cycle}`,
       `desenho ${s.drawing} · versão ${s.version}`,
       `memória compartilhada ${s.sharedMemory}`,
+      ...s.stalls,
     ].join('\n');
   }
 }
