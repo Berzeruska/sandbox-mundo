@@ -8,7 +8,9 @@ sobre "onde estamos", vale este.
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Bloco atual:** Bloco G fechado (aprovado no celular em `0155233d`: "está bonito de perto", geração
-  2,8 s, metas de fps batidas). **Próximo:** bloco Minerais e clima (T6, T7).
+  2,8 s, metas de fps batidas). **Agora:** bloco Minerais e clima (T6, T7). **Parado na T6**
+  esperando 4 decisões do usuário (quando os depósitos nascem, como aparecem, quais tipos, quantos):
+  proposta em `docs/M2-especificacao.md`, logo abaixo da T6. Nenhum código da T6 ainda.
 - **Feito agora** (detalhes em "Teste da rodada no celular" na especificação):
   - Bug do Elevar que subia uma listra: era o "Girar (fps)" do painel Dados girando o globo por baixo
     do dedo; agora qualquer toque desliga o giro de teste.

@@ -231,6 +231,29 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   (após girar uma placa, os depósitos dela giram junto); mesma semente, mesmos depósitos.
   Detalhes em `docs/03-mundo-geologia.md`.
 
+  **T6 — Proposta (2026-10-17, esperando decisão do usuário; sem código).** O que já está decidido:
+  tipos-base e onde cada um se forma, depósito com tipo, quantidade e profundidade, preso à placa,
+  camada opcional, uso só no M4/M7. O que a especificação não decide (muda o que o jogador vê):
+  1. **Quando os depósitos nascem.**
+     a. Só na geração; depois só andam com a placa e somem se a crosta deles afundar na subducção.
+     b. **(recomendado)** Na geração e também durante a deriva: arco de subducção ativo há tempo
+        ganha cobre/ouro, rifte e margem passiva antigos ganham petróleo, colisão ganha ouro;
+        crosta que afunda leva o depósito junto. Combina com "geologia viva" e dá motivo para olhar a
+        camada de novo depois de minutos. Custo: uma verificação por recomposição no ajudante 2.
+  2. **Como aparecem na camada "Ver recursos".**
+     a. **(recomendado)** Um ponto colorido por depósito, com cor por tipo e legenda, desenhado no
+        shader (sem custo de CPU), maior com o zoom; o terreno fica um pouco apagado por baixo.
+     b. As células do depósito tingidas pela cor do tipo (como "Ver placas"): manchas, não pontos.
+     c. Ícones (emoji) no canvas por cima: mais legível, mas pesado no celular com centenas de
+        depósitos.
+  3. **Quais tipos entram agora:** os 6 da lista (ferro, cobre, ouro, nióbio, petróleo, carvão) e,
+     opcionalmente, estanho, prata, urânio, sal; e se há petróleo no mar raso (plataforma continental).
+  4. **Quantos:** poucos (~150 no mundo, cada jazida importa nas disputas do M4/M7), médio (~400,
+     recomendado) ou muitos (~1.000, quase todo continente tem de tudo). Nióbio sempre raro (< 10).
+  Modelo técnico (decidido por mim, vale para qualquer resposta): o depósito fica gravado na amostra
+  de crosta da tectônica (a mesma que já anda presa à placa), então anda e some junto com ela, sem
+  custo extra na recomposição; a camada lê um código por célula numa textura.
+
 - [ ] **T7 — Clima que acompanha a deriva, eras glaciais e temperatura global**
   Recálculo periódico no worker e envio só do que mudou; ciclo glacial automático e suave; controle
   de temperatura global em Clima, somado ao ciclo.
