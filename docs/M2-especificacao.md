@@ -907,6 +907,16 @@ Pedidos antes do bloco Minerais e clima:
         floresta). No oceano, a textura das células muda de direção ao cruzar a emenda (fraco).
      O usuário julga no teste do fim do bloco Minerais e clima; o fps de perto também entra no teste.
 
+### Teste no celular (2026-10-17): de perto travando
+Relato do usuário: "de perto está travando muito" (meta de desempenho quebrada, corrigir antes da T6,
+sem perder o visual; gostou dos hexágonos nos cantos, mantê-los). Pediu o cenário "de perto, girando"
+no "Medir desempenho". Também: o botão "Ver recursos" fica no menu Geologia (já estava na T1/T6).
+**Feito:** a vista de perto ficou ~50% mais leve no notebook com a mesma imagem (264 → ~395 fps
+girando; antes do alisamento 489); detalhes e o que foi descartado em `docs/decisoes.md`, "Vista de
+perto mais leve". Cenários novos no relatório: "de perto, girando" e "idem, de perto" (placas 100%).
+O celular decide se basta: se "de perto, girando" ficar abaixo da meta de "pausado" (85), o próximo
+passo é discutir com o usuário (nenhuma meta de "de perto" foi definida ainda).
+
 Registrado também: ideia para depois de **zoom maior**, para caberem humanos pequenos (montanha de 50
 pixels com homem de 5 fica estranho): marcos 3, 4 e 8 (`docs/02-marcos.md`).
 

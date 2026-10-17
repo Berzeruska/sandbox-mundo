@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildColors, hillshade } from '../../src/render/colors';
+import { BIOME_BITS, buildColors, hillshade, withRing } from '../../src/render/colors';
+import { BIOME_COUNT } from '../../src/world/biomes';
 import { latLonToPoint } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
 
@@ -9,7 +10,45 @@ describe('cores das células', () => {
   buildColors(w, out);
 
   it('o canal alfa leva o código do bioma (para o shader)', () => {
-    for (let i = 0; i < w.cellCount; i++) expect(out[i * 4 + 3]).toBe(w.biome[i]);
+    for (let i = 0; i < w.cellCount; i++) expect(out[i * 4 + 3]! & ((1 << BIOME_BITS) - 1)).toBe(w.biome[i]);
+  });
+
+  it('os biomas cabem nos bits reservados (bioma novo acima de 16 exige mudar o canal alfa)', () => {
+    expect(BIOME_COUNT).toBeLessThanOrEqual(1 << BIOME_BITS);
+  });
+
+  it('bit de cada canto: as 3 células na direção dele estão na face e têm o mesmo bioma', () => {
+    const n = w.grid.n;
+    let set = 0;
+    for (let i = 0; i < w.cellCount; i++) {
+      const x = i % n;
+      const y = Math.floor(i / n) % n;
+      for (let corner = 0; corner < 4; corner++) {
+        const dx = corner & 1 ? 1 : -1;
+        const dy = corner & 2 ? 1 : -1;
+        const inFace = x + dx >= 0 && x + dx < n && y + dy >= 0 && y + dy < n;
+        const same = inFace && [i + dx, i + dy * n, i + dy * n + dx].every((j) => w.biome[j] === w.biome[i]);
+        const bit = (out[i * 4 + 3]! >> (BIOME_BITS + corner)) & 1;
+        expect(bit).toBe(same ? 1 : 0);
+        set += bit;
+      }
+    }
+    expect(set).toBeGreaterThan(0);
+  });
+
+  it('repintar uma região com o anel em volta dá o mesmo que repintar tudo', () => {
+    const v = createWorld({ seedText: '2', seed: 2, n: 16, seaLevel: 0, landFraction: 0.3 });
+    const partial = new Uint8Array(v.cellCount * 4);
+    buildColors(v, partial);
+    // Muda o bioma de um bloco de células no meio de uma face (como uma pincelada).
+    const n = v.grid.n;
+    const region: number[] = [];
+    for (let y = 6; y < 9; y++) for (let x = 6; x < 9; x++) region.push(2 * n * n + y * n + x);
+    for (const c of region) v.biome[c] = (v.biome[c]! + 3) % BIOME_COUNT;
+    buildColors(v, partial, withRing(v.grid, region));
+    const full = new Uint8Array(v.cellCount * 4);
+    buildColors(v, full);
+    expect(partial).toEqual(full);
   });
 
   it('oceano é azulado', () => {

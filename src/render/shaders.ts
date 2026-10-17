@@ -1,5 +1,6 @@
 import { BIOME_COUNT, BIOME_INFO } from '../world/biomes';
 import { FACES, type Vec3 } from '../world/cubesphere';
+import { BIOME_BITS } from './colors';
 import { CONTINENTAL_BIT, LINE_BIT, MAX_SHADER_PLATES, NEAR_REACH_CELLS, PLATE_MASK } from './plate-motion';
 
 const vec = (v: Vec3): string => `vec3(${v.map((c) => c.toFixed(1)).join(', ')})`;
@@ -50,9 +51,39 @@ export const SQUARE_TO_PX = 14;
  * costa dobrava como a quina de uma caixa, as formas ficam arredondadas e passam de uma face para a
  * outra sem dobra (pedido do usuário, 2026-10-17: "o planeta não pode ficar cubado"). O contorno entre
  * biomas e a sombra na água saem da distância até a divisa com a vizinha, então valem também nas
- * emendas. As contas usam vetores pequenos relativos à célula (precisão no zoom máximo).
+ * emendas. A distância até os centros usa a métrica local da grade (ver `tileGlsl`).
  */
 function tileGlsl(sfx: string, cells: string): string {
+  // As 4 células em volta são escritas por extenso (k = 0…3), sem arrays nem laços, e cada uma guarda só
+  // o bioma, a distância e o endereço; a cor é lida uma vez, no fim, só da escolhida (array lido com
+  // índice variável vai para a memória lenta da GPU). Medidas em `docs/decisoes.md`, "Vista de perto
+  // mais leve".
+  const ks = [0, 1, 2, 3];
+  const mask = (1 << BIOME_BITS) - 1;
+  const ax = (k: number): string => ((k & 1) ? 'y' : 'x');
+  const ay = (k: number): string => ((k >> 1) ? 'y' : 'x');
+  // Distância² (rad²) de q ao centro da célula k da mesma face, pela métrica local da grade.
+  const dist = (k: number): string =>
+    `  float d${k} = metric.z * (metric.x * du.${ax(k)} * du.${ax(k)} - xy2 * du.${ax(k)} * dv.${ay(k)} + metric.y * dv.${ay(k)} * dv.${ay(k)});`;
+  // Célula k > 0 no caminho das divisas: endereço e bioma. Do outro lado da emenda do cubo (raro): a
+  // célula vizinha de verdade e a distância até o centro dela por vetores (|q − c|² na esfera).
+  const neighbor = (k: number): string => `
+    ivec3 t${k}c = ivec3(t0 + ivec2(${k & 1}, ${k >> 1}) * s, face);
+    if (any(lessThan(t${k}c.xy, ivec2(0))) || any(greaterThanEqual(t${k}c.xy, ivec2(uN)))) {
+      vec3 qu = normalize(q);
+      vec2 tk = tan((vec2(t0) + vec2(${k & 1}, ${k >> 1}) * vec2(s) + 0.5) * cellRad - QUARTER_PI);
+      vec3 c = normalize(n + tk.x * u + tk.y * v);
+      t${k}c = texelOf(c);
+      int f2; vec3 n2; vec3 u2; vec3 v2;
+      faceFrame(c, f2, n2, u2, v2);
+      vec2 a2 = tan((vec2(t${k}c.xy) + 0.5) * cellRad - QUARTER_PI);
+      vec3 e = qu - normalize(n2 + a2.x * u2 + a2.y * v2);
+      d${k} = dot(e, e);
+    }
+    int b${k} = int(texelFetch(${cells}, t${k}c, 0).a * 255.0 + 0.5) & ${mask};`;
+  // Peso pela distância: 1 no centro, 0 a 1 célula.
+  const weight = (k: number): string =>
+    `    float w${k} = max(0.0, 1.0 - d${k} * inv2); w${k} *= w${k};`;
   return `
 // Célula de perto no ponto q. Devolve a cor (antes da luz) e a célula escolhida em "cell".
 vec3 tile${sfx}(vec3 q, float cellPx, float sq, out vec4 cell) {
@@ -63,76 +94,60 @@ vec3 tile${sfx}(vec3 q, float cellPx, float sq, out vec4 cell) {
   ivec2 t0 = clamp(ivec2(floor(g)), ivec2(0), ivec2(uN - 1));
   // As 4 células em volta do canto de célula mais perto de q: só elas ficam a menos de 1 célula.
   ivec2 s = ivec2(lessThan(g - vec2(t0), vec2(0.5))) * -2 + 1; // -1 ou +1: lado do canto
-  // Tangente dos centros: tan(a + δ) = (tan a + tan δ) / (1 − tan a · tan δ), com δ pequeno (≤ 1,5
-  // célula) e tan δ por série. Mais barato que 4 tangentes por pixel na Mali-G52.
   float cellRad = 2.0 / float(uN) * QUARTER_PI;
-  vec2 dx = (vec2(float(t0.x), float(t0.x + s.x)) + 0.5 - g.x) * cellRad;
-  vec2 dy = (vec2(float(t0.y), float(t0.y + s.y)) + 0.5 - g.y) * cellRad;
-  vec2 tdx = dx + dx * dx * dx * (1.0 / 3.0);
-  vec2 tdy = dy + dy * dy * dy * (1.0 / 3.0);
-  vec2 tx = (xy.x + tdx) / (1.0 - xy.x * tdx);
-  vec2 ty = (xy.y + tdy) / (1.0 - xy.y * tdy);
-  vec3 c0 = normalize(n + tx.x * u + ty.x * v);
-  vec3 d0 = q - c0;
-  ivec3 tk[4];
-  float D[4]; // |q - ck|² - |q - c0|²
-  int bio[4];
-  vec4 col4[4];
-  float w[4];
-  float base2 = dot(d0, d0);
-  float inv2 = 1.0 / (uCellAngle * uCellAngle);
-  for (int k = 0; k < 4; k++) {
-    ivec2 d = ivec2(k & 1, k >> 1);
-    ivec2 o = t0 + d * s;
-    vec3 c = normalize(n + tx[d.x] * u + ty[d.y] * v);
-    ivec3 t = ivec3(o, face);
-    if (o.x < 0 || o.y < 0 || o.x >= uN || o.y >= uN) {
-      // Do outro lado da emenda do cubo: a célula vizinha de verdade e o centro dela.
-      t = texelOf(c);
-      int f2; vec3 n2; vec3 u2; vec3 v2;
-      faceFrame(c, f2, n2, u2, v2);
-      vec2 a2 = tan(((vec2(t.xy) + 0.5) * 2.0 / float(uN) - 1.0) * QUARTER_PI);
-      c = normalize(n2 + a2.x * u2 + a2.y * v2);
-    }
-    vec3 dk = c - c0;
-    tk[k] = t;
-    D[k] = dot(dk, dk) - 2.0 * dot(d0, dk);
-    col4[k] = texelFetch(${cells}, t, 0);
-    bio[k] = int(col4[k].a * 255.0 + 0.5);
-    // Peso pela distância: 1 no centro, 0 a 1 célula.
-    float x = max(0.0, 1.0 - max(0.0, (base2 + D[k]) * inv2));
-    w[k] = x * x;
-  }
-  // Alisamento: ganha o bioma com mais peso somado. As divisas viram curvas, sem escadinha nem quina
-  // na emenda; a cor vem da célula mais perto com o bioma vencedor (cada célula guarda a sua cor).
-  float score[4];
-  for (int k = 0; k < 4; k++) {
-    score[k] = 0.0;
-    for (int j = 0; j < 4; j++) if (bio[j] == bio[k]) score[k] += w[j];
-  }
-  int pick = 0;
-  for (int k = 1; k < 4; k++) {
-    if (score[k] > score[pick] || (score[k] == score[pick] && D[k] < D[pick])) pick = k;
-  }
-  int b = bio[pick];
-  for (int k = 0; k < 4; k++) if (bio[k] == b && D[k] < D[pick]) pick = k;
-  float top = score[pick];
-  float second = 0.0;
+  // Métrica da grade em volta de q (a menos de 1–2 células ela não muda): com X = 1 + x², Y = 1 + y²,
+  // R = 1 + x² + y², a distância² na esfera para um passo (du, dv) em células é
+  // cellRad² · X·Y/R² · (X·du² − 2xy·du·dv + Y·dv²). Perto dos cantos do cubo o termo cruzado inclina a
+  // grade (losangos de ~120°), e a célula mais perto vira hexágono, como pedido pelo usuário. Troca
+  // 4 divisões e 4 raízes por pixel por multiplicações (Mali-G52).
+  vec2 one = 1.0 + xy * xy;
+  float r = one.x + one.y - 1.0;
+  vec3 metric = vec3(one, cellRad * cellRad * one.x * one.y / (r * r));
+  float xy2 = 2.0 * xy.x * xy.y;
+  // Passos (em células) de q até os centros: colunas t0.x e t0.x + s.x, linhas t0.y e t0.y + s.y.
+  vec2 du = vec2(float(t0.x), float(t0.x + s.x)) + 0.5 - g.x;
+  vec2 dv = vec2(float(t0.y), float(t0.y + s.y)) + 0.5 - g.y;
+${ks.map(dist).join('\n')}
+  ivec3 t0c = ivec3(t0, face);
+  vec4 col0 = texelFetch(${cells}, t0c, 0);
+  int v0 = int(col0.a * 255.0 + 0.5);
+  int b = v0 & ${mask};
   int other = b;
-  for (int k = 0; k < 4; k++) {
-    if (bio[k] != b && score[k] > second) { second = score[k]; other = bio[k]; }
+  ivec3 pickT = t0c;
+  float m = 1.0; // folga do bioma vencedor sobre o segundo (0 na divisa; 1 = sem divisa)
+  // Canto da célula do lado de q (bits em src/render/colors.ts).
+  int corner = (s.x > 0 ? 1 : 0) + (s.y > 0 ? 2 : 0);
+  if (((v0 >> (${BIOME_BITS} + corner)) & 1) != 0) {
+    // Caso comum (miolo de um bioma, longe da emenda; bit do canto marcado nas cores): as 4 células
+    // têm o mesmo bioma, então fica a de centro mais perto, sem divisa.
+    float best = d0;
+${[1, 2, 3].map((k) => `    if (d${k} < best) { best = d${k}; pickT = ivec3(t0 + ivec2(${k & 1}, ${k >> 1}) * s, face); }`).join('\n')}
+  } else {
+    int b0 = b;
+${[1, 2, 3].map(neighbor).join('\n')}
+    float inv2 = 1.0 / (uCellAngle * uCellAngle);
+${ks.map(weight).join('\n')}
+    // Alisamento: ganha o bioma com mais peso somado (empate: o da célula mais perto). As divisas viram
+    // curvas, sem escadinha nem quina na emenda; a cor vem da célula mais perto com o bioma vencedor.
+${ks.map((k) => `    float sc${k} = ${ks.map((j) => (j === k ? `w${j}` : `(b${j} == b${k} ? w${j} : 0.0)`)).join(' + ')};`).join('\n')}
+    float top = sc0;
+    float near = d0;
+${[1, 2, 3].map((k) => `    if (sc${k} > top || (sc${k} == top && d${k} < near)) { top = sc${k}; b = b${k}; near = d${k}; }`).join('\n')}
+    near = 1e9;
+${ks.map((k) => `    if (b${k} == b && d${k} < near) { near = d${k}; pickT = ${k === 0 ? 't0c' : `t${k}c`}; }`).join('\n')}
+    float second = 0.0;
+${ks.map((k) => `    if (b${k} != b && sc${k} > second) { second = sc${k}; other = b${k}; }`).join('\n')}
+    m = second > 0.0 ? (top - second) / (top + second) : 1.0;
   }
-  ivec3 tb = tk[pick];
-  cell = col4[pick];
+  cell = pickT == t0c ? col0 : texelFetch(${cells}, pickT, 0);
   bool water = b <= 1;
   // Cor mais viva e uma variação leve por célula (cada célula se distingue, sem borrão).
   vec3 col = cell.rgb;
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(lum), col, 1.0 + 0.25 * sq);
-  col *= 1.0 + (water ? 0.03 : 0.08) * (cellHash(tb) - 0.5) * sq;
+  col *= 1.0 + (water ? 0.03 : 0.08) * (cellHash(pickT) - 0.5) * sq;
   // Contorno fino (largura fixa na tela) onde o bioma muda, não entre os dois tons de oceano; sombra
-  // na água junto da terra. m: folga do bioma vencedor sobre o segundo (0 na divisa).
-  float m = second > 0.0 ? (top - second) / (top + second) : 1.0;
+  // na água junto da terra. fwidth fora de qualquer "if": a derivada precisa dos pixels vizinhos.
   float px = max(fwidth(m), 1e-4);
   float dark = 0.0;
   bool otherWater = other <= 1;
@@ -281,7 +296,7 @@ vec3 surface${sfx}(vec3 p, float cellPx) {
   // Textura sutil por bioma (floresta e montanha mais rugosas, água e gelo quase lisos); some de perto.
   float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius) * (1.0 - sq);
   if (detailAmount > 0.0) {
-    int biome = clamp(int(cell.a * 255.0 + 0.5), 0, ${BIOME_COUNT - 1});
+    int biome = clamp(int(cell.a * 255.0 + 0.5) & ${(1 << BIOME_BITS) - 1}, 0, ${BIOME_COUNT - 1});
     float fd = 1.0 / (uCellAngle * 0.4);
     float dn = noise3(anchor * fd).x + 0.5 * noise3(anchor.yzx * fd * 2.13 + 31.0).y;
     base *= 1.0 + DETAIL[biome] * dn * detailAmount;
@@ -320,7 +335,7 @@ vec3 surface(vec3 p, float cellPx) {
   }
   float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius) * (1.0 - sq);
   if (detailAmount > 0.0) {
-    int biome = clamp(int(cell.a * 255.0 + 0.5), 0, ${BIOME_COUNT - 1});
+    int biome = clamp(int(cell.a * 255.0 + 0.5) & ${(1 << BIOME_BITS) - 1}, 0, ${BIOME_COUNT - 1});
     float fd = 1.0 / (uCellAngle * 0.4);
     float dn = noise3(p * fd).x + 0.5 * noise3(p.yzx * fd * 2.13 + 31.0).y;
     base *= 1.0 + DETAIL[biome] * dn * detailAmount;

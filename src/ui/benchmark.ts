@@ -221,7 +221,7 @@ export function formatReport(
     '',
     '("tela ms" = trabalho da thread principal por quadro: média/pior; "desenhados" = quadros em que o globo',
     ' foi desenhado. Parado, nada é desenhado e o fps é o ritmo que o aparelho dá a uma página parada.',
-    ' A meta de "pausado" vale para "pausado, girando".)',
+    ' A meta de "pausado" vale para "pausado, girando". "De perto" = zoom máximo, células quadradas.)',
   );
   for (const s of scenarios) lines.push(`${s.name}: ${workLine(s)}`);
   if (gen) {

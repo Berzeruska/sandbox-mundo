@@ -5,7 +5,8 @@ import type { WorldState } from '../world/state';
 
 /**
  * Cor de cada célula: a cor do bioma, um pouco mais clara nas terras altas e mais escura no oceano
- * profundo. O canal alfa leva o código do bioma, que o shader usa para a textura de detalhe.
+ * profundo. O canal alfa leva o código do bioma (bits 0–3), que o shader usa para a textura de detalhe
+ * e para as divisas de perto, e os bits dos cantos (`BIOME_BITS`).
  * (Não há mais variação de brilho por célula: ela desenhava a grade na tela — ver T13.)
  */
 /** Camadas opcionais desenhadas por cima dos biomas (escolhidas no menu). */
@@ -50,7 +51,57 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   out[o] = r;
   out[o + 1] = g;
   out[o + 2] = b;
-  out[o + 3] = world.biome[i] as number;
+  out[o + 3] = (world.biome[i] as number) | (sameCorners(world, i) << BIOME_BITS);
+}
+
+/**
+ * Canal alfa da textura de cores: bioma nos 4 bits de baixo e, nos 4 de cima, um bit por canto da
+ * célula (bit 4 + cx + 2·cy, com cx = 1 para o lado +x da grade e cy = 1 para o lado +y): as 3 células
+ * na direção daquele canto estão na mesma face e têm o mesmo bioma. De perto, o pixel perto desse canto
+ * lê 1 ou 2 células em vez de 4 (vista de perto alisada no celular, 2026-10-17). Muda quando o bioma
+ * de uma vizinha muda: quem repinta só uma região repinta também o anel em volta (`withRing`).
+ * Limite: 16 biomas (teste em tests/render/colors.test.ts).
+ */
+export const BIOME_BITS = 4;
+
+function sameCorners(world: WorldState, i: number): number {
+  const n = world.grid.n;
+  const x = i % n;
+  const y = ((i - x) / n) % n;
+  const biome = world.biome;
+  const b = biome[i];
+  // Vizinhas iguais: oeste/leste e sul/norte (fora da face = diferente), depois as diagonais.
+  const w = x > 0 && biome[i - 1] === b;
+  const e = x < n - 1 && biome[i + 1] === b;
+  const s = y > 0 && biome[i - n] === b;
+  const nn = y < n - 1 && biome[i + n] === b;
+  let bits = 0;
+  if (w && s && biome[i - n - 1] === b) bits |= 1;
+  if (e && s && biome[i - n + 1] === b) bits |= 2;
+  if (w && nn && biome[i + n - 1] === b) bits |= 4;
+  if (e && nn && biome[i + n + 1] === b) bits |= 8;
+  return bits;
+}
+
+/**
+ * As células e o anel de 1 célula em volta (na mesma face, com as diagonais): os bits dos cantos das
+ * vizinhas dependem do bioma da célula.
+ */
+export function withRing(grid: CubeSphere, cells: readonly number[]): number[] {
+  const n = grid.n;
+  const out = new Set<number>(cells);
+  for (const c of cells) {
+    const x = c % n;
+    const y = Math.floor(c / n) % n;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx;
+        const yy = y + dy;
+        if (xx >= 0 && yy >= 0 && xx < n && yy < n) out.add(c + dy * n + dx);
+      }
+    }
+  }
+  return [...out];
 }
 
 /** Força máxima do sombreado de relevo (±35% de brilho). */

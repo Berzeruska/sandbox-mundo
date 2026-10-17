@@ -478,7 +478,8 @@ export class App {
     if (gate !== 'none') this.applyBrushAtScreen(gate === 'first' ? 1 / 20 : dt);
 
     if (this.stressSpin) {
-      const r = quatFromAxisAngle([0, 1, 0], dt * 0.6);
+      // Mesma velocidade na tela em qualquer zoom (de perto, girar 0,6 rad/s passaria voando).
+      const r = quatFromAxisAngle([0, 1, 0], (dt * 0.6) / this.camera.zoom);
       this.camera.setOrientation(quatNormalize(quatMultiply(this.camera.orientation, r)));
       this.needsDraw = true;
     }
@@ -572,7 +573,7 @@ export class App {
     this.bench = bench;
     this.hud.closeMenu();
     const startedAt = performance.now();
-    const steps = 10;
+    const steps = 12;
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
       this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
@@ -619,23 +620,33 @@ export class App {
         this.requestDraw();
       });
       await scenario(2, 'pausado, girando', 6000, () => spin(true));
-      await scenario(3, 'tempo 20×, placas paradas', 8000, () => {
+      // De perto (zoom máximo, células quadradas e divisas alisadas): o desenho mais pesado por pixel.
+      await scenario(3, 'de perto, girando', 6000, () => {
+        this.camera.zoom = this.camera.maxZoom;
+      });
+      await scenario(4, 'tempo 20×, placas paradas', 8000, () => {
         spin(false);
+        this.camera.zoom = 1;
         this.setPlateRate(0);
         this.setSpeed(20);
       });
-      await scenario(4, '  idem, painel c/ desfoque', 8000, () => undefined, 'blur');
-      await scenario(5, 'tempo 20×, placas 100%', 12_000, () => this.setPlateRate(1));
-      await scenario(6, '  idem, painel c/ desfoque', 10_000, () => undefined, 'blur');
-      await scenario(7, '  idem, painel s/ desfoque', 10_000, () => undefined, 'plain');
+      await scenario(5, '  idem, painel c/ desfoque', 8000, () => undefined, 'blur');
+      await scenario(6, 'tempo 20×, placas 100%', 12_000, () => this.setPlateRate(1));
+      await scenario(7, '  idem, painel c/ desfoque', 10_000, () => undefined, 'blur');
+      await scenario(8, '  idem, painel s/ desfoque', 10_000, () => undefined, 'plain');
+      await scenario(9, '  idem, de perto', 10_000, () => {
+        this.camera.zoom = this.camera.maxZoom;
+      });
       // Deriva longa: continua a mesma deriva por mais 1 min (o planeta passa de ~1,5 min de deriva
       // a 20×, quando os continentes começam a colidir e se soldar).
-      await scenario(8, 'deriva longa c/ colisões', 60_000, () => undefined);
+      await scenario(10, 'deriva longa c/ colisões', 60_000, () => {
+        this.camera.zoom = 1;
+      });
       // Ruptura forçada (G2): o maior bloco soldado racha agora; mede a recomposição que vem junto.
-      await scenario(9, 'ruptura forçada', 10_000, () => this.sim.forceRupture());
+      await scenario(11, 'ruptura forçada', 10_000, () => this.sim.forceRupture());
       bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(10, 'geração de mundo');
+      status(12, 'geração de mundo');
       this.setSpeed(0);
       this.setPlateRate(before.plateRate);
       await wait(500);

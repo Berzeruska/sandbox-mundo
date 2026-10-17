@@ -1,7 +1,7 @@
 import { seedFrom } from '../core/rng';
 import { Clock } from '../core/time';
 import { applyBrush } from '../input/tools';
-import { buildColors, colorCacheBytes, NO_LAYERS, type Layers } from '../render/colors';
+import { buildColors, colorCacheBytes, NO_LAYERS, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
 import { climateCacheBytes, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellPool } from '../world/cell-pool';
@@ -315,8 +315,9 @@ export class SimulationCore {
     }
     this.brushLog.push({ tick: this.clock.tick, delta });
     this.geology.send({ type: 'brush', world: this.worldId, tick: this.clock.tick, delta });
-    buildColors(world, this.colors, region, this.layers);
-    const patches = makePatches(this.colors, world.params.n, dirtyRects(world.grid, region));
+    const painted = withRing(world.grid, region);
+    buildColors(world, this.colors, painted, this.layers);
+    const patches = makePatches(this.colors, world.params.n, dirtyRects(world.grid, painted));
     this.send({ type: 'patch', patches, brushMs: this.now() - t0 });
   }
 
@@ -388,7 +389,7 @@ export class SimulationCore {
     const cells = [...region];
     updateWaterDistance(world, cells);
     updateClimate(world, cells);
-    buildColors(world, this.colors, cells, this.layers);
+    buildColors(world, this.colors, withRing(world.grid, cells), this.layers);
   }
 
   /** Liga/desliga camadas: repinta o mundo todo e manda as 6 faces como remendos. */

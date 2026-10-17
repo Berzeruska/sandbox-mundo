@@ -578,3 +578,36 @@ Formato: data — decisão — motivo — alternativa descartada.
     cubo, semente `42`) e `docs/img/m2-perto-alisado-face.png` (meio de uma face, do zoom máximo ao
     médio).
 
+- **2026-10-17 — Vista de perto mais leve, mesma imagem (meta de desempenho quebrada: "de perto está
+  travando muito" no celular).** Medido no notebook (GPU real, sem limite de fps, semente `terra`, zoom
+  máximo, 720×1600): antes do alisamento 489 fps; com o alisamento **264**; agora **~395 girando** e
+  **~340–420 com placas a 100%** (varia com a posição das placas); de longe igual (~775). A imagem é a
+  mesma: comparação pixel a pixel com a versão anterior em 5 vistas (meio da face, emenda, 2 cantos),
+  no máximo 13 pixels diferentes em 1,15 milhão (uma borda 1 pixel ao lado). Os hexágonos dos cantos
+  ficam (o usuário gostou). O que mudou no shader:
+  1. **Sem arrays com índice variável:** as 4 células são escritas por extenso; guardam só bioma,
+     distância e endereço, e a cor é lida uma vez, no fim, só da escolhida.
+  2. **Bits dos cantos na textura de cores:** o canal alfa leva o bioma em 4 bits e, nos outros 4, um
+     bit por canto da célula: "as 3 células na direção deste canto estão na face e têm o mesmo bioma".
+     Nesse caso (a maior parte da tela) o pixel só escolhe a célula mais perto e lê 1 ou 2 texels em vez
+     de 4, sem divisa. O pincel repinta também o anel de 1 célula em volta da área pintada (`withRing`).
+     **Limite: 16 biomas** (hoje são 16); bioma novo na T7 exige mover os bits para outra textura (teste
+     em `tests/render/colors.test.ts` avisa).
+  3. **Métrica local da grade** em vez do centro exato de cada célula: perto de 1–2 células, a distância
+     na esfera é `X·du² − 2xy·du·dv + Y·dv²` (com X = 1 + x², Y = 1 + y² na face); erro máximo 0,55% de
+     uma célula (0,3 pixel no zoom máximo). Tira 4 divisões e 4 raízes por pixel. O termo cruzado é o que
+     inclina a grade perto dos cantos (losangos de ~120°, células hexagonais). Do outro lado da emenda o
+     cálculo continua por vetores (raro).
+  - **Testado e descartado:** usar o desenho simplificado quando o jogo está pausado. Pausado no meio da
+    deriva as placas estão fora da posição da última recomposição e precisam do desenho completo;
+    recompor ao pausar mudaria o mundo (determinismo).
+  - **Medido e não é o gargalo:** a segunda cópia da função de perto (transição suave, só 8% dos quadros
+    com placas a 100%) e a quantidade de variáveis vivas.
+  - **Custo na CPU:** pintar as cores do mundo todo 16,4 → 20,0 ms no notebook (N = 256): uns +15–20 ms
+    na geração do celular (2,8 s, meta 3 s) e na recomposição do ajudante 2 (fora do relógio).
+  - **"Medir desempenho":** cenários novos "de perto, girando" (pausado) e "idem, de perto" (tempo 20×,
+    placas 100%). O giro de teste anda na mesma velocidade na tela em qualquer zoom. A "deriva longa"
+    começa 10 s mais tarde que nos relatórios anteriores.
+  - A impressão digital do motor da geologia (`tests/sim/geology-golden.test.ts`) passa a olhar só o
+    bioma no canal alfa: com ela, o valor antigo bate (o mundo não mudou).
+

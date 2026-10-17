@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { seedFrom } from '../../src/core/rng';
+import { BIOME_BITS } from '../../src/render/colors';
 import { GeologyEngine, worldArrays, type GeologyEvent } from '../../src/sim/geology';
 import { CubeSphere } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
@@ -30,7 +31,8 @@ describe('motor da geologia: mesmo resultado', () => {
       results++;
       const arrays = engine.buffers.arrays as Record<string, ArrayBufferView>;
       for (const k of Object.keys(arrays).sort()) h = fnv(h, bytesOf(arrays[k] as ArrayBufferView));
-      h = fnv(h, engine.colors);
+      // Só o bioma do canal alfa: os bits dos cantos (2026-10-17) são do desenho e têm teste próprio.
+      h = fnv(h, engine.colors.map((x, i) => (i % 4 === 3 ? x & ((1 << BIOME_BITS) - 1) : x)));
       h = fnv(h, bytesOf(engine.cellRef));
       h = fnv(h, e.result.plateCells);
       consumed.push(e.result.index);
