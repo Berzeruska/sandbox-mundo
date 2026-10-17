@@ -493,7 +493,7 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   cinzas em terra por 25 anos. Grande a partir de IEV 4 (~1 a cada 500–1.000 anos em "Raro").
   Animação: brilho, fagulhas e nuvem de cinzas. Medido: 3 ilhas em fila em 4.000 anos (N = 64).
 
-- [ ] **T10 — Desastres climáticos**
+- [x] **T10 — Desastres climáticos**
   Anomalias de chuva (seca, enchente), furacões com trajetória, incêndios; perturbação temporária
   com recuperação.
   Testes: furacão só nasce em oceano tropical quente e enfraquece em terra; incêndio só em floresta
@@ -501,6 +501,19 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   Pedido do usuário (2026-10-16), especificar na T10: **nuvens** simples e translúcidas que somem ao
   aproximar a câmera, formando tempestades e furacões em redemoinho; o evento altera só o clima da
   região dele.
+  **Feito (2026-10-17):** seca (região de 5–13 células, mais provável onde já é seco, 5–15 anos),
+  enchente (terra baixa e úmida, 2–5 anos), furacão (nasce só em mar a ≥ 26 °C entre 8° e 20°, anda
+  para oeste, curva para o polo e para leste depois de ~25°, cresce em mar quente, perde força em terra
+  e em mar frio; categoria 1–5; onde toca terra, a terra baixa alaga), incêndio (só em floresta dentro
+  de uma seca já em curso, espalha pela floresta seca, área queimada se recupera em 60 anos). Continuam
+  com as placas paradas. Grandes: seca com raio ≥ 12 células, enchente ≥ 110 células, furacão
+  categoria ≥ 4 que toca terra, incêndio ≥ 60 células. Em "Raro", um desastre grande (de todos os
+  tipos) a cada ~64–74 anos de jogo (~1 min em 1×). **Nuvens:** faixas pela latitude (muitas no
+  equador e em ~55°, poucas nos desertos subtropicais), translúcidas, andando devagar só com o tempo
+  correndo, somem ao aproximar (a partir de ~2–4 px por célula); furacões como espirais com olho,
+  girando no sentido do hemisfério, andando pela trilha; interruptor "Nuvens" no menu Clima (ligado).
+  O evento só muda as marcas da região dele (alagado, seco, queimado). Desempenho no notebook: igual
+  (60 fps em todos os cenários).
 
 - [ ] **T11 — Desastres na mão do jogador e frequência**
   Em Desastres: ferramenta para provocar cada desastre e controle de frequência (nenhum → muitos),

@@ -1,4 +1,4 @@
-import { fragmentShader, VERTEX_SHADER } from './shaders';
+import { fragmentShader, MAX_STORMS, VERTEX_SHADER } from './shaders';
 import type { Camera } from './camera';
 import { packRect } from './dirty';
 import { buildNoiseVolume, NOISE_SIZE } from './noise-volume';
@@ -56,6 +56,12 @@ export class GlobeRenderer {
   private deposits: Uint8Array | null = null;
   /** Camada "Ver recursos" ligada (o petróleo escondido aparece listrado de perto). */
   resourcesLayer = false;
+  /** Nuvens (T10): ligadas (0–1), relógio delas (s) e furacões (centro xyz + raio; força com sinal). */
+  clouds = 1;
+  cloudTime = 0;
+  stormCount = 0;
+  readonly storms = new Float32Array(MAX_STORMS * 4);
+  readonly stormPower = new Float32Array(MAX_STORMS);
   /** Cor do fundo oceânico novo (fenda aberta entre placas antes da recomposição), 0–1. */
   ridgeColor: [number, number, number] = [0.08, 0.18, 0.39];
   /** Cor da fenda nova entre dois continentes (vale de rifte, como a simulação faz), 0–1. */
@@ -140,7 +146,7 @@ export class GlobeRenderer {
     }
     // Se até o simplificado falhar, o erro sobe e aparece na tela (App).
     this.program ??= linkProgram(gl, VERTEX_SHADER, fragmentShader(false));
-    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev', 'uDeposits', 'uDepositsPrev', 'uResLayer', 'uRiftColor']) {
+    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev', 'uDeposits', 'uDepositsPrev', 'uResLayer', 'uRiftColor', 'uClouds', 'uCloudTime', 'uStormCount', 'uStorms', 'uStormPower']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.vao = gl.createVertexArray();
@@ -325,6 +331,13 @@ export class GlobeRenderer {
     gl.uniform1i(u.uDeposits ?? null, 5);
     gl.uniform1i(u.uDepositsPrev ?? null, 6);
     gl.uniform1i(u.uResLayer ?? null, this.resourcesLayer ? 1 : 0);
+    gl.uniform1f(u.uClouds ?? null, this.clouds);
+    gl.uniform1f(u.uCloudTime ?? null, this.cloudTime);
+    gl.uniform1i(u.uStormCount ?? null, this.stormCount);
+    if (this.stormCount) {
+      gl.uniform4fv(u.uStorms ?? null, this.storms);
+      gl.uniform1fv(u.uStormPower ?? null, this.stormPower);
+    }
     gl.uniform1f(u.uFade ?? null, fading && motion ? motion.fade : 1);
     gl.uniform1i(u.uMoving ?? null, moving ? 1 : 0);
     if (motion && moving) {

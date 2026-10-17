@@ -20,6 +20,16 @@ const FX_MS: Record<number, number> = {
   [DisasterKind.Quake]: 1800,
   [DisasterKind.Tsunami]: 6000,
   [DisasterKind.Volcano]: 3200,
+  [DisasterKind.Hurricane]: 9000,
+  [DisasterKind.Drought]: 2600,
+  [DisasterKind.Flood]: 2600,
+  [DisasterKind.Fire]: 2600,
+};
+/** Cor do pulso de área (seca, enchente, incêndio). */
+const AREA_COLOR: Record<number, string> = {
+  [DisasterKind.Drought]: '230, 170, 70',
+  [DisasterKind.Flood]: '90, 170, 255',
+  [DisasterKind.Fire]: '255, 90, 30',
 };
 /** Animações ao mesmo tempo, no máximo (em "Muitos" a 20× chegam várias por segundo). */
 const MAX_FX = 24;
@@ -38,6 +48,41 @@ export class DisasterFx {
     return this.list.length > 0;
   }
 
+  /**
+   * Furacões em curso, para o shader das nuvens: posição na trilha (anda nela em FX_MS) e força. Devolve
+   * quantos. `storms`: centro xyz + raio; `power`: força 0–1, com o sinal do sentido do giro.
+   */
+  stormsAt(now: number, storms: Float32Array, power: Float32Array, max: number): number {
+    let n = 0;
+    for (const f of this.list) {
+      if (f.e.kind !== DisasterKind.Hurricane || !f.e.path || n >= max) continue;
+      const path = f.e.path;
+      const count = path.length / 3;
+      if (count < 1) continue;
+      const u = Math.min(1, (now - f.start) / f.ms);
+      const x = u * (count - 1);
+      const i = Math.min(count - 1, Math.floor(x));
+      const j = Math.min(count - 1, i + 1);
+      const t = x - i;
+      let px = (path[i * 3] as number) * (1 - t) + (path[j * 3] as number) * t;
+      let py = (path[i * 3 + 1] as number) * (1 - t) + (path[j * 3 + 1] as number) * t;
+      let pz = (path[i * 3 + 2] as number) * (1 - t) + (path[j * 3 + 2] as number) * t;
+      const l = Math.hypot(px, py, pz) || 1;
+      px /= l;
+      py /= l;
+      pz /= l;
+      const st = f.e.strength;
+      const cat = st ? (st[i] as number) * (1 - t) + (st[j] as number) * t : f.e.magnitude;
+      // Nasce e some aos poucos.
+      const fade = Math.min(1, u * 8, (1 - u) * 6);
+      storms.set([px, py, pz, f.e.radius * (0.6 + 0.4 * Math.min(1, cat / 5))], n * 4);
+      // Hemisfério norte gira no sentido anti-horário visto de cima.
+      power[n] = (py >= 0 ? 1 : -1) * Math.max(0.05, Math.min(1, cat / 5) * fade);
+      n++;
+    }
+    return n;
+  }
+
   clear(): void {
     this.list = [];
   }
@@ -50,6 +95,7 @@ export class DisasterFx {
       if (f.e.kind === DisasterKind.Quake) drawQuake(ctx, camera, f.e, u, dpr);
       else if (f.e.kind === DisasterKind.Tsunami) drawWave(ctx, camera, f.e, u, dpr);
       else if (f.e.kind === DisasterKind.Volcano) drawEruption(ctx, camera, f.e, u, f.e.id, dpr);
+      else if (AREA_COLOR[f.e.kind]) drawArea(ctx, camera, f.e, u, AREA_COLOR[f.e.kind] as string, dpr);
     }
   }
 }
@@ -91,6 +137,16 @@ function drawWave(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEven
     ctx.fillStyle = `rgba(235, 250, 255, ${a.toFixed(3)})`;
     ctx.fillRect(q.x - size / 2, q.y - size / 2, size, size);
   }
+}
+
+/** Seca, enchente, incêndio: a área pisca na cor do desastre e o contorno se abre. */
+function drawArea(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, u: number, color: string, dpr: number): void {
+  const pulse = 0.5 + 0.5 * Math.sin(u * Math.PI * 4);
+  const fade = 1 - u;
+  pathCap(ctx, camera, e.point, e.radius);
+  ctx.fillStyle = `rgba(${color}, ${(0.22 * pulse * fade).toFixed(3)})`;
+  ctx.fill();
+  strokeCap(ctx, camera, e.point, e.radius * (0.6 + 0.6 * u), `rgba(${color}, ${(0.9 * fade).toFixed(3)})`, (e.notable ? 2.5 : 1.5) * dpr);
 }
 
 /** Erupção: brilho de lava no centro, fagulhas e a nuvem de cinzas que se abre e some. */

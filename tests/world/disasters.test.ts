@@ -72,9 +72,12 @@ describe('desastres (T8): terremotos', () => {
     expect(small).toBeGreaterThan(5 * big);
   });
 
-  it('frequência 0 ou placas paradas: nenhum desastre natural', () => {
+  it('frequência 0: nenhum desastre natural; placas paradas: só os do clima', () => {
     expect(run(worldOf(), 2000, 0).events.length).toBe(0);
-    expect(run(worldOf(), 2000, 1, 0).events.length).toBe(0);
+    const still = run(worldOf(), 2000, 1, 0).events;
+    expect(still.length).toBeGreaterThan(0);
+    const geo: number[] = [DisasterKind.Quake, DisasterKind.Tsunami, DisasterKind.Volcano];
+    expect(still.filter((e) => geo.includes(e.kind))).toEqual([]);
   });
 
   it('"Raro": terremoto grande (M ≥ 7) a cada ~100–600 anos de jogo', () => {
@@ -265,4 +268,75 @@ describe('desastres (T9): vulcões e pontos quentes', () => {
     };
     expect(islandsNear(true) - islandsNear(false)).toBeGreaterThanOrEqual(2);
   }, 300_000);
+});
+
+describe('desastres (T10): clima', () => {
+  it('furacão só nasce em oceano tropical quente e perde força em terra', () => {
+    const w = worldOf('terra', 64);
+    const { events } = run(w, 3000);
+    const storms = events.filter((e) => e.kind === DisasterKind.Hurricane);
+    expect(storms.length).toBeGreaterThan(20);
+    for (const e of storms) {
+      const c = w.grid.pointToCell(e.point[0], e.point[1], e.point[2]);
+      const lat = Math.abs(Math.asin(e.point[1])) * (180 / Math.PI);
+      expect(w.isWater(c)).toBe(true);
+      expect(lat).toBeGreaterThanOrEqual(7.9);
+      expect(lat).toBeLessThanOrEqual(20.1);
+      expect(w.temperature[c]!).toBeGreaterThanOrEqual(26);
+      // Em terra a força só cai.
+      const path = e.path!;
+      const st = e.strength!;
+      for (let k = 1; k < st.length; k++) {
+        const prev = w.grid.pointToCell(path[(k - 1) * 3]!, path[(k - 1) * 3 + 1]!, path[(k - 1) * 3 + 2]!);
+        if (!w.isWater(prev)) expect(st[k]!).toBeLessThan(st[k - 1]!);
+      }
+    }
+  });
+
+  it('incêndio natural só em floresta sob seca', () => {
+    const w = worldOf('mundo', 64);
+    const d = new Disasters(w);
+    let fires = 0;
+    for (let y = 1; y <= 6000; y++) {
+      const tick = y * TICKS_PER_YEAR;
+      // Antes do passo: guarda quais células estavam secas.
+      const before = d.disturbance.kind.slice();
+      const o = d.step(tick, 1);
+      for (const e of o?.events ?? []) {
+        if (e.kind !== DisasterKind.Fire) continue;
+        fires++;
+        const c = w.grid.pointToCell(e.point[0], e.point[1], e.point[2]);
+        expect([5, 6, 12]).toContain(w.biome[c]);
+        expect(before[c]).toBe(Mark.Dry);
+      }
+    }
+    expect(fires).toBeGreaterThan(5);
+  });
+
+  it('as marcas do clima somem: seca, enchente e queimado voltam ao normal', () => {
+    const w = worldOf('terra', 64);
+    const { d } = run(w, 400);
+    expect(d.counts[DisasterKind.Drought]! + d.counts[DisasterKind.Flood]!).toBeGreaterThan(0);
+    // Mais 100 anos sem nada novo: tudo some (a mais longa, queimado, dura 60).
+    d.frequency = 0;
+    for (let y = 401; y <= 500; y++) d.step(y * TICKS_PER_YEAR, 1);
+    expect(d.disturbance.active.size).toBe(0);
+  });
+
+  it('frequências em 1.000 anos em "Raro" dentro da faixa esperada', () => {
+    for (const seed of ['terra', 'mundo', '42']) {
+      const { events } = run(worldOf(seed, 64), 1000);
+      const n = (k: number) => events.filter((e) => e.kind === k).length;
+      expect(n(DisasterKind.Drought), seed).toBeGreaterThanOrEqual(5);
+      expect(n(DisasterKind.Drought), seed).toBeLessThanOrEqual(45);
+      expect(n(DisasterKind.Flood), seed).toBeGreaterThanOrEqual(5);
+      expect(n(DisasterKind.Flood), seed).toBeLessThanOrEqual(45);
+      expect(n(DisasterKind.Hurricane), seed).toBeGreaterThanOrEqual(10);
+      expect(n(DisasterKind.Hurricane), seed).toBeLessThanOrEqual(60);
+      // Grandes (avisos): um a cada ~60–120 anos (1–2 min em 1×), com folga: 5 a 25 em 1.000 anos.
+      const notable = events.filter((e) => e.notable).length;
+      expect(notable, seed).toBeGreaterThanOrEqual(5);
+      expect(notable, seed).toBeLessThanOrEqual(25);
+    }
+  });
 });

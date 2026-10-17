@@ -5,6 +5,7 @@ import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
 import { KeyControls } from './input/keys';
 import { DisasterFx } from './render/disaster-fx';
+import { MAX_STORMS } from './render/shaders';
 import type { DisasterEvent } from './world/disasters/types';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
@@ -137,6 +138,8 @@ export class App {
   /** Animações dos desastres na camada de cima (T8–T10) e se ainda há algo dela na tela. */
   private fx = new DisasterFx();
   private fxShown = false;
+  /** Nuvens ligadas no menu Clima (o desenho nasce depois do primeiro mundo). */
+  private cloudsOn = true;
   /** Setas do teclado: aproximar, afastar e girar (notebook). */
   private keys = new KeyControls(window, () => this.camera.stopSpin());
 
@@ -200,6 +203,12 @@ export class App {
         onToggle: (id, on) => {
           if (id === 'platesLayer') this.layers = { ...this.layers, plates: on };
           if (id === 'biomesLayer') this.layers = { ...this.layers, biomes: on };
+          if (id === 'cloudsLayer') {
+            if (this.renderer) this.renderer.clouds = on ? 1 : 0;
+            this.cloudsOn = on;
+            this.requestDraw();
+            return;
+          }
           if (id === 'resourcesLayer') {
             this.layers = { ...this.layers, resources: on };
             if (!on) this.tip.hide();
@@ -350,8 +359,10 @@ export class App {
     this.lastGenerationSignal = performance.now();
     this.info = info;
     this.colors = colors;
-    if (!this.renderer) this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
-    else this.renderer.setWorld(info.n, colors);
+    if (!this.renderer) {
+      this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
+      this.renderer.clouds = this.cloudsOn ? 1 : 0;
+    } else this.renderer.setWorld(info.n, colors);
     this.renderer.setPlates(plateCells);
     this.renderer.setDeposits(deposits);
     this.renderer.resourcesLayer = this.layers.resources;
@@ -583,6 +594,16 @@ export class App {
       this.needsDraw = true;
     }
 
+    // Nuvens andando (só com o tempo correndo e de longe) e furacões: o globo é redesenhado.
+    if (this.renderer) {
+      const r = this.renderer;
+      const running = this.clock.speed !== 0;
+      if (running) r.cloudTime += dt;
+      const storms = this.fx.stormsAt(performance.now(), r.storms, r.stormPower, MAX_STORMS);
+      if (storms || r.stormCount) this.needsDraw = true;
+      r.stormCount = storms;
+      if (running && r.clouds > 0 && this.camera.cellPixels() < 4) this.needsDraw = true;
+    }
     const drew = this.needsDraw;
     if (this.needsDraw) {
       renderer.draw(this.camera, this.motion.uniforms);

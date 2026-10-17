@@ -728,3 +728,8 @@ Formato: data — decisão — motivo — alternativa descartada.
   cima (3.500 m por célula em média, em pulsos de 3 células, teto 150 m/ano): sem o pulso nascia uma
   crista contínua em vez de ilhas em fila. O crescimento do ponto quente não é desastre (não conta na
   frequência); só as erupções visíveis dependem dela.
+- **2026-10-17 — T10, clima: decisões técnicas.** Furacão desenhado no shader do globo (espiral nas
+  nuvens, até 4 ao mesmo tempo), andando pela trilha em 9 s reais; seca, enchente e incêndio piscam na
+  camada de cima. Nuvens animadas só com o tempo correndo e de longe (parado, o globo continua sem
+  redesenhar). Ruído das nuvens em eixos girados e deformado pela escala maior: com os eixos da textura
+  de ruído, as nuvens viravam blocos. Incêndio só a partir do ano seguinte ao início da seca.

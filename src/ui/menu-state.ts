@@ -70,6 +70,7 @@ export const ITEMS: readonly MenuItem[] = [
 
   { id: 'temperature', category: 'clima', label: 'Temperatura', icon: '🌡️', kind: 'tool', available: true },
   { id: 'biomesLayer', category: 'clima', label: 'Ver biomas', icon: '🗺️', kind: 'toggle', available: true },
+  { id: 'cloudsLayer', category: 'clima', label: 'Nuvens', icon: '☁️', kind: 'toggle', available: true },
 
   { id: 'newWorld', category: 'mundo', label: 'Novo mundo', icon: '🌍', kind: 'action', available: true },
   { id: 'debug', category: 'mundo', label: 'Dados', icon: '🐞', kind: 'action', available: true },
@@ -102,7 +103,8 @@ export type MenuEffect =
   | { type: 'action'; action: string }
   | { type: 'toggle'; id: string; on: boolean };
 
-export const INITIAL_MENU: MenuState = { open: false, category: 'relevo', active: 'move', toggles: [] };
+/** Nuvens começam ligadas (T10). */
+export const INITIAL_MENU: MenuState = { open: false, category: 'relevo', active: 'move', toggles: ['cloudsLayer'] };
 
 /** Categoria do que está ativo na tela (para abrir o menu "no lugar certo"). */
 export function categoryOfActive(state: MenuState): CategoryId {

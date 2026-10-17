@@ -5,7 +5,22 @@ import type { WorldState } from '../state';
 import { Disturbance, Mark, MARK_YEARS } from './disturbance';
 import { buildFaults, type Fault, feltRadius, MAX_MAGNITUDE, NOTABLE_MAGNITUDE, sampleMagnitude, stressDrop, yearlyStress } from './quakes';
 import { propagateTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, wavePoints } from './tsunami';
-import { decimal, DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './types';
+import { areaLabel, decimal, DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './types';
+import {
+  DROUGHT_CHANCE,
+  FIRE_CHANCE,
+  FLOOD_CHANCE,
+  FOREST_BIOMES,
+  HURRICANE_CHANCE,
+  HURRICANE_LAT,
+  HURRICANE_MIN_TEMP,
+  hurricaneTrack,
+  landAround,
+  latitudeOf,
+  pickCell,
+  sampleCategory,
+  spreadFire,
+} from './weather';
 import {
   ashRadius,
   ERUPTIONS_PER_YEAR,
@@ -57,6 +72,8 @@ export class Disasters {
   /** Pontos quentes (fixos no manto: direções no mundo) e quanto (células) a placa já andou por cima. */
   hotspots: Vec3[];
   private hotspotTravel: number[] = [];
+  /** Secas em curso: as células de floresta dentro delas (onde pode pegar fogo) e até quando. */
+  private droughts: { forest: number[]; since: number; until: number }[] = [];
   private nextId = 1;
   /** Contagem por tipo (para testes e o painel). */
   readonly counts = new Array<number>(7).fill(0);
@@ -82,6 +99,8 @@ export class Disasters {
     const out: DisasterOutcome = { events: [], marked: this.disturbance.expire(tick), uplifts: [] };
     const factor = FREQUENCIES[this.frequency]?.factor ?? 0;
     if (plateRate > 0) this.hotspotGrowth(tick, plateRate, factor, out);
+    // Clima: continua com as placas paradas.
+    if (factor > 0) this.weather(tick, factor, out);
     if (factor > 0 && plateRate > 0) {
       for (const f of this.faults.values()) {
         // Erupção num arco (forte) ou numa dorsal (fraca).
@@ -116,6 +135,16 @@ export class Disasters {
     } else if (kind === DisasterKind.Volcano) {
       // Do jogador: sempre forte (IEV 4 a 6) e ergue mais (no mar raso já vira ilha).
       this.eruption(cell, 4 + this.rng.int(0, 2), tick, true, '', out, 900);
+    } else if (kind === DisasterKind.Drought) {
+      if (!world.isWater(cell)) this.drought(cell, tick, true, out);
+    } else if (kind === DisasterKind.Flood) {
+      if (!world.isWater(cell)) this.flood(cell, tick, true, out);
+    } else if (kind === DisasterKind.Hurricane) {
+      const sea = nearestWater(world, cell, 12);
+      if (sea >= 0) this.hurricane(sea, 3 + this.rng.int(0, 2), tick, true, out);
+    } else if (kind === DisasterKind.Fire) {
+      const forest = nearest(world, cell, 6, (c) => FOREST_BIOMES.has(world.biome[c] as number) && !world.ice[c]);
+      if (forest >= 0) this.fire(forest, 40 + this.rng.int(0, 110), tick, true, () => true, out);
     } else if (kind === DisasterKind.Tsunami) {
       const sea = nearestWater(world, cell, 12);
       if (sea >= 0) this.quake(sea, 8.3 + 0.9 * this.rng.next(), tick, true, out);
@@ -162,6 +191,122 @@ export class Disasters {
         this.eruption(cell, vei, tick, false, 'ponto quente', out);
       }
     }
+  }
+
+  /** Desastres climáticos do ano: seca, enchente, furacão e incêndio (só sob seca). */
+  private weather(tick: number, factor: number, out: DisasterOutcome): void {
+    const world = this.world;
+    const rng = this.rng;
+    if (rng.next() < DROUGHT_CHANCE * factor) {
+      // Mais provável onde já é seco.
+      const c = pickCell(world, rng, (i) => !world.isWater(i) && !world.ice[i] && rng.next() > (world.precipitation[i] as number) / 2000);
+      if (c >= 0) this.drought(c, tick, false, out);
+    }
+    if (rng.next() < FLOOD_CHANCE * factor) {
+      const c = pickCell(world, rng, (i) => !world.isWater(i) && !world.ice[i] && world.heightAboveSea(i) < 300 && (world.precipitation[i] as number) > 900);
+      if (c >= 0) this.flood(c, tick, false, out);
+    }
+    if (rng.next() < HURRICANE_CHANCE * factor) {
+      const c = pickCell(world, rng, (i) => {
+        const lat = Math.abs(latitudeOf(world, i));
+        return world.isWater(i) && !world.ice[i] && lat >= HURRICANE_LAT[0] && lat <= HURRICANE_LAT[1] && (world.temperature[i] as number) >= HURRICANE_MIN_TEMP;
+      });
+      if (c >= 0) this.hurricane(c, sampleCategory(rng.next()), tick, false, out);
+    }
+    this.droughts = this.droughts.filter((d) => d.until > tick && d.forest.length);
+    for (const d of this.droughts) {
+      // O fogo vem com a seca já instalada (a partir do ano seguinte).
+      if (d.since >= tick || rng.next() >= FIRE_CHANCE * factor) continue;
+      const dry = (c: number) => this.disturbance.kind[c] === Mark.Dry;
+      const start = d.forest[rng.int(0, d.forest.length - 1)] as number;
+      if (!dry(start) || !FOREST_BIOMES.has(world.biome[start] as number)) continue;
+      // Tamanho log-uniforme: muitos pequenos, poucos enormes.
+      this.fire(start, Math.round(Math.exp(rng.next() * Math.log(300))), tick, false, dry, out);
+    }
+  }
+
+  private drought(center: number, tick: number, manual: boolean, out: DisasterOutcome): void {
+    const world = this.world;
+    // Raio de 5 a 13 células, os grandes raros (u²); a do jogador sempre grande.
+    const radius = manual ? this.rng.int(10, 13) : 5 + Math.floor(9 * this.rng.next() ** 2);
+    const years = this.rng.int(5, 15);
+    const cells = landAround(world, center, radius);
+    if (!cells.length) return;
+    for (const c of cells) {
+      this.disturbance.mark(c, Mark.Dry, tick, years, TICKS_PER_YEAR);
+      out.marked.push(c);
+    }
+    this.droughts.push({ forest: cells.filter((c) => FOREST_BIOMES.has(world.biome[c] as number)), since: tick, until: tick + years * TICKS_PER_YEAR });
+    this.event(DisasterKind.Drought, center, cells.length, radius >= 12, manual, `Seca · ${areaLabel(cells.length, world.cellCount)}, ${years} anos`, radius, tick, out);
+  }
+
+  private flood(center: number, tick: number, manual: boolean, out: DisasterOutcome): void {
+    const world = this.world;
+    const radius = manual ? this.rng.int(6, 8) : 3 + Math.floor(6 * this.rng.next() ** 2);
+    const cells = landAround(world, center, radius, (c) => world.heightAboveSea(c) < 250);
+    if (!cells.length) return;
+    const years = this.rng.int(2, 5);
+    for (const c of cells) {
+      this.disturbance.mark(c, Mark.Flood, tick, years, TICKS_PER_YEAR);
+      out.marked.push(c);
+    }
+    this.event(DisasterKind.Flood, center, cells.length, cells.length >= 110, manual, `Enchente · ${areaLabel(cells.length, world.cellCount)}`, radius, tick, out);
+  }
+
+  private hurricane(start: number, category: number, tick: number, manual: boolean, out: DisasterOutcome): void {
+    const world = this.world;
+    const t = hurricaneTrack(world, start, category, this.rng);
+    // Chuva forte onde ele passa em terra: terra baixa alaga por uns anos.
+    const seen = new Set<number>();
+    for (const c of t.landCells) {
+      for (const j of landAround(world, c, 2, (i) => world.heightAboveSea(i) < 150)) {
+        if (seen.has(j)) continue;
+        seen.add(j);
+        this.disturbance.mark(j, Mark.Flood, tick, 3, TICKS_PER_YEAR);
+        out.marked.push(j);
+      }
+    }
+    const n = t.points.length;
+    const path = new Float32Array(n * 3);
+    const times = new Float32Array(n);
+    const strength = new Float32Array(n);
+    for (let k = 0; k < n; k++) {
+      path.set(t.points[k] as Vec3, k * 3);
+      times[k] = n > 1 ? k / (n - 1) : 0;
+      strength[k] = t.strength[k] as number;
+    }
+    this.count(DisasterKind.Hurricane);
+    out.events.push({
+      id: this.nextId++,
+      kind: DisasterKind.Hurricane,
+      tick,
+      point: cellPoint(world, start),
+      magnitude: t.category,
+      notable: t.landfall && t.category >= 4,
+      manual,
+      label: `Furacão categoria ${t.category}${t.landfall ? ' · tocou terra' : ''}`,
+      radius: 0.04 + 0.012 * t.category,
+      path,
+      times,
+      strength,
+    });
+  }
+
+  private fire(start: number, size: number, tick: number, manual: boolean, dry: (c: number) => boolean, out: DisasterOutcome): void {
+    const world = this.world;
+    const burned = spreadFire(world, start, size, dry);
+    for (const c of burned) {
+      this.disturbance.mark(c, Mark.Burned, tick, MARK_YEARS[Mark.Burned], TICKS_PER_YEAR);
+      out.marked.push(c);
+    }
+    const radius = Math.sqrt(burned.length / Math.PI) + 1;
+    this.event(DisasterKind.Fire, start, burned.length, burned.length >= 60, manual, `Incêndio · ${areaLabel(burned.length, world.cellCount)} queimados`, radius, tick, out);
+  }
+
+  /** Evento simples (centro, área em células, raio em células). */
+  private event(kind: DisasterKind, cell: number, area: number, notable: boolean, manual: boolean, label: string, radiusCells: number, tick: number, out: DisasterOutcome): void {
+    this.count(kind);
+    out.events.push({ id: this.nextId++, kind, tick, point: cellPoint(this.world, cell), magnitude: area, notable, manual, label, radius: radiusCells * this.world.grid.cellAngle });
   }
 
   /** Erupção: ergue o terreno para sempre e espalha cinzas em terra. */
@@ -240,7 +385,12 @@ export function cellPoint(world: WorldState, c: number): Vec3 {
 
 /** Célula de mar mais perto de `from` (até `steps` passos), ou −1. */
 export function nearestWater(world: WorldState, from: number, steps: number): number {
-  if (world.isWater(from)) return from;
+  return nearest(world, from, steps, (c) => world.isWater(c));
+}
+
+/** Célula mais perto de `from` (até `steps` passos) que cumpre `ok`, ou −1. */
+export function nearest(world: WorldState, from: number, steps: number, ok: (c: number) => boolean): number {
+  if (ok(from)) return from;
   const { neighbors } = world.grid;
   const seen = new Set([from]);
   let frontier = [from];
@@ -250,7 +400,7 @@ export function nearestWater(world: WorldState, from: number, steps: number): nu
       for (let d = 0; d < 4; d++) {
         const j = neighbors[c * 4 + d] as number;
         if (seen.has(j)) continue;
-        if (world.isWater(j)) return j;
+        if (ok(j)) return j;
         seen.add(j);
         next.push(j);
       }

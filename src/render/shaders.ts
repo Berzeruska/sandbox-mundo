@@ -544,6 +544,7 @@ float cellHash(ivec3 t) {
 }
 
 ${motion ? MOTION_GLSL : SIMPLE_GLSL}
+${CLOUDS_GLSL}
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
   p += dot(p, p + 45.32);
@@ -580,6 +581,9 @@ void main() {
   vec3 base = surface(p, cellPx);${motion ? `
   // Transição suave depois de uma recomposição: mistura com a composição anterior.
   if (uFade < 1.0) base = mix(surfacePrev(p, cellPx), base, uFade);` : ''}
+  // Nuvens (T10): somem ao aproximar a câmera (a partir de ~2 px por célula).
+  float cloudShow = uClouds * (1.0 - smoothstep(1.5, 4.0, cellPx));
+  if (cloudShow > 0.0 || uStormCount > 0) base = mix(base, vec3(0.96, 0.97, 1.0), clouds(p, cloudShow));
 
   // Luz suave: lado iluminado e sombra sem ficar preto; um toque de atmosfera na borda.
   float diffuse = max(dot(nView, uLight), 0.0);
@@ -589,6 +593,61 @@ void main() {
   outColor = vec4(col, 1.0);
 }`
 }
+
+/** Furacões desenhados ao mesmo tempo, no máximo. */
+export const MAX_STORMS = 4;
+
+/**
+ * Nuvens (T10, pedido do usuário: simples, translúcidas, somem ao aproximar; furacões em redemoinho).
+ * Faixas pela latitude (muita nuvem no equador e nas latitudes das tempestades, ~55°; pouca nos
+ * desertos subtropicais), ruído que anda devagar com o tempo, e os furacões como espirais com olho,
+ * girando no sentido do hemisfério. Os furacões aparecem mesmo de perto (só as nuvens comuns somem).
+ */
+const CLOUDS_GLSL = `
+uniform float uClouds;      // 0–1: nuvens comuns ligadas
+uniform float uCloudTime;   // segundos (anda só com o tempo do jogo correndo)
+uniform int uStormCount;
+uniform vec4 uStorms[${MAX_STORMS}];     // centro (xyz) e raio (rad)
+uniform float uStormPower[${MAX_STORMS}]; // força 0–1 e sentido (sinal: hemisfério)
+
+// Rotação fixa qualquer (tira os eixos do ruído do alinhamento com a grade).
+const mat3 CLOUD_ROT = mat3(0.80, 0.36, -0.48, -0.60, 0.48, -0.64, 0.0, 0.80, 0.60);
+
+float clouds(vec3 p, float show) {
+  float cover = 0.0;
+  if (show > 0.0) {
+    float lat = asin(clamp(p.y, -1.0, 1.0));
+    float band = 0.55 * exp(-pow(lat / 0.14, 2.0)) + 0.5 * exp(-pow((abs(lat) - 0.95) / 0.22, 2.0)) + 0.12;
+    // Ventos: perto do equador e nas altas latitudes para oeste, no meio para leste.
+    float wind = abs(lat) < 0.52 || abs(lat) > 1.05 ? -1.0 : 1.0;
+    float a = uCloudTime * 0.004 * wind;
+    vec3 q = vec3(p.x * cos(a) - p.z * sin(a), p.y, p.x * sin(a) + p.z * cos(a));
+    // Manchas de nuvem de ~1.000 km com borda recortada: três escalas do ruído, cada uma em eixos
+    // girados (sem os eixos girados, a grade da textura de ruído aparecia como blocos), e a maior
+    // deslocando as menores (formas puxadas, como nuvens).
+    vec3 r1 = CLOUD_ROT * q;
+    vec3 warp = noise3(r1 * 4.0 + 5.0);
+    float n = 0.55 * noise3(r1 * 8.0 + warp * 0.6).x + 0.3 * noise3(CLOUD_ROT * r1 * 19.0 + warp).y + 0.15 * noise3(r1 * 41.0).z;
+    cover = smoothstep(0.6 - 0.4 * band, 0.8 - 0.4 * band, n * 0.5 + 0.5) * 0.6 * show;
+  }
+  for (int k = 0; k < ${MAX_STORMS}; k++) {
+    if (k >= uStormCount) break;
+    vec3 c = uStorms[k].xyz;
+    float d = acos(clamp(dot(p, c), -1.0, 1.0)) / uStorms[k].w;
+    if (d > 1.3) continue;
+    vec3 u = normalize(cross(c, abs(c.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+    vec3 v = cross(c, u);
+    float ang = atan(dot(p, v), dot(p, u));
+    float power = abs(uStormPower[k]);
+    float spin = sign(uStormPower[k]);
+    float arms = sin(2.0 * ang * spin + log(d + 0.04) * 7.0 - uCloudTime * 2.5 * spin);
+    float dens = (1.0 - smoothstep(0.25, 1.25, d)) * (0.6 + 0.4 * arms);
+    dens *= smoothstep(0.05, 0.13, d); // olho
+    cover = max(cover, dens * (0.55 + 0.4 * power));
+  }
+  return clamp(cover, 0.0, 0.92);
+}
+`;
 
 /** Shader completo (com movimento suave das placas). */
 export const FRAGMENT_SHADER = fragmentShader(true);

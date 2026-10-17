@@ -31,9 +31,9 @@ describe('menu de ferramentas: conteúdo', () => {
     expect(itemsOf('tempo').map((i) => i.speed)).toEqual([0, 1, 2, 5, 20, 'max']);
   });
 
-  it('Desastres ainda "em breve"; Clima tem "Temperatura" e "Ver biomas"; Geologia tem "Ver placas", "Ver recursos" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
+  it('Desastres ainda "em breve"; Clima tem "Temperatura", "Ver biomas" e "Nuvens"; Geologia tem "Ver placas", "Ver recursos" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
     expect(itemsOf('desastres').every((i) => !i.available)).toBe(true);
-    expect(itemsOf('clima').map((i) => [i.label, i.available])).toEqual([['Temperatura', true], ['Ver biomas', true]]);
+    expect(itemsOf('clima').map((i) => [i.label, i.available])).toEqual([['Temperatura', true], ['Ver biomas', true], ['Nuvens', true]]);
     expect(itemsOf('geologia').map((i) => [i.label, i.available])).toEqual([['Ver placas', true], ['Ver recursos', true], ['Velocidade', true]]);
     expect(itemsOf('mundo').map((i) => i.label)).toEqual(['Novo mundo', 'Dados']);
   });
@@ -96,10 +96,11 @@ describe('interruptores (camadas)', () => {
     const s0 = { ...INITIAL_MENU, active: 'raise', open: true, category: 'geologia' as const };
     const a = selectItem(s0, 'platesLayer');
     expect(a.effect).toEqual({ type: 'toggle', id: 'platesLayer', on: true });
-    expect(a.state).toMatchObject({ open: false, active: 'raise', toggles: ['platesLayer'] });
+    // As nuvens já começam ligadas.
+    expect(a.state).toMatchObject({ open: false, active: 'raise', toggles: ['cloudsLayer', 'platesLayer'] });
     const b = selectItem({ ...a.state, open: true }, 'platesLayer');
     expect(b.effect).toEqual({ type: 'toggle', id: 'platesLayer', on: false });
-    expect(b.state.toggles).toEqual([]);
+    expect(b.state.toggles).toEqual(['cloudsLayer']);
   });
 });
 

@@ -62,9 +62,19 @@ export interface DisasterEvent {
    */
   path?: Float32Array;
   times?: Float32Array;
+  /** Força em cada ponto da trilha (furacão: categoria). */
+  strength?: Float32Array;
 }
 
 /** Texto de magnitude com vírgula decimal. */
 export function decimal(v: number, digits = 1): string {
   return v.toFixed(digits).replace('.', ',');
+}
+
+/** Área de `cells` células (km²) num planeta do tamanho da Terra, em texto ("12 mil km²"). */
+export function areaLabel(cells: number, cellCount: number): string {
+  const km2 = (cells * 510e6) / cellCount;
+  if (km2 >= 1e6) return `${decimal(km2 / 1e6)} milhão de km²`.replace('milhão', km2 >= 2e6 ? 'milhões' : 'milhão');
+  if (km2 >= 1e4) return `${Math.round(km2 / 1e3)} mil km²`;
+  return `${Math.round(km2 / 100) * 100} km²`;
 }
