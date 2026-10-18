@@ -1,8 +1,8 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-17**, branch `marco-2`. Rodada de correções do teste da `50f0dca` feita e
-**bloco Desastres (T8–T12) terminado, esperando o teste do usuário no notebook**. Próximo bloco:
-Final (T13 teste longo, T14 medição).
+Atualizado em: **2026-10-17**, branch `marco-2`. O usuário testou a `b3297292` (bloco Desastres
+T8–T12) e pediu o **redesenho dos desastres**. **Especificação e imagens do Bloco Desastres v2
+(R1–R9) prontas, esperando aprovação do usuário antes de codar.** Depois: Final (T13, T14).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -10,8 +10,10 @@ sobre "onde estamos", vale este.
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
 - **Aparelho-alvo mudou (decisão do usuário, 2026-10-17): o notebook** (Vivobook Go E1504FA, Ubuntu,
   Radeon 610M, tela 1080p 60 Hz com toque). O celular saiu do projeto, sem meta. O "Medir desempenho"
-  roda no notebook. **Metas novas propostas em `docs/decisoes.md`, esperando aprovação**; até lá, não
-  piorar o relatório de 2026-10-17 (60 fps em tudo, nenhum quadro > 50 ms, geração 0,79 s).
+  roda no notebook. **Metas aprovadas (2026-10-17):** 60 fps de média, mínimo ≥ 50, nenhum quadro
+  > 50 ms em todos os cenários; geração ≤ 1,5 s (primeira abertura ≤ 2,5 s); recomposição ≤ 1 s sem
+  o relógio esperar; globo ≤ 8 ms de GPU; memória ≤ 400 MB. O relatório tem que passar a mostrar
+  GPU e memória (entra na R1).
 - **Feito na rodada do teste da `50f0dca`** (detalhes em `docs/decisoes.md` e na especificação):
   pontos rosa/azuis no gelo corrigidos (cor estourava o byte); costa reta; quadrados a partir de 3–6 px
   (sem formas redondas entre os pixels); faixas arrastadas nas fronteiras de placa de longe corrigidas;
@@ -25,12 +27,22 @@ sobre "onde estamos", vale este.
   T11 feita (provocar cada desastre tocando no globo, frequência de Nenhum a Muitos, "Ver tensão");
   T12 feita (aviso dos grandes no alto, "Lista" no menu Desastres, tocar leva a câmera até lá).
   Medido no notebook (1080p): 60 fps com "Muitos" a 20× e placas 100%, de longe e de perto.
-- **Esperando o usuário:** (1) aprovar as metas do notebook; (2) proposta dos polos
-  (`docs/img/m2-polos-proposta.png`: borda em lobos, placas soltas, fino e azulado na borda); (3)
-  norte/sul pelo teclado não existe (arrastar faz) — o usuário pediu para ser avisado.
-- **Fronteiras de placa:** o usuário disse "ainda não está bom" sem detalhar; corrigido o que se viu
-  (faixas arrastadas de longe, formas redondas de média distância). Sobram filetes finos na fenda
-  quando as placas acabaram de se afastar (é a fenda nova, desenhada como vale ou dorsal).
+- **Teste da `b3297292` (2026-10-17), decisões do usuário** (detalhes em `docs/decisoes.md`):
+  metas aprovadas; controles ficam (sem tecla para norte/sul); polos trocam pela proposta (sem
+  deformar o que passa por cima perto do polo; calotas e variação de cor; textura fina no M8); a
+  "tampa" sem nuvens em volta do polo tem que sumir; floresta tropical e minérios aprovados; prioridade
+  visual = o que o desastre faz no mundo (acabamento no M8); **redesenho dos desastres**.
+- **Bloco Desastres v2 (R1–R9), especificado em `docs/M2-especificacao.md`, esperando aprovação:**
+  vegetação por célula em %, estados de célula (em chamas, queimado, lava, basalto, alagado, lama,
+  fenda, solo fértil, calor) que mudam a cor e se recuperam; desastres andando passo a passo no
+  relógio; incêndio célula a célula (campo queima) e raio novo; seca com calor; enchente nova (chuva,
+  terreno baixo, solo fértil); terremoto com tela tremendo, fenda e deslizamentos; tsunami que recua,
+  avança 3–14 células e raspa a costa; vulcões no mapa com cratera, adormecido/acordado e lava;
+  furacões das nuvens, vários, ciclone/furacão, estrago no caminho; magnitude ao provocar; avisos no
+  canto inferior esquerdo, sem lista. Imagens: `docs/img/m2-dv-*.png` e `docs/img/m2-nuvens-polo.png`.
+  **5 perguntas ao usuário** no fim da seção (velocidade dos desastres em 20×, terreno mudando para
+  sempre, raio × vulcão, enchente, alcance do tsunami).
+- **Fronteiras de placa:** o usuário não voltou a reclamar no teste da `b3297292`.
 - **Limite:** a textura de cores guarda o bioma em 4 bits (16 biomas, o número de hoje). Bioma novo
   exige mudar isso; bioma novo só perguntando ao usuário, com o custo.
 - **Decidido em 2026-10-16 (teste do Bloco G):** `42` é falha conhecida de latitude; critério de
@@ -110,10 +122,13 @@ sobre "onde estamos", vale este.
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] T8 em diante (desastres, avisos, teste longo).
+- [ ] Bloco Desastres v2 (R1–R9), depois da aprovação da especificação.
+- [ ] T13 (teste longo) e T14 (medição final).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
+- `b3297292`, medido pelo usuário (Firefox, 1920×1080): mínimo 59–60 fps em todos os cenários, pior
+  quadro 34 ms, nenhum acima de 50 ms, geração 0,96 s, primeira abertura 2,25 s. Faltaram GPU e memória.
 - Fim do bloco Desastres (`b357aaa`), 1920×1080: "Medir desempenho" 60 fps em todos os cenários (com
   as nuvens), pior quadro 17 ms; desastres em "Muitos" a 20× com placas 100%: 60 fps, pior quadro
   16,7 ms, relógio a 240 passos/s sem esperar.
@@ -148,6 +163,10 @@ sobre "onde estamos", vale este.
   encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
 
 ## Ideias registradas para marcos futuros (não fazer agora)
+- 2026-10-17: características do mundo em porcentagem; seca −30% de vida; furacão "puxa as coisas";
+  terremoto destrói o que há em cima (`docs/04-ecologia.md`); nômades caçam depois de "dominar o
+  fogo" (M4); eventos de exemplo da crônica: "Fim da Pangeia", "Ora, temos um Sócrates aqui",
+  "Piromania" (`docs/07-cronica-nomes.md`).
 - M3: escala do planeta × tamanho dos humanos (sem humanos de 1 pixel; 3 opções em `docs/02-marcos.md`);
   base do feedback ambiental; floresta grande afeta o clima; criaturas vistas de cima (confirmar na
   especificação do M3 que a vista de perto e a escala permitem).

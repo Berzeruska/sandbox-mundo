@@ -50,3 +50,13 @@ volta para elas:
   favorece túneis e emboscada, ver `06-guerra.md`).
 - O Marco 3 prepara a base (vegetação, solo e fauna reagindo a perturbações); os gatilhos humanos
   entram nos Marcos 4 (desmatamento, agricultura) e 7 (combustível fóssil em escala, bombas).
+
+## Desastres e a vida (ideia do usuário, 2026-10-17; o M2 só muda terreno, bioma e vegetação)
+- **Princípio geral: as características do mundo são tratadas em porcentagem** (cobertura de vegetação,
+  quanto uma região sustenta, quanto um desastre tira). O M2 já guarda a vegetação de cada célula em
+  porcentagem (redesenho dos desastres, `docs/M2-especificacao.md`).
+- **Seca:** dificulta a vida na região em até 30% (menos plantas, menos comida e água).
+- **Furacão:** "puxa as coisas": arrasta criaturas e objetos leves no caminho.
+- **Terremoto:** destrói o que está em cima do ponto onde começa (no M2, terreno e bioma; depois,
+  criaturas e construções).
+- **Enchente:** deixa solo fértil (várzea), bom para plantas e, no M4, para a agricultura.

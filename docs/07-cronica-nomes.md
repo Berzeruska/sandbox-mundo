@@ -5,6 +5,12 @@
   de resumo montada por frases-modelo (templates), sem IA externa.
 - Exemplos: fundação de cidade, mudança de regime, guerra declarada, paz, batalha decisiva,
   revolução, golpe, desastre grande, extinção, último indivíduo, nascimento e morte de líder.
+- Eventos marcantes de exemplo (ideias do usuário, 2026-10-17), com nome próprio:
+  - **"Fim da Pangeia":** quando o supercontinente se rompe.
+  - **"Ora, temos um Sócrates aqui":** alguém começa a causar desordem fazendo perguntas, é executado
+    por isso, e dois discípulos escrevem os livros-base daquela humanidade, dando origem à filosofia.
+  - **"Piromania":** o domínio do fogo (os nômades pegam um graveto de um incêndio, inclusive de raio;
+    ver o Marco 4 em `docs/02-marcos.md`).
 - **Consultável como dicionário:** busca por nome, filtro por ano, civilização, tipo e região.
 - Tocar num evento leva a câmera até o lugar onde ele aconteceu.
 - Limite de tamanho: eventos menores entram em resumos por década para não inchar a memória.

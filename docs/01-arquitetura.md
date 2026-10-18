@@ -78,8 +78,8 @@ relógio já ficam com eles; ajudante a mais só gasta memória e coordenação.
   antes de seguir com cópia (+45–48 MB em vez de ~+15–20 MB).
 
 ### Teto de memória
-- **Dados do jogo ≤ 150 MB de RAM** (teto do tempo do celular com 4 GB; com o notebook de 16 GB ele
-  pode subir, a decidir junto com as metas novas), medido no fim de cada marco.
+- **Memória do jogo ≤ 400 MB** (meta do notebook aprovada em 2026-10-17; antes 150 MB, teto do
+  celular com 4 GB), medida no "Medir desempenho" e no fim de cada marco.
   Não contam o próprio navegador (~100–150 MB) nem a memória de vídeo (~20–40 MB).
 - Estimativa por marco (N = 256, ~393 mil células): hoje 53 MB ao abrir → 66 aos 15 min (medido);
   fim do M2 70–85; M3 85–115; M4 95–130; M5 100–140 (crônica com teto, a antiga resumida);
@@ -118,9 +118,15 @@ docs/
   nenhuma** (manter os dois dobraria o trabalho). O que foi feito pensando no Hot 50i continua valendo
   (shader leve, ajudantes com folga), mas deixa de ser limite.
 - **Sem opção de qualidade** (decisão do usuário): o jogo inteiro tem que rodar bem no aparelho-alvo.
-- **Metas no notebook: propostas em `docs/decisoes.md` (2026-10-17), esperando aprovação.** Até lá,
-  vale não piorar o relatório de 2026-10-17 (60 fps — o teto da tela — em todos os cenários, nenhum
-  quadro > 50 ms, geração ~0,8 s, recomposição ~330 ms sem o relógio esperar).
+- **Metas no notebook (aprovadas pelo usuário em 2026-10-17):**
+  1. todos os cenários: **60 fps de média** (o teto da tela), **mínimo ≥ 50**, **nenhum quadro > 50 ms**;
+  2. **geração ≤ 1,5 s** (primeira abertura ≤ 2,5 s);
+  3. **recomposição ≤ 1 s** no ajudante, relógio **nunca esperando** em 20× com placas 100%;
+  4. **globo ≤ 8 ms de GPU** por quadro em 1080p (folga para os marcos seguintes);
+  5. **memória do jogo ≤ 400 MB**.
+  O relatório tem que trazer os cinco, inclusive o tempo de GPU e a memória (pedido do usuário).
+  Primeira medição do usuário (`b3297292`, Firefox, 1920×1080): mínimo 59–60 fps em todos os
+  cenários, pior quadro 34 ms, geração 0,96 s, primeira abertura 2,25 s.
 - Metas antigas do celular (histórico, não valem mais): pausado ≥ 85 fps; tempo rodando ≥ 60;
   placas ≥ 30 (nunca < 20); geração ≤ 3 s; de perto ≥ 60 parado e ≥ 30 com placas.
 - O relatório do botão "Medir desempenho" (painel Dados), rodado no notebook, é a verdade. A tela é de

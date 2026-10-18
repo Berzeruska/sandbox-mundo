@@ -39,10 +39,11 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 6. **Orçamento do notebook** (decisão do usuário, 2026-10-17; antes era o celular Infinix Hot 50i,
    que saiu sem meta nenhuma). Aparelho-alvo: **ASUS Vivobook Go E1504FA** (Ryzen 5 7520U, 4 núcleos
    / 8 threads, GPU integrada Radeon 610M, 16 GB, tela 1920×1080 a 60 Hz com toque), Ubuntu. Não há
-   opção de qualidade. **Metas novas: propostas em `docs/decisoes.md`, ainda não aprovadas**; até a
-   aprovação, nenhuma mudança pode piorar o relatório "Medir desempenho" de 2026-10-17 no notebook
-   (60 fps em todos os cenários, nenhum quadro > 50 ms, geração ~0,8 s). O relatório rodado no
-   notebook é a verdade. Se uma mudança derrubar a meta, conserte antes de seguir.
+   opção de qualidade. **Metas aprovadas pelo usuário (2026-10-17):** todos os cenários com 60 fps de
+   média, mínimo ≥ 50 e nenhum quadro > 50 ms; geração ≤ 1,5 s (primeira abertura ≤ 2,5 s);
+   recomposição ≤ 1 s sem o relógio esperar; globo ≤ 8 ms de GPU por quadro em 1080p; memória do jogo
+   ≤ 400 MB. O relatório "Medir desempenho" rodado no notebook é a verdade e tem que mostrar também o
+   tempo de GPU e a memória. Se uma mudança derrubar a meta, conserte antes de seguir.
 7. **Sem dependência nova sem justificativa.** Antes de instalar um pacote, diga qual, por que e o
    tamanho aproximado. Registre em `docs/decisoes.md`.
 8. **Nada do WorldBox.** Não copie, descompile nem reproduza código, sprites, sons ou nomes de

@@ -81,6 +81,9 @@ Aldeias, agricultura, caça, fome, doença, domesticação, crescimento de povoa
 povoados bem pequenos no mapa. Ver `docs/05-civilizacao-politica.md` e `docs/04-ecologia.md`.
 Pedido do usuário (2026-10-16): os humanos **começam nômades**, com técnicas de caça, antes da
 agricultura.
+Ideia do usuário (2026-10-17): os nômades comem carcaças e frutas e **passam a caçar quando "dominam
+o fogo"**, pegando um graveto de um incêndio, inclusive de um incêndio começado por raio (o raio
+entra no M2). Na crônica, esse evento é a "Piromania" (`docs/07-cronica-nomes.md`).
 Ideia do usuário (2026-10-17): zoom maior para caberem humanos pequenos (ver a questão de escala do
 M3).
 Anotado na T6 (2026-10-17): **água potável** (rios, lagos, chuva, água subterrânea, calculada do

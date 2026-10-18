@@ -675,7 +675,7 @@ Formato: data — decisão — motivo — alternativa descartada.
     em todos os cenários, inclusive "de perto" e placas 100%; pior quadro 17 ms, nenhum > 50 ms;
     geração 0,79 s (primeira abertura 1,48 s); recomposição média ~330 ms (pior 505), relógio sem
     esperar; recálculo do clima ~88 ms no ajudante.
-  - **Metas propostas (esperando aprovação do usuário; até lá não valem):**
+  - **Metas propostas (aprovadas pelo usuário em 2026-10-17, ver a entrada do teste da `b3297292`):**
     1. Todos os cenários (pausado, girando, de perto, tempo 20×, placas 100%, deriva longa, ruptura):
        **60 fps de média** (o teto da tela), **mínimo ≥ 50**, **nenhum quadro > 50 ms**.
     2. **Geração ≤ 1,5 s** do pedido ao globo (primeira abertura ≤ 2,5 s).
@@ -733,3 +733,29 @@ Formato: data — decisão — motivo — alternativa descartada.
   camada de cima. Nuvens animadas só com o tempo correndo e de longe (parado, o globo continua sem
   redesenhar). Ruído das nuvens em eixos girados e deformado pela escala maior: com os eixos da textura
   de ruído, as nuvens viravam blocos. Incêndio só a partir do ano seguinte ao início da seca.
+
+- **2026-10-17 — Teste da `b3297292` no notebook: decisões do usuário.**
+  1. **Metas do notebook aprovadas** (as cinco propostas acima; `CLAUDE.md` regra 6 e
+     `docs/01-arquitetura.md`). Medição do usuário (Firefox, 1920×1080): mínimo 59–60 fps em todos os
+     cenários, pior quadro 34 ms, nenhum acima de 50 ms, geração 0,96 s, primeira abertura 2,25 s.
+     Faltaram o tempo de GPU e a memória: o "Medir desempenho" passa a mostrar os dois.
+  2. **Controles ficam como estão**, sem tecla para norte e sul.
+  3. **Polos: trocar pela proposta** (`docs/img/m2-polos-proposta.png`), desde que o losango de perto
+     não deforme o que passa por cima; calotas polares e variação de cor no gelo; textura fina no M8.
+  4. **A mancha oval sem nuvens em volta do polo tem que sumir** (parece uma tampa). As nuvens em si
+     estão boas.
+  5. Floresta tropical fica como está. 6. Minérios aprovados.
+  7. **Prioridade visual:** o que o desastre faz no mundo, legível; acabamento fino no M8.
+  8. **Redesenho dos desastres** (refaz T8–T12): todo desastre muda o mundo (terreno, bioma,
+     vegetação), não uma "rodela" por cima; furacões vários, das nuvens, ciclone para os pequenos;
+     terremoto treme a tela e destrói o que há no epicentro; tsunami recua, avança e raspa a costa,
+     com alcance maior; magnitude ao provocar terremoto, tsunami e furacão; seca esquenta e mata a
+     vegetação; incêndio célula a célula, campo pega fogo; enchente melhorada e diferente do tsunami;
+     vulcão com cratera, lava, adormecido/acordado; raio novo; sem lista, aviso no canto inferior
+     esquerdo. Especificação e imagens antes de codar (`docs/M2-especificacao.md`, Bloco Desastres v2).
+     Sobre "mais parecidos com os do WorldBox": a regra 8 continua valendo; segue-se a ideia (desastre
+     agindo célula por célula no mapa), com cores, regras e números nossos.
+  9. Para os docs de marcos futuros: seca −30% de vida, furacão "puxa as coisas", terremoto destrói o
+     que há em cima, características do mundo em porcentagem (`docs/04-ecologia.md`); nômades caçam
+     depois de "dominar o fogo" (`docs/02-marcos.md`, M4); eventos de exemplo da crônica ("Fim da
+     Pangeia", "Ora, temos um Sócrates aqui", "Piromania") em `docs/07-cronica-nomes.md`.
