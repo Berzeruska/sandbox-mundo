@@ -9,6 +9,8 @@ export const DisasterKind = {
   Flood: 4,
   Hurricane: 5,
   Fire: 6,
+  /** Raio (R3): desastre novo; o que cai em vegetação acende um incêndio. */
+  Lightning: 7,
 } as const;
 export type DisasterKind = (typeof DisasterKind)[keyof typeof DisasterKind];
 
@@ -20,6 +22,7 @@ export const DISASTER_NAMES: Record<DisasterKind, string> = {
   4: 'Enchente',
   5: 'Furacão',
   6: 'Incêndio',
+  7: 'Raio',
 };
 
 /**

@@ -61,8 +61,8 @@ const NO_REGROW: ReadonlySet<number> = new Set([CellState.Burning, CellState.Lav
 /** Solo fértil (o que a enchente deixa): a vegetação volta 2× mais rápido. */
 const FERTILE_REGROW = 2;
 /**
- * O que vem quando o estado acaba: a lava esfria em basalto, o fogo deixa a terra queimada. Duração
- * em anos (mínimo e máximo, sorteada por célula de forma fixa).
+ * O que vem quando o estado acaba: a lava esfria em basalto, o fogo deixa a terra queimada (2–4 anos;
+ * a vegetação volta por baixo). Duração em anos (mínimo e máximo, sorteada por célula de forma fixa).
  */
 const NEXT_STATE: Readonly<Partial<Record<number, readonly [Exclude<CellState, 0>, number, number]>>> = {
   [CellState.Lava]: [CellState.Basalt, 100, 300],
@@ -139,6 +139,8 @@ export class Ground {
       if (!s || (this.until[c] as number) > tick) continue;
       const next = NEXT_STATE[s];
       this.state[c] = CellState.None;
+      // O fogo acabou: a vegetação virou cinza.
+      if (s === CellState.Burning) this.cover[c] = 0;
       if (next) this.setState(c, next[0], tick, next[1] + (next[2] - next[1]) * cellHash(c, s), ticksPerYear);
       this.dirty.add(c);
     }

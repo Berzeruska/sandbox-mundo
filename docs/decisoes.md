@@ -835,3 +835,15 @@ Formato: data — decisão — motivo — alternativa descartada.
   orgânicas e vista de perto se sobrepõem): média 7,1–7,8 ms, quadros isolados até 8,4 ms. Como o
   usuário pediu ("a meta é 8 ms; não otimize além disso"), parei aqui.
 
+- **2026-10-18 — R3: incêndio e raio (decisões técnicas).**
+  - O fogo é um processo de percolação: perto do ponto crítico, o tamanho muda muito com a chance de
+    passar (medido: com 30% a mais de chance a mediana vai de 3 para 160 células). Calibrado para ficar
+    abaixo do ponto crítico sem seca (a favor do vento ~55% por célula ao longo da queima) e acima na
+    seca (×3). Descartado: tamanho sorteado de antemão (o de antes), que não deixa o vento e o terreno
+    decidirem a forma.
+  - Incêndio do jogador mais forte (foco de raio 2, chance ×1,2), mantendo a regra da T11 de que os
+    desastres provocados são fortes. Sem isso, metade dos fogos do jogador morria em 2–3 células.
+  - Raio natural só entra na simulação (e na tela) quando acende fogo: os que caem no mar ou na chuva
+    seriam dezenas de clarões por segundo a 20×, sem efeito.
+  - O aviso do incêndio sai quando ele apaga (só então se sabe o tamanho).
+

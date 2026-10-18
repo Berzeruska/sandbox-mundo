@@ -822,8 +822,22 @@ teste do bloco. Mar e gelo não ganham degraus.
   bordas de célula, igual à diferença entre duas compilações do shader); na transição, a imagem que
   some pode ficar até meio pixel deslocada nas bordas das células. "Medir desempenho" ganhou as linhas
   "de perto na transição", "meio com placas andando" e "meio na transição".
-- [ ] **R3 — Incêndio e raio.** Testes: campo pega fogo; fogo não entra em deserto, gelo e água;
+- [x] **R3 — Incêndio e raio.** Testes: campo pega fogo; fogo não entra em deserto, gelo e água;
   anda a favor do vento; raio em floresta acende, no mar não.
+  **Feito (2026-10-18):** `src/world/disasters/fire.ts`. O fogo anda no relógio: a cada 2 passos cada
+  célula em chamas tenta as 4 vizinhas (campo/estepe/savana 1 tentativa, floresta 3, pântano 2), com
+  chance pelo bioma, pelo combustível da célula (0,6–1,4, fixo: bordas irregulares e ilhas sem
+  queimar), pela vegetação, pela seca (×3) e pelo vento da latitude (×2 a favor, ×0,5 contra). Calibrado
+  para, sem seca, quase sempre parar sozinho (medido em 1.000 anos, N = 64 e 128: mediana 2–3 células,
+  90% abaixo de ~20–30, 1 a 7 incêndios grandes, ≥ 60 células); na seca vira os grandes. Frente
+  amarela, queimando laranja, depois queimada (2–4 anos) e a vegetação volta (floresta passando por
+  campo). **Raio** é desastre novo (menu Desastres → Raio, ⚡): zigue-zague e clarão de 0,3 s; o natural
+  cai onde chove muito ou "seco" na seca, e só entra na simulação quando acende fogo (~0,6 por ano em
+  "Raro", antes da chance de acender). **Incêndio do jogador** (ferramentas Incêndio e Raio) é mais
+  forte, como os outros provocados: começa num foco de raio 2 e pega 1,2× mais (medido em N = 256:
+  em geral 25–110 células, raro passar de 300; antes da R3 era 40–150 fixo). O incêndio vira aviso
+  quando apaga, se queimou ≥ 60 células; a animação de "rodela" do incêndio saiu (ele aparece nas
+  células). Testes: `tests/world/fire.test.ts`.
 - [ ] **R4 — Seca e enchente.** Testes: seca tira cobertura e aquece; enchente segue o terreno baixo,
   deixa solo fértil, e a vegetação volta mais rápido nele.
 - [ ] **R5 — Terremoto** (tremor, fenda e deslizamentos pela magnitude, seletor). Testes: raio pela magnitude;

@@ -4,7 +4,7 @@ import { TICKS_PER_YEAR } from '../../src/core/time';
 import { SimulationCore } from '../../src/sim/core';
 import { createWorld } from '../../src/world/create';
 import { cellPoint, DisasterKind, Disasters, type DisasterEvent } from '../../src/world/disasters';
-import { CellState, Ground } from '../../src/world/disasters/ground';
+import { CellState, Ground, hasVegetation } from '../../src/world/disasters/ground';
 import { writeCellColor } from '../../src/render/colors';
 import { MIN_MAGNITUDE, sampleMagnitude } from '../../src/world/disasters/quakes';
 import { propagateTsunami, TSUNAMI_MIN_MAGNITUDE } from '../../src/world/disasters/tsunami';
@@ -315,25 +315,26 @@ describe('desastres (T10): clima', () => {
     }
   });
 
-  it('incêndio natural só em floresta sob seca', () => {
+  it('incêndio natural nasce de raio, em terra com vegetação (R3)', () => {
     const w = worldOf('mundo', 64);
     const d = new Disasters(w);
     let fires = 0;
-    for (let y = 1; y <= 6000; y++) {
-      const tick = y * TICKS_PER_YEAR;
-      // Antes do passo: guarda quais células estavam secas.
-      const before = d.ground.state.slice();
+    let bolts = 0;
+    for (let tick = 1; tick <= 3000 * TICKS_PER_YEAR; tick++) {
       const o = d.step(tick, 1);
       for (const e of o?.events ?? []) {
+        if (e.kind === DisasterKind.Lightning) bolts++;
         if (e.kind !== DisasterKind.Fire) continue;
         fires++;
         const c = w.grid.pointToCell(e.point[0], e.point[1], e.point[2]);
-        expect([5, 6, 12]).toContain(w.biome[c]);
-        expect(before[c]).toBe(CellState.Heat);
+        expect(w.isWater(c)).toBe(false);
+        expect(hasVegetation(w.biome[c]!)).toBe(true);
       }
     }
     expect(fires).toBeGreaterThan(5);
-  });
+    // Todo incêndio natural começou num raio (o aviso sai quando o fogo apaga).
+    expect(bolts).toBeGreaterThanOrEqual(fires);
+  }, 120_000);
 
   it('as marcas do clima somem: seca, enchente e queimado voltam ao normal', () => {
     const w = worldOf('terra', 64);
@@ -386,10 +387,16 @@ describe('desastres (T11): na mão do jogador', () => {
       [DisasterKind.Flood]: lowland,
       [DisasterKind.Hurricane]: coastSea,
       [DisasterKind.Fire]: forest,
+      [DisasterKind.Lightning]: forest,
     };
     for (const [kind, cell] of Object.entries(at)) {
       const o = d.trigger(Number(kind) as DisasterKind, cellPoint(w, cell), 12);
-      expect(o.events.some((e) => e.kind === Number(kind) && e.manual), `tipo ${kind}`).toBe(true);
+      const events = [...o.events];
+      // O incêndio anda passo a passo (R3): o evento dele sai quando o fogo apaga.
+      for (let tick = 13; Number(kind) === DisasterKind.Fire && tick < 5000 && !events.some((e) => e.kind === DisasterKind.Fire); tick++) {
+        events.push(...(d.step(tick, 0)?.events ?? []));
+      }
+      expect(events.some((e) => e.kind === Number(kind) && e.manual), `tipo ${kind}`).toBe(true);
     }
   });
 

@@ -66,6 +66,7 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'flood', category: 'desastres', label: 'Enchente', icon: '🌧️', kind: 'tool', available: true, disaster: DisasterKind.Flood },
   { id: 'hurricane', category: 'desastres', label: 'Furacão', icon: '🌀', kind: 'tool', available: true, disaster: DisasterKind.Hurricane },
   { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: true, disaster: DisasterKind.Fire },
+  { id: 'lightning', category: 'desastres', label: 'Raio', icon: '⚡', kind: 'tool', available: true, disaster: DisasterKind.Lightning },
   { id: 'disasterFreq', category: 'desastres', label: 'Frequência', icon: '🎲', kind: 'tool', available: true },
   { id: 'stressLayer', category: 'desastres', label: 'Ver tensão', icon: '📈', kind: 'toggle', available: true },
 

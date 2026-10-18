@@ -19,6 +19,7 @@ export const DISASTER_ICONS: Record<number, string> = {
   [DisasterKind.Flood]: '🌧️',
   [DisasterKind.Hurricane]: '🌀',
   [DisasterKind.Fire]: '🔥',
+  [DisasterKind.Lightning]: '⚡',
 };
 
 export interface LogEntry {

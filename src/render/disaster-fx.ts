@@ -23,14 +23,16 @@ const FX_MS: Record<number, number> = {
   [DisasterKind.Hurricane]: 9000,
   [DisasterKind.Drought]: 2600,
   [DisasterKind.Flood]: 2600,
-  [DisasterKind.Fire]: 2600,
+  // O incêndio (R3) aparece nas próprias células, sem animação por cima; o raio é um clarão rápido.
+  [DisasterKind.Lightning]: 450,
 };
-/** Cor do pulso de área (seca, enchente, incêndio). */
+/** Cor do pulso de área (seca, enchente). */
 const AREA_COLOR: Record<number, string> = {
   [DisasterKind.Drought]: '230, 170, 70',
   [DisasterKind.Flood]: '90, 170, 255',
-  [DisasterKind.Fire]: '255, 90, 30',
 };
+/** Raio: duração do clarão (ms) dentro da animação. */
+const FLASH_MS = 300;
 /** Animações ao mesmo tempo, no máximo (em "Muitos" a 20× chegam várias por segundo). */
 const MAX_FX = 24;
 
@@ -95,6 +97,7 @@ export class DisasterFx {
       if (f.e.kind === DisasterKind.Quake) drawQuake(ctx, camera, f.e, u, dpr);
       else if (f.e.kind === DisasterKind.Tsunami) drawWave(ctx, camera, f.e, u, dpr);
       else if (f.e.kind === DisasterKind.Volcano) drawEruption(ctx, camera, f.e, u, f.e.id, dpr);
+      else if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
       else if (AREA_COLOR[f.e.kind]) drawArea(ctx, camera, f.e, u, AREA_COLOR[f.e.kind] as string, dpr);
     }
   }
@@ -116,6 +119,55 @@ function drawQuake(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEve
     ctx.beginPath();
     ctx.arc(c.x, c.y, 3 * dpr, 0, Math.PI * 2);
     ctx.fill();
+  }
+}
+
+/**
+ * Raio (R3): um risco em zigue-zague descendo do alto até o ponto e um clarão branco em volta (0,3 s).
+ * O desenho é fixo por raio (sorteado pelo id), não muda de um quadro para outro.
+ */
+function drawLightning(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, ms: number, id: number, dpr: number): void {
+  const c = camera.worldToScreen(e.point);
+  if (!c.visible) return;
+  const fade = Math.max(0, 1 - ms / FLASH_MS);
+  const boltAlpha = ms < FLASH_MS ? 1 : Math.max(0, 1 - (ms - FLASH_MS) / 150);
+  // Clarão: brilho radial em volta do ponto.
+  if (fade > 0) {
+    const r = 60 * dpr;
+    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
+    g.addColorStop(0, `rgba(255, 255, 255, ${(0.85 * fade).toFixed(3)})`);
+    g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+  }
+  // Zigue-zague: de ~220 px acima até o ponto, com desvios sorteados pelo id.
+  let h = (Math.imul(id, 2654435761) >>> 0) || 1;
+  const rnd = (): number => {
+    h ^= h << 13;
+    h ^= h >>> 17;
+    h ^= h << 5;
+    return (h >>> 0) / 4294967296;
+  };
+  const top = 220 * dpr;
+  let x = c.x + (rnd() - 0.5) * 80 * dpr;
+  let y = c.y - top;
+  const pts: [number, number][] = [[x, y]];
+  while (y < c.y - 12 * dpr) {
+    y += (18 + 16 * rnd()) * dpr;
+    x += (rnd() - 0.5) * 34 * dpr + (c.x - x) * 0.22;
+    pts.push([x, Math.min(y, c.y)]);
+  }
+  pts.push([c.x, c.y]);
+  ctx.lineJoin = 'round';
+  for (const [w, color] of [
+    [8, `rgba(170, 205, 255, ${(0.45 * boltAlpha).toFixed(3)})`],
+    [2.5, `rgba(255, 255, 255, ${boltAlpha.toFixed(3)})`],
+  ] as const) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w * dpr;
+    ctx.beginPath();
+    pts.forEach(([px, py], k) => (k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+    ctx.stroke();
   }
 }
 

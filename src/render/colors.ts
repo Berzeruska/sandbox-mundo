@@ -499,6 +499,7 @@ const stateOut = new Float64Array(3);
 /** Queimado em campo, estepe ou savana: mais claro que floresta queimada (cinza de capim). */
 const GRASS_BURNED: readonly [number, number, number] = [62, 54, 46];
 const GRASSY: ReadonlySet<number> = new Set([Biome.Grassland, Biome.Steppe, Biome.Savanna]);
+const FIRE_FRONT: readonly [number, number, number] = [255, 214, 90];
 
 /** Escreve em `stateOut` a cor (r, g, b) com o estado `state` de força `strength` por cima. */
 function stateColor(biome: number, i: number, state: number, strength: number, r: number, g: number, b: number): void {
@@ -511,6 +512,8 @@ function stateColor(biome: number, i: number, state: number, strength: number, r
   }
   let c = sc.b && cellHash(i, state) < 0.5 ? sc.b : sc.a;
   if (state === CellState.Burned && GRASSY.has(biome)) c = GRASS_BURNED;
+  // A frente do fogo (recém-acesa) é amarela; o que queima há mais tempo fica laranja.
+  if (state === CellState.Burning && strength > 0.6) c = FIRE_FRONT;
   // Fica forte quase até o fim e some no último pedaço (`hold`: quanto maior, mais tarde começa a sumir).
   const t = sc.mix * Math.min(1, strength * (sc.hold ?? 1.5));
   stateOut[0] = r + (c[0] - r) * t;

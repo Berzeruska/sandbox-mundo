@@ -3,8 +3,8 @@
 Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 aprovado** (respostas de
 2026-10-18, duas rodadas). **R1 feita.** Imagens v2 do terremoto, do vulcão e dos seletores aprovadas;
 seca v2 fica como está; relevo em degraus (opção b) aprovado. **R2, RL e RG feitas** (RG: GPU de
-perto com placas andando 5,0 ms, na transição 6,8 ms; antes 8 e 15). Próxima: **R3 (incêndio e
-raio)**, depois R4 a R9. Depois do bloco: Final (T13, T14).
+perto com placas andando 5,0 ms, na transição 6,8 ms; antes 8 e 15). **R3 feita** (incêndio
+passo a passo e raio). Próxima: **R4 (seca e enchente)**, depois R5 a R9. Depois do bloco: Final (T13, T14).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -34,6 +34,10 @@ sobre "onde estamos", vale este.
   deformar o que passa por cima perto do polo; calotas e variação de cor; textura fina no M8); a
   "tampa" sem nuvens em volta do polo tem que sumir; floresta tropical e minérios aprovados; prioridade
   visual = o que o desastre faz no mundo (acabamento no M8); **redesenho dos desastres**.
+- **R3 feita (2026-10-18):** incêndio andando célula a célula no relógio (vento, seca ×3, combustível
+  por célula), frente amarela, queimada e a vegetação voltando; raio como desastre novo (Desastres →
+  Raio): clarão e, em vegetação, fogo; raios naturais acendem os incêndios (mais na seca); incêndio do
+  jogador mais forte (foco maior). Aviso do incêndio grande quando ele apaga.
 - **RG feita (2026-10-18):** GPU do globo dentro da meta no notebook (médias: de perto andando 5,0 ms,
   de perto na transição 6,8, meio andando 7,1, meio na transição 7,8; quadros isolados até 8,4 ms a
   média distância). Placas vizinhas guardadas a 8 passos, distância até a outra placa na textura, e a
@@ -140,7 +144,7 @@ sobre "onde estamos", vale este.
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] Bloco Desastres v2: R3 a R9 (R1, R2, RL e RG feitas).
+- [ ] Bloco Desastres v2: R4 a R9 (R1, R2, RL, RG e R3 feitas).
 - [ ] T13 (teste longo) e T14 (medição final).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 

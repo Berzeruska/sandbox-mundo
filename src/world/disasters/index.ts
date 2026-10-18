@@ -3,14 +3,13 @@ import { TICKS_PER_YEAR } from '../../core/time';
 import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
+import { canBurn, FireProcess, LIGHTNING_PER_YEAR, lightningIgnites, NOTABLE_FIRE_CELLS, pickLightningCell, PLAYER_FIRE_BOOST, PLAYER_FIRE_RADIUS } from './fire';
 import { buildFaults, type Fault, feltRadius, MAX_MAGNITUDE, NOTABLE_MAGNITUDE, sampleMagnitude, stressDrop, yearlyStress } from './quakes';
 import { propagateTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, wavePoints } from './tsunami';
 import { areaLabel, decimal, DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './types';
 import {
   DROUGHT_CHANCE,
-  FIRE_CHANCE,
   FLOOD_CHANCE,
-  FOREST_BIOMES,
   HURRICANE_CHANCE,
   HURRICANE_LAT,
   HURRICANE_MIN_TEMP,
@@ -19,7 +18,6 @@ import {
   latitudeOf,
   pickCell,
   sampleCategory,
-  spreadFire,
 } from './weather';
 import {
   ashRadius,
@@ -69,7 +67,6 @@ export interface DisasterProcess {
 
 /** Quanto tempo (anos) cada marca curta dos desastres de hoje dura (R3–R8 refazem cada um). */
 const ASH_YEARS = 10;
-const BURNED_YEARS = 3;
 const MUD_YEARS: readonly [number, number] = [15, 30];
 
 /**
@@ -87,13 +84,13 @@ export class Disasters {
   /** Pontos quentes (fixos no manto: direções no mundo) e quanto (células) a placa já andou por cima. */
   hotspots: Vec3[];
   private hotspotTravel: number[] = [];
-  /** Secas em curso: as células de floresta dentro delas (onde pode pegar fogo) e até quando. */
-  private droughts: { forest: number[]; since: number; until: number }[] = [];
   private nextId = 1;
   /** Desastres em andamento (passo a passo). */
   private processes: DisasterProcess[] = [];
   /** Contagem por tipo (para testes e o painel). */
-  readonly counts = new Array<number>(7).fill(0);
+  readonly counts = new Array<number>(8).fill(0);
+  /** Saída do passo em andamento (os desastres passo a passo avisam por ela quando acabam). */
+  private stepOut: DisasterOutcome | null = null;
 
   constructor(private world: WorldState) {
     this.rng = createRng((world.params.seed ^ 0x6d15a57e) >>> 0);
@@ -125,8 +122,10 @@ export class Disasters {
   step(tick: number, plateRate: number): DisasterOutcome | null {
     const out: DisasterOutcome = { events: [], marked: [], uplifts: [] };
     this.ground.expire(tick, TICKS_PER_YEAR);
+    this.stepOut = out;
     if (this.processes.length) this.processes = this.processes.filter((p) => p.step(tick, out));
     if (tick % TICKS_PER_YEAR === 0) this.yearly(tick, plateRate, out);
+    this.stepOut = null;
     out.marked = this.ground.takeChanged();
     return out.events.length || out.marked.length || out.uplifts.length ? out : null;
   }
@@ -182,8 +181,13 @@ export class Disasters {
       const sea = nearestWater(world, cell, 12);
       if (sea >= 0) this.hurricane(sea, strength ?? 3 + this.rng.int(0, 2), tick, true, out);
     } else if (kind === DisasterKind.Fire) {
-      const forest = nearest(world, cell, 6, (c) => FOREST_BIOMES.has(world.biome[c] as number) && !world.ice[c]);
-      if (forest >= 0) this.fire(forest, 40 + this.rng.int(0, 110), tick, true, () => true, out);
+      // Na vegetação mais perto (até 6 células) do toque.
+      const start = nearest(world, cell, 6, (c) => canBurn(world, this.ground, c));
+      if (start >= 0) this.startFire(start, tick, true);
+    } else if (kind === DisasterKind.Lightning) {
+      // O raio do jogador sempre cai onde ele tocou e, em vegetação, sempre acende.
+      this.lightning(cell, tick, true, out);
+      if (canBurn(world, this.ground, cell)) this.startFire(cell, tick, true);
     } else if (kind === DisasterKind.Tsunami) {
       const sea = nearestWater(world, cell, 12);
       if (sea >= 0) this.quake(sea, strength ?? 8.3 + 0.9 * this.rng.next(), tick, true, out);
@@ -253,16 +257,44 @@ export class Disasters {
       });
       if (c >= 0) this.hurricane(c, sampleCategory(rng.next()), tick, false, out);
     }
-    this.droughts = this.droughts.filter((d) => d.until > tick && d.forest.length);
-    for (const d of this.droughts) {
-      // O fogo vem com a seca já instalada (a partir do ano seguinte).
-      if (d.since >= tick || rng.next() >= FIRE_CHANCE * factor) continue;
-      const dry = (c: number) => this.ground.state[c] === CellState.Heat;
-      const start = d.forest[rng.int(0, d.forest.length - 1)] as number;
-      if (!dry(start) || !FOREST_BIOMES.has(world.biome[start] as number)) continue;
-      // Tamanho log-uniforme: muitos pequenos, poucos enormes.
-      this.fire(start, Math.round(Math.exp(rng.next() * Math.log(300))), tick, false, dry, out);
+    // Raios: caem debaixo das nuvens carregadas e, "secos", na seca; só os que acendem fogo contam.
+    const strikes = LIGHTNING_PER_YEAR * factor;
+    const n = Math.floor(strikes) + (rng.next() < strikes - Math.floor(strikes) ? 1 : 0);
+    for (let k = 0; k < n; k++) {
+      const c = pickLightningCell(world, this.ground, rng);
+      if (c < 0 || rng.next() >= lightningIgnites(world, this.ground, c)) continue;
+      this.lightning(c, tick, false, out);
+      this.startFire(c, tick, false);
     }
+  }
+
+  /** Raio caindo na célula `c` (o clarão na tela; não vira aviso). */
+  private lightning(c: number, tick: number, manual: boolean, out: DisasterOutcome): void {
+    this.event(DisasterKind.Lightning, c, 1, false, manual, 'Raio', 1, tick, out);
+  }
+
+  /** Começa um incêndio em `start` (anda passo a passo; o aviso sai quando apaga, se foi grande). */
+  private startFire(start: number, tick: number, manual: boolean): void {
+    const world = this.world;
+    const fire = new FireProcess(
+      world,
+      this.ground,
+      this.rng,
+      start,
+      tick,
+      (burned) => {
+        const out = this.stepOut;
+        if (!out) return;
+        const radius = Math.sqrt(burned / Math.PI) + 1;
+        this.event(DisasterKind.Fire, start, burned, burned >= NOTABLE_FIRE_CELLS, manual, `Incêndio · ${areaLabel(burned, world.cellCount)} queimados`, radius, this.ground.tick, out);
+      },
+      manual ? PLAYER_FIRE_BOOST : 1,
+    );
+    if (manual) {
+      const p = cellPoint(world, start);
+      fire.igniteAlso(world.grid.cellsInCap(p[0], p[1], p[2], PLAYER_FIRE_RADIUS * world.grid.cellAngle), tick);
+    }
+    this.start(fire);
   }
 
   private drought(center: number, tick: number, manual: boolean, out: DisasterOutcome): void {
@@ -273,7 +305,6 @@ export class Disasters {
     const cells = landAround(world, center, radius);
     if (!cells.length) return;
     for (const c of cells) this.ground.setState(c, CellState.Heat, tick, years, TICKS_PER_YEAR);
-    this.droughts.push({ forest: cells.filter((c) => FOREST_BIOMES.has(world.biome[c] as number)), since: tick, until: tick + years * TICKS_PER_YEAR });
     this.event(DisasterKind.Drought, center, cells.length, radius >= 12, manual, `Seca · ${areaLabel(cells.length, world.cellCount)}, ${years} anos`, radius, tick, out);
   }
 
@@ -323,17 +354,6 @@ export class Disasters {
       times,
       strength,
     });
-  }
-
-  private fire(start: number, size: number, tick: number, manual: boolean, dry: (c: number) => boolean, out: DisasterOutcome): void {
-    const world = this.world;
-    const burned = spreadFire(world, start, size, dry);
-    for (const c of burned) {
-      this.ground.damage(c, 1);
-      this.ground.setState(c, CellState.Burned, tick, BURNED_YEARS, TICKS_PER_YEAR);
-    }
-    const radius = Math.sqrt(burned.length / Math.PI) + 1;
-    this.event(DisasterKind.Fire, start, burned.length, burned.length >= 60, manual, `Incêndio · ${areaLabel(burned.length, world.cellCount)} queimados`, radius, tick, out);
   }
 
   /** Evento simples (centro, área em células, raio em células). */

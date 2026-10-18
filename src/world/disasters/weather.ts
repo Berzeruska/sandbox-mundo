@@ -1,11 +1,10 @@
 import type { Rng } from '../../core/rng';
-import { Biome } from '../biomes';
 import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 
 /**
- * Desastres climáticos (T10): seca, enchente, furacão e incêndio. Lógica pura e determinística; as marcas
- * (seco, alagado, queimado) são temporárias. O furacão devolve a trilha para o desenho (nuvem em
+ * Desastres climáticos (T10): seca, enchente e furacão (o incêndio e o raio estão em `fire.ts`, R3).
+ * Lógica pura e determinística; as marcas (seco, alagado) são temporárias. O furacão devolve a trilha para o desenho (nuvem em
  * redemoinho andando por ela).
  */
 
@@ -13,8 +12,6 @@ import type { WorldState } from '../state';
 export const DROUGHT_CHANCE = 0.02;
 export const FLOOD_CHANCE = 0.02;
 export const HURRICANE_CHANCE = 0.03;
-/** Chance por ano de uma seca com floresta dentro pegar fogo. */
-export const FIRE_CHANCE = 0.12;
 
 /** Furacão: nasce entre 8° e 20° de latitude, em mar com pelo menos 26 °C. */
 export const HURRICANE_LAT: readonly [number, number] = [(8 * Math.PI) / 180, (20 * Math.PI) / 180];
@@ -24,9 +21,6 @@ const HURRICANE_DECAY_TEMP = 22;
 /** Passo da trilha (rad, ~70 km) e número máximo de pontos. */
 const TRACK_STEP = 0.012;
 const TRACK_POINTS = 90;
-
-/** Biomas de floresta (onde há incêndio). */
-export const FOREST_BIOMES: ReadonlySet<number> = new Set([Biome.Taiga, Biome.TemperateForest, Biome.TropicalForest]);
 
 export function latitudeOf(world: WorldState, c: number): number {
   return Math.asin(Math.max(-1, Math.min(1, world.grid.positions[c * 3 + 1] as number)));
@@ -46,28 +40,6 @@ export function landAround(world: WorldState, center: number, radius: number, ok
   const p = world.grid.positions;
   const cells = world.grid.cellsInCap(p[center * 3] as number, p[center * 3 + 1] as number, p[center * 3 + 2] as number, radius * world.grid.cellAngle);
   return cells.filter((c) => !world.isWater(c) && !world.ice[c] && ok(c));
-}
-
-/**
- * Incêndio: espalha pelas células de floresta com marca de seca (`dry`), a partir de `start`, até `size`
- * células. Devolve as queimadas.
- */
-export function spreadFire(world: WorldState, start: number, size: number, dry: (c: number) => boolean): number[] {
-  const { neighbors } = world.grid;
-  const out: number[] = [];
-  const seen = new Set([start]);
-  const queue = [start];
-  while (queue.length && out.length < size) {
-    const c = queue.shift() as number;
-    out.push(c);
-    for (let d = 0; d < 4; d++) {
-      const j = neighbors[c * 4 + d] as number;
-      if (seen.has(j)) continue;
-      seen.add(j);
-      if (FOREST_BIOMES.has(world.biome[j] as number) && dry(j)) queue.push(j);
-    }
-  }
-  return out;
 }
 
 export interface HurricaneTrack {
