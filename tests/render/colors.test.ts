@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BIOME_BITS, buildColors, hillshade, withRing } from '../../src/render/colors';
+import { seedFrom } from '../../src/core/rng';
+import { BIOME_BITS, buildColors, hillshade, shadeWeightsFor, TERRACE_METERS, terraceShade, withRing } from '../../src/render/colors';
 import { BIOME_COUNT } from '../../src/world/biomes';
 import { latLonToPoint } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
@@ -104,5 +105,36 @@ describe('sombreado de relevo', () => {
     const se = g.pointToCell(...latLonToPoint(0.3 - g.cellAngle * 3, 0.4 + g.cellAngle * 3));
     expect(hillshade(w, nw)).toBeGreaterThan(1.05);
     expect(hillshade(w, se)).toBeLessThan(0.95);
+  });
+});
+
+describe('relevo em degraus (RL)', () => {
+  /** Mundo pequeno todo plano em terra, com um degrau no meio de uma face. */
+  const flat = () => {
+    const w = createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: 16, seaLevel: 0, landFraction: 0.3 });
+    w.elevation.fill(400);
+    return w;
+  };
+
+  it('terra plana não muda; mar não ganha degraus', () => {
+    const w = flat();
+    for (let c = 0; c < w.cellCount; c += 37) expect(terraceShade(w, c)).toBe(0);
+  });
+
+  it('vizinha mais alta do lado da luz faz sombra; mais baixa deixa a borda clara', () => {
+    const w = flat();
+    const c = 16 * 8 + 8;
+    const weights = shadeWeightsFor(w.grid);
+    const toLight = [0, 1, 2, 3].find((d) => weights[c * 4 + d]! > 0)!;
+    const j = w.grid.neighbors[c * 4 + toLight]!;
+    w.elevation[j] = 400 + TERRACE_METERS;
+    expect(terraceShade(w, c)).toBeLessThan(0);
+    w.elevation[j] = 400 - TERRACE_METERS;
+    expect(terraceShade(w, c)).toBeGreaterThan(0);
+    // Do lado oposto à luz não muda nada.
+    const away = [0, 1, 2, 3].find((d) => weights[c * 4 + d]! < 0)!;
+    w.elevation[j] = 400;
+    w.elevation[w.grid.neighbors[c * 4 + away]!] = 400 + TERRACE_METERS;
+    expect(terraceShade(w, c)).toBe(0);
   });
 });

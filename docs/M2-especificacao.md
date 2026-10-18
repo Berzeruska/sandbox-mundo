@@ -791,9 +791,13 @@ teste do bloco. Mar e gelo não ganham degraus.
   categoria; o último escolhido fica). Avisos no canto inferior esquerdo; a lista saiu. Tocar mostra
   "Floresta temperada · queimada · vegetação 20%". Testes novos em `tests/world/ground.test.ts`
   (inclui o mesmo chão e as mesmas cores em 1× e em 20×).
-- [ ] **RL — Relevo em degraus** (opção b): níveis a cada 150 m em terra, sombra do lado oposto à luz
+- [x] **RL — Relevo em degraus** (opção b): níveis a cada 150 m em terra, sombra do lado oposto à luz
   (noroeste) e borda iluminada, calculados junto com as cores. Testes: célula com vizinha mais alta do
   lado da luz fica mais escura; terreno plano não muda; mar não muda.
+  **Feito (2026-10-18):** `terraceShade` em `src/render/colors.ts`, somado ao sombreado suave que já
+  existia, igual ao protótipo do quadro 7 (a tela do jogo e a imagem da proposta diferem em média
+  0,2/255 no mesmo lugar). Mar, gelo e as camadas de leitura sem degraus. Custo: 4 vizinhas a mais por
+  célula ao pintar (no ajudante); a GPU não muda (é cor da textura).
 - [ ] **RG — GPU de perto com as placas andando ≤ 8 ms** (decisão do usuário, 2026-10-18: opção a,
   depois do relevo, para não otimizar duas vezes). Meta 8 ms, sem otimizar além disso. Se a
   transição de perto mudar de aparência, mostrar ao usuário antes. Medir no notebook.

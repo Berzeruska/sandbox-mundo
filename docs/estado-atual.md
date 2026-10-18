@@ -3,8 +3,8 @@
 Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 aprovado** (respostas de
 2026-10-18, duas rodadas). **R1 feita.** Imagens v2 do terremoto, do vulcão e dos seletores aprovadas;
 seca v2 fica como está; relevo em degraus (opção b) aprovado. **GPU de perto com placas andando
-(~8–15 ms, meta 8):** otimizar (opção a) na tarefa RG, depois do relevo (RL). **R2 feita.** Ordem:
-R2 → **RL (relevo em degraus, próxima)** → RG → R3 a R9. Depois do bloco: Final (T13, T14).
+(~8–15 ms, meta 8):** otimizar (opção a) na tarefa RG, depois do relevo (RL). **R2 e RL feitas.** Ordem:
+R2 → RL → **RG (GPU de perto ≤ 8 ms, próxima)** → R3 a R9. Depois do bloco: Final (T13, T14).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -34,6 +34,8 @@ sobre "onde estamos", vale este.
   deformar o que passa por cima perto do polo; calotas e variação de cor; textura fina no M8); a
   "tampa" sem nuvens em volta do polo tem que sumir; floresta tropical e minérios aprovados; prioridade
   visual = o que o desastre faz no mundo (acabamento no M8); **redesenho dos desastres**.
+- **RL feita (2026-10-18):** relevo em degraus (níveis a cada 150 m, sombra ao pé do degrau e borda
+  clara, luz de noroeste), igual ao quadro 7 da proposta; vale de perto e de longe.
 - **R2 feita (2026-10-18):** vegetação por célula em % e estados de célula (em chamas, queimada, lava,
   basalto, alagada, lama, fenda, solo fértil, calor, cinzas) com cor célula a célula e recuperação na
   velocidade do bioma; desastres podem andar passo a passo no relógio (os de hoje ainda instantâneos,

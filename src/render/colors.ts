@@ -169,6 +169,15 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   let r = Math.min(255, (base[0] as number) * k);
   let g = Math.min(255, (base[1] as number) * k);
   let b = Math.min(255, (base[2] as number) * k);
+  if (h > 0 && !world.ice[i]) {
+    // Relevo em degraus (RL): sombra ao pé do degrau de cima, borda clara no de baixo.
+    const t = terraceShade(world, i);
+    const f = t >= 0 ? TERRACE_LIGHT : TERRACE_SHADOW;
+    const a = Math.abs(t);
+    r += (f[0] - r) * a;
+    g += (f[1] - g) * a;
+    b += (f[2] - b) * a;
+  }
   if (world.ice[i]) {
     iceColor(world, i, h, r, g, b);
     r = iceOut[0] as number;
@@ -388,6 +397,37 @@ export function hillshade(world: WorldState, i: number): number {
   }
   // Terreno que sobe rumo à luz tem a encosta virada para longe dela: mais escuro.
   return 1 - SHADE_STRENGTH * Math.tanh(upTowardLight / SHADE_SLOPE);
+}
+
+/**
+ * Relevo em degraus (RL, opção b aprovada pelo usuário em 2026-10-18): a altura em terra é dividida em
+ * níveis de TERRACE_METERS. Para cada vizinha do lado da luz (noroeste): se ela está num nível acima, a
+ * célula fica na sombra do degrau; se está abaixo, a célula é a borda iluminada. Parece um mapa em
+ * terraços. Soma-se ao sombreado suave de encosta (`hillshade`).
+ */
+export const TERRACE_METERS = 150;
+const TERRACE_UP = -0.22;
+const TERRACE_DOWN = 0.16;
+const TERRACE_MIN = -0.35;
+const TERRACE_MAX = 0.3;
+const TERRACE_LIGHT: readonly [number, number, number] = [255, 250, 230];
+const TERRACE_SHADOW: readonly [number, number, number] = [20, 24, 40];
+
+/** Quanto a célula de terra `i` clareia (+) ou escurece (−) pelos degraus, de −0,35 a +0,3. */
+export function terraceShade(world: WorldState, i: number): number {
+  const weights = shadeWeightsFor(world.grid);
+  const { neighbors } = world.grid;
+  const level = Math.floor(Math.max(0, world.heightAboveSea(i)) / TERRACE_METERS);
+  let t = 0;
+  for (let d = 0; d < 4; d++) {
+    // Peso positivo: a vizinha fica do lado de onde vem a luz.
+    if ((weights[i * 4 + d] as number) <= 0) continue;
+    const j = neighbors[i * 4 + d] as number;
+    const lj = Math.floor(Math.max(0, world.heightAboveSea(j)) / TERRACE_METERS);
+    if (lj > level) t += TERRACE_UP;
+    else if (lj < level) t += TERRACE_DOWN;
+  }
+  return Math.max(TERRACE_MIN, Math.min(TERRACE_MAX, t));
 }
 
 /** Preenche as cores do mundo todo (ou só das células listadas). */

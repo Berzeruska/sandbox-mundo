@@ -23,7 +23,8 @@ const bytesOf = (a: ArrayBufferView): Uint8Array => new Uint8Array(a.buffer, a.b
  * da chuva e o clima mudou (gelo, umidade, ciclo glacial), de propósito. Valor novo no teste da 50f0dca:
  * plataforma continental larga, jazidas maiores, formação pelo relógio do jogo e cor do gelo presa
  * em 0–255. Valor novo na R1 (2026-10-18): polos novos (borda do gelo do mar em lobos e placas soltas,
- * cor pela espessura), de propósito.
+ * cor pela espessura), de propósito. Valor novo na RL (2026-10-18): relevo em degraus nas cores, de
+ * propósito (a R2, logo antes, não mudou o valor: o chão dos desastres não entra nas cores do motor).
  */
 describe('motor da geologia: mesmo resultado', () => {
   it('impressão digital depois de 40 recomposições (terra, N = 64)', () => {
@@ -50,6 +51,6 @@ describe('motor da geologia: mesmo resultado', () => {
       engine.receive({ type: 'advance', world: 1, tick });
       for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
     }
-    expect(h.toString(16)).toBe('3e95363');
+    expect(h.toString(16)).toBe('2df22e7b');
   });
 });
