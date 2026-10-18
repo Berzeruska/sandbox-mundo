@@ -17,7 +17,6 @@ interface Fx {
 
 /** Duração das animações (ms). */
 const FX_MS: Record<number, number> = {
-  [DisasterKind.Hurricane]: 9000,
   // Incêndio (R3), seca e enchente (R4) aparecem nas próprias células, sem animação por cima; o raio é
   // um clarão rápido.
   [DisasterKind.Lightning]: 450,
@@ -41,41 +40,6 @@ export class DisasterFx {
     return this.list.length > 0;
   }
 
-  /**
-   * Furacões em curso, para o shader das nuvens: posição na trilha (anda nela em FX_MS) e força. Devolve
-   * quantos. `storms`: centro xyz + raio; `power`: força 0–1, com o sinal do sentido do giro.
-   */
-  stormsAt(now: number, storms: Float32Array, power: Float32Array, max: number): number {
-    let n = 0;
-    for (const f of this.list) {
-      if (f.e.kind !== DisasterKind.Hurricane || !f.e.path || n >= max) continue;
-      const path = f.e.path;
-      const count = path.length / 3;
-      if (count < 1) continue;
-      const u = Math.min(1, (now - f.start) / f.ms);
-      const x = u * (count - 1);
-      const i = Math.min(count - 1, Math.floor(x));
-      const j = Math.min(count - 1, i + 1);
-      const t = x - i;
-      let px = (path[i * 3] as number) * (1 - t) + (path[j * 3] as number) * t;
-      let py = (path[i * 3 + 1] as number) * (1 - t) + (path[j * 3 + 1] as number) * t;
-      let pz = (path[i * 3 + 2] as number) * (1 - t) + (path[j * 3 + 2] as number) * t;
-      const l = Math.hypot(px, py, pz) || 1;
-      px /= l;
-      py /= l;
-      pz /= l;
-      const st = f.e.strength;
-      const cat = st ? (st[i] as number) * (1 - t) + (st[j] as number) * t : f.e.magnitude;
-      // Nasce e some aos poucos.
-      const fade = Math.min(1, u * 8, (1 - u) * 6);
-      storms.set([px, py, pz, f.e.radius * (0.6 + 0.4 * Math.min(1, cat / 5))], n * 4);
-      // Hemisfério norte gira no sentido anti-horário visto de cima.
-      power[n] = (py >= 0 ? 1 : -1) * Math.max(0.05, Math.min(1, cat / 5) * fade);
-      n++;
-    }
-    return n;
-  }
-
   clear(): void {
     this.list = [];
   }
@@ -95,7 +59,7 @@ export class DisasterFx {
  */
 function drawLightning(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, ms: number, id: number, dpr: number): void {
   const c = camera.worldToScreen(e.point);
-  if (!c.visible) return;
+  if (!c.visible || !Number.isFinite(c.x) || !Number.isFinite(c.y)) return;
   const fade = Math.max(0, 1 - ms / FLASH_MS);
   const boltAlpha = ms < FLASH_MS ? 1 : Math.max(0, 1 - (ms - FLASH_MS) / 150);
   // Clarão: brilho radial em volta do ponto.

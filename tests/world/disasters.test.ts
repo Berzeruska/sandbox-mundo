@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { seedFrom } from '../../src/core/rng';
+import { createRng, seedFrom } from '../../src/core/rng';
+import { hurricaneTrack } from '../../src/world/disasters/weather';
 import { TICKS_PER_YEAR } from '../../src/core/time';
 import { SimulationCore } from '../../src/sim/core';
 import { createWorld } from '../../src/world/create';
@@ -320,15 +321,14 @@ describe('desastres (T10): clima', () => {
       expect(lat).toBeGreaterThanOrEqual(7.9);
       expect(lat).toBeLessThanOrEqual(20.1);
       expect(w.temperature[c]!).toBeGreaterThanOrEqual(26);
-      // Em terra a força só cai.
-      const path = e.path!;
-      const st = e.strength!;
-      for (let k = 1; k < st.length; k++) {
-        const prev = w.grid.pointToCell(path[(k - 1) * 3]!, path[(k - 1) * 3 + 1]!, path[(k - 1) * 3 + 2]!);
-        if (!w.isWater(prev)) expect(st[k]!).toBeLessThan(st[k - 1]!);
+      // Em terra a força só cai (a trilha que ele anda, R8).
+      const t = hurricaneTrack(w, c, e.magnitude, createRng(1), w.grid.cellAngle, 144);
+      for (let k = 1; k < t.strength.length; k++) {
+        const prev = w.grid.pointToCell(...t.points[k - 1]!);
+        if (!w.isWater(prev)) expect(t.strength[k]!).toBeLessThan(t.strength[k - 1]!);
       }
     }
-  });
+  }, 30_000);
 
   it('incêndio natural nasce de raio, em terra com vegetação (R3)', () => {
     const w = worldOf('mundo', 64);

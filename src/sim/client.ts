@@ -28,6 +28,8 @@ export interface SimEvents {
   ): void;
   /** Desastres que aconteceram (T8–T12). */
   onDisasters?(events: DisasterEvent[]): void;
+  /** Furacões andando (R8): STORM_FLOATS números por furacão (ver protocol.ts). */
+  onStorms?(storms: Float32Array): void;
 }
 
 /**
@@ -180,6 +182,9 @@ export class SimClient {
       case 'query':
         this.queries.get(msg.id)?.(msg.cell);
         this.queries.delete(msg.id);
+        break;
+      case 'storms':
+        this.events.onStorms?.(msg.storms);
         break;
       case 'disasters':
         this.events.onDisasters?.(msg.events);

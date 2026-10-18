@@ -885,3 +885,10 @@ Formato: data — decisão — motivo — alternativa descartada.
   - Vulcões não acordam com as placas paradas (regra de "em 0 a geologia congela"), nem pelo raio
     natural; o jogador acorda em qualquer caso.
 
+- **2026-10-18 — R8: furacão (decisões técnicas).** Só a torção das nuvens do globo deixava uma bola
+  branca (as manchas de nuvem são maiores que o furacão): a nuvem torcida é juntada em braços de espiral
+  e engrossada no furacão, para ficar como a imagem aprovada. A posição vai da simulação para a tela a
+  cada laço (não mais uma animação de 9 s em tempo real), para o furacão andar no relógio do jogo como os
+  outros desastres. Furacão de fogo: um incêndio por furacão, alimentado pelo miolo (em vez de um
+  incêndio por célula, que seriam centenas).
+

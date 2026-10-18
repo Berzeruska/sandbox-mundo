@@ -63,7 +63,9 @@ export function sampleCategory(u: number): number {
  * curvando para o polo e, passando de ~25°, para leste. Perde força em terra (uma categoria a cada ~3
  * passos) e em mar frio; some quando chega a 0.
  */
-export function hurricaneTrack(world: WorldState, start: number, category: number, rng: Rng): HurricaneTrack {
+export function hurricaneTrack(world: WorldState, start: number, category: number, rng: Rng, step = TRACK_STEP, maxPoints = TRACK_POINTS): HurricaneTrack {
+  // Ganho e perda de força por ponto, na escala do passo (os números são para TRACK_STEP).
+  const k = step / TRACK_STEP;
   const pos = world.grid.positions;
   let p: Vec3 = [pos[start * 3] as number, pos[start * 3 + 1] as number, pos[start * 3 + 2] as number];
   const hemi = p[1] >= 0 ? 1 : -1;
@@ -74,18 +76,18 @@ export function hurricaneTrack(world: WorldState, start: number, category: numbe
   const landCells: number[] = [];
   let landfall = false;
   const wobble = rng.range(-0.15, 0.15);
-  for (let k = 0; k < TRACK_POINTS && strength > 0.2; k++) {
+  for (let n = 0; n < maxPoints && strength > 0.2; n++) {
     points.push(p);
     strengths.push(strength);
     const c = world.grid.pointToCell(p[0], p[1], p[2]);
     if (world.isWater(c)) {
       const t = world.temperature[c] as number;
-      if (t < HURRICANE_DECAY_TEMP) strength -= 0.35;
-      else if (t >= HURRICANE_MIN_TEMP && strength < 5) strength = Math.min(5, strength + 0.05);
+      if (t < HURRICANE_DECAY_TEMP) strength -= 0.35 * k;
+      else if (t >= HURRICANE_MIN_TEMP && strength < 5) strength = Math.min(5, strength + 0.05 * k);
     } else {
       landfall = true;
       landCells.push(c);
-      strength -= 0.35;
+      strength -= 0.35 * k;
     }
     peak = Math.max(peak, strength);
     // Leste e norte locais.
@@ -108,7 +110,7 @@ export function hurricaneTrack(world: WorldState, start: number, category: numbe
     const dy = (hemi * pole * ny) / nl;
     const dz = (east - west) * ez + ((hemi * pole * nz) / nl);
     const dl = Math.hypot(dx, dy, dz) || 1;
-    const q: Vec3 = [p[0] + (dx / dl) * TRACK_STEP, p[1] + (dy / dl) * TRACK_STEP, p[2] + (dz / dl) * TRACK_STEP];
+    const q: Vec3 = [p[0] + (dx / dl) * step, p[1] + (dy / dl) * step, p[2] + (dz / dl) * step];
     const ql = Math.hypot(q[0], q[1], q[2]);
     p = [q[0] / ql, q[1] / ql, q[2] / ql];
   }

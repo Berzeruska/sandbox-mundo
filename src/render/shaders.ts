@@ -650,7 +650,13 @@ ${motion ? `  int pl = -1;
   }` : `  vec3 base = surface(p, cellPx);`}
   // Nuvens (T10): somem ao aproximar a câmera (a partir de ~2 px por célula).
   float cloudShow = uClouds * (1.0 - smoothstep(1.5, 4.0, cellPx));
-  if (cloudShow > 0.0 || uStormCount > 0) base = mix(base, vec3(0.96, 0.97, 1.0), clouds(p, cloudShow));
+  if (cloudShow > 0.0 || uStormCount > 0) {
+    float fire;
+    float cover = clouds(p, cloudShow, fire);
+    // Furacão de fogo: espiral alaranjada no miolo e fumaça escura em volta.
+    vec3 smoke = mix(vec3(0.3, 0.24, 0.22), vec3(1.0, 0.52, 0.16), smoothstep(0.35, 0.85, fire));
+    base = mix(base, mix(vec3(0.96, 0.97, 1.0), smoke, clamp(fire * 1.6, 0.0, 1.0)), cover);
+  }
 
   // Luz suave: lado iluminado e sombra sem ficar preto; um toque de atmosfera na borda.
   float diffuse = max(dot(nView, uLight), 0.0);
@@ -662,7 +668,7 @@ ${motion ? `  int pl = -1;
 }
 
 /** Furacões desenhados ao mesmo tempo, no máximo. */
-export const MAX_STORMS = 4;
+export const MAX_STORMS = 8;
 
 /**
  * Nuvens (T10, pedido do usuário: simples, translúcidas, somem ao aproximar; furacões em redemoinho).
@@ -676,6 +682,7 @@ uniform float uCloudTime;   // segundos (anda só com o tempo do jogo correndo)
 uniform int uStormCount;
 uniform vec4 uStorms[${MAX_STORMS}];     // centro (xyz) e raio (rad)
 uniform float uStormPower[${MAX_STORMS}]; // força 0–1 e sentido (sinal: hemisfério)
+uniform float uStormFire[${MAX_STORMS}];  // 1 = furacão de fogo (R8)
 
 // Rotação fixa qualquer (tira os eixos do ruído do alinhamento com a grade).
 const mat3 CLOUD_ROT = mat3(0.80, 0.36, -0.48, -0.60, 0.48, -0.64, 0.0, 0.80, 0.60);
@@ -690,9 +697,44 @@ float cloudNoise(vec3 p, float a) {
   return 0.55 * noise3(r1 * 8.0 + warp * 0.6).x + 0.3 * noise3(CLOUD_ROT * r1 * 19.0 + warp).y + 0.15 * noise3(r1 * 41.0).z;
 }
 
-float clouds(vec3 p, float show) {
+// Gira v em torno do eixo unitário k pelo ângulo a.
+vec3 rotAxis(vec3 v, vec3 k, float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c);
+}
+
+// Cobertura de nuvem em p. Furacões e ciclones (R8) torcem as nuvens do próprio globo em volta do
+// centro (cada vez mais apertadas perto dele), juntam mais nuvem e, quando fortes, abrem o olho; a
+// torção gira com o tempo. \`fire\`: quanto daquela nuvem é de um furacão de fogo.
+float clouds(vec3 p, float show, out float fire) {
+  vec3 pw = p;
+  float boost = 0.0;
+  float eye = 1.0;
+  fire = 0.0;
+  for (int k = 0; k < ${MAX_STORMS}; k++) {
+    if (k >= uStormCount) break;
+    vec3 c = uStorms[k].xyz;
+    float d = acos(clamp(dot(p, c), -1.0, 1.0)) / uStorms[k].w;
+    if (d > 2.0) continue;
+    float power = abs(uStormPower[k]);
+    float spin = sign(uStormPower[k]);
+    float twist = power * 9.0 * exp(-d * 2.2) * (1.0 - smoothstep(1.2, 2.0, d));
+    float turn = uCloudTime * 1.2 * power * exp(-d) * (1.0 - smoothstep(1.2, 2.0, d));
+    pw = rotAxis(pw, c, (twist + turn) * spin);
+    // Braços: a nuvem torcida se junta em faixas de espiral (mais apertadas perto do centro).
+    vec3 u = normalize(cross(c, abs(c.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+    vec3 v = cross(c, u);
+    float ang = atan(dot(p, v), dot(p, u));
+    float arms = 0.5 + 0.5 * sin(2.0 * ang * spin + log(d + 0.04) * 6.0 - uCloudTime * 2.0 * spin);
+    float b = (0.35 + 0.65 * power) * (1.0 - smoothstep(0.25, 1.3, d)) * mix(1.0, 0.25 + 0.75 * arms, smoothstep(0.15, 0.45, d));
+    boost = max(boost, b);
+    fire = max(fire, uStormFire[k] * b);
+    if (power > 0.45) eye = min(eye, smoothstep(0.05, 0.05 + 0.08 * power, d));
+  }
   float cover = 0.0;
-  if (show > 0.0) {
+  float shown = max(show, boost > 0.0 ? smoothstep(0.0, 0.2, boost) : 0.0);
+  if (shown > 0.0) {
     float lat = asin(clamp(p.y, -1.0, 1.0));
     float al = abs(lat);
     // Faixas: muita nuvem no equador e em ~55°, pouca nos desertos subtropicais; perto dos polos a
@@ -702,36 +744,22 @@ float clouds(vec3 p, float show) {
     // Ventos: perto do equador e nas altas latitudes para oeste, no meio para leste.
     float wind = al < 0.52 || al > 1.05 ? -1.0 : 1.0;
     float a = uCloudTime * 0.004 * wind;
-    float n = cloudNoise(p, a);
+    float n = cloudNoise(pw, a);
     // Emendas das faixas de vento (30° e 60°): os dois lados andam em sentidos opostos e se
     // desencontravam, desenhando um círculo. Numa faixa de ~6° em volta da emenda, mistura os dois.
     float e1 = abs(al - 0.52);
     float e2 = abs(al - 1.05);
     if (min(e1, e2) < 0.1) {
       float edge = e1 < e2 ? 0.52 : 1.05;
-      float other = cloudNoise(p, -a);
+      float other = cloudNoise(pw, -a);
       float below = al < edge ? n : other;
       float above = al < edge ? other : n;
       n = mix(below, above, smoothstep(edge - 0.1, edge + 0.1, al));
     }
-    cover = smoothstep(0.6 - 0.4 * band, 0.8 - 0.4 * band, n * 0.5 + 0.5) * 0.6 * show;
+    float bb = band + 1.8 * boost;
+    cover = smoothstep(0.6 - 0.4 * bb, 0.8 - 0.4 * bb, n * 0.5 + 0.5) * (0.6 + 0.35 * boost) * shown;
   }
-  for (int k = 0; k < ${MAX_STORMS}; k++) {
-    if (k >= uStormCount) break;
-    vec3 c = uStorms[k].xyz;
-    float d = acos(clamp(dot(p, c), -1.0, 1.0)) / uStorms[k].w;
-    if (d > 1.3) continue;
-    vec3 u = normalize(cross(c, abs(c.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
-    vec3 v = cross(c, u);
-    float ang = atan(dot(p, v), dot(p, u));
-    float power = abs(uStormPower[k]);
-    float spin = sign(uStormPower[k]);
-    float arms = sin(2.0 * ang * spin + log(d + 0.04) * 7.0 - uCloudTime * 2.5 * spin);
-    float dens = (1.0 - smoothstep(0.25, 1.25, d)) * (0.6 + 0.4 * arms);
-    dens *= smoothstep(0.05, 0.13, d); // olho
-    cover = max(cover, dens * (0.55 + 0.4 * power));
-  }
-  return clamp(cover, 0.0, 0.92);
+  return clamp(cover * eye, 0.0, 0.92);
 }
 `;
 

@@ -906,8 +906,21 @@ teste do bloco. Mar e gelo não ganham degraus.
   estados, rocha e vulcões vão junto com a crosta (pela identidade placa + ponto de referência de cada
   célula); o que estava em crosta que sumiu, some. Com as placas paradas, os vulcões não acordam (a
   geologia congela). A animação de cinzas por cima saiu. Testes: `tests/world/volcano.test.ts`.
-- [ ] **R8 — Furacão e ciclone** (das nuvens, vários, destruição, seletor de categoria, furacão de fogo). Testes: no máximo 2 por
+- [x] **R8 — Furacão e ciclone** (das nuvens, vários, destruição, seletor de categoria, furacão de fogo). Testes: no máximo 2 por
   quadrante; nome pela categoria; estrago só no raio.
+  **Feito (2026-10-18):** `src/world/disasters/hurricane.ts` e as nuvens do shader. O furacão anda no
+  relógio, 1 célula por passo, pela trilha de sempre (oeste, polo, leste), com força ganhando em mar
+  quente e caindo em terra e em mar frio na mesma proporção de antes por distância; vida de até 144
+  passos (12 s em 1×). Até 2 por quadrante (hemisfério × metade leste/oeste) e 8 no mundo (o do jogador
+  só respeita os 8). Nome pela categoria (1–2 Ciclone, 3–5 Furacão). Estrago no raio (ciclone 2 células,
+  furacão 3/4/5): vegetação perde 30–70% uma vez por furacão; com o centro no mar, a terra baixa (< 30 m)
+  a até 3 células da costa alaga 1–2 anos (ressaca); com o centro em terra, até 2 enchentes pela chuva
+  (8% por passo). Raio do jogador num furacão ou ciclone: furacão de fogo até o fim (em terra, acende a
+  vegetação a até 1,6 célula do centro, num incêndio só por furacão, alimentado enquanto ele anda).
+  Desenho: as nuvens do globo torcidas em volta do centro (mais apertadas perto dele, girando com o
+  tempo), juntadas em braços de espiral, com olho nos fortes; o de fogo em laranja no miolo e fumaça
+  escura em volta. A simulação manda posição e força a cada laço; a tela suaviza o movimento. A
+  animação antiga da trilha saiu. Testes: `tests/world/hurricane.test.ts`.
 - [ ] **R9 — Frequências e medição:** recalibrar "Raro" (~1 aviso a cada 1–2 min em 1×), "Medir
   desempenho" com tudo acontecendo.
 

@@ -11,6 +11,7 @@ import { CellState, STATE_NAMES } from './world/disasters/ground';
 import { droughtHeat } from './world/disasters/drought';
 import { MAX_STORMS } from './render/shaders';
 import { DisasterKind, type DisasterEvent } from './world/disasters/types';
+import { STORM_FLOATS } from './sim/protocol';
 import { feltRadius } from './world/disasters/quakes';
 import type { Vec3 } from './world/cubesphere';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
@@ -151,6 +152,8 @@ export class App {
   private paintGate = new PaintGate();
   /** Animações dos desastres na camada de cima (T8–T10) e se ainda há algo dela na tela. */
   private fx = new DisasterFx();
+  /** Furacões andando (R8), pela identidade: o que está no desenho e para onde vai. */
+  private storms = new Map<number, { shown: { p: Vec3; radius: number; power: number; fire: number }; target: { p: Vec3; radius: number; power: number; fire: number } }>();
   /** Tremor da tela do terremoto em curso (R5): início, duração (ms) e força (px). */
   private shake: { start: number; ms: number; amp: number } | null = null;
   private fxShown = false;
@@ -314,6 +317,7 @@ export class App {
       },
       onPatch: (patches, brushMs, deposits) => this.onPatch(patches, brushMs, deposits),
       onDisasters: (events) => this.onDisasters(events),
+      onStorms: (storms) => this.onStorms(storms),
       onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
         this.climate = climate;
         this.stats.memoryMb = memoryMb;
@@ -348,6 +352,7 @@ export class App {
     this.lastGenerationSignal = this.worldRequestedAt;
     this.fx.clear();
     this.toasts?.clear();
+    this.storms.clear();
     this.sim.newWorld(seedText, DEFAULT_N);
   }
 
@@ -493,6 +498,58 @@ export class App {
     u.maxDelta = maxDelta;
     u.maxDeltaPrev = maxDeltaPrev;
     return changed;
+  }
+
+  /** Furacões que a simulação mandou (R8): o alvo de cada um, pela identidade. */
+  private onStorms(data: Float32Array): void {
+    const seen = new Set<number>();
+    for (let k = 0; k + STORM_FLOATS <= data.length; k += STORM_FLOATS) {
+      const id = data[k] as number;
+      seen.add(id);
+      const target = {
+        p: [data[k + 1] as number, data[k + 2] as number, data[k + 3] as number] as Vec3,
+        radius: data[k + 4] as number,
+        power: data[k + 5] as number,
+        fire: data[k + 6] as number,
+      };
+      const s = this.storms.get(id);
+      if (s) s.target = target;
+      else this.storms.set(id, { shown: { ...target, p: [...target.p] as Vec3 }, target });
+    }
+    for (const id of [...this.storms.keys()]) if (!seen.has(id)) this.storms.delete(id);
+    this.requestDraw();
+  }
+
+  /**
+   * Furacões no desenho: cada um anda suave até a última posição recebida (a simulação manda uma por
+   * laço; em 1× seriam saltos de uma célula). Devolve quantos.
+   */
+  private updateStorms(dt: number): number {
+    const r = this.renderer;
+    if (!r) return 0;
+    const a = 1 - Math.exp(-dt * 15);
+    let n = 0;
+    for (const s of this.storms.values()) {
+      if (n >= MAX_STORMS) break;
+      const sh = s.shown;
+      const t = s.target;
+      let x = sh.p[0] + (t.p[0] - sh.p[0]) * a;
+      let y = sh.p[1] + (t.p[1] - sh.p[1]) * a;
+      let z = sh.p[2] + (t.p[2] - sh.p[2]) * a;
+      const l = Math.hypot(x, y, z) || 1;
+      x /= l;
+      y /= l;
+      z /= l;
+      sh.p = [x, y, z];
+      sh.radius += (t.radius - sh.radius) * a;
+      sh.power += (t.power - sh.power) * a;
+      sh.fire += (t.fire - sh.fire) * a;
+      r.storms.set([x, y, z, sh.radius], n * 4);
+      r.stormPower[n] = sh.power;
+      r.stormFire[n] = sh.fire;
+      n++;
+    }
+    return n;
   }
 
   /** Desastres que aconteceram: animação, aviso (só os grandes naturais) e lista. */
@@ -707,7 +764,7 @@ export class App {
       const r = this.renderer;
       const running = this.clock.speed !== 0;
       if (running) r.cloudTime += dt;
-      const storms = this.fx.stormsAt(performance.now(), r.storms, r.stormPower, MAX_STORMS);
+      const storms = this.updateStorms(dt);
       if (storms || r.stormCount) this.needsDraw = true;
       r.stormCount = storms;
       if (running && r.clouds > 0 && this.camera.cellPixels() < 4) this.needsDraw = true;

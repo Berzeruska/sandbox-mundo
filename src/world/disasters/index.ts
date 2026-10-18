@@ -4,6 +4,7 @@ import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
+import { HurricaneProcess, MAX_PER_QUADRANT, MAX_STORMS_WORLD, quadrantOf, stormName, type StormView } from './hurricane';
 import {
   ARC_SPACING,
   ASH_LIGHTNING,
@@ -34,8 +35,6 @@ import {
   HURRICANE_CHANCE,
   HURRICANE_LAT,
   HURRICANE_MIN_TEMP,
-  hurricaneTrack,
-  landAround,
   latitudeOf,
   pickCell,
   sampleCategory,
@@ -114,6 +113,8 @@ export class Disasters {
   hotspots: Vec3[];
   private hotspotTravel: number[] = [];
   private nextId = 1;
+  /** Furacões e ciclones andando (R8). */
+  private storms: HurricaneProcess[] = [];
   /** Vulcões no mapa (R7), na ordem em que nasceram. */
   volcanoes: Volcano[] = [];
   private nextVolcanoId = 1;
@@ -489,6 +490,14 @@ export class Disasters {
    */
   private lightning(c: number, tick: number, manual: boolean, out: DisasterOutcome): void {
     this.event(DisasterKind.Lightning, c, 1, false, manual, 'Raio', 1, tick, out);
+    // Raio do jogador num furacão ou ciclone: vira furacão de fogo (R8).
+    if (manual) {
+      const p = cellPoint(this.world, c);
+      for (const h of this.storms) {
+        const v = h.view();
+        if (v && Math.acos(Math.min(1, v.point[0] * p[0] + v.point[1] * p[1] + v.point[2] * p[2])) <= v.radius) h.fire = true;
+      }
+    }
     const v = this.volcanoNear(c, 5);
     if (!v || v.awake || v.extinct || cellDistance(this.world, v.cell, c) > v.cone + 0.6) return;
     if (manual || (this.plateRate > 0 && this.rng.next() < LIGHTNING_WAKE)) this.wake(v, tick, manual, out);
@@ -553,42 +562,55 @@ export class Disasters {
     this.event(DisasterKind.Flood, start, n, n >= NOTABLE_FLOOD_CELLS, manual, `Enchente · ${areaLabel(n, world.cellCount)}${plan.closed ? ' · vai sobrar um lago' : ''}`, radius, tick, out);
   }
 
+  /**
+   * Furacão ou ciclone (R8): anda passo a passo; a chuva em terra dispara enchentes e, se o jogador
+   * jogou um raio nele, vira furacão de fogo. No máximo 2 por quadrante (o do jogador só respeita o
+   * total de 8).
+   */
   private hurricane(start: number, category: number, tick: number, manual: boolean, out: DisasterOutcome): void {
     const world = this.world;
-    const t = hurricaneTrack(world, start, category, this.rng);
-    // Chuva forte onde ele passa em terra: terra baixa alaga por uns anos.
-    const seen = new Set<number>();
-    for (const c of t.landCells) {
-      for (const j of landAround(world, c, 2, (i) => world.heightAboveSea(i) < 150)) {
-        if (seen.has(j)) continue;
-        seen.add(j);
-        this.ground.setState(j, CellState.Flooded, tick, 3, TICKS_PER_YEAR);
-      }
-    }
-    const n = t.points.length;
-    const path = new Float32Array(n * 3);
-    const times = new Float32Array(n);
-    const strength = new Float32Array(n);
-    for (let k = 0; k < n; k++) {
-      path.set(t.points[k] as Vec3, k * 3);
-      times[k] = n > 1 ? k / (n - 1) : 0;
-      strength[k] = t.strength[k] as number;
-    }
+    const point = cellPoint(world, start);
+    const active = this.storms.filter((h) => h.view());
+    if (active.length >= MAX_STORMS_WORLD) return;
+    if (!manual && active.filter((h) => quadrantOf((h.view() as StormView).point) === quadrantOf(point)).length >= MAX_PER_QUADRANT) return;
+    let fireProcess: FireProcess | null = null;
+    const h = new HurricaneProcess(world, this.ground, this.rng, start, category, tick, this.storms.filter((x) => x.startTick === tick).length, {
+      flood: (cell, t) => {
+        const out2 = this.stepOut;
+        if (out2) this.flood(cell, t, manual, out2);
+      },
+      ignite: (cells, t) => {
+        // Um incêndio por furacão, alimentado pelo miolo dele enquanto anda em terra.
+        const lit = cells.filter((c) => canBurn(world, this.ground, c));
+        if (!lit.length) return;
+        if (!fireProcess || !fireProcess.size) {
+          fireProcess = new FireProcess(world, this.ground, this.rng, lit[0] as number, t, () => undefined, PLAYER_FIRE_BOOST);
+          this.start(fireProcess);
+        }
+        fireProcess.igniteAlso(lit, t);
+      },
+    });
+    this.storms.push(h);
+    this.start(h);
+    const t = h.track;
     this.count(DisasterKind.Hurricane);
     out.events.push({
       id: this.nextId++,
       kind: DisasterKind.Hurricane,
       tick,
-      point: cellPoint(world, start),
+      point,
       magnitude: t.category,
       notable: t.landfall && t.category >= 4,
       manual,
-      label: `Furacão categoria ${t.category}${t.landfall ? ' · tocou terra' : ''}`,
+      label: `${stormName(t.category)} categoria ${t.category}${t.landfall ? ' · vai tocar terra' : ''}`,
       radius: 0.04 + 0.012 * t.category,
-      path,
-      times,
-      strength,
     });
+  }
+
+  /** Furacões e ciclones andando agora (para o desenho). */
+  stormViews(): StormView[] {
+    this.storms = this.storms.filter((h) => h.view());
+    return this.storms.map((h) => h.view() as StormView);
   }
 
   /** Evento simples (centro, área em células, raio em células). */

@@ -14,7 +14,7 @@ import { REVEALED_BIT } from '../world/resources';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
 import { emptyWork, type WorkCounters } from '../ui/benchmark';
-import { makePatches, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
+import { makePatches, STORM_FLOATS, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
 
 /** De quantos em quantos anos a camada "Ver tensão" é repintada (a tensão sobe devagar). */
 const STRESS_REFRESH_YEARS = 2;
@@ -162,6 +162,8 @@ export class SimulationCore {
   private stressBuf = new Float32Array(0);
   /** Células com aparência nova esperando a repintura do fim do laço. */
   private pendingPaint = new Set<number>();
+  /** Quantos furacões a tela está mostrando. */
+  private stormsShown = 0;
   /** Deriva no relógio (a mesma soma da tectônica) e a composição mostrada, para os ângulos. */
   private drift = 0;
   private shown: ShownComposition = { angles: [], speeds: [], drift: 0 };
@@ -442,8 +444,19 @@ export class SimulationCore {
     if (o.events.length) this.send({ type: 'disasters', events: o.events });
   }
 
+  /** Manda à tela onde estão os furacões (enquanto houver algum, e uma vez quando o último acaba). */
+  private postStorms(): void {
+    const views = this.disasters?.stormViews() ?? [];
+    if (!views.length && !this.stormsShown) return;
+    this.stormsShown = views.length;
+    const data = new Float32Array(views.length * STORM_FLOATS);
+    views.forEach((v, k) => data.set([v.id, v.point[0], v.point[1], v.point[2], v.radius, v.power, v.fire ? 1 : 0], k * STORM_FLOATS));
+    this.post({ type: 'storms', storms: data }, [data.buffer as ArrayBuffer]);
+  }
+
   /** Repinta e manda as células que os desastres mudaram desde a última vez. */
   private flushPaint(): void {
+    this.postStorms();
     const world = this.world;
     if (!world || !this.pendingPaint.size) return;
     const cells = [...this.pendingPaint];
