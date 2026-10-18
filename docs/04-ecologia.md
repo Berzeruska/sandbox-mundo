@@ -56,6 +56,8 @@ volta para elas:
   quanto uma região sustenta, quanto um desastre tira). O M2 já guarda a vegetação de cada célula em
   porcentagem (redesenho dos desastres, `docs/M2-especificacao.md`).
 - **Seca:** dificulta a vida na região em até 30% (menos plantas, menos comida e água).
+  Pedido do usuário (2026-10-18): o semiárido que a seca deixa (M2) deve ficar mais bonito com a
+  ecologia; hoje parece "um formigueiro disforme".
 - **Furacão:** "puxa as coisas": arrasta criaturas e objetos leves no caminho.
 - **Terremoto:** destrói o que está em cima do ponto onde começa (no M2, terreno e bioma; depois,
   criaturas e construções).

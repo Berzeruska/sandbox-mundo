@@ -541,9 +541,9 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
 ## Bloco Desastres v2 — redesenho (pedido do usuário em 2026-10-17, teste da `b3297292`)
 
 **Aprovado pelo usuário em 2026-10-18 com ajustes** (respostas e ajustes no fim desta seção). Refaz
-T8–T12; depois vêm T13 e T14. **Ainda esperando aprovação:** as imagens novas da seca, do terremoto,
-do vulcão e do seletor do furacão, e a proposta de relevo do terreno (item "Relevo do terreno"). O que
-já está aprovado segue (R1 primeiro).
+T8–T12; depois vêm T13 e T14. Imagens novas do terremoto, do vulcão e dos seletores aprovadas; a da
+seca fica como está por enquanto; relevo em degraus (opção b) aprovado (segunda rodada de respostas,
+2026-10-18, no fim desta seção).
 
 ### O que o usuário pediu
 - **Regra geral:** todo desastre tem efeito visível que **muda o mundo** (terreno, bioma, vegetação),
@@ -608,7 +608,7 @@ O resultado final segue a especificação, não o protótipo.
 - **Num furacão:** o raio do jogador transforma o furacão em furacão de fogo (ver Furacão).
 - Raio não vira aviso; o incêndio grande que ele começa, sim.
 
-**Seca** (`m2-dv-seca-v2.png`; ajustada em 2026-10-18, esperando aprovação da imagem nova)
+**Seca** (`m2-dv-seca-v2.png`; ajustada em 2026-10-18; o usuário deixou "como está por enquanto")
 - **Região maior:** raio de 12–30 células (antes 5–13), borda irregular (não um círculo), por 3–15
   anos (mais provável onde já é seco).
 - **A região vira semiárido**, no estilo da caatinga: enquanto dura, as células funcionam como mato
@@ -634,7 +634,7 @@ O resultado final segue a especificação, não o protótipo.
   agricultura melhor (várzeas). Se a área for uma bacia fechada, sobra um **lago** por 10–30 anos.
 - Floresta alagada não morre (perde 10–20%); campo alagado perde a cobertura e volta verde.
 
-**Terremoto** (`m2-dv-terremoto-v2.png`; ajustado em 2026-10-18, esperando aprovação da imagem nova)
+**Terremoto** (`m2-dv-terremoto-v2.png`; ajustado e aprovado em 2026-10-18)
 - **A tela treme** (só a câmera, 0,5–2 s, pela magnitude e pela distância do epicentro ao centro da
   tela; longe ou fora da vista, quase nada).
 - **Quanto maior a magnitude, maior a fenda e o estrago.** Raio do estrago: M 6: 1 célula; M 7: 3;
@@ -693,7 +693,7 @@ O resultado final segue a especificação, não o protótipo.
   escura de fumaça, e em terra cada célula com vegetação no miolo (1–2 células do centro) pega fogo
   (o incêndio espalha como qualquer outro). No mar só muda a cor. Raio natural não faz isso.
 
-**Vulcão** (`m2-dv-vulcao-v2.png`; ajustado em 2026-10-18, esperando aprovação da imagem nova)
+**Vulcão** (`m2-dv-vulcao-v2.png`; ajustado e aprovado em 2026-10-18)
 - **Vulcões passam a existir no mapa** (hoje a erupção sorteia um ponto e some): nos arcos de
   subducção, nos pontos quentes e onde o jogador criar; andam com a placa. Os das dorsais ficam no
   fundo do mar, sem cratera visível.
@@ -744,7 +744,7 @@ O resultado final segue a especificação, não o protótipo.
 - **"Medir desempenho"** passa a mostrar o tempo de GPU do globo (meta ≤ 8 ms) e a memória (meta ≤
   400 MB).
 
-### Relevo do terreno (pedido do usuário em 2026-10-18; proposta esperando aprovação)
+### Relevo do terreno (pedido do usuário em 2026-10-18; **opção (b), degraus, aprovada**)
 O usuário quer que a textura dos biomas e do terreno mostre bem o que é mais alto e o que é mais baixo.
 Hoje a altura só clareia um pouco a cor das terras altas. Opções em `docs/img/m2-relevo-proposta.png`
 (mesmo lugar, de perto e de média distância):
@@ -757,6 +757,9 @@ Hoje a altura só clareia um pouco a cor das terras altas. Opções em `docs/img
   baixadas e mais clara e acinzentada no alto.
 Custo: a sombra é calculada junto com as cores (no ajudante, quando a cor é refeita); medir no
 notebook antes de fechar.
+**Escolhida a (b), degraus** (2026-10-18; o quadro 7 da imagem, média distância, "o mais bonito e o
+mais parecido com o que quero"). Vale também de perto; se de perto ficar ruim, o usuário avisa no
+teste do bloco. Mar e gelo não ganham degraus.
 
 ### Tarefas do bloco (depois da aprovação, nesta ordem; cada uma = um commit)
 - [x] **R1 — Polos, nuvens no polo e relatório** (GPU e memória no "Medir desempenho").
@@ -774,6 +777,12 @@ notebook antes de fechar.
 - [ ] **R2 — Base:** vegetação por célula em %, estados de célula com cor e recuperação, desastres
   passo a passo no relógio, avisos no canto inferior esquerdo, sem a lista, fileira de magnitude.
   Testes: vegetação volta na velocidade do bioma; estados expiram; determinismo passo a passo.
+- [ ] **RL — Relevo em degraus** (opção b): níveis a cada 150 m em terra, sombra do lado oposto à luz
+  (noroeste) e borda iluminada, calculados junto com as cores. Testes: célula com vizinha mais alta do
+  lado da luz fica mais escura; terreno plano não muda; mar não muda.
+- [ ] **RG — GPU de perto com as placas andando ≤ 8 ms** (decisão do usuário, 2026-10-18: opção a,
+  depois do relevo, para não otimizar duas vezes). Meta 8 ms, sem otimizar além disso. Se a
+  transição de perto mudar de aparência, mostrar ao usuário antes. Medir no notebook.
 - [ ] **R3 — Incêndio e raio.** Testes: campo pega fogo; fogo não entra em deserto, gelo e água;
   anda a favor do vento; raio em floresta acende, no mar não.
 - [ ] **R4 — Seca e enchente.** Testes: seca tira cobertura e aquece; enchente segue o terreno baixo,
@@ -803,6 +812,16 @@ notebook antes de fechar.
    categoria e furacão de fogo com raio; relevo do terreno (proposta antes de fazer).
 7. Aprovados como estão: raio e incêndio, enchente, o desenho do tsunami, o planeta (nuvens) e a
    correção da tampa no polo.
+
+### Respostas do usuário, segunda rodada (2026-10-18, depois da R1 e do `35a5ceb`)
+1. **GPU de perto com placas andando:** opção (a), otimizar para caber em 8 ms, **depois** do relevo
+   (o relevo também pesa; otimizar antes faria o trabalho duas vezes). Mudança visível na transição de
+   perto: mostrar antes. Meta 8 ms, sem otimizar além.
+2. **Relevo:** opção (b), degraus a cada 150 m (quadro 7). Vale de perto; se ficar ruim, ele avisa.
+3. **Aprovadas:** imagens do terremoto v2, do vulcão v2 e dos seletores de força.
+4. **Seca v2:** fica como está por enquanto (o semiárido melhora com a ecologia no M3,
+   `docs/04-ecologia.md`).
+5. Ordem: R2 → RL (relevo) → RG (GPU) → R3 a R9.
 
 ## Bloco Final (depois do Bloco Desastres v2)
 

@@ -1,11 +1,10 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 (R1–R9) aprovado com
-ajustes** (2026-10-18). **R1 feita** (polos, nuvens no polo, GPU e memória no relatório). **Parada
-obrigatória:** a meta de GPU (≤ 8 ms) está quebrada de perto com as placas andando (~8 ms; ~15 ms na
-transição depois de cada recomposição); opções levadas ao usuário.
-**Esperando aprovação:** imagens novas da seca, do terremoto, do vulcão e dos seletores, e a proposta
-de relevo do terreno. Depois do bloco: Final (T13, T14).
+Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 aprovado** (respostas de
+2026-10-18, duas rodadas). **R1 feita.** Imagens v2 do terremoto, do vulcão e dos seletores aprovadas;
+seca v2 fica como está; relevo em degraus (opção b) aprovado. **GPU de perto com placas andando
+(~8–15 ms, meta 8):** otimizar (opção a) na tarefa RG, depois do relevo (RL). Ordem: **R2 (em
+andamento)** → RL → RG → R3 a R9. Depois do bloco: Final (T13, T14).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -35,7 +34,7 @@ sobre "onde estamos", vale este.
   deformar o que passa por cima perto do polo; calotas e variação de cor; textura fina no M8); a
   "tampa" sem nuvens em volta do polo tem que sumir; floresta tropical e minérios aprovados; prioridade
   visual = o que o desastre faz no mundo (acabamento no M8); **redesenho dos desastres**.
-- **Bloco Desastres v2 (R1–R9), especificado em `docs/M2-especificacao.md`, esperando aprovação:**
+- **Bloco Desastres v2 (R1–R9, mais RL relevo e RG GPU), especificado e aprovado em `docs/M2-especificacao.md`:**
   vegetação por célula em %, estados de célula (em chamas, queimado, lava, basalto, alagado, lama,
   fenda, solo fértil, calor) que mudam a cor e se recuperam; desastres andando passo a passo no
   relógio; incêndio célula a célula (campo queima) e raio novo; seca com calor; enchente nova (chuva,
@@ -129,7 +128,7 @@ sobre "onde estamos", vale este.
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] Bloco Desastres v2 (R1–R9), depois da aprovação da especificação.
+- [ ] Bloco Desastres v2: R2 (base) → RL (relevo em degraus) → RG (GPU de perto ≤ 8 ms) → R3 a R9.
 - [ ] T13 (teste longo) e T14 (medição final).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
@@ -174,6 +173,8 @@ sobre "onde estamos", vale este.
   encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
 
 ## Ideias registradas para marcos futuros (não fazer agora)
+- 2026-10-18: o semiárido da seca mais bonito com a ecologia (M3, `docs/04-ecologia.md`); referência
+  da câmera em primeira pessoa: vídeo do Andrezitos com o WorldBox em 3D (`docs/02-marcos.md`).
 - 2026-10-18: câmera em primeira pessoa de um indivíduo (M8 ou depois; depende das criaturas e do
   pseudo-3D).
 - 2026-10-17: características do mundo em porcentagem; seca −30% de vida; furacão "puxa as coisas";

@@ -794,3 +794,16 @@ Formato: data — decisão — motivo — alternativa descartada.
   - **Achado: a meta de GPU (≤ 8 ms) está quebrada de perto com as placas andando** (~8,1 ms; ~14,6 ms
     na transição suave depois de cada recomposição, quando a superfície é desenhada duas vezes).
     Longe e de perto parado ficam em ~4 ms. Parada obrigatória: opções levadas ao usuário.
+
+- **2026-10-18 — Respostas do usuário à R1 e às imagens do `35a5ceb`.**
+  1. **Meta de GPU de perto com as placas andando: opção (a), otimizar para caber em 8 ms**, depois
+     de implementar o relevo (que também pesa na GPU; otimizar antes faria o trabalho duas vezes).
+     Se a transição de perto mudar de aparência, mostrar antes. A meta é 8 ms; não otimizar além.
+     Descartadas: (b) meta pela média do cenário; (c) meta separada de 12 ms.
+  2. **Relevo do terreno: opção (b), degraus** (níveis a cada 150 m, sombra e borda iluminada pela
+     luz de noroeste), o quadro 7 da proposta. Vale também de perto; se ficar ruim, o usuário avisa.
+     Descartadas: (a) sombra suave de encosta; (c) sombra + cor pela altura.
+  3. Imagens aprovadas: terremoto v2, vulcão v2 e seletores de força. A seca v2 fica como está por
+     enquanto; o semiárido deve ficar mais bonito com a ecologia (M3, `docs/04-ecologia.md`).
+  4. Ordem do bloco: R2 → RL (relevo) → RG (GPU) → R3 a R9.
+  5. Docs: referência da câmera em primeira pessoa (vídeo do Andrezitos) em `docs/02-marcos.md`.

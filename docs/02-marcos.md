@@ -124,4 +124,5 @@ proporcionais ao relevo (ver a questão de escala do M3).
 
 Ideia do usuário (2026-10-18), para o M8 ou depois: **câmera em primeira pessoa de um indivíduo**
 (ver o mundo pelos olhos de uma criatura ou pessoa). Depende das criaturas (M3/M4) e do relevo em 3D
-(o pseudo-3D do M8).
+(o pseudo-3D do M8). Referência do usuário: o vídeo do Andrezitos com o WorldBox em visão 3D,
+controlando uma criatura (só como referência de ideia; regra 8: nada copiado).
