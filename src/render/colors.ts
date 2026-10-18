@@ -156,7 +156,34 @@ export interface GroundView {
   levelOf(c: number): number;
 }
 
-export function writeCellColor(world: WorldState, i: number, out: Uint8Array, layers: Layers = NO_LAYERS, halo?: Uint8Array, ground?: GroundView): void {
+/**
+ * A cor usa a vegetação e a força do estado nos mesmos degraus que decidem quando repintar (`Ground`:
+ * 4% e 8 níveis): assim a cor não depende de quando exatamente a célula foi repintada (o relógio junta
+ * as repinturas de vários passos), e o mundo sai igual em qualquer velocidade.
+ */
+const stepCover = (v: number): number => Math.round(v * 25) / 25;
+const stepStrength = (v: number): number => Math.ceil(v * 7) / 7;
+
+class SteppedGround implements GroundView {
+  g: GroundView | undefined = undefined;
+  get cover(): Float32Array {
+    return (this.g as GroundView).cover;
+  }
+  get state(): Uint8Array {
+    return (this.g as GroundView).state;
+  }
+  strength(c: number): number {
+    return stepStrength((this.g as GroundView).strength(c));
+  }
+  levelOf(c: number): number {
+    return (this.g as GroundView).levelOf(c);
+  }
+}
+const stepped = new SteppedGround();
+
+export function writeCellColor(world: WorldState, i: number, out: Uint8Array, layers: Layers = NO_LAYERS, halo?: Uint8Array, rawGround?: GroundView): void {
+  stepped.g = rawGround;
+  const ground = rawGround ? stepped : undefined;
   const biome = world.biome[i] as number;
   const info = BIOME_INFO[biome];
   if (!info) throw new Error(`Bioma inválido na célula ${i}`);
@@ -164,7 +191,7 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   // Camadas de leitura (biomas, recursos, tensão) mostram o mundo sem os desastres.
   const showGround = ground !== undefined && h > 0 && !world.ice[i] && !layers.biomes && !layers.resources && !layers.stress;
   let base: readonly number[] = info.color;
-  if (showGround && (ground.cover[i] as number) < 1) base = vegetationColor(biome, ground.cover[i] as number) ?? base;
+  if (showGround && (ground.cover[i] as number) < 1) base = vegetationColor(biome, stepCover(ground.cover[i] as number)) ?? base;
   let k: number;
   if (h <= 0 && !world.ice[i]) k = 1.12 - 0.42 * Math.min(1, -h / 5000);
   else k = (world.ice[i] ? 0.94 : 0.88) + 0.2 * Math.min(1, Math.max(0, h) / 6000);
@@ -187,7 +214,20 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
     g = iceOut[1] as number;
     b = iceOut[2] as number;
   }
-  if (showGround && ground.state[i] === CellState.Heat) {
+  const seaState = ground !== undefined && h <= 0 && !world.ice[i] && !layers.biomes && !layers.resources && !layers.stress ? (ground.state[i] as number) : 0;
+  if (seaState === CellState.Seabed || seaState === CellState.Wave) {
+    tsunamiSeaColor(ground as GroundView, i, seaState, h, r, g, b);
+    r = stateOut[0] as number;
+    g = stateOut[1] as number;
+    b = stateOut[2] as number;
+  } else if (showGround && ground.state[i] === CellState.Surge) {
+    const front = ground.strength(i) > 0.85;
+    const c = front ? SURGE_FRONT : SURGE_WATER;
+    const t = front ? 1 : 0.9;
+    r += (c[0] - r) * t;
+    g += (c[1] - g) * t;
+    b += (c[2] - b) * t;
+  } else if (showGround && ground.state[i] === CellState.Heat) {
     droughtColor(world, ground, biome, i, r, g, b);
     r = stateOut[0] as number;
     g = stateOut[1] as number;
@@ -555,7 +595,7 @@ function droughtColor(world: WorldState, ground: GroundView, biome: number, i: n
   else c = DRY_GROUND[fine < 0.5 ? 0 : 1] as readonly number[];
   // Onde não há vegetação (deserto), só o calor avermelha um pouco; onde há, o semiárido aparece
   // conforme ela morre (perdeu metade = semiárido completo).
-  const t = hasVegetation(biome) ? Math.min(1, (1 - (ground.cover[i] as number)) * 2) : 0.25 * k;
+  const t = hasVegetation(biome) ? Math.min(1, (1 - stepCover(ground.cover[i] as number)) * 2) : 0.25 * k;
   const target = hasVegetation(biome) ? c : HOT_GROUND;
   stateOut[0] = r + ((target[0] as number) - r) * t;
   stateOut[1] = g + ((target[1] as number) - g) * t;
@@ -581,6 +621,33 @@ function quakeColor(ground: GroundView, i: number, r: number, g: number, b: numb
   stateOut[0] = r + (c[0] - r) * t;
   stateOut[1] = g + (c[1] - g) * t;
   stateOut[2] = b + (c[2] - b) * t;
+}
+
+/**
+ * Tsunami (R6, imagem `docs/img/m2-dv-tsunami.png`): o mar raso que recua mostra o fundo (areia
+ * molhada, mais escura no mais fundo); a faixa de espuma é branca-azulada na frente e azul atrás; a
+ * água do mar sobre a terra é azul, com a frente branca.
+ */
+const SEABED: readonly (readonly [number, number, number])[] = [[182, 164, 120], [160, 144, 108], [120, 128, 116]];
+const FOAM: readonly [number, number, number] = [214, 232, 246];
+const FOAM_TAIL: readonly [number, number, number] = [120, 170, 214];
+const SURGE_WATER: readonly [number, number, number] = [88, 140, 176];
+const SURGE_FRONT: readonly [number, number, number] = [236, 244, 252];
+
+function tsunamiSeaColor(ground: GroundView, i: number, state: number, h: number, r: number, g: number, b: number): void {
+  let c: readonly number[];
+  let t: number;
+  if (state === CellState.Seabed) {
+    c = SEABED[-h < 60 ? 0 : -h < 120 ? 1 : 2] as readonly number[];
+    t = 0.9;
+  } else {
+    const fresh = ground.strength(i) > 0.6;
+    c = fresh ? FOAM : FOAM_TAIL;
+    t = fresh ? 0.95 : 0.6;
+  }
+  stateOut[0] = r + ((c[0] as number) - r) * t;
+  stateOut[1] = g + ((c[1] as number) - g) * t;
+  stateOut[2] = b + ((c[2] as number) - b) * t;
 }
 
 /** Cores da camada "Ver tensão": tensão baixa (verde-amarelo), média (laranja), alta (vermelho). */

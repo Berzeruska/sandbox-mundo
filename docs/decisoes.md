@@ -866,3 +866,11 @@ Formato: data — decisão — motivo — alternativa descartada.
   da câmera em pixels (não mexe no giro nem no zoom; os toques durante o tremor caem um pouco ao lado,
   aceitável por até 2 s). Descartado: tremer o canvas inteiro pelo CSS (mostraria a borda da página).
 
+- **2026-10-18 — R6: tsunami (decisões técnicas).** A faixa de espuma só é desenhada no mar perto das
+  costas atingidas (até 8 células), como na imagem aprovada: no oceano todo seriam centenas de milhares
+  de células repintadas por segundo. "Costa atingida" da tabela = células de costa que a onda toca;
+  as que alagam são menos (costas altas seguram a água). Repinturas dos desastres juntadas por laço do
+  relógio e cores em degraus (determinismo em qualquer velocidade). Descartado: desenhar a onda no
+  shader (precisaria de uma textura de tempos de chegada; fica para o M8 se o usuário quiser a onda no
+  mar aberto).
+

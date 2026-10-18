@@ -7,7 +7,7 @@ import { cellPoint, DisasterKind, Disasters, type DisasterEvent } from '../../sr
 import { CellState, Ground, hasVegetation } from '../../src/world/disasters/ground';
 import { writeCellColor } from '../../src/render/colors';
 import { MIN_MAGNITUDE, sampleMagnitude } from '../../src/world/disasters/quakes';
-import { propagateTsunami, TSUNAMI_MIN_MAGNITUDE } from '../../src/world/disasters/tsunami';
+import { planTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiRunup } from '../../src/world/disasters/tsunami';
 import type { WorldState } from '../../src/world/state';
 
 const worldOf = (seed = 'terra', n = 64) => createWorld({ seedText: seed, seed: seedFrom(seed), n, seaLevel: 0, landFraction: 0.3 });
@@ -112,15 +112,15 @@ describe('desastres (T8): tsunamis', () => {
     }
   });
 
-  it('a onda anda só pelo mar e alaga só terra baixa encostada', () => {
+  it('a onda anda só pelo mar e cobre só terra mais baixa que ela', () => {
     const w = worldOf('terra', 64);
     const sea = [...Array(w.cellCount).keys()].find((c) => w.isWater(c) && w.heightAboveSea(c) < -3000)!;
-    const r = propagateTsunami(w, sea, 9);
+    const r = planTsunami(w, sea, 9);
     expect(r.sea.length).toBeGreaterThan(50);
     for (const c of r.sea) expect(w.isWater(c)).toBe(true);
-    for (const c of r.flooded) {
+    for (const c of r.land) {
       expect(w.isWater(c)).toBe(false);
-      expect(w.heightAboveSea(c)).toBeLessThan(40);
+      expect(w.heightAboveSea(c)).toBeLessThan(tsunamiRunup(9));
     }
     // Tempos de chegada em ordem crescente a partir do epicentro.
     for (let k = 1; k < r.times.length; k++) expect(r.times[k]!).toBeGreaterThanOrEqual(r.times[k - 1]!);
@@ -143,8 +143,11 @@ describe('desastres (T8): tsunamis', () => {
     }
     expect(start).toBeGreaterThanOrEqual(0);
     const before = core.colors.slice();
-    core.handle({ type: 'disaster', kind: DisasterKind.Tsunami, point: cellPoint(world, start) });
+    core.handle({ type: 'disaster', kind: DisasterKind.Tsunami, point: cellPoint(world, start), strength: 9 });
     const d = core.disasters!.ground;
+    // O tsunami anda passo a passo (R6): a água chega, volta e deixa a lama (pausado, nada acontece).
+    core.handle({ type: 'speed', speed: 1 });
+    while (core.disasters!.running) core.advance(1 / 12);
     // O terremoto que gera o tsunami também deixa fenda e estrago perto do epicentro (R5).
     const flooded = [...d.active].filter((c) => d.state[c] === CellState.Mud);
     expect(flooded.length).toBeGreaterThan(0);

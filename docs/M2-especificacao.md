@@ -868,8 +868,21 @@ teste do bloco. Mar e gelo não ganham degraus.
   tremendo só na câmera: 0,5–2 s, até ~14 px × a escala da tela pela magnitude, menos com a distância do
   epicentro ao centro da tela (zero além do raio sentido), 30% se o epicentro está fora da vista. Os
   anéis por cima saíram. Testes: `tests/world/quake-damage.test.ts`.
-- [ ] **R6 — Tsunami** (recuo, onda, avanço, dano, costa raspada, magnitude). Testes: alcance pela
+- [x] **R6 — Tsunami** (recuo, onda, avanço, dano, costa raspada, magnitude). Testes: alcance pela
   magnitude; para em terreno alto; toda célula alcançada perde a vegetação.
+  **Feito (2026-10-18):** `src/world/disasters/tsunami.ts` (plano + processo). A onda anda pelo mar como
+  antes (√profundidade); alcance pelo mar calibrado em N = 256 para tocar ~20/~60/~110/~200 células de
+  costa e o oceano todo (M 7,5 a 9,5; medido). Tudo nas células, passo a passo: o mar raso (< 200 m) a
+  até 4 células das costas atingidas mostra o fundo (areia molhada) por 8 passos antes da onda chegar;
+  a faixa de espuma passa pelo mar a até 8 células dessas costas (3 passos por célula); a água entra em
+  terra uma célula por passo até o alcance da tabela (3/6/10/17/28), enquanto o terreno é mais baixo que
+  a onda ali (altura da tabela, caindo com a distância no mar e a cada célula para dentro), fica 6
+  passos e volta de dentro para a costa; onde passou: vegetação 0 e lama 15–30 anos; as 1–2 primeiras
+  células da costa perdem 5–20 m para sempre (as que ficam abaixo do mar viram mar raso). Viagem de
+  2–5 s em 1×. O desenho por cima (pontos da frente) saiu. Testes: `tests/world/tsunami.test.ts`.
+  **Também (técnico):** o relógio junta as repinturas dos desastres de vários passos numa mensagem só
+  por laço (a 20× seriam 240 por segundo), e a cor usa a vegetação e a força do estado nos mesmos
+  degraus que decidem a repintura (o mundo sai igual em qualquer velocidade).
 - [ ] **R7 — Vulcão** (vulcões no mapa, cratera, ciclo, lava). Testes: lava desce; lava no mar vira
   terra; adormecido não entra em erupção sozinho; anda com a placa.
 - [ ] **R8 — Furacão e ciclone** (das nuvens, vários, destruição, seletor de categoria, furacão de fogo). Testes: no máximo 2 por

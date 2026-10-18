@@ -160,6 +160,8 @@ export class SimulationCore {
   disasters: Disasters | null = null;
   private disasterFrequency = DEFAULT_FREQUENCY;
   private stressBuf = new Float32Array(0);
+  /** Células com aparência nova esperando a repintura do fim do laço. */
+  private pendingPaint = new Set<number>();
   /** Deriva no relógio (a mesma soma da tectônica) e a composição mostrada, para os ângulos. */
   private drift = 0;
   private shown: ShownComposition = { angles: [], speeds: [], drift: 0 };
@@ -201,7 +203,10 @@ export class SimulationCore {
         this.setLayers(msg.layers);
         break;
       case 'disaster':
-        if (this.world && this.disasters) this.applyDisasters(this.disasters.trigger(msg.kind, msg.point, this.clock.tick, msg.strength));
+        if (this.world && this.disasters) {
+          this.applyDisasters(this.disasters.trigger(msg.kind, msg.point, this.clock.tick, msg.strength));
+          this.flushPaint();
+        }
         break;
       case 'disasterFrequency':
         this.disasterFrequency = Math.max(0, Math.min(FREQUENCIES.length - 1, Math.round(msg.level)));
@@ -253,6 +258,7 @@ export class SimulationCore {
     this.colors = new Uint8Array(0);
     this.worldId++;
     this.pending = [];
+    this.pendingPaint.clear();
     this.brushLog = [];
     this.engineTick = 0;
     this.stats = null;
@@ -427,12 +433,21 @@ export class SimulationCore {
       const done = this.terrain(t.cells, t.deltas);
       if (done) patches.push(...done.patches);
     }
-    if (o.marked.length) {
-      this.paint(o.marked);
-      patches.push(...makePatches(this.colors, world.params.n, dirtyRects(world.grid, o.marked)));
-    }
+    // A aparência das células (fogo andando, onda, vegetação voltando) é repintada uma vez por laço do
+    // relógio, juntando os passos: a 20× seriam 240 mensagens por segundo (`flushPaint`).
+    for (const c of o.marked) this.pendingPaint.add(c);
     if (patches.length) this.send(deposits ? { type: 'patch', patches, brushMs: -1, deposits } : { type: 'patch', patches, brushMs: -1 });
     if (o.events.length) this.send({ type: 'disasters', events: o.events });
+  }
+
+  /** Repinta e manda as células que os desastres mudaram desde a última vez. */
+  private flushPaint(): void {
+    const world = this.world;
+    if (!world || !this.pendingPaint.size) return;
+    const cells = [...this.pendingPaint];
+    this.pendingPaint.clear();
+    this.paint(cells);
+    this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
   }
 
   /**
@@ -623,6 +638,7 @@ export class SimulationCore {
     }
     if (blocked && !this.waitingSince) this.waitingSince = this.now();
     if (ran && this.world && !this.geology.perTick) this.geology.send({ type: 'advance', world: this.worldId, tick: this.clock.tick });
+    this.flushPaint();
     const w = this.ticksWindow;
     const t = this.now();
     if (!w.since) w.since = t;

@@ -24,6 +24,10 @@ export const CellState = {
   Lake: 11,
   /** Deslizamento do terremoto (R5): cicatriz clara em cima, entulho escuro embaixo (nível = posição). */
   Slide: 12,
+  /** Tsunami (R6): fundo do mar exposto antes da onda, faixa de espuma, água do mar sobre a terra. */
+  Seabed: 13,
+  Wave: 14,
+  Surge: 15,
 } as const;
 export type CellState = (typeof CellState)[keyof typeof CellState];
 
@@ -41,6 +45,9 @@ export const STATE_NAMES: Record<number, string> = {
   [CellState.Ash]: 'cinzas',
   [CellState.Lake]: 'lago da enchente',
   [CellState.Slide]: 'deslizamento',
+  [CellState.Seabed]: 'fundo do mar exposto',
+  [CellState.Wave]: 'onda do tsunami',
+  [CellState.Surge]: 'água do tsunami',
 };
 
 /**
@@ -63,7 +70,7 @@ export function hasVegetation(biome: number): boolean {
 }
 
 /** Estados em que a vegetação não volta (o chão ainda queima, é rocha, está salgado ou na seca). */
-const NO_REGROW: ReadonlySet<number> = new Set([CellState.Burning, CellState.Lava, CellState.Basalt, CellState.Mud, CellState.Heat, CellState.Lake]);
+const NO_REGROW: ReadonlySet<number> = new Set([CellState.Burning, CellState.Lava, CellState.Basalt, CellState.Mud, CellState.Heat, CellState.Lake, CellState.Surge]);
 /** Solo fértil (o que a enchente deixa): a vegetação volta 2× mais rápido. */
 const FERTILE_REGROW = 2;
 /**
@@ -76,6 +83,8 @@ const NEXT_STATE: Readonly<Partial<Record<number, readonly [Exclude<CellState, 0
   // A água da enchente baixa e deixa solo fértil por 20–40 anos (R4).
   [CellState.Flooded]: [CellState.Fertile, 20, 40],
   [CellState.Lake]: [CellState.Fertile, 20, 40],
+  // A água do tsunami volta para o mar e deixa lama salgada (15–30 anos sem nada crescer).
+  [CellState.Surge]: [CellState.Mud, 15, 30],
 };
 /** Estados que só a lava cobre (um alagamento não apaga um derrame de basalto). */
 const ROCK: ReadonlySet<number> = new Set([CellState.Lava, CellState.Basalt]);
@@ -187,8 +196,8 @@ export class Ground {
     if (!s || (this.until[c] as number) !== due) return;
     const next = NEXT_STATE[s];
     this.state[c] = CellState.None;
-    // O fogo acabou: a vegetação virou cinza.
-    if (s === CellState.Burning) this.cover[c] = 0;
+    // O fogo acabou (a vegetação virou cinza) ou o mar passou por cima (arrancou tudo).
+    if (s === CellState.Burning || s === CellState.Surge) this.cover[c] = 0;
     if (next) this.setState(c, next[0], tick, next[1] + (next[2] - next[1]) * cellHash(c, s), ticksPerYear);
     this.dirty.add(c);
   }

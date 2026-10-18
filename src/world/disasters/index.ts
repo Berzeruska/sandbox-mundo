@@ -8,7 +8,7 @@ import { DROUGHT_YEARS, NOTABLE_DROUGHT_RADIUS, sampleDroughtRadius, startDrough
 import { DEPTH, FLOOD_CELLS, FloodProcess, floodPlan, lowestNear, NOTABLE_FLOOD_CELLS, PLAYER_FLOOD_CELLS, WET_YEARS } from './flood';
 import { canBurn, FireProcess, LIGHTNING_PER_YEAR, lightningIgnites, NOTABLE_FIRE_CELLS, pickLightningCell, PLAYER_FIRE_BOOST, PLAYER_FIRE_RADIUS } from './fire';
 import { buildFaults, type Fault, feltRadius, MAX_MAGNITUDE, NOTABLE_MAGNITUDE, sampleMagnitude, stressDrop, yearlyStress } from './quakes';
-import { propagateTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, wavePoints } from './tsunami';
+import { planTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, TsunamiProcess } from './tsunami';
 import { areaLabel, decimal, DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './types';
 import {
   DROUGHT_CHANCE,
@@ -78,7 +78,6 @@ export interface DisasterProcess {
 
 /** Quanto tempo (anos) cada marca curta dos desastres de hoje dura (R3–R8 refazem cada um). */
 const ASH_YEARS = 10;
-const MUD_YEARS: readonly [number, number] = [15, 30];
 
 /**
  * Desastres do mundo (T8–T12): vivem no relógio e andam com o passo do jogo; sorteios próprios, na ordem
@@ -436,14 +435,11 @@ export class Disasters {
       radius: feltRadius(m),
     });
     if (m < TSUNAMI_MIN_MAGNITUDE || !world.isWater(cell)) return;
-    const r = propagateTsunami(world, cell, m);
-    // O mar deixa lama salgada: a vegetação some e só volta depois que a lama sai.
-    for (const c of r.flooded) {
-      this.ground.damage(c, 1);
-      this.ground.setState(c, CellState.Mud, tick, this.rng.range(MUD_YEARS[0], MUD_YEARS[1]), TICKS_PER_YEAR);
-    }
-    const wave = wavePoints(world, r);
+    // Tsunami (R6): anda passo a passo nas células (recuo, espuma, água em terra, lama, costa raspada).
+    const plan = planTsunami(world, cell, m);
+    this.start(new TsunamiProcess(this.ground, plan, m, tick, this.rng));
     this.count(DisasterKind.Tsunami);
+    const coast = new Set(plan.land.filter((_, k) => plan.landSteps[k] === 0)).size;
     out.events.push({
       id: this.nextId++,
       kind: DisasterKind.Tsunami,
@@ -452,10 +448,8 @@ export class Disasters {
       magnitude: m,
       notable: true,
       manual,
-      label: r.flooded.length ? `Tsunami · ${r.flooded.length} células de costa alagadas` : 'Tsunami',
+      label: coast ? `Tsunami M ${decimal(m)} · ${coast} células de costa` : `Tsunami M ${decimal(m)}`,
       radius: tsunamiReach(m),
-      path: wave.path,
-      times: wave.times,
     });
   }
 }

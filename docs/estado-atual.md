@@ -3,8 +3,8 @@
 Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 aprovado** (respostas de
 2026-10-18, duas rodadas). **R1 feita.** Imagens v2 do terremoto, do vulcão e dos seletores aprovadas;
 seca v2 fica como está; relevo em degraus (opção b) aprovado. **R2, RL e RG feitas** (RG: GPU de
-perto com placas andando 5,0 ms, na transição 6,8 ms; antes 8 e 15). **R3, R4 e R5 feitas**
-(incêndio e raio; seca e enchente; terremoto). Próxima: **R6 (tsunami)**, depois R7 a R9. Depois do bloco: Final (T13, T14).
+perto com placas andando 5,0 ms, na transição 6,8 ms; antes 8 e 15). **R3 a R6 feitas**
+(incêndio e raio; seca e enchente; terremoto; tsunami). Próxima: **R7 (vulcão)**, depois R8 e R9. Depois do bloco: Final (T13, T14).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -34,6 +34,9 @@ sobre "onde estamos", vale este.
   deformar o que passa por cima perto do polo; calotas e variação de cor; textura fina no M8); a
   "tampa" sem nuvens em volta do polo tem que sumir; floresta tropical e minérios aprovados; prioridade
   visual = o que o desastre faz no mundo (acabamento no M8); **redesenho dos desastres**.
+- **R6 feita (2026-10-18):** tsunami nas células, passo a passo: o mar raso recua, a faixa de espuma
+  chega às costas, a água entra em terra pela magnitude (3 a 28 células, parando no terreno alto), volta
+  e deixa lama; a costa perde 5–20 m para sempre. M 7,5–9,5 no cartão.
 - **R5 feita (2026-10-18):** terremoto com fenda irregular ao longo da fronteira e deslizamentos
   descendo as encostas, crescendo com a magnitude (M 6–9,5 no cartão); encosta perde altura para sempre;
   tela tremendo (só a câmera) pela magnitude e pela distância. Sem os anéis por cima.
@@ -151,7 +154,7 @@ sobre "onde estamos", vale este.
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] Bloco Desastres v2: R6 a R9 (R1, R2, RL, RG, R3, R4 e R5 feitas).
+- [ ] Bloco Desastres v2: R7 a R9 (R1, R2, RL, RG e R3 a R6 feitas).
 - [ ] T13 (teste longo) e T14 (medição final).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 

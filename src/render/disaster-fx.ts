@@ -17,7 +17,6 @@ interface Fx {
 
 /** Duração das animações (ms). */
 const FX_MS: Record<number, number> = {
-  [DisasterKind.Tsunami]: 6000,
   [DisasterKind.Volcano]: 3200,
   [DisasterKind.Hurricane]: 9000,
   // Incêndio (R3), seca e enchente (R4) aparecem nas próprias células, sem animação por cima; o raio é
@@ -87,8 +86,7 @@ export class DisasterFx {
     this.list = this.list.filter((f) => now - f.start < f.ms);
     for (const f of this.list) {
       const u = (now - f.start) / f.ms;
-      if (f.e.kind === DisasterKind.Tsunami) drawWave(ctx, camera, f.e, u, dpr);
-      else if (f.e.kind === DisasterKind.Volcano) drawEruption(ctx, camera, f.e, u, f.e.id, dpr);
+      if (f.e.kind === DisasterKind.Volcano) drawEruption(ctx, camera, f.e, u, f.e.id, dpr);
       else if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
     }
   }
@@ -140,26 +138,6 @@ function drawLightning(ctx: CanvasRenderingContext2D, camera: Camera, e: Disaste
     ctx.beginPath();
     pts.forEach(([px, py], k) => (k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
     ctx.stroke();
-  }
-}
-
-/** Tsunami: a frente da onda (pontos de mar no tempo de chegada) andando pelo oceano. */
-function drawWave(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, u: number, dpr: number): void {
-  const path = e.path;
-  const times = e.times;
-  if (!path || !times) return;
-  const band = 0.07;
-  // Tamanho do ponto: pelo menos uma célula na tela (a frente fica contínua) e no mínimo 3 px.
-  const size = Math.max(3 * dpr, camera.cellPixels() * 1.2);
-  for (let i = 0; i < times.length; i++) {
-    const d = u - (times[i] as number);
-    if (d < 0 || d > band) continue;
-    const p: Vec3 = [path[i * 3] as number, path[i * 3 + 1] as number, path[i * 3 + 2] as number];
-    const q = camera.worldToScreen(p);
-    if (!q.visible) continue;
-    const a = Math.min(1, 1.4 * (1 - d / band)) * (1 - 0.4 * u);
-    ctx.fillStyle = `rgba(235, 250, 255, ${a.toFixed(3)})`;
-    ctx.fillRect(q.x - size / 2, q.y - size / 2, size, size);
   }
 }
 
