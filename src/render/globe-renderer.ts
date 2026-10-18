@@ -89,6 +89,23 @@ export class GlobeRenderer {
   /** Bloco reaproveitado para os envios parciais. */
   private packBuffer = new Uint8Array(0);
   private lost = false;
+  /**
+   * Transição com imagem guardada (RG): na recomposição, a composição que vai virar a "anterior" é
+   * desenhada uma vez nesta imagem (cor da superfície, tamanho da tela), com a câmera e os ângulos das
+   * placas daquela hora. Na transição o shader lê dela em vez de desenhar a composição anterior de novo.
+   */
+  private snap: { fbo: WebGLFramebuffer; tex: WebGLTexture; w: number; h: number } | null = null;
+  /** A imagem vale para a transição atual; `snapFresh`: o próximo quadro mostra só ela. */
+  private snapValid = false;
+  private snapFresh = false;
+  private snapRot = new Float32Array(9);
+  private snapCenter: [number, number] = [0, 0];
+  private snapRadius = 1;
+  private snapTotal = new Float32Array(MAX_SHADER_PLATES * 2);
+  private snapDelta = new Float32Array(MAX_SHADER_PLATES * 2);
+  /** Câmera e movimento do último quadro (a imagem da recomposição sai igual a ele). */
+  private lastCamera: Camera | null = null;
+  private lastMotion: PlateMotionUniforms | null = null;
 
   constructor(canvas: HTMLCanvasElement, n: number, colors: Uint8Array) {
     this.canvas = canvas;
@@ -104,6 +121,8 @@ export class GlobeRenderer {
     });
     canvas.addEventListener('webglcontextrestored', () => {
       this.lost = false;
+      this.snap = null;
+      this.snapValid = false;
       // A GPU reiniciou: se foi com o shader completo, volta com o simplificado (mais leve).
       if (this.motionSupported) {
         this.motionSupported = false;
@@ -146,7 +165,7 @@ export class GlobeRenderer {
     }
     // Se até o simplificado falhar, o erro sobe e aparece na tela (App).
     this.program ??= linkProgram(gl, VERTEX_SHADER, fragmentShader(false));
-    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev', 'uDeposits', 'uDepositsPrev', 'uResLayer', 'uRiftColor', 'uClouds', 'uCloudTime', 'uStormCount', 'uStorms', 'uStormPower']) {
+    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev', 'uDeposits', 'uDepositsPrev', 'uResLayer', 'uRiftColor', 'uClouds', 'uCloudTime', 'uStormCount', 'uStorms', 'uStormPower', 'uPass', 'uSnap', 'uSnapOn', 'uSnapRot', 'uSnapCenter', 'uSnapRadius', 'uSnapSize', 'uSnapDelta']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.vao = gl.createVertexArray();
@@ -189,6 +208,8 @@ export class GlobeRenderer {
    */
   recomposed(plateCells: Uint8Array, deposits: Uint8Array): void {
     if (this.lost) return;
+    // Antes de trocar as texturas: guarda a imagem da composição que vai virar a anterior.
+    this.takeSnapshot();
     const spareDeposits = this.prevDepositTexture;
     this.prevDepositTexture = this.depositTexture;
     this.depositTexture = spareDeposits;
@@ -340,7 +361,68 @@ export class GlobeRenderer {
     return { ms: sync, method: 'quadro esperando a GPU (inclui o envio pela CPU; o navegador não tem a consulta de tempo da GPU)' };
   }
 
+  /**
+   * Guarda a imagem da composição atual como o último quadro a mostrou (câmera e ângulos dele). Custa um
+   * desenho do globo, uma vez por recomposição; o quadro seguinte só mostra a imagem (sem desenhar a
+   * composição nova), então nenhum quadro desenha o globo duas vezes.
+   */
+  private takeSnapshot(): void {
+    const camera = this.lastCamera;
+    const motion = this.lastMotion;
+    this.snapValid = false;
+    this.snapFresh = false;
+    if (!this.motionSupported || !camera || !motion || !motion.moving) return;
+    const gl = this.gl;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    if (!this.snap || this.snap.w !== w || this.snap.h !== h) {
+      if (this.snap) {
+        gl.deleteFramebuffer(this.snap.fbo);
+        gl.deleteTexture(this.snap.tex);
+      }
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w, h);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const fbo = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      if (!ok) {
+        gl.deleteFramebuffer(fbo);
+        gl.deleteTexture(tex);
+        this.snap = null;
+        return;
+      }
+      this.snap = { fbo, tex, w, h };
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.snap.fbo);
+    this.render(camera, motion, 1);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    camera.rotationMatrix(this.snapRot);
+    this.snapCenter = [camera.centerX(), h - camera.centerY()];
+    this.snapRadius = camera.radius();
+    this.snapTotal.set(motion.total);
+    this.snapValid = true;
+    this.snapFresh = true;
+  }
+
   draw(camera: Camera, motion?: PlateMotionUniforms): void {
+    this.lastCamera = camera;
+    this.lastMotion = motion ?? null;
+    const fading = !!motion && motion.moving && motion.fade < 1;
+    // Quadro da recomposição: só a imagem guardada (a transição começa nela).
+    const pass = fading && this.snapValid && this.snapFresh ? 2 : 0;
+    this.render(camera, motion, pass);
+    if (pass === 2) this.snapFresh = false;
+  }
+
+  /** Um desenho do globo. `pass`: 0 normal; 1 imagem guardada (no framebuffer dela); 2 só a imagem. */
+  private render(camera: Camera, motion: PlateMotionUniforms | undefined, pass: 0 | 1 | 2): void {
     if (this.lost || !this.program) return;
     const gl = this.gl;
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -353,7 +435,8 @@ export class GlobeRenderer {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.plateTexture);
     const moving = this.motionSupported && !!motion && motion.moving;
-    const fading = moving && !!motion && motion.fade < 1 && !!this.prevTexture && !!this.prevPlateTexture;
+    // A imagem guardada (passo 1) é a composição atual sozinha, sem transição.
+    const fading = pass !== 1 && moving && !!motion && motion.fade < 1 && !!this.prevTexture && !!this.prevPlateTexture;
     gl.activeTexture(gl.TEXTURE3);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, fading ? this.prevTexture : this.texture);
     gl.activeTexture(gl.TEXTURE4);
@@ -362,6 +445,11 @@ export class GlobeRenderer {
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.depositTexture);
     gl.activeTexture(gl.TEXTURE6);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, fading && this.prevDepositTexture ? this.prevDepositTexture : this.depositTexture);
+    // A imagem guardada não pode estar ligada enquanto é desenhada (laço de leitura e escrita).
+    const snap = this.snap;
+    const snapOn = pass === 0 && fading && this.snapValid && !!snap && snap.w === this.canvas.width && snap.h === this.canvas.height;
+    gl.activeTexture(gl.TEXTURE7);
+    gl.bindTexture(gl.TEXTURE_2D, pass !== 1 && snap ? snap.tex : null);
     gl.activeTexture(gl.TEXTURE0);
     const u = this.uniforms;
     gl.uniform1i(u.uCells ?? null, 0);
@@ -371,6 +459,26 @@ export class GlobeRenderer {
     gl.uniform1i(u.uPlatesPrev ?? null, 4);
     gl.uniform1i(u.uDeposits ?? null, 5);
     gl.uniform1i(u.uDepositsPrev ?? null, 6);
+    gl.uniform1i(u.uSnap ?? null, 7);
+    gl.uniform1i(u.uPass ?? null, pass);
+    gl.uniform1i(u.uSnapOn ?? null, snapOn ? 1 : 0);
+    if (snapOn && snap && motion) {
+      // Quanto cada placa girou desde a imagem: ângulo agora − ângulo na imagem (cos e sen da diferença).
+      const d = this.snapDelta;
+      for (let k = 0; k < MAX_SHADER_PLATES; k++) {
+        const ca = motion.total[k * 2] as number;
+        const sa = motion.total[k * 2 + 1] as number;
+        const cb = this.snapTotal[k * 2] as number;
+        const sb = this.snapTotal[k * 2 + 1] as number;
+        d[k * 2] = ca * cb + sa * sb;
+        d[k * 2 + 1] = sa * cb - ca * sb;
+      }
+      gl.uniform2fv(u.uSnapDelta ?? null, d);
+      gl.uniformMatrix3fv(u.uSnapRot ?? null, false, this.snapRot);
+      gl.uniform2f(u.uSnapCenter ?? null, this.snapCenter[0], this.snapCenter[1]);
+      gl.uniform1f(u.uSnapRadius ?? null, this.snapRadius);
+      gl.uniform2f(u.uSnapSize ?? null, snap.w, snap.h);
+    }
     gl.uniform1i(u.uResLayer ?? null, this.resourcesLayer ? 1 : 0);
     gl.uniform1f(u.uClouds ?? null, this.clouds);
     gl.uniform1f(u.uCloudTime ?? null, this.cloudTime);

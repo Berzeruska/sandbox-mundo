@@ -11,7 +11,9 @@ import type { Vec3 } from '../world/cubesphere';
 /**
  * Textura de placas (2 canais por célula, D4):
  * - canal R: bits 0–3 = placa; bit 4 = crosta continental; bit 6 = a célula encosta em outra placa
- *   (vizinhança 3×3): só aí a tolerância de arredondamento do shader pode achar outra dona;
+ *   (vizinhança 3×3): só aí a tolerância de arredondamento do shader pode achar outra dona; bits 5 e 7 =
+ *   a que distância está a outra placa mais perto (degrau de 2 passos, `nearSteps`): se as placas
+ *   andaram menos que isso, nenhuma outra chega na célula e o shader nem testa as candidatas (RG);
  * - canal G: até duas OUTRAS placas a até NEAR_CELLS passos de vizinhança (bits 0–3 e 4–7; "nenhuma"
  *   = a própria placa). São as candidatas a ter chegado na célula: o shader as lê numa consulta só,
  *   em vez de sondar 4 pontos em volta; sem outras perto (a maior parte do planeta), é a própria placa.
@@ -19,24 +21,50 @@ import type { Vec3 } from '../world/cubesphere';
  */
 export const CONTINENTAL_BIT = 16;
 export const LINE_BIT = 64;
+/** Bits da distância (em degraus de 2 passos) até a outra placa mais perto: bit 5 (baixo) e 7 (alto). */
+export const NEAR_LOW_BIT = 32;
+export const NEAR_HIGH_BIT = 128;
 export const PLATE_MASK = 15;
-/** Alcance (passos de vizinhança) das candidatas guardadas no canal G. */
-export const NEAR_CELLS = 5;
+/**
+ * Alcance (passos de vizinhança) das candidatas guardadas no canal G. 8 passos (RG, 2026-10-18; antes
+ * 5): a 20× com placas a 100% elas andam até ~3,2 células entre recomposições, e a busca larga (4
+ * sondas por pixel) virava o caso comum de perto.
+ */
+export const NEAR_CELLS = 8;
 /** Distância (em células, em linha reta) garantida por NEAR_CELLS passos: até onde as candidatas valem. */
-export const NEAR_REACH_CELLS = 3.5;
+export const NEAR_REACH_CELLS = 5.6;
 /** Máximo de placas que o shader aceita (o jogo usa até 14). */
 export const MAX_SHADER_PLATES = 16;
 
-export function packPlateCell(plate: number, continental: boolean, line = false, others: readonly number[] = []): number {
-  return packPlateCellOf(plate, continental, line, others[0] ?? plate, others[1] ?? plate);
+export function packPlateCell(plate: number, continental: boolean, line = false, others: readonly number[] = [], firstStep = 0): number {
+  return packPlateCellOf(plate, continental, line, others[0] ?? plate, others[1] ?? plate, firstStep);
 }
 
-/** O mesmo, com as duas outras placas já escolhidas (a própria placa quando não há outra). Sem lista. */
-export function packPlateCellOf(plate: number, continental: boolean, line: boolean, other1: number, other2: number): number {
-  const r = (plate & PLATE_MASK) | (continental ? CONTINENTAL_BIT : 0) | (line ? LINE_BIT : 0);
+/**
+ * O mesmo, com as duas outras placas já escolhidas (a própria placa quando não há outra). Sem lista.
+ * `firstStep`: em quantos passos chega a outra placa mais perto (1 = vizinha; 0 = nenhuma no alcance).
+ */
+export function packPlateCellOf(plate: number, continental: boolean, line: boolean, other1: number, other2: number, firstStep = 0): number {
+  const near = firstStep > 0 ? Math.min(3, Math.floor((firstStep - 1) / 2)) : 3;
+  const r = (plate & PLATE_MASK) | (continental ? CONTINENTAL_BIT : 0) | (line ? LINE_BIT : 0) | (near & 1 ? NEAR_LOW_BIT : 0) | (near & 2 ? NEAR_HIGH_BIT : 0);
   const o1 = other1 & PLATE_MASK;
   const o2 = other2 & PLATE_MASK;
   return r | ((o1 | (o2 << 4)) << 8);
+}
+
+/** Mínimo de passos até a outra placa mais perto, guardado no valor (1, 3, 5 ou 7). */
+export function nearSteps(v: number): number {
+  const near = (v & NEAR_LOW_BIT ? 1 : 0) | (v & NEAR_HIGH_BIT ? 2 : 0);
+  return 2 * near + 1;
+}
+
+/**
+ * Alguma outra placa pode ter chegado nesta célula? Mesma regra do alcance das candidatas: com a outra
+ * placa a pelo menos s passos, as que andaram até (s − 1)/√2 células (com a folga de 1,5×, e mais 1
+ * célula pela tolerância de arredondamento do shader) não chegam.
+ */
+export function othersCanReach(v: number, maxDelta: number, cellAngle: number): boolean {
+  return maxDelta * 1.5 + cellAngle > ((nearSteps(v) - 1) / Math.SQRT2) * cellAngle;
 }
 
 /** Placas candidatas guardadas num valor empacotado: a própria e as até duas outras por perto. */
@@ -110,8 +138,8 @@ export function sourcePoint(p: Vec3, m: PlateMotionInput): { point: Vec3; plate:
   const v0 = m.plateAt(p);
   const candidates: number[] = [v0 & PLATE_MASK];
   if (m.cellAngle !== undefined && m.maxDelta * 1.5 <= NEAR_REACH_CELLS * m.cellAngle) {
-    // Candidatas guardadas na célula (todas as placas a até NEAR_CELLS passos).
-    candidates.push(...candidatesOf(v0).slice(1));
+    // Candidatas guardadas na célula (todas as placas a até NEAR_CELLS passos), se alguma pode ter chegado.
+    if (othersCanReach(v0, m.maxDelta, m.cellAngle)) candidates.push(...candidatesOf(v0).slice(1));
   } else if (m.maxDelta > 0) {
     for (const q of probePoints(p, m.maxDelta * 1.5)) {
       const pl = m.plateAt(q) & PLATE_MASK;

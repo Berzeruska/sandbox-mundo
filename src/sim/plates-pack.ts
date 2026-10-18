@@ -13,6 +13,8 @@ interface PackScratch {
   s1: Uint8Array;
   s2: Uint8Array;
   touches: Uint8Array;
+  /** Passo em que a primeira outra placa chegou na célula (0 = nenhuma). */
+  first: Uint8Array;
   queued: Uint8Array;
   frontier: Int32Array;
   next: Int32Array;
@@ -28,6 +30,7 @@ function scratchFor(grid: CubeSphere, n: number): PackScratch {
       s1: new Uint8Array(n),
       s2: new Uint8Array(n),
       touches: new Uint8Array(n),
+      first: new Uint8Array(n),
       queued: new Uint8Array(n),
       frontier: new Int32Array(n),
       next: new Int32Array(n),
@@ -47,16 +50,21 @@ export function packPlates(world: WorldState): Uint8Array {
   const plate = world.plate;
   const NONE = 255;
   const sc = scratchFor(world.grid, n);
-  const { o1, o2, s1, s2, touches, queued } = sc;
+  const { o1, o2, s1, s2, touches, first, queued } = sc;
   let frontier = sc.frontier;
   let next = sc.next;
   o1.fill(NONE);
   o2.fill(NONE);
   touches.fill(0);
+  first.fill(0);
+  // Passo atual da propagação (para guardar quando a primeira outra placa chegou).
+  let arrival = 1;
   const add = (i: number, q: number): boolean => {
     if (q === plate[i] || o1[i] === q || o2[i] === q) return false;
-    if (o1[i] === NONE) o1[i] = q;
-    else if (o2[i] === NONE) o2[i] = q;
+    if (o1[i] === NONE) {
+      o1[i] = q;
+      first[i] = arrival;
+    } else if (o2[i] === NONE) o2[i] = q;
     else return false;
     return true;
   };
@@ -74,6 +82,7 @@ export function packPlates(world: WorldState): Uint8Array {
   }
   // Passos seguintes: as placas conhecidas (a da célula e as outras dela) se espalham.
   for (let step = 1; step < NEAR_CELLS && count; step++) {
+    arrival = step + 1;
     let nextCount = 0;
     queued.fill(0);
     // Lê as placas como estavam no começo do passo: senão uma placa recém-chegada andaria várias
@@ -109,9 +118,9 @@ export function packPlates(world: WorldState): Uint8Array {
     const p = plate[i] as number;
     const a = o1[i] as number;
     const b = o2[i] as number;
-    const first = a !== NONE ? a : b !== NONE ? b : p;
+    const firstPlate = a !== NONE ? a : b !== NONE ? b : p;
     const second = a !== NONE && b !== NONE ? b : p;
-    const v = packPlateCellOf(p, world.crust[i] === Crust.Continental, line, first, second);
+    const v = packPlateCellOf(p, world.crust[i] === Crust.Continental, line, firstPlate, second, first[i] as number);
     out[i * 2] = v & 255;
     out[i * 2 + 1] = v >> 8;
   }

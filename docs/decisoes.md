@@ -821,3 +821,17 @@ Formato: data — decisão — motivo — alternativa descartada.
   - Provocar volta para 1× pela tela (o seletor de velocidade acompanha); pausado continua pausado
     (a decisão do usuário fala em "se estiver mais rápido").
 
+- **2026-10-18 — RG: GPU de perto com as placas andando (decisões técnicas).** Medido no notebook:
+  o custo não era a sobreposição de placas nem o tamanho do código, e sim (1) a busca larga de placas
+  vizinhas (4 sondas por pixel) virando o caso comum com placas a 100% em 20×, porque elas andam até
+  ~3,2 células entre recomposições e o alcance guardado era 3,5 células com folga de 1,5×; e (2) a
+  transição desenhando o globo duas vezes. Decidido: candidatas a 8 passos (alcance 5,6 células), a
+  distância até a outra placa mais perto nos bits livres da textura de placas (bits 5 e 7), e a
+  transição lendo uma imagem guardada na recomposição (reprojetada pela câmera e pelo giro de cada
+  placa; fora dela, o desenho completo de antes). Descartados, medidos sem ganho: busca em laço,
+  reaproveitar a placa da composição atual na anterior, imagem guardada em 16 bits, ler a imagem
+  guardada antes do resto do pixel. A leitura da imagem guardada custa ~1,4 ms nesta GPU (medido; não
+  é falta de banda). O pior caso que sobra é a distância média (células de ~5 px, onde bordas
+  orgânicas e vista de perto se sobrepõem): média 7,1–7,8 ms, quadros isolados até 8,4 ms. Como o
+  usuário pediu ("a meta é 8 ms; não otimize além disso"), parei aqui.
+

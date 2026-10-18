@@ -2,7 +2,7 @@ import { Biome, BIOME_COUNT, BIOME_INFO } from '../world/biomes';
 import { FACES, type Vec3 } from '../world/cubesphere';
 import { BIOME_BITS, DECOR_BIT } from './colors';
 import { Resource, RESOURCE_INFO } from '../world/resources';
-import { CONTINENTAL_BIT, LINE_BIT, MAX_SHADER_PLATES, NEAR_REACH_CELLS, PLATE_MASK } from './plate-motion';
+import { CONTINENTAL_BIT, LINE_BIT, MAX_SHADER_PLATES, NEAR_CELLS, NEAR_REACH_CELLS, PLATE_MASK } from './plate-motion';
 
 const vec = (v: Vec3): string => `vec3(${v.map((c) => c.toFixed(1)).join(', ')})`;
 
@@ -285,8 +285,11 @@ void tryPlate${sfx}(int pl, vec3 p, inout int best, inout bool bestCont, inout v
 // Qual placa está em p agora (-1 = fenda nova onde as placas se afastam). Candidatas: a placa que
 // estava em p e as que estavam em volta, até a distância que as placas andaram. Fenda sem
 // afastamento (só arredondamento) fica com a placa que estava em p, como a recomposição faz.
-int plateNow${sfx}(vec3 p, out vec3 fix, out bool contGap) {
+// \`clear\`: distância (rad) que se sabe livre de outras placas em volta do ponto de origem na textura
+// (0 = não se sabe); a borda orgânica só precisa conferir a placa do ponto deslocado abaixo disso.
+int plateNow${sfx}(vec3 p, out vec3 fix, out bool contGap, out float clear) {
   fix = vec3(0.0);
+  clear = 0.0;
   uvec2 v0 = plateAt${sfx}(p);
   // Fenda (sem dona): a célula da composição ali era continental? Então é continente se abrindo (vale).
   contGap = (v0.x & ${CONTINENTAL_BIT}u) != 0u;
@@ -298,7 +301,22 @@ int plateNow${sfx}(vec3 p, out vec3 fix, out bool contGap) {
     // placas, a maior parte do planeta), só pode ser a própria placa: nem testa.
     c1 = int(v0.y & 15u);
     c2 = int(v0.y >> 4u);
-    if (c1 == pl0 && c2 == pl0) return pl0;
+    // Nenhuma outra placa a até NEAR_CELLS passos: é a própria placa.
+    if (c1 == pl0 && c2 == pl0) {
+      // Folga de 1 célula: p pode estar em qualquer canto da célula dele.
+      clear = ${(NEAR_CELLS / Math.SQRT2 - 1).toFixed(3)} * uCellAngle - dist / 1.5;
+      return pl0;
+    }
+    // A outra placa mais perto está longe demais para ter chegado (distância guardada nos bits 5 e 7,
+    // em degraus de 2 passos; mesma regra de othersCanReach em plate-motion.ts).
+    uint nearLevel = ((v0.x >> 5u) & 1u) | ((v0.x >> 6u) & 2u);
+    float free = float(2u * nearLevel) * 0.70710678 * uCellAngle;
+    // + 1 célula: a tolerância de arredondamento de tryPlate (0,7 célula) deixa a outra placa chegar um
+    // pouco além do quanto andou.
+    if (dist + uCellAngle <= free) {
+      clear = free - uCellAngle - dist / 1.5;
+      return pl0;
+    }
     c3 = pl0;
     c4 = pl0;
   } else {
@@ -330,8 +348,9 @@ int plateNow${sfx}(vec3 p, out vec3 fix, out bool contGap) {
 
 ${tileGlsl(sfx, cells, deposits, plates)}
 
-// Cor da superfície no ponto p (antes da luz), com o conjunto de texturas ${sfx || "atual"}.
-vec3 surface${sfx}(vec3 p, float cellPx) {
+// Cor da superfície no ponto p (antes da luz), com o conjunto de texturas ${sfx || "atual"}, e a placa
+// que está em p (-1 = fenda nova ou placas paradas).
+vec3 surface${sfx}(vec3 p, float cellPx, out int plOut) {
   // Com placas em movimento, o ruído (bordas e textura) fica preso à placa e a busca na textura
   // desfaz a rotação dela desde a composição. Parado, tudo acontece direto no ponto p.
   int pl = -1;
@@ -339,11 +358,13 @@ vec3 surface${sfx}(vec3 p, float cellPx) {
   vec3 anchor = p;
   vec3 fix = vec3(0.0);
   bool contGap = false;
+  float clear = 0.0;
   if (uMoving == 1) {
-    pl = plateNow${sfx}(p, fix, contGap);
+    pl = plateNow${sfx}(p, fix, contGap, clear);
     if (pl < 0) gap = true;
     else anchor = toPlate(pl, p);
   }
+  plOut = pl;
 
   // Bordas orgânicas: desloca o ponto com ruído (até ~1 célula) antes de escolher a célula.
   // A simulação continua na grade; só o desenho das fronteiras vira curva.
@@ -363,7 +384,8 @@ vec3 surface${sfx}(vec3 p, float cellPx) {
     // A borda orgânica desloca o ponto até ~0,7 célula: perto da fronteira ele pode cair na textura de
     // OUTRA placa, que seria lida com a rotação desta e apareceria arrastada (faixas esticadas ao longo
     // da costa de longe, maiores quanto mais as placas andaram). Aí lê sem o deslocamento.
-    if (warpAmount > 0.0 && int(plateAt${sfx}(q).x & ${PLATE_MASK}u) != pl) q = toTexture${sfx}(pl, anchor) + fix;
+    // Longe de outras placas (mais que o deslocamento máximo, ~2 células) não precisa conferir.
+    if (warpAmount > 0.0 && clear < 2.0 * uCellAngle && int(plateAt${sfx}(q).x & ${PLATE_MASK}u) != pl) q = toTexture${sfx}(pl, anchor) + fix;
   }
   vec4 cell;
   vec3 base;
@@ -372,7 +394,8 @@ vec3 surface${sfx}(vec3 p, float cellPx) {
     cell = vec4(contGap ? uRiftColor : uRidgeColor, 0.0);
     base = cell.rgb;
   } else if (sq > 0.0) {
-    base = tile${sfx}(q, cellPx, sq, pl, cell);
+    // Longe de outras placas, a vista de perto não precisa conferir a dona de cada célula.
+    base = tile${sfx}(q, cellPx, sq, clear >= 2.0 * uCellAngle ? -1 : pl, cell);
   } else {
     cell = cellAt${sfx}(q);
     base = cell.rgb;
@@ -453,6 +476,20 @@ uniform float uMaxDeltaPrev;            // idem, desde a composição anterior (
 uniform vec3 uRidgeColor;               // fundo oceânico novo (fenda ainda sem crosta)
 uniform vec3 uRiftColor;                // fenda nova entre dois continentes (vale de rifte)
 
+// Transição com imagem guardada (RG, 2026-10-18): na recomposição, a composição anterior é desenhada
+// uma vez numa imagem do tamanho da tela (só a cor da superfície, antes das nuvens e da luz). Durante a
+// transição, cada pixel lê ali o ponto onde o seu pedaço de placa estava naquela hora (desfaz o giro
+// da placa e a câmera de então), em vez de desenhar a composição anterior de novo a cada quadro.
+uniform int uPass;                      // 0 = normal; 1 = desenhando a imagem guardada; 2 = só ela
+uniform sampler2D uSnap;
+uniform int uSnapOn;                    // 1 = imagem guardada válida para esta transição
+uniform mat3 uSnapRot;                  // câmera (visão -> mundo) na hora da imagem
+uniform vec2 uSnapCenter;               // centro do globo (px, origem embaixo) e raio na hora da imagem
+uniform float uSnapRadius;
+uniform vec2 uSnapSize;
+uniform vec2 uSnapDelta[${MAX_SHADER_PLATES}]; // cos, sen do quanto cada placa girou desde a imagem
+
+
 vec3 rotCS(vec3 v, vec3 k, float c, float s) {
   return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c);
 }
@@ -470,6 +507,19 @@ float closing(int a, int b, vec3 p) {
   vec3 va = uPlateAxis[a].w * cross(uPlateAxis[a].xyz, p);
   vec3 vb = uPlateAxis[b].w * cross(uPlateAxis[b].xyz, p);
   return dot(va - vb, d);
+}
+
+// Cor da composição anterior em p lida da imagem guardada; false se o ponto não estava nela.
+bool snapAt(vec3 p, int pl, out vec3 col) {
+  vec3 q = pl >= 0 ? rotCS(p, uPlateAxis[pl].xyz, uSnapDelta[pl].x, -uSnapDelta[pl].y) : p;
+  vec3 v = transpose(uSnapRot) * q;
+  if (v.z <= 0.0) return false;
+  // Pixel mais perto (sem misturar com o vizinho: a borda das células continua nítida).
+  vec2 f = uSnapCenter + v.xy * uSnapRadius;
+  if (any(lessThan(f, vec2(0.0))) || any(greaterThanEqual(f, uSnapSize))) return false;
+  vec4 s = texelFetch(uSnap, ivec2(f), 0);
+  col = s.rgb;
+  return s.a > 0.99;
 }
 
 ${setFunctions('', 'uCells', 'uPlates', 'uPlateBase', 'uMaxDelta', 'uDeposits')}
@@ -568,7 +618,7 @@ void main() {
   vec2 d = (gl_FragCoord.xy - uCenter) / uRadius;
   float r2 = dot(d, d);
   if (r2 > 1.0) {
-    outColor = vec4(space(gl_FragCoord.xy, sqrt(r2)), 1.0);
+    outColor = ${motion ? 'uPass == 1 ? vec4(0.0) : ' : ''}vec4(space(gl_FragCoord.xy, sqrt(r2)), 1.0);
     return;
   }
   vec3 nView = vec3(d, sqrt(1.0 - r2));
@@ -578,9 +628,26 @@ void main() {
   // para não cintilar ao girar o globo de longe.
   float cellPx = uCellAngle * uRadius;
 
-  vec3 base = surface(p, cellPx);${motion ? `
+${motion ? `  int pl = -1;
+  vec3 base;
+  if (uPass == 2) {
+    // Quadro da recomposição: mostra a imagem que acabou de ser guardada (a transição começa nela).
+    base = texelFetch(uSnap, ivec2(gl_FragCoord.xy), 0).rgb;
+  } else {
+    base = surface(p, cellPx, pl);
+  }
+  if (uPass == 1) {
+    // Imagem guardada: só a cor da superfície (nuvens e luz entram ao vivo na transição).
+    outColor = vec4(clamp(base, 0.0, 1.0), 1.0);
+    return;
+  }
   // Transição suave depois de uma recomposição: mistura com a composição anterior.
-  if (uFade < 1.0) base = mix(surfacePrev(p, cellPx), base, uFade);` : ''}
+  if (uFade < 1.0 && uPass == 0) {
+    vec3 prev;
+    int plPrev;
+    if (uSnapOn == 0 || !snapAt(p, pl, prev)) prev = surfacePrev(p, cellPx, plPrev);
+    base = mix(prev, base, uFade);
+  }` : `  vec3 base = surface(p, cellPx);`}
   // Nuvens (T10): somem ao aproximar a câmera (a partir de ~2 px por célula).
   float cloudShow = uClouds * (1.0 - smoothstep(1.5, 4.0, cellPx));
   if (cloudShow > 0.0 || uStormCount > 0) base = mix(base, vec3(0.96, 0.97, 1.0), clouds(p, cloudShow));

@@ -425,12 +425,13 @@ export class App {
     if (!this.info || !this.renderer) return;
     // Eixo, velocidade e centro de cada placa nesta composição (o eixo muda quando placas se soldam).
     this.info.plates = plates;
-    const u = this.motion.uniforms;
-    plates.forEach((p, k) => u.axis.set([...p.axis, p.speed], k * 4));
     const receiveStart = performance.now();
     for (const p of patches) applyPatch(this.colors, this.info.n, p);
-    // A composição atual vira a anterior e as duas se misturam por FADE_MS (sem salto na troca).
+    // A composição atual vira a anterior e as duas se misturam por FADE_MS (sem salto na troca). O
+    // renderizador guarda antes a imagem da atual, com os eixos de agora: só depois entram os novos.
     this.renderer.recomposed(plateCells, deposits);
+    const u = this.motion.uniforms;
+    plates.forEach((p, k) => u.axis.set([...p.axis, p.speed], k * 4));
     this.motion.prevAngles = this.motion.baseAngles;
     this.motion.baseAngles = angles;
     this.motion.fadeStart = performance.now();
@@ -775,6 +776,18 @@ export class App {
       const m = await r.measureDraw(this.camera, this.motion.uniforms, 40);
       gpu.push({ label, ms: m.ms, method: m.method });
     };
+    // Transição suave (0,35 s depois de cada recomposição): espera uma de verdade e mede com os valores
+    // dela, no meio da mistura.
+    const measureFade = async (label: string): Promise<void> => {
+      const r = this.renderer;
+      if (!r) return;
+      const u = this.motion.uniforms;
+      const until = performance.now() + 8000;
+      while (!(u.fade > 0.02 && u.fade < 0.5) && performance.now() < until) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (!(u.fade < 1)) return;
+      const m = await r.measureDraw(this.camera, { ...u, fade: 0.5 }, 40);
+      gpu.push({ label, ms: m.ms, method: m.method });
+    };
     // Um cenário: prepara, espera assentar, mede `ms` e guarda quadros + trabalho do worker.
     // `panel`: painel Dados escondido (só a linha de andamento) ou aberto, com ou sem o desfoque antigo.
     const scenario = async (step: number, name: string, ms: number, setup: () => void, panel: PanelMode = 'hidden'): Promise<void> => {
@@ -842,6 +855,12 @@ export class App {
         this.camera.zoom = this.camera.maxZoom;
       });
       await measureGpu('de perto com placas andando');
+      await measureFade('de perto na transição');
+      // Distância média (células de ~5 px): bordas orgânicas e vista de perto ao mesmo tempo, o
+      // desenho mais caro por pixel (RG, 2026-10-18).
+      this.camera.zoom = Math.min(this.camera.maxZoom, 5 / (this.camera.baseRadius() * this.camera.cellAngle));
+      await measureGpu('meio com placas andando');
+      await measureFade('meio na transição');
       // Deriva longa: continua a mesma deriva por mais 1 min (o planeta passa de ~1,5 min de deriva
       // a 20×, quando os continentes começam a colidir e se soldar).
       await scenario(11, 'deriva longa c/ colisões', 60_000, () => {

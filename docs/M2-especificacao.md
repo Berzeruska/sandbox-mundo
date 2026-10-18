@@ -798,9 +798,30 @@ teste do bloco. Mar e gelo não ganham degraus.
   existia, igual ao protótipo do quadro 7 (a tela do jogo e a imagem da proposta diferem em média
   0,2/255 no mesmo lugar). Mar, gelo e as camadas de leitura sem degraus. Custo: 4 vizinhas a mais por
   célula ao pintar (no ajudante); a GPU não muda (é cor da textura).
-- [ ] **RG — GPU de perto com as placas andando ≤ 8 ms** (decisão do usuário, 2026-10-18: opção a,
+- [x] **RG — GPU de perto com as placas andando ≤ 8 ms** (decisão do usuário, 2026-10-18: opção a,
   depois do relevo, para não otimizar duas vezes). Meta 8 ms, sem otimizar além disso. Se a
   transição de perto mudar de aparência, mostrar ao usuário antes. Medir no notebook.
+  **Feito (2026-10-18), medido no notebook (Chrome, 1080p, consulta de tempo da GPU):**
+
+  | GPU do globo (média, pior) | antes | depois |
+  |---|---|---|
+  | de perto, placas andando | 7,7–8,1 ms | 5,0 (6,6) |
+  | de perto, na transição | 14,2–14,6 | 6,8 (8,2) |
+  | meio (células de ~5 px), placas andando | 9,4 | 7,1 (8,4) |
+  | meio, na transição | 16,5 | 7,8 (8,3) |
+  | longe / de perto parado | 2,8 / 4,3 | igual |
+
+  Três mudanças, sem mudar a imagem: (1) as placas vizinhas guardadas por célula vão a 8 passos (antes
+  5): a 20× com placas a 100% elas andam até ~3,2 células entre recomposições e a busca larga (4
+  sondas por pixel) tinha virado o caso comum; (2) a célula guarda a que distância está a outra placa
+  mais perto, e longe de fronteira o desenho nem testa as candidatas nem confere a dona das células de
+  perto; (3) a transição de 0,35 s não desenha mais a composição anterior a cada quadro: na
+  recomposição ela é desenhada uma vez numa imagem do tamanho da tela, e cada quadro da transição lê
+  ali o ponto onde o seu pedaço de placa estava (desfazendo o giro da placa e a câmera). Conferido
+  pixel a pixel: o desenho sem transição é o mesmo de antes (diferença só em 0,02–0,03% dos pixels, em
+  bordas de célula, igual à diferença entre duas compilações do shader); na transição, a imagem que
+  some pode ficar até meio pixel deslocada nas bordas das células. "Medir desempenho" ganhou as linhas
+  "de perto na transição", "meio com placas andando" e "meio na transição".
 - [ ] **R3 — Incêndio e raio.** Testes: campo pega fogo; fogo não entra em deserto, gelo e água;
   anda a favor do vento; raio em floresta acende, no mar não.
 - [ ] **R4 — Seca e enchente.** Testes: seca tira cobertura e aquece; enchente segue o terreno baixo,
@@ -839,7 +860,7 @@ teste do bloco. Mar e gelo não ganham degraus.
 3. **Aprovadas:** imagens do terremoto v2, do vulcão v2 e dos seletores de força.
 4. **Seca v2:** fica como está por enquanto (o semiárido melhora com a ecologia no M3,
    `docs/04-ecologia.md`).
-5. Ordem: R2 → RL (relevo) → RG (GPU) → R3 a R9.
+5. Ordem: R2 → RL (relevo) → RG (GPU) → R3 a R9. (R2, RL e RG feitas em 2026-10-18.)
 
 ## Bloco Final (depois do Bloco Desastres v2)
 

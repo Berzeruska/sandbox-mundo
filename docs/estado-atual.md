@@ -2,9 +2,9 @@
 
 Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 aprovado** (respostas de
 2026-10-18, duas rodadas). **R1 feita.** Imagens v2 do terremoto, do vulcão e dos seletores aprovadas;
-seca v2 fica como está; relevo em degraus (opção b) aprovado. **GPU de perto com placas andando
-(~8–15 ms, meta 8):** otimizar (opção a) na tarefa RG, depois do relevo (RL). **R2 e RL feitas.** Ordem:
-R2 → RL → **RG (GPU de perto ≤ 8 ms, próxima)** → R3 a R9. Depois do bloco: Final (T13, T14).
+seca v2 fica como está; relevo em degraus (opção b) aprovado. **R2, RL e RG feitas** (RG: GPU de
+perto com placas andando 5,0 ms, na transição 6,8 ms; antes 8 e 15). Próxima: **R3 (incêndio e
+raio)**, depois R4 a R9. Depois do bloco: Final (T13, T14).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -34,6 +34,11 @@ sobre "onde estamos", vale este.
   deformar o que passa por cima perto do polo; calotas e variação de cor; textura fina no M8); a
   "tampa" sem nuvens em volta do polo tem que sumir; floresta tropical e minérios aprovados; prioridade
   visual = o que o desastre faz no mundo (acabamento no M8); **redesenho dos desastres**.
+- **RG feita (2026-10-18):** GPU do globo dentro da meta no notebook (médias: de perto andando 5,0 ms,
+  de perto na transição 6,8, meio andando 7,1, meio na transição 7,8; quadros isolados até 8,4 ms a
+  média distância). Placas vizinhas guardadas a 8 passos, distância até a outra placa na textura, e a
+  transição lendo uma imagem guardada na recomposição em vez de desenhar o globo duas vezes. A imagem
+  não muda (conferido pixel a pixel).
 - **RL feita (2026-10-18):** relevo em degraus (níveis a cada 150 m, sombra ao pé do degrau e borda
   clara, luz de noroeste), igual ao quadro 7 da proposta; vale de perto e de longe.
 - **R2 feita (2026-10-18):** vegetação por célula em % e estados de célula (em chamas, queimada, lava,
@@ -135,12 +140,18 @@ sobre "onde estamos", vale este.
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] Bloco Desastres v2: R2 (base) → RL (relevo em degraus) → RG (GPU de perto ≤ 8 ms) → R3 a R9.
+- [ ] Bloco Desastres v2: R3 a R9 (R1, R2, RL e RG feitas).
 - [ ] T13 (teste longo) e T14 (medição final).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
 - R1 (2026-10-18, Chrome, 1080p): 60 fps em todos os cenários, pior quadro 17 ms; **GPU do globo**
+- RG (2026-10-18, Chrome headless no próprio notebook, 1080p): 60 fps em todos os cenários, pior quadro
+  17 ms; GPU do globo: longe 2,8 ms, de perto 4,3, de perto com placas andando 5,0 (pior 6,6), de perto
+  na transição 6,8 (pior 8,2), meio andando 7,1 (pior 8,4), meio na transição 7,8 (pior 8,3); memória:
+  dados ~84 MB, página 176 MB; geração ~0,9 s, primeira abertura 1,6 s; recomposição 330–520 ms,
+  relógio sem esperar. As "travadas" de 200–350 ms no fim do relatório são da própria medição de GPU
+  (40 desenhos seguidos esperando a GPU).
   longe ~4 ms, de perto parado ~4 ms, de perto com placas andando ~8 ms (14,6 ms na transição de 0,35 s
   depois de cada recomposição) — **acima da meta de 8 ms**; memória: dados ~78 MB, página 186 MB;
   geração 0,84 s, primeira abertura 1,59 s; recomposição ~320–510 ms, relógio sem esperar.

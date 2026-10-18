@@ -25,6 +25,8 @@ const bytesOf = (a: ArrayBufferView): Uint8Array => new Uint8Array(a.buffer, a.b
  * em 0–255. Valor novo na R1 (2026-10-18): polos novos (borda do gelo do mar em lobos e placas soltas,
  * cor pela espessura), de propósito. Valor novo na RL (2026-10-18): relevo em degraus nas cores, de
  * propósito (a R2, logo antes, não mudou o valor: o chão dos desastres não entra nas cores do motor).
+ * Valor novo na RG (2026-10-18): só a textura de placas do desenho mudou (candidatas a 8 passos e a
+ * distância até a outra placa); sem ela, o valor antes e depois é o mesmo (8636d30e).
  */
 describe('motor da geologia: mesmo resultado', () => {
   it('impressão digital depois de 40 recomposições (terra, N = 64)', () => {
@@ -51,6 +53,6 @@ describe('motor da geologia: mesmo resultado', () => {
       engine.receive({ type: 'advance', world: 1, tick });
       for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
     }
-    expect(h.toString(16)).toBe('2df22e7b');
+    expect(h.toString(16)).toBe('b0dbcd8f');
   });
 });

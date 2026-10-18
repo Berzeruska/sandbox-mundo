@@ -3,7 +3,7 @@ import { CubeSphere, type Vec3 } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
 import { Crust } from '../../src/world/plates';
 import { Tectonics } from '../../src/world/tectonics';
-import { advanceDisplayTick, candidatesOf, LINE_BIT, NEAR_CELLS, packPlateCell, PLATE_MASK, rotate, sourcePoint } from '../../src/render/plate-motion';
+import { advanceDisplayTick, candidatesOf, LINE_BIT, NEAR_CELLS, nearSteps, othersCanReach, packPlateCell, PLATE_MASK, rotate, sourcePoint } from '../../src/render/plate-motion';
 import { packPlates } from '../../src/sim/core';
 
 describe('movimento suave das placas (regra do shader)', () => {
@@ -117,6 +117,39 @@ describe('movimento suave das placas (regra do shader)', () => {
         checked++;
       }
       expect(checked).toBeGreaterThan(0);
+    }
+  });
+
+  it('distância guardada até a outra placa mais perto nunca passa da verdadeira (RG: pular a busca é seguro)', () => {
+    for (const seed of [2, 7]) {
+      const grid = new CubeSphere(64);
+      const w = createWorld({ seedText: String(seed), seed, n: 64, seaLevel: 0, landFraction: 0.3 }, grid);
+      const packed = packPlates(w);
+      // Distância (passos) até a célula de outra placa mais perto, por busca em largura de cada placa.
+      const nearest = new Int32Array(w.cellCount).fill(99);
+      const plates = new Set(w.plate);
+      for (const target of plates) {
+        const dist = new Int32Array(w.cellCount).fill(99);
+        let frontier: number[] = [];
+        for (let c = 0; c < w.cellCount; c++) if (w.plate[c] === target) { dist[c] = 0; frontier.push(c); }
+        for (let d = 1; d <= NEAR_CELLS + 2 && frontier.length; d++) {
+          const next: number[] = [];
+          for (const c of frontier) for (let k = 0; k < 4; k++) {
+            const nb = grid.neighbor(c, k);
+            if (dist[nb]! > d) { dist[nb] = d; next.push(nb); }
+          }
+          frontier = next;
+        }
+        for (let c = 0; c < w.cellCount; c++) if (w.plate[c] !== target) nearest[c] = Math.min(nearest[c]!, dist[c]!);
+      }
+      let skipped = 0;
+      for (let c = 0; c < w.cellCount; c++) {
+        const v = packed[c * 2]! | (packed[c * 2 + 1]! << 8);
+        if (nearest[c]! <= NEAR_CELLS) expect(nearSteps(v)).toBeLessThanOrEqual(nearest[c]!);
+        // Placas que andaram 1 célula: as células a mais de ~5 passos de outra placa não testam ninguém.
+        if (!othersCanReach(v, grid.cellAngle, grid.cellAngle)) skipped++;
+      }
+      expect(skipped / w.cellCount).toBeGreaterThan(0.5);
     }
   });
 
