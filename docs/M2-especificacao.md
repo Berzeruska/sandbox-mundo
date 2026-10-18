@@ -541,7 +541,8 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
 ## Bloco Desastres v2 — redesenho (pedido do usuário em 2026-10-17, teste da `b3297292`)
 
 **Aprovado pelo usuário em 2026-10-18 com ajustes** (respostas e ajustes no fim desta seção). Refaz
-T8–T12; depois vêm T13 e T14. Imagens novas do terremoto, do vulcão e dos seletores aprovadas; a da
+T8–T12; depois vêm T13 e T14. **Bloco terminado em 2026-10-18 (R1–R9, RL, RG), esperando o teste do
+usuário no notebook.** Imagens novas do terremoto, do vulcão e dos seletores aprovadas; a da
 seca fica como está por enquanto; relevo em degraus (opção b) aprovado (segunda rodada de respostas,
 2026-10-18, no fim desta seção).
 
@@ -921,8 +922,17 @@ teste do bloco. Mar e gelo não ganham degraus.
   tempo), juntadas em braços de espiral, com olho nos fortes; o de fogo em laranja no miolo e fumaça
   escura em volta. A simulação manda posição e força a cada laço; a tela suaviza o movimento. A
   animação antiga da trilha saiu. Testes: `tests/world/hurricane.test.ts`.
-- [ ] **R9 — Frequências e medição:** recalibrar "Raro" (~1 aviso a cada 1–2 min em 1×), "Medir
+- [x] **R9 — Frequências e medição:** recalibrar "Raro" (~1 aviso a cada 1–2 min em 1×), "Medir
   desempenho" com tudo acontecendo.
+  **Feito (2026-10-18):** com os desastres v2, "Raro" (fator 1) dava 33–42 avisos a cada 1.000 anos em
+  N = 256 (um a cada ~25–30 s em 1×). Duas correções: o espaçamento dos vulcões de arco passou a ser em
+  ângulo (0,17 rad, ~1.100 km), porque em células o mundo de N = 256 tinha o dobro de vulcões do de
+  N = 128; e o fator do "Raro" foi para 0,4 (Às vezes 1, Frequente 2,4, Muitos 6, mesma proporção de
+  antes). Medido: 12–17 avisos por 1.000 anos em N = 256 (um a cada ~1–1,4 min em 1×). "Medir
+  desempenho" ganhou o cenário "desastres Muitos, 20×" (20 s, placas a 100%) e a GPU de longe nele.
+  Medido no notebook (Chrome, 1080p): 60 fps em todos os cenários, pior quadro 17 ms; no cenário com
+  tudo acontecendo, relógio a 240 passos/s, 0,5 ms por passo, ocupado 12%; GPU de longe com desastres
+  3,4 ms; memória: dados 90 MB, página 180 MB.
 
 ### Respostas do usuário (2026-10-18)
 1. **Velocidade:** volta para 1× só quando o desastre é provocado pelo jogador; o natural não mexe na

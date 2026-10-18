@@ -82,12 +82,13 @@ describe('desastres (T8): terremotos', () => {
     expect(still.filter((e) => geo.includes(e.kind))).toEqual([]);
   });
 
-  it('"Raro": terremoto grande (M ≥ 7) a cada ~100–600 anos de jogo', () => {
+  it('"Raro": terremoto grande (M ≥ 7) a cada ~250–1.500 anos de jogo', () => {
     for (const seed of ['terra', 'mundo', '42']) {
       const { events } = run(worldOf(seed), 6000);
       const big = events.filter((e) => e.kind === DisasterKind.Quake && e.notable).length;
-      expect(big, seed).toBeGreaterThanOrEqual(10);
-      expect(big, seed).toBeLessThanOrEqual(60);
+      // "Raro" = fator 0,4 desde a R9: um grande a cada ~250–1.500 anos.
+      expect(big, seed).toBeGreaterThanOrEqual(4);
+      expect(big, seed).toBeLessThanOrEqual(24);
     }
   }, 30_000);
 
@@ -367,12 +368,13 @@ describe('desastres (T10): clima', () => {
     for (const seed of ['terra', 'mundo', '42']) {
       const { events } = run(worldOf(seed, 64), 1000);
       const n = (k: number) => events.filter((e) => e.kind === k).length;
-      expect(n(DisasterKind.Drought), seed).toBeGreaterThanOrEqual(5);
-      expect(n(DisasterKind.Drought), seed).toBeLessThanOrEqual(45);
-      expect(n(DisasterKind.Flood), seed).toBeGreaterThanOrEqual(5);
-      expect(n(DisasterKind.Flood), seed).toBeLessThanOrEqual(45);
-      expect(n(DisasterKind.Hurricane), seed).toBeGreaterThanOrEqual(10);
-      expect(n(DisasterKind.Hurricane), seed).toBeLessThanOrEqual(60);
+      // "Raro" = fator 0,4 desde a R9 (as faixas de antes × 0,4).
+      expect(n(DisasterKind.Drought), seed).toBeGreaterThanOrEqual(2);
+      expect(n(DisasterKind.Drought), seed).toBeLessThanOrEqual(20);
+      expect(n(DisasterKind.Flood), seed).toBeGreaterThanOrEqual(2);
+      expect(n(DisasterKind.Flood), seed).toBeLessThanOrEqual(20);
+      expect(n(DisasterKind.Hurricane), seed).toBeGreaterThanOrEqual(4);
+      expect(n(DisasterKind.Hurricane), seed).toBeLessThanOrEqual(30);
       // Grandes (avisos): um a cada ~60–120 anos (1–2 min em 1×), com folga: 5 a 25 em 1.000 anos.
       const notable = events.filter((e) => e.notable).length;
       expect(notable, seed).toBeGreaterThanOrEqual(5);

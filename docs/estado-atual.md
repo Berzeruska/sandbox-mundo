@@ -1,11 +1,8 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 aprovado** (respostas de
-2026-10-18, duas rodadas). **R1 feita.** Imagens v2 do terremoto, do vulcão e dos seletores aprovadas;
-seca v2 fica como está; relevo em degraus (opção b) aprovado. **R2, RL e RG feitas** (RG: GPU de
-perto com placas andando 5,0 ms, na transição 6,8 ms; antes 8 e 15). **R3 a R8 feitas**
-(incêndio e raio; seca e enchente; terremoto; tsunami; vulcão; furacão). Próxima: **R9 (frequências e
-medição)**, que fecha o bloco. Depois do bloco: Final (T13, T14).
+Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 terminado** (R1–R9, mais RL
+relevo em degraus e RG GPU). **Esperando o teste do usuário no notebook** (lista abaixo, em "Teste do
+fim do bloco"). Depois do bloco: Final (T13, T14).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -35,6 +32,8 @@ sobre "onde estamos", vale este.
   deformar o que passa por cima perto do polo; calotas e variação de cor; textura fina no M8); a
   "tampa" sem nuvens em volta do polo tem que sumir; floresta tropical e minérios aprovados; prioridade
   visual = o que o desastre faz no mundo (acabamento no M8); **redesenho dos desastres**.
+- **R9 feita (2026-10-18):** "Raro" recalibrado (um aviso a cada ~1–1,4 min em 1×, medido) e cenário
+  "desastres Muitos, 20×" no "Medir desempenho": 60 fps, relógio a 240 passos/s.
 - **R8 feita (2026-10-18):** furacão e ciclone andando no relógio (até 2 por quadrante, 8 no mundo),
   desenhados com as nuvens do globo torcidas em espiral, olho nos fortes; estrago no caminho (vegetação
   derrubada, ressaca na costa, enchentes pela chuva); raio do jogador vira furacão de fogo.
@@ -109,6 +108,56 @@ sobre "onde estamos", vale este.
   tem que mostrar o último commit do `marco-2` com mudança no jogo.
 - **Publicado em `main`:** v1.1.
 
+## Teste do fim do bloco Desastres v2 (no notebook, Firefox)
+Prévia: berzeruska.github.io/sandbox-mundo/previa/marco-2/ (a linha "versão" do painel Dados tem que
+mostrar o último commit do `marco-2`). Em cada item: o que fazer → o que deve aparecer → o que seria defeito.
+1. **Polos (R1):** girar até um polo, de longe e de perto → gelo do mar com borda em lobos, placas soltas,
+   fino e azulado na borda, branco no miolo; nada entortado por cima. Defeito: borda redonda lisa, gelo
+   rosa/azul forte, terra deformada.
+2. **Nuvens no polo (R1):** de longe, olhar o polo com nuvens → sem "tampa" limpa nem círculo nas
+   latitudes 30° e 60°. Defeito: anel ou mancha oval sem nuvem.
+3. **Relevo em degraus (RL):** de média distância e de perto, numa serra → degraus a cada 150 m (sombra ao
+   pé, borda clara), como o quadro 7. Defeito: listras sem sentido, terreno plano com degraus.
+4. **Vegetação e toque (R2):** provocar um incêndio e tocar (modo Mover) numa célula queimada → "Floresta
+   ... · queimada · vegetação 0%"; anos depois, a cor volta (floresta passa por campo). Defeito: cor que
+   não volta, texto sem estado.
+5. **Força ao provocar (R2):** escolher Terremoto, Tsunami e Furacão → fileira M 6–9,5 / M 7,5–9,5 /
+   Ciclone 1 · 2 · Furacão 3 · 4 · 5; o último escolhido fica. Defeito: fileira faltando ou trocada.
+6. **Volta para 1× (R2):** em 20×, provocar qualquer desastre → o tempo vai para 1×; pausado continua
+   pausado. Defeito: continua em 20×.
+7. **Avisos (R2):** em "Muitos", esperar → avisos no canto inferior esquerdo; tocar leva a câmera; a
+   "Lista" não existe mais. Defeito: aviso no alto ou por cima dos botões.
+8. **Incêndio e raio (R3):** Desastres → Raio, tocar numa floresta e num campo → clarão em zigue-zague e
+   fogo andando célula a célula (frente amarela), mais a favor do vento; no mar só o clarão. Incêndio
+   (ferramenta) num campo → fogo anda e apaga sozinho. Defeito: fogo em deserto, gelo ou mar; quadrado
+   perfeito; fogo que nunca apaga.
+9. **Seca (R4):** Desastres → Seca num campo com floresta → região grande e irregular vira semiárido
+   (chão claro, moitas, avermelhado no miolo) em poucos segundos; tocar → "calor da seca +N °C"; anos
+   depois a vegetação volta. Defeito: mancha redonda lisa por cima, nada acontecendo.
+10. **Enchente (R4):** Enchente numa planície úmida → a água sobe em ~1 s pelo terreno baixo (não em
+    círculo), fica 1–3 anos e baixa deixando o chão mais verde; numa bacia fechada, sobra um lago.
+    Defeito: água subindo morro, círculo.
+11. **Terremoto (R5):** M 7, M 8 e M 9,5 numa região de serra → tela treme mais quanto maior; fenda
+    irregular maior a cada magnitude, com galhos no 9,5; deslizamentos descendo as encostas (claro em
+    cima, escuro embaixo). Defeito: fenda reta, deslizamentos em quadrados soltos, tremor longe da tela.
+12. **Tsunami (R6):** M 9 no mar perto de uma costa baixa → o mar raso recua (areia), a faixa de espuma
+    chega, a água entra em terra e volta, fica lama; a costa recua um pouco. M 7,5 → bem menor. Defeito:
+    água subindo morro alto, lama que não sai em décadas.
+13. **Vulcão (R7):** procurar os cones com cratera escura (de média distância) → existem desde o começo.
+    Vulcão: tocar num cone → acorda, lava na cratera e escorrendo por um canal, seguindo o terreno, depois
+    basalto preto; tocar fora → cone novo. No mar perto da costa → a lava vira terra. Defeito: lava em
+    cruz ou reta, lava misturada com o cone, cone sem relevo.
+14. **Furacão (R8):** Furacão 4 no mar tropical → nuvens torcidas em espiral com olho, andando para oeste;
+    Ciclone 1 → espiral menor sem olho. Raio no furacão → fica alaranjado com fumaça e, em terra, acende
+    fogo. Depois da passagem, faixa de vegetação derrubada e costa alagada. Defeito: espiral desenhada
+    parada, furacão que some do nada, fogo no mar.
+15. **Placas andando com o chão (R7):** provocar um vulcão, ligar placas a 100% e 20× por ~1 min → o cone
+    e o basalto andam junto com o continente. Defeito: basalto ficando para trás no mar.
+16. **Frequência "Raro" (R9):** jogar ~5 min em 1× → ~1 aviso a cada 1–2 min. Defeito: vários por minuto
+    ou nenhum.
+17. **Medir desempenho:** rodar e mandar o relatório inteiro (agora com "desastres Muitos, 20×" e a GPU
+    de longe nele). Metas: 60 fps, nenhum quadro > 50 ms, GPU ≤ 8 ms, memória ≤ 400 MB.
+
 ## Decidido em 2026-10-16
 1. Correção 1 aprovada: fenda entre continentes com menos de 3 células nasce como vale de rifte.
 2. Tempo travando: opção (b) completa, a recomposição vai para o ajudante 2 com memória compartilhada
@@ -163,12 +212,17 @@ sobre "onde estamos", vale este.
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] Bloco Desastres v2: R9 (todas as outras feitas).
+- [ ] Teste do usuário do Bloco Desastres v2 no notebook (lista abaixo).
 - [ ] T13 (teste longo) e T14 (medição final).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
 - R1 (2026-10-18, Chrome, 1080p): 60 fps em todos os cenários, pior quadro 17 ms; **GPU do globo**
+- R9 (2026-10-18, Chrome headless no próprio notebook, 1080p): 60 fps em todos os cenários, inclusive
+  "desastres Muitos, 20×" (placas 100%), pior quadro 17 ms; relógio nesse cenário 240 passos/s, 0,5 ms
+  por passo, ocupado 12%; GPU: longe 2,9, de perto 4,3, de perto andando 4,6, de perto na transição 6,1,
+  meio andando 6,8, meio na transição 7,6 (um quadro isolado 9,7), longe com desastres 3,4 ms; memória:
+  dados 90 MB, página 180 MB.
 - RG (2026-10-18, Chrome headless no próprio notebook, 1080p): 60 fps em todos os cenários, pior quadro
   17 ms; GPU do globo: longe 2,8 ms, de perto 4,3, de perto com placas andando 5,0 (pior 6,6), de perto
   na transição 6,8 (pior 8,2), meio andando 7,1 (pior 8,4), meio na transição 7,8 (pior 8,3); memória:

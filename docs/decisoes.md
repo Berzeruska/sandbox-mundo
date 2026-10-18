@@ -892,3 +892,9 @@ Formato: data — decisão — motivo — alternativa descartada.
   outros desastres. Furacão de fogo: um incêndio por furacão, alimentado pelo miolo (em vez de um
   incêndio por célula, que seriam centenas).
 
+- **2026-10-18 — R9: frequências.** "Raro" passou de fator 1 para 0,4 (as outras frequências na mesma
+  proporção) e o espaçamento dos vulcões de arco passou a ser em ângulo, para o mesmo planeta ter os
+  mesmos vulcões em qualquer resolução. Meta do usuário (~1 aviso a cada 1–2 min em 1×) medida em
+  N = 256: 12–17 avisos por 1.000 anos de jogo. Descartado: subir o limite de "grande" de cada desastre
+  (os avisos deixariam de mostrar coisas que o usuário quer ver, como erupção IEV 4).
+

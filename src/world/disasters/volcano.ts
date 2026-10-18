@@ -77,8 +77,16 @@ export const ASH_LIGHTNING: readonly [number, number] = [2, 4];
 export const ASH_LIGHTNING_FIRE = 0.6;
 /** Raio natural num vulcão adormecido o acorda com esta chance (o do jogador sempre). */
 export const LIGHTNING_WAKE = 0.05;
-/** Arcos: um vulcão a cada ~ARC_SPACING células de fronteira convergente, no máximo. */
-export const ARC_SPACING = 14;
+/**
+ * Arcos: um vulcão a cada ~ARC_SPACING_RAD de fronteira convergente, no máximo (~1.100 km; em ângulo, para
+ * o mesmo planeta ter os mesmos vulcões em qualquer resolução: ~28 células em N = 256).
+ */
+export const ARC_SPACING_RAD = 0.17;
+
+/** O espaçamento dos arcos em células, nesta grade. */
+export function arcSpacing(world: WorldState): number {
+  return ARC_SPACING_RAD / world.grid.cellAngle;
+}
 
 /** Distância em células entre duas células (ângulo / ângulo da célula). */
 function cellDist(world: WorldState, a: number, b: number): number {

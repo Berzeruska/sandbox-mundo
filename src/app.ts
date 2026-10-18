@@ -10,7 +10,7 @@ import { DisasterToasts } from './ui/disaster-panel';
 import { CellState, STATE_NAMES } from './world/disasters/ground';
 import { droughtHeat } from './world/disasters/drought';
 import { MAX_STORMS } from './render/shaders';
-import { DisasterKind, type DisasterEvent } from './world/disasters/types';
+import { DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './world/disasters/types';
 import { STORM_FLOATS } from './sim/protocol';
 import { feltRadius } from './world/disasters/quakes';
 import type { Vec3 } from './world/cubesphere';
@@ -152,6 +152,8 @@ export class App {
   private paintGate = new PaintGate();
   /** Animações dos desastres na camada de cima (T8–T10) e se ainda há algo dela na tela. */
   private fx = new DisasterFx();
+  /** Frequência dos desastres naturais escolhida (o "Medir desempenho" volta para ela). */
+  private disasterFrequency = DEFAULT_FREQUENCY;
   /** Furacões andando (R8), pela identidade: o que está no desenho e para onde vai. */
   private storms = new Map<number, { shown: { p: Vec3; radius: number; power: number; fire: number }; target: { p: Vec3; radius: number; power: number; fire: number } }>();
   /** Tremor da tela do terremoto em curso (R5): início, duração (ms) e força (px). */
@@ -212,7 +214,10 @@ export class App {
           this.requestDraw();
         },
         onPlateRate: (percent) => this.setPlateRate(percent / 100),
-        onDisasterFrequency: (level) => this.sim.setDisasterFrequency(level),
+        onDisasterFrequency: (level) => {
+          this.disasterFrequency = level;
+          this.sim.setDisasterFrequency(level);
+        },
         onClimateControl: (degrees) => {
           this.climateControl = degrees;
           this.sim.setClimateControl(degrees);
@@ -862,7 +867,7 @@ export class App {
     this.bench = bench;
     this.hud.closeMenu();
     const startedAt = performance.now();
-    const steps = 13;
+    const steps = 14;
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
       this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
@@ -969,9 +974,15 @@ export class App {
       });
       // Ruptura forçada (G2): o maior bloco soldado racha agora; mede a recomposição que vem junto.
       await scenario(12, 'ruptura forçada', 10_000, () => this.sim.forceRupture());
+      // Tudo acontecendo (R9): desastres em "Muitos" a 20× com as placas a 100% (fogo, lava, furacões,
+      // secas, enchentes e tsunamis andando passo a passo; o chão repintado a cada laço).
+      await scenario(13, 'desastres "Muitos", 20×', 20_000, () => this.sim.setDisasterFrequency(FREQUENCIES.length - 1));
+      this.camera.zoom = 1;
+      await measureGpu('longe com desastres "Muitos"');
+      this.sim.setDisasterFrequency(this.disasterFrequency);
       bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(13, 'geração de mundo');
+      status(14, 'geração de mundo');
       this.setSpeed(0);
       this.setPlateRate(before.plateRate);
       await wait(500);
@@ -983,6 +994,7 @@ export class App {
       gen = { totalMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs, helperShare: info.helperShare, receiveMs };
     } finally {
       spin(before.spin);
+      this.sim.setDisasterFrequency(this.disasterFrequency);
       this.setPlateRate(before.plateRate);
       this.setSpeed(before.speed);
       this.bench = null;

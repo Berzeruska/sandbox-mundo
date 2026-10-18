@@ -6,7 +6,7 @@ import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
 import { HurricaneProcess, MAX_PER_QUADRANT, MAX_STORMS_WORLD, quadrantOf, stormName, type StormView } from './hurricane';
 import {
-  ARC_SPACING,
+  arcSpacing,
   ASH_LIGHTNING,
   ASH_LIGHTNING_FIRE,
   ashPlume,
@@ -146,10 +146,11 @@ export class Disasters {
     const rng = createRng((world.params.seed ^ 0x7a1c0e5b) >>> 0);
     for (const f of this.faults.values()) {
       if (f.type !== Boundary.Convergent) continue;
-      const count = Math.floor(f.cells.length / 2 / ARC_SPACING);
+      const spacing = arcSpacing(world);
+      const count = Math.floor(f.cells.length / 2 / spacing);
       for (let k = 0; k < count; k++) {
         const cell = ventCell(world, f.cells[rng.int(0, f.cells.length - 1)] as number, f.type, rng);
-        if (this.volcanoNear(cell, ARC_SPACING * 0.7)) continue;
+        if (this.volcanoNear(cell, spacing * 0.7)) continue;
         this.addVolcano(cell, 'arc', -1, rng, this.initialTerrain, 0);
       }
     }
@@ -158,7 +159,8 @@ export class Disasters {
       if (!this.volcanoNear(cell, 3)) this.addVolcano(cell, 'hotspot', k, rng, this.initialTerrain, 0);
     });
     // Dormindo, cada um com um tempo sorteado até acordar (os primeiros acordam logo).
-    for (const v of this.volcanoes) v.until = Math.round(rng.next() * (nextWake(v, 0, 1, rng) - 0));
+    const factor = FREQUENCIES[DEFAULT_FREQUENCY]?.factor ?? 1;
+    for (const v of this.volcanoes) v.until = Math.round(rng.next() * nextWake(v, 0, factor, rng));
   }
 
   /** Relevo dos vulcões do começo (uma vez; o relógio aplica antes de o mundo aparecer). */
@@ -260,7 +262,7 @@ export class Disasters {
         if (rate && this.rng.next() < rate * f.length * f.speed * factor) {
           const cell = ventCell(this.world, f.cells[this.rng.int(0, f.cells.length - 1)] as number, f.type, this.rng);
           if (f.type === Boundary.Convergent) {
-            if (!this.volcanoNear(cell, ARC_SPACING * 0.7)) this.wake(this.addVolcano(cell, 'arc', -1, this.rng, out.terrain, tick), tick, false, out);
+            if (!this.volcanoNear(cell, arcSpacing(this.world) * 0.7)) this.wake(this.addVolcano(cell, 'arc', -1, this.rng, out.terrain, tick), tick, false, out);
           } else {
             this.ridgeEruption(cell, sampleVei(this.rng.next(), 0, 2), tick, out);
           }

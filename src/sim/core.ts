@@ -162,8 +162,9 @@ export class SimulationCore {
   private stressBuf = new Float32Array(0);
   /** Células com aparência nova esperando a repintura do fim do laço. */
   private pendingPaint = new Set<number>();
-  /** Quantos furacões a tela está mostrando. */
+  /** Quantos furacões a tela está mostrando, e de que passo. */
   private stormsShown = 0;
+  private stormsTick = -1;
   /** Deriva no relógio (a mesma soma da tectônica) e a composição mostrada, para os ângulos. */
   private drift = 0;
   private shown: ShownComposition = { angles: [], speeds: [], drift: 0 };
@@ -448,7 +449,10 @@ export class SimulationCore {
   private postStorms(): void {
     const views = this.disasters?.stormViews() ?? [];
     if (!views.length && !this.stormsShown) return;
+    // Pausado e sem nada novo: nada a mandar.
+    if (views.length === this.stormsShown && this.clock.tick === this.stormsTick) return;
     this.stormsShown = views.length;
+    this.stormsTick = this.clock.tick;
     const data = new Float32Array(views.length * STORM_FLOATS);
     views.forEach((v, k) => data.set([v.id, v.point[0], v.point[1], v.point[2], v.radius, v.power, v.fire ? 1 : 0], k * STORM_FLOATS));
     this.post({ type: 'storms', storms: data }, [data.buffer as ArrayBuffer]);

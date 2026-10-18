@@ -32,10 +32,12 @@ export const DISASTER_NAMES: Record<DisasterKind, string> = {
  */
 export const FREQUENCIES: readonly { label: string; factor: number }[] = [
   { label: 'Nenhum', factor: 0 },
-  { label: 'Raro', factor: 1 },
-  { label: 'Às vezes', factor: 2.5 },
-  { label: 'Frequente', factor: 6 },
-  { label: 'Muitos', factor: 15 },
+  // R9 (2026-10-18): com os desastres v2 o "Raro" de fator 1 dava um aviso a cada ~25–30 s em 1×
+  // (medido, N = 256); 0,4 volta a ~1 a cada 1–1,5 min. As outras mantêm a proporção de antes.
+  { label: 'Raro', factor: 0.4 },
+  { label: 'Às vezes', factor: 1 },
+  { label: 'Frequente', factor: 2.4 },
+  { label: 'Muitos', factor: 6 },
 ];
 export const DEFAULT_FREQUENCY = 1;
 
