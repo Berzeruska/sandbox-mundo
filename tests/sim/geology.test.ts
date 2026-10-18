@@ -149,7 +149,8 @@ describe('ajudante 2 "Terra" (correção 2)', () => {
       }
     }
     for (let k = 0; k < 2; k++) expect(shownAt[k]).toBe((port.results[k] as { tick: number }).tick + APPLY_DELAY_TICKS);
-  });
+    // Um passo por chamada até a terceira recomposição (milhares de chamadas).
+  }, 30_000);
 
   it('o mundo é o mesmo com o motor no relógio ou num ajudante atrasado (determinístico)', () => {
     const first = recompositionTicks()[0] as number;

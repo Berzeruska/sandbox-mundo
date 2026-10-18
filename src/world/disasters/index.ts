@@ -4,6 +4,24 @@ import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
+import {
+  ARC_SPACING,
+  ASH_LIGHTNING,
+  ASH_LIGHTNING_FIRE,
+  ashPlume,
+  AWAKE_YEARS,
+  coneCells,
+  coneTop,
+  ERUPTION_EVERY,
+  growCone,
+  LavaProcess,
+  lavaBudget,
+  LIGHTNING_WAKE,
+  nextWake,
+  sampleCone,
+  type Volcano,
+  type VolcanoKind,
+} from './volcano';
 import { DROUGHT_YEARS, NOTABLE_DROUGHT_RADIUS, sampleDroughtRadius, startDrought } from './drought';
 import { DEPTH, FLOOD_CELLS, FloodProcess, floodPlan, lowestNear, NOTABLE_FLOOD_CELLS, PLAYER_FLOOD_CELLS, WET_YEARS } from './flood';
 import { canBurn, FireProcess, LIGHTNING_PER_YEAR, lightningIgnites, NOTABLE_FIRE_CELLS, pickLightningCell, PLAYER_FIRE_BOOST, PLAYER_FIRE_RADIUS } from './fire';
@@ -23,10 +41,8 @@ import {
   sampleCategory,
 } from './weather';
 import {
-  ashRadius,
   ERUPTIONS_PER_YEAR,
   eruptionUplift,
-  HOTSPOT_ERUPTION_CHANCE,
   HOTSPOT_MAX_PER_YEAR,
   HOTSPOT_METERS_PER_CELL,
   HOTSPOT_YEARS,
@@ -74,10 +90,13 @@ export interface DisasterOutcome {
  */
 export interface DisasterProcess {
   step(tick: number, out: DisasterOutcome): boolean;
+  /** As placas andaram: célula antiga → nova (os que duram anos acompanham). */
+  remap?(moved: ReadonlyMap<number, number>): void;
 }
 
 /** Quanto tempo (anos) cada marca curta dos desastres de hoje dura (R3–R8 refazem cada um). */
-const ASH_YEARS = 10;
+/** Chance de a lava acender fogo em cada vizinha com vegetação em que encosta. */
+const LAVA_FIRE = 0.12;
 
 /**
  * Desastres do mundo (T8–T12): vivem no relógio e andam com o passo do jogo; sorteios próprios, na ordem
@@ -95,10 +114,17 @@ export class Disasters {
   hotspots: Vec3[];
   private hotspotTravel: number[] = [];
   private nextId = 1;
+  /** Vulcões no mapa (R7), na ordem em que nasceram. */
+  volcanoes: Volcano[] = [];
+  private nextVolcanoId = 1;
+  /** Relevo dos vulcões do começo, para o relógio aplicar antes de o mundo aparecer. */
+  private initialTerrain: TerrainChange[] = [];
   /** Desastres em andamento (passo a passo). */
   private processes: DisasterProcess[] = [];
   /** Contagem por tipo (para testes e o painel). */
   readonly counts = new Array<number>(8).fill(0);
+  /** Velocidade das placas no último passo (com elas paradas, a geologia congela). */
+  private plateRate = 0;
   /** Saída do passo em andamento (os desastres passo a passo avisam por ela quando acabam). */
   private stepOut: DisasterOutcome | null = null;
 
@@ -107,6 +133,81 @@ export class Disasters {
     this.ground = new Ground(world.cellCount);
     this.hotspots = makeHotspots(createRng((world.params.seed ^ 0x40750f07) >>> 0));
     this.onRecompose();
+    this.placeInitialVolcanoes();
+  }
+
+  /**
+   * Vulcões do começo (R7): um a cada ~ARC_SPACING células das fronteiras convergentes (do lado da
+   * placa de cima) e um em cada ponto quente, todos dormindo, acordando em momentos sorteados.
+   */
+  private placeInitialVolcanoes(): void {
+    const world = this.world;
+    const rng = createRng((world.params.seed ^ 0x7a1c0e5b) >>> 0);
+    for (const f of this.faults.values()) {
+      if (f.type !== Boundary.Convergent) continue;
+      const count = Math.floor(f.cells.length / 2 / ARC_SPACING);
+      for (let k = 0; k < count; k++) {
+        const cell = ventCell(world, f.cells[rng.int(0, f.cells.length - 1)] as number, f.type, rng);
+        if (this.volcanoNear(cell, ARC_SPACING * 0.7)) continue;
+        this.addVolcano(cell, 'arc', -1, rng, this.initialTerrain, 0);
+      }
+    }
+    this.hotspots.forEach((p, k) => {
+      const cell = world.grid.pointToCell(p[0], p[1], p[2]);
+      if (!this.volcanoNear(cell, 3)) this.addVolcano(cell, 'hotspot', k, rng, this.initialTerrain, 0);
+    });
+    // Dormindo, cada um com um tempo sorteado até acordar (os primeiros acordam logo).
+    for (const v of this.volcanoes) v.until = Math.round(rng.next() * (nextWake(v, 0, 1, rng) - 0));
+  }
+
+  /** Relevo dos vulcões do começo (uma vez; o relógio aplica antes de o mundo aparecer). */
+  takeInitialTerrain(): TerrainChange[] {
+    const t = this.initialTerrain;
+    this.initialTerrain = [];
+    return t;
+  }
+
+  /** Vulcão a até `cells` células de `cell`, ou undefined. */
+  volcanoNear(cell: number, cells: number): Volcano | undefined {
+    let best: Volcano | undefined;
+    let bestD = cells;
+    for (const v of this.volcanoes) {
+      const d = cellDistance(this.world, v.cell, cell);
+      if (d <= bestD) {
+        bestD = d;
+        best = v;
+      }
+    }
+    return best;
+  }
+
+  /** Vulcão novo em `cell`: ergue o cone (mudança de relevo em `terrain`) e marca a rocha. */
+  private addVolcano(cell: number, kind: VolcanoKind, hotspot: number, rng: Rng, terrain: TerrainChange[], tick: number): Volcano {
+    const cone = sampleCone(this.world, cell, kind, rng);
+    // No mar, o vulcão do jogador já nasce ilha.
+    const depth = kind === 'player' ? Math.max(0, -this.world.heightAboveSea(cell)) : 0;
+    const v: Volcano = { id: this.nextVolcanoId++, cell, kind, hotspot, cone, top: coneTop(cone) + (depth ? depth + 150 : 0), awake: false, until: tick, nextEruption: tick, extinct: false };
+    // Nasce dormindo (quem o cria acordado chama `wake` logo depois).
+    v.until = nextWake(v, tick, FREQUENCIES[this.frequency]?.factor ?? 0, rng);
+    this.volcanoes.push(v);
+    const t = growCone(this.world, this.ground, v, null);
+    if (t.cells.length) terrain.push(t);
+    return v;
+  }
+
+  /**
+   * As placas andaram (recomposição): o chão e os vulcões vão junto com a crosta. `oldKey`/`newKey`:
+   * identidade (placa, ponto de referência) de cada célula antes e depois.
+   */
+  remap(oldKey: (c: number) => number, newKey: (c: number) => number): void {
+    const moved = this.ground.remap(oldKey, newKey, this.world.cellCount);
+    this.volcanoes = this.volcanoes.filter((v) => {
+      const to = moved.get(v.cell);
+      if (to === undefined) return false;
+      v.cell = to;
+      return true;
+    });
+    for (const p of this.processes) p.remap?.(moved);
   }
 
   /** Fronteiras novas (depois de cada recomposição): refaz os trechos, a tensão continua. */
@@ -130,6 +231,7 @@ export class Disasters {
    * placas andando (`plateRate` > 0: "em 0 a geologia congela").
    */
   step(tick: number, plateRate: number): DisasterOutcome | null {
+    this.plateRate = plateRate;
     const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [] };
     this.ground.expire(tick, TICKS_PER_YEAR);
     this.stepOut = out;
@@ -143,17 +245,24 @@ export class Disasters {
   private yearly(tick: number, plateRate: number, out: DisasterOutcome): void {
     this.ground.year(this.world);
     const factor = FREQUENCIES[this.frequency]?.factor ?? 0;
-    if (plateRate > 0) this.hotspotGrowth(tick, plateRate, factor, out);
+    // Geologia (vulcões e pontos quentes) congela com as placas paradas.
+    if (plateRate > 0) {
+      this.hotspotGrowth(tick, plateRate, out);
+      this.volcanoYear(tick, factor, out);
+    }
     // Clima: continua com as placas paradas.
     if (factor > 0) this.weather(tick, factor, out);
     if (factor > 0 && plateRate > 0) {
       for (const f of this.faults.values()) {
-        // Erupção num arco (forte) ou numa dorsal (fraca).
+        // Arco: nasce um vulcão novo onde ainda não há (e já acorda); dorsal: erupção no fundo do mar.
         const rate = ERUPTIONS_PER_YEAR[f.type];
         if (rate && this.rng.next() < rate * f.length * f.speed * factor) {
           const cell = ventCell(this.world, f.cells[this.rng.int(0, f.cells.length - 1)] as number, f.type, this.rng);
-          const vei = f.type === Boundary.Convergent ? sampleVei(this.rng.next(), 2, MAX_VEI) : sampleVei(this.rng.next(), 0, 2);
-          this.eruption(cell, vei, tick, false, f.type === Boundary.Convergent ? 'arco vulcânico' : 'dorsal', out);
+          if (f.type === Boundary.Convergent) {
+            if (!this.volcanoNear(cell, ARC_SPACING * 0.7)) this.wake(this.addVolcano(cell, 'arc', -1, this.rng, out.terrain, tick), tick, false, out);
+          } else {
+            this.ridgeEruption(cell, sampleVei(this.rng.next(), 0, 2), tick, out);
+          }
         }
         f.stress += yearlyStress(f) * factor;
         if (f.stress < f.threshold) continue;
@@ -181,8 +290,12 @@ export class Disasters {
       const max = Math.max(8, MAX_MAGNITUDE[world.boundary[cell] as number] ?? 8.5);
       this.quake(cell, strength ?? 7 + (max - 7) * this.rng.next(), tick, true, out);
     } else if (kind === DisasterKind.Volcano) {
-      // Do jogador: sempre forte (IEV 4 a 6) e ergue mais (no mar raso já vira ilha).
-      this.eruption(cell, 4 + this.rng.int(0, 2), tick, true, '', out, 900);
+      // Do jogador: tocar num vulcão acorda e faz entrar em erupção; fora, cria um novo ali (no mar já
+      // nasce ilha). Sempre forte (IEV 4 a 6).
+      const near = this.volcanoNear(cell, 2);
+      const hit = near && cellDistance(world, near.cell, cell) <= near.cone + 0.6 ? near : this.addVolcano(cell, 'player', -1, this.rng, out.terrain, tick);
+      hit.extinct = false;
+      this.wake(hit, tick, true, out, 4 + this.rng.int(0, 2));
     } else if (kind === DisasterKind.Drought) {
       if (!world.isWater(cell)) this.drought(cell, tick, true, out);
     } else if (kind === DisasterKind.Flood) {
@@ -219,7 +332,7 @@ export class Disasters {
    * Pontos quentes: a placa que passa por cima vai sendo erguida (sem aviso), na medida certa para
    * formar ilhas em fila; de vez em quando, uma erupção visível.
    */
-  private hotspotGrowth(tick: number, plateRate: number, factor: number, out: DisasterOutcome): void {
+  private hotspotGrowth(tick: number, plateRate: number, out: DisasterOutcome): void {
     const world = this.world;
     const year = tick / TICKS_PER_YEAR;
     for (let k = 0; k < this.hotspots.length; k++) {
@@ -238,13 +351,105 @@ export class Disasters {
         const meters = perYear * HOTSPOT_YEARS * hotspotPulse(travel) * (continental ? 0.25 : 1);
         if (meters > 1) out.uplifts.push({ point: p, radius: 1.3, meters });
       }
-      // Debaixo de continente a erupção é rara (o magma junta por muito tempo) e explosiva.
-      if (factor > 0 && this.rng.next() < HOTSPOT_ERUPTION_CHANCE * factor * (continental ? 0.15 : 1)) {
-        // No oceano, lava mansa (IEV 0–2); debaixo de continente, rara e explosiva (IEV 3–7).
-        const vei = continental ? sampleVei(this.rng.next(), 3, MAX_VEI) : sampleVei(this.rng.next(), 0, 2);
-        this.eruption(cell, vei, tick, false, 'ponto quente', out);
+      // O vulcão do ponto quente anda com a placa: longe dele, apaga (fica o cone, na cadeia) e nasce
+      // outro em cima do ponto quente.
+      const v = this.volcanoes.find((x) => x.hotspot === k && !x.extinct);
+      if (v && cellDistance(world, v.cell, cell) > v.cone + 1.5) {
+        v.extinct = true;
+        v.awake = false;
+      }
+      if ((!v || v.extinct) && !this.volcanoNear(cell, 2.5)) this.addVolcano(cell, 'hotspot', k, this.rng, out.terrain, tick);
+    }
+  }
+
+  /** Um ano dos vulcões: acordam, entram em erupção, voltam a dormir. */
+  private volcanoYear(tick: number, factor: number, out: DisasterOutcome): void {
+    for (const v of this.volcanoes) {
+      if (v.extinct) continue;
+      if (!v.awake) {
+        if (factor > 0 && tick >= v.until) this.wake(v, tick, false, out);
+        continue;
+      }
+      if (tick >= v.until) {
+        v.awake = false;
+        v.until = nextWake(v, tick, factor, this.rng);
+        continue;
+      }
+      if (tick >= v.nextEruption) this.erupt(v, this.sampleVolcanoVei(v), tick, false, false, out);
+    }
+  }
+
+  /** IEV de uma erupção natural, pelo tipo: arco forte; ponto quente no oceano manso, no continente explosivo. */
+  private sampleVolcanoVei(v: Volcano): number {
+    if (v.kind === 'hotspot') {
+      return this.world.crust[v.cell] === Crust.Continental ? sampleVei(this.rng.next(), 3, MAX_VEI) : sampleVei(this.rng.next(), 0, 2);
+    }
+    return sampleVei(this.rng.next(), 2, MAX_VEI);
+  }
+
+  /** O vulcão acorda (3–20 anos de erupções) e já entra em erupção. */
+  private wake(v: Volcano, tick: number, manual: boolean, out: DisasterOutcome, vei = this.sampleVolcanoVei(v)): void {
+    v.awake = true;
+    v.until = tick + Math.round(this.rng.range(AWAKE_YEARS[0], AWAKE_YEARS[1]) * TICKS_PER_YEAR);
+    this.erupt(v, vei, tick, manual, true, out);
+  }
+
+  /**
+   * Erupção (R7): lava na cratera até o vulcão dormir, cone que cresce (o relevo sobe para sempre),
+   * lava escorrendo pelo terreno (passo a passo), cinzas a favor do vento e raios nelas (IEV ≥ 4).
+   */
+  private erupt(v: Volcano, vei: number, tick: number, manual: boolean, waking: boolean, out: DisasterOutcome): void {
+    const world = this.world;
+    const ground = this.ground;
+    v.nextEruption = tick + Math.round(this.rng.range(ERUPTION_EVERY[0], ERUPTION_EVERY[1]) * TICKS_PER_YEAR);
+    const { cells } = coneCells(world, v);
+    const lavaYears = Math.max(1, (v.until - tick) / TICKS_PER_YEAR);
+    for (const c of cells) if (ground.rock[c] === 255) ground.setState(c, CellState.Lava, tick, lavaYears, TICKS_PER_YEAR);
+    // O cone cresce: os pequenos (ilhas, do jogador) ganham raio; todos ganham um pouco de altura.
+    const from = { cone: v.cone, top: v.top };
+    if (v.cone < 5 && v.kind !== 'arc' && this.rng.next() < 0.5) v.cone++;
+    v.top += (v.cone - from.cone) * 380 + 15 * vei;
+    const grown = growCone(world, ground, v, from);
+    if (grown.cells.length) out.terrain.push(grown);
+    this.start(
+      new LavaProcess(
+        world,
+        ground,
+        this.rng,
+        v,
+        lavaBudget(vei, this.rng),
+        // A lava acende fogo na vegetação em que encosta.
+        (c) => {
+          if (this.rng.next() < LAVA_FIRE && canBurn(world, ground, c)) this.startFire(c, ground.tick, manual);
+        },
+        (lc, ld) => {
+          if (lc.length) this.stepOut?.terrain.push({ cells: lc, deltas: ld });
+        },
+      ),
+    );
+    // Cinzas e raios na nuvem de cinzas.
+    const plume = ashPlume(world, ground, v, vei, tick, this.rng);
+    if (plume.length) {
+      const bolts = this.rng.int(ASH_LIGHTNING[0], ASH_LIGHTNING[1]);
+      for (let k = 0; k < bolts; k++) {
+        const c = plume[this.rng.int(0, plume.length - 1)] as number;
+        this.lightning(c, tick, manual, out);
+        if (canBurn(world, ground, c) && this.rng.next() < ASH_LIGHTNING_FIRE) this.startFire(c, tick, manual);
       }
     }
+    const source = v.kind === 'hotspot' ? 'ponto quente' : v.kind === 'arc' ? 'arco vulcânico' : '';
+    this.count(DisasterKind.Volcano);
+    out.events.push({
+      id: this.nextId++,
+      kind: DisasterKind.Volcano,
+      tick,
+      point: cellPoint(world, v.cell),
+      magnitude: vei,
+      notable: vei >= NOTABLE_VEI,
+      manual,
+      label: `${waking ? 'Vulcão acordou' : 'Erupção'} (IEV ${vei})${source ? ` · ${source}` : ''}`,
+      radius: (v.cone + 1) * world.grid.cellAngle,
+    });
   }
 
   /** Desastres climáticos do ano: seca, enchente, furacão e incêndio (só sob seca). */
@@ -278,9 +483,15 @@ export class Disasters {
     }
   }
 
-  /** Raio caindo na célula `c` (o clarão na tela; não vira aviso). */
+  /**
+   * Raio caindo na célula `c` (o clarão na tela; não vira aviso). Num vulcão adormecido, acorda ele (o
+   * do jogador sempre; o natural, raramente).
+   */
   private lightning(c: number, tick: number, manual: boolean, out: DisasterOutcome): void {
     this.event(DisasterKind.Lightning, c, 1, false, manual, 'Raio', 1, tick, out);
+    const v = this.volcanoNear(c, 5);
+    if (!v || v.awake || v.extinct || cellDistance(this.world, v.cell, c) > v.cone + 0.6) return;
+    if (manual || (this.plateRate > 0 && this.rng.next() < LIGHTNING_WAKE)) this.wake(v, tick, manual, out);
   }
 
   /** Começa um incêndio em `start` (anda passo a passo; o aviso sai quando apaga, se foi grande). */
@@ -386,30 +597,14 @@ export class Disasters {
     out.events.push({ id: this.nextId++, kind, tick, point: cellPoint(this.world, cell), magnitude: area, notable, manual, label, radius: radiusCells * this.world.grid.cellAngle });
   }
 
-  /** Erupção: ergue o terreno para sempre e espalha cinzas em terra. */
-  private eruption(cell: number, vei: number, tick: number, manual: boolean, source: string, out: DisasterOutcome, extraMeters = 0): void {
+  /** Erupção numa dorsal: ergue o fundo do mar (sem cone nem lava à vista). */
+  private ridgeEruption(cell: number, vei: number, tick: number, out: DisasterOutcome): void {
     const world = this.world;
     const point = cellPoint(world, cell);
     const up = eruptionUplift(vei);
-    out.uplifts.push({ point, radius: up.radius, meters: up.meters + extraMeters });
-    const ash = ashRadius(vei);
-    for (const c of world.grid.cellsInCap(point[0], point[1], point[2], ash * world.grid.cellAngle)) {
-      if (world.isWater(c)) continue;
-      this.ground.damage(c, 0.3);
-      this.ground.setState(c, CellState.Ash, tick, ASH_YEARS, TICKS_PER_YEAR);
-    }
+    out.uplifts.push({ point, radius: up.radius, meters: up.meters });
     this.count(DisasterKind.Volcano);
-    out.events.push({
-      id: this.nextId++,
-      kind: DisasterKind.Volcano,
-      tick,
-      point,
-      magnitude: vei,
-      notable: vei >= NOTABLE_VEI,
-      manual,
-      label: `Erupção IEV ${vei}${source ? ` · ${source}` : ''}`,
-      radius: ash * world.grid.cellAngle,
-    });
+    out.events.push({ id: this.nextId++, kind: DisasterKind.Volcano, tick, point, magnitude: vei, notable: vei >= NOTABLE_VEI, manual: false, label: `Erupção IEV ${vei} · dorsal`, radius: up.radius * world.grid.cellAngle });
   }
 
   private count(kind: DisasterKind): void {
@@ -484,4 +679,11 @@ export function nearest(world: WorldState, from: number, steps: number, ok: (c: 
     frontier = next;
   }
   return -1;
+}
+
+/** Distância em células entre duas células. */
+export function cellDistance(world: WorldState, a: number, b: number): number {
+  const p = world.grid.positions;
+  const dot = (p[a * 3] as number) * (p[b * 3] as number) + (p[a * 3 + 1] as number) * (p[b * 3 + 1] as number) + (p[a * 3 + 2] as number) * (p[b * 3 + 2] as number);
+  return Math.acos(Math.max(-1, Math.min(1, dot))) / world.grid.cellAngle;
 }

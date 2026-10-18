@@ -154,6 +154,8 @@ export interface GroundView {
   strength(c: number): number;
   /** Intensidade do estado (0–1): calor da seca, profundidade da enchente. */
   levelOf(c: number): number;
+  /** Rocha de vulcão (0 nenhuma; 1–254 cone, do pé à borda; 255 cratera). */
+  readonly rock: Uint8Array;
 }
 
 /**
@@ -178,6 +180,9 @@ class SteppedGround implements GroundView {
   levelOf(c: number): number {
     return (this.g as GroundView).levelOf(c);
   }
+  get rock(): Uint8Array {
+    return (this.g as GroundView).rock;
+  }
 }
 const stepped = new SteppedGround();
 
@@ -192,6 +197,7 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   const showGround = ground !== undefined && h > 0 && !world.ice[i] && !layers.biomes && !layers.resources && !layers.stress;
   let base: readonly number[] = info.color;
   if (showGround && (ground.cover[i] as number) < 1) base = vegetationColor(biome, stepCover(ground.cover[i] as number)) ?? base;
+  if (showGround && ground.rock[i]) base = rockColor(ground.rock[i] as number, base);
   let k: number;
   if (h <= 0 && !world.ice[i]) k = 1.12 - 0.42 * Math.min(1, -h / 5000);
   else k = (world.ice[i] ? 0.94 : 0.88) + 0.2 * Math.min(1, Math.max(0, h) / 6000);
@@ -648,6 +654,26 @@ function tsunamiSeaColor(ground: GroundView, i: number, state: number, h: number
   stateOut[0] = r + ((c[0] as number) - r) * t;
   stateOut[1] = g + ((c[1] as number) - g) * t;
   stateOut[2] = b + ((c[2] as number) - b) * t;
+}
+
+/**
+ * Vulcão (R7, imagem `docs/img/m2-dv-vulcao-v2.png`): o cone em tons de rocha marrom-acinzentada (mais
+ * escuro no alto), o pé dele misturado com o chão em volta e a cratera escura. O relevo (sombra e
+ * degraus) é desenhado por cima, como em qualquer terreno.
+ */
+const CRATER: readonly [number, number, number] = [40, 36, 36];
+const CONE_HIGH: readonly [number, number, number] = [104, 92, 86];
+const CONE_LOW: readonly [number, number, number] = [136, 122, 108];
+const rockOut: [number, number, number] = [0, 0, 0];
+
+function rockColor(rock: number, base: readonly number[]): readonly number[] {
+  if (rock === 255) return CRATER;
+  // Posição no cone: 0 na borda da cratera, 1 no pé.
+  const t = 1 - rock / 254;
+  const c = t < 0.45 ? CONE_HIGH : CONE_LOW;
+  const mix = t > 0.8 ? 0.5 : 1;
+  for (let k = 0; k < 3; k++) rockOut[k] = (base[k] as number) + ((c[k] as number) - (base[k] as number)) * mix;
+  return rockOut;
 }
 
 /** Cores da camada "Ver tensão": tensão baixa (verde-amarelo), média (laranja), alta (vermelho). */

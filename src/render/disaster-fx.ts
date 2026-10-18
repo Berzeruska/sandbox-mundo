@@ -17,7 +17,6 @@ interface Fx {
 
 /** Duração das animações (ms). */
 const FX_MS: Record<number, number> = {
-  [DisasterKind.Volcano]: 3200,
   [DisasterKind.Hurricane]: 9000,
   // Incêndio (R3), seca e enchente (R4) aparecem nas próprias células, sem animação por cima; o raio é
   // um clarão rápido.
@@ -85,9 +84,7 @@ export class DisasterFx {
   draw(ctx: CanvasRenderingContext2D, camera: Camera, now: number, dpr: number): void {
     this.list = this.list.filter((f) => now - f.start < f.ms);
     for (const f of this.list) {
-      const u = (now - f.start) / f.ms;
-      if (f.e.kind === DisasterKind.Volcano) drawEruption(ctx, camera, f.e, u, f.e.id, dpr);
-      else if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
+      if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
     }
   }
 }
@@ -137,39 +134,6 @@ function drawLightning(ctx: CanvasRenderingContext2D, camera: Camera, e: Disaste
     ctx.lineWidth = w * dpr;
     ctx.beginPath();
     pts.forEach(([px, py], k) => (k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
-    ctx.stroke();
-  }
-}
-
-/** Erupção: brilho de lava no centro, fagulhas e a nuvem de cinzas que se abre e some. */
-function drawEruption(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, u: number, id: number, dpr: number): void {
-  const c = camera.worldToScreen(e.point);
-  if (!c.visible) return;
-  // Nuvem de cinzas: abre até o raio das cinzas.
-  const grow = Math.min(1, u * 1.6);
-  const fade = u < 0.6 ? 1 : 1 - (u - 0.6) / 0.4;
-  pathCap(ctx, camera, e.point, Math.max(e.radius * grow, 1e-4));
-  ctx.fillStyle = `rgba(95, 90, 88, ${(0.45 * fade).toFixed(3)})`;
-  ctx.fill();
-  // Brilho no centro, pulsando.
-  const glow = (e.notable ? 7 : 4) * dpr * (1 + 0.3 * Math.sin(u * 30));
-  ctx.fillStyle = `rgba(255, ${Math.round(120 + 80 * (1 - u))}, 40, ${(0.95 * fade).toFixed(3)})`;
-  ctx.beginPath();
-  ctx.arc(c.x, c.y, glow, 0, Math.PI * 2);
-  ctx.fill();
-  // Fagulhas: riscos curtos saindo do centro, em direções fixas por erupção.
-  if (u < 0.5) {
-    ctx.strokeStyle = `rgba(255, 170, 60, ${(1 - u / 0.5).toFixed(3)})`;
-    ctx.lineWidth = 1.5 * dpr;
-    ctx.beginPath();
-    const n = e.notable ? 10 : 6;
-    for (let k = 0; k < n; k++) {
-      const a = (k / n) * Math.PI * 2 + id;
-      const r0 = glow + u * 30 * dpr;
-      const r1 = r0 + 6 * dpr;
-      ctx.moveTo(c.x + Math.cos(a) * r0, c.y + Math.sin(a) * r0);
-      ctx.lineTo(c.x + Math.cos(a) * r1, c.y + Math.sin(a) * r1);
-    }
     ctx.stroke();
   }
 }

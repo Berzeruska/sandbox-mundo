@@ -68,7 +68,7 @@ export class DroughtProcess {
   constructor(
     private world: WorldState,
     private ground: Ground,
-    private cells: readonly number[],
+    private cells: number[],
     private startTick: number,
     years: number,
   ) {
@@ -80,6 +80,11 @@ export class DroughtProcess {
     if ((tick - this.startTick) % TICKS_PER_YEAR !== 0) return true;
     this.dryYear();
     return true;
+  }
+
+  /** As placas andaram: a seca vai junto com a crosta. */
+  remap(moved: ReadonlyMap<number, number>): void {
+    this.cells = this.cells.map((c) => moved.get(c) ?? -1).filter((c) => c >= 0);
   }
 
   /** Um ano de seca: cada célula perde 15–35% da vegetação no miolo, menos na borda. */

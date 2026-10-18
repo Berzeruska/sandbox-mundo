@@ -883,8 +883,29 @@ teste do bloco. Mar e gelo não ganham degraus.
   **Também (técnico):** o relógio junta as repinturas dos desastres de vários passos numa mensagem só
   por laço (a 20× seriam 240 por segundo), e a cor usa a vegetação e a força do estado nos mesmos
   degraus que decidem a repintura (o mundo sai igual em qualquer velocidade).
-- [ ] **R7 — Vulcão** (vulcões no mapa, cratera, ciclo, lava). Testes: lava desce; lava no mar vira
+- [x] **R7 — Vulcão** (vulcões no mapa, cratera, ciclo, lava). Testes: lava desce; lava no mar vira
   terra; adormecido não entra em erupção sozinho; anda com a placa.
+  **Feito (2026-10-18):** `src/world/disasters/volcano.ts`. O mundo nasce com vulcões: um a cada ~14
+  células das fronteiras convergentes (do lado da placa de cima) e um em cada ponto quente, dormindo.
+  Cone de verdade no relevo (anel 400 + 380 × raio m acima do terreno, cratera ~250–420 m abaixo do anel)
+  e rocha marcada no chão (camada própria: a lava passa por cima e o cone continua): tons de rocha,
+  mais escuro no alto, pé misturado com o chão, cratera escura. Tamanho: debaixo de continente quase
+  sempre grande (raio 4–5, cratera 3×3), no oceano pequeno (1–2, cresce a cada erupção), do jogador
+  médio (3). Ciclo: dorme 200–3.000 anos nos arcos (80–800 nos pontos quentes oceânicos), dividido pela
+  frequência; acorda 3–20 anos com lava na cratera e erupção a cada 1–3. Erupção: o cone sobe um pouco
+  (para sempre); a lava sai pela borda mais baixa da cratera, desce o cone por um canal e, fora dele,
+  enche o terreno pelo mais baixo (com ruído fixo, sem subir mais de 150 m), 1–2 células por passo,
+  10–40 células (IEV 0–2) ou 20–80 (IEV 3+); vermelha 1–3 anos, depois basalto 100–300; queima a
+  vegetação e acende fogo nas vizinhas (12% cada); no mar vira terra nova de basalto. IEV ≥ 4: pluma de
+  cinzas a favor do vento (tira 20–40% da vegetação) e 2–4 raios nela (60% acendem fogo). Raio do
+  jogador num vulcão adormecido acorda ele; o natural, 5%. Jogador: tocar num vulcão acorda e faz
+  erupção (IEV 4–6); fora, cria um vulcão ali (no mar já nasce ilha). Novos arcos nascem com o tempo
+  nas fronteiras convergentes sem vulcão perto; o ponto quente faz cadeia (o vulcão que a placa leva
+  embora apaga e nasce outro em cima do ponto quente). Dorsais: erupção no fundo do mar como antes.
+  **O chão anda com as placas** (decidido na implementação, R2/R7): em cada recomposição, vegetação,
+  estados, rocha e vulcões vão junto com a crosta (pela identidade placa + ponto de referência de cada
+  célula); o que estava em crosta que sumiu, some. Com as placas paradas, os vulcões não acordam (a
+  geologia congela). A animação de cinzas por cima saiu. Testes: `tests/world/volcano.test.ts`.
 - [ ] **R8 — Furacão e ciclone** (das nuvens, vários, destruição, seletor de categoria, furacão de fogo). Testes: no máximo 2 por
   quadrante; nome pela categoria; estrago só no raio.
 - [ ] **R9 — Frequências e medição:** recalibrar "Raro" (~1 aviso a cada 1–2 min em 1×), "Medir

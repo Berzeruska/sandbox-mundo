@@ -69,8 +69,14 @@ export function hasVegetation(biome: number): boolean {
   return REGROW_YEARS[biome] !== undefined;
 }
 
+/** As mesmas tabelas em arrays (o laço anual passa por milhares de células). */
+const REGROW_TABLE = new Float32Array(32);
+for (const [b, y] of Object.entries(REGROW_YEARS)) REGROW_TABLE[Number(b)] = y as number;
+
 /** Estados em que a vegetação não volta (o chão ainda queima, é rocha, está salgado ou na seca). */
 const NO_REGROW: ReadonlySet<number> = new Set([CellState.Burning, CellState.Lava, CellState.Basalt, CellState.Mud, CellState.Heat, CellState.Lake, CellState.Surge]);
+const NO_REGROW_TABLE = new Uint8Array(32);
+for (const s of NO_REGROW) NO_REGROW_TABLE[s] = 1;
 /** Solo fértil (o que a enchente deixa): a vegetação volta 2× mais rápido. */
 const FERTILE_REGROW = 2;
 /**
@@ -102,6 +108,13 @@ export class Ground {
   readonly until: Int32Array;
   /** Intensidade do estado na célula (0–255): o calor da seca, a profundidade da enchente. */
   readonly level: Uint8Array;
+  /**
+   * Rocha do vulcão (R7), independente do estado: 0 = nenhuma; 1–254 = cone (posição: 254 na borda da
+   * cratera, 1 no pé); 255 = cratera. Fica enquanto o cone existir (a lava passa por cima e esfria).
+   */
+  readonly rock: Uint8Array;
+  /** Células com rocha de vulcão. */
+  readonly rockCells = new Set<number>();
   /** Células com vegetação abaixo de 100% ou com estado (para não varrer o mundo todo). */
   readonly active = new Set<number>();
   /** Passo atual (para a força dos estados na hora de pintar). */
@@ -122,11 +135,12 @@ export class Ground {
     this.start = new Int32Array(cellCount);
     this.until = new Int32Array(cellCount);
     this.level = new Uint8Array(cellCount);
+    this.rock = new Uint8Array(cellCount);
     this.shown = new Uint16Array(cellCount).fill(FULL_KEY);
   }
 
   get bytes(): number {
-    return this.cover.byteLength + this.state.byteLength + this.start.byteLength + this.until.byteLength + this.level.byteLength + this.shown.byteLength;
+    return this.cover.byteLength + this.state.byteLength + this.start.byteLength + this.until.byteLength + this.level.byteLength + this.rock.byteLength + this.shown.byteLength;
   }
 
   /**
@@ -204,22 +218,35 @@ export class Ground {
 
   /**
    * Um ano: a vegetação volta na velocidade do bioma (com variação por região, para não voltar em
-   * bloco). Células cheias e sem estado saem da lista.
+   * bloco). Células cheias e sem estado saem da lista. Roda sobre milhares de células (basalto dura
+   * séculos): tabelas em arrays e saída cedo do que não muda.
    */
   year(world: WorldState): void {
+    const { biome, ice, elevation } = world;
+    const sea = world.seaLevel;
     for (const c of this.active) {
       const s = this.state[c] as number;
+      // Estado que vai sumindo: a cor pode mudar de degrau.
+      if (s) this.dirty.add(c);
       const cover = this.cover[c] as number;
-      const years = REGROW_YEARS[world.biome[c] as number];
-      if (years === undefined || world.isWater(c) || world.ice[c]) {
-        // Sem vegetação aqui (deserto, gelo, mar): nada a voltar.
-        if (cover < 1) this.cover[c] = 1;
-      } else if (cover < 1 && !NO_REGROW.has(s)) {
-        const pace = regrowPace(world, c) * (s === CellState.Fertile ? FERTILE_REGROW : 1);
-        this.cover[c] = Math.min(1, cover + pace / years);
+      if (cover >= 1) {
+        if (!s) this.active.delete(c);
+        continue;
       }
+      const years = REGROW_TABLE[biome[c] as number] as number;
+      if (!years || (elevation[c] as number) <= sea || ice[c]) {
+        // Sem vegetação aqui (deserto, gelo, mar): nada a voltar.
+        this.cover[c] = 1;
+        this.dirty.add(c);
+        if (!s) this.active.delete(c);
+        continue;
+      }
+      if (NO_REGROW_TABLE[s]) continue;
+      const pace = regrowPace(world, c) * (s === CellState.Fertile ? FERTILE_REGROW : 1);
+      const next = Math.min(1, cover + pace / years);
+      this.cover[c] = next;
       this.dirty.add(c);
-      if (!this.state[c] && (this.cover[c] as number) >= 1) this.active.delete(c);
+      if (!s && next >= 1) this.active.delete(c);
     }
   }
 
@@ -248,12 +275,78 @@ export class Ground {
     return (this.level[c] as number) / 255;
   }
 
+  /** Marca (ou tira, com 0) a rocha de vulcão na célula. */
+  setRock(c: number, value: number): void {
+    if (this.rock[c] === value) return;
+    this.rock[c] = value;
+    if (value) this.rockCells.add(c);
+    else this.rockCells.delete(c);
+    // A aparência muda: força a repintura (a chave não vê a rocha).
+    this.shown[c] = 0xffff;
+    this.dirty.add(c);
+  }
+
+  /**
+   * As placas andaram (recomposição): o chão de cada célula vai junto com a crosta, como o relevo.
+   * `oldKey(c)` é a identidade (placa e ponto de referência) da célula antes; `newKey(c)`, depois. Chão
+   * em crosta que sumiu (subducção) some; fenda nova nasce sem nada. Devolve célula antiga → nova.
+   */
+  remap(oldKey: (c: number) => number, newKey: (c: number) => number, cellCount: number): Map<number, number> {
+    const moving = new Set<number>([...this.active, ...this.rockCells]);
+    const byKey = new Map<number, number>();
+    const snap = new Map<number, { cover: number; state: number; start: number; until: number; level: number; rock: number }>();
+    for (const c of moving) {
+      byKey.set(oldKey(c), c);
+      snap.set(c, {
+        cover: this.cover[c] as number,
+        state: this.state[c] as number,
+        start: this.start[c] as number,
+        until: this.until[c] as number,
+        level: this.level[c] as number,
+        rock: this.rock[c] as number,
+      });
+      this.cover[c] = 1;
+      this.state[c] = CellState.None;
+      this.rock[c] = 0;
+      this.shown[c] = 0xffff;
+      this.dirty.add(c);
+    }
+    this.active.clear();
+    this.rockCells.clear();
+    const moved = new Map<number, number>();
+    if (!byKey.size) return moved;
+    for (let c = 0; c < cellCount; c++) {
+      const from = byKey.get(newKey(c));
+      if (from === undefined || moved.has(from)) continue;
+      const v = snap.get(from) as { cover: number; state: number; start: number; until: number; level: number; rock: number };
+      moved.set(from, c);
+      this.cover[c] = v.cover;
+      this.state[c] = v.state;
+      this.start[c] = v.start;
+      this.until[c] = v.until;
+      this.level[c] = v.level;
+      this.rock[c] = v.rock;
+      if (v.rock) this.rockCells.add(c);
+      if (v.state || v.cover < 1) this.active.add(c);
+      if (v.state) {
+        const list = this.due.get(v.until);
+        if (list) list.push(c);
+        else this.due.set(v.until, [c]);
+      }
+      this.shown[c] = 0xffff;
+      this.dirty.add(c);
+    }
+    return moved;
+  }
+
   clear(): void {
     for (const c of this.active) {
       this.cover[c] = 1;
       this.state[c] = CellState.None;
       this.shown[c] = FULL_KEY;
     }
+    for (const c of this.rockCells) this.rock[c] = 0;
+    this.rockCells.clear();
     this.active.clear();
     this.dirty.clear();
     this.due.clear();

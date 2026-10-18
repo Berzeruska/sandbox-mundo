@@ -269,8 +269,10 @@ export class SimulationCore {
     this.world = world;
     this.disasters = new Disasters(world);
     this.disasters.frequency = this.disasterFrequency;
+    // Cones dos vulcões do começo (R7): fazem parte do mundo que nasce (antes das cores e do motor).
+    for (const t of this.disasters.takeInitialTerrain()) applyTerrainDeltas(world, t.cells, t.deltas);
     this.colors = new Uint8Array(world.cellCount * 4);
-    buildColors(world, this.colors, undefined, this.layers);
+    buildColors(world, this.colors, undefined, this.layers, this.disasters.ground);
     this.cellRef = new Int32Array(world.cellCount);
     for (let c = 0; c < world.cellCount; c++) this.cellRef[c] = c;
     stagesMs[current] = this.now() - mark;
@@ -458,6 +460,8 @@ export class SimulationCore {
     const world = this.world;
     const ground = this.disasters?.ground;
     if (world && ground && ground.active.size) buildColors(world, this.colors, ground.active, this.layers, ground);
+    // A rocha dos vulcões também (o ajudante pinta sem ela).
+    if (world && ground && ground.rockCells.size) buildColors(world, this.colors, ground.rockCells, this.layers, ground);
     if (this.layers.stress && !this.layers.resources) this.tintStressCells();
   }
 
@@ -482,6 +486,11 @@ export class SimulationCore {
     if (!world || !buffers) return;
     const t0 = this.now();
     const before = r.kind === 'climate' ? this.colors.slice() : null;
+    // O chão dos desastres e os vulcões andam com a crosta: guarda a identidade das células de antes.
+    const ground = this.disasters?.ground;
+    const moveGround = !before && !!ground && (ground.active.size > 0 || ground.rockCells.size > 0);
+    const oldPlate = moveGround ? world.plate.slice() : null;
+    const oldRef = moveGround ? this.cellRef.slice() : null;
     for (const k of COMPOSED_FIELDS) world[k].set(buffers.arrays[k]);
     this.colors.set(buffers.colors);
     this.cellRef.set(buffers.cellRef);
@@ -504,6 +513,14 @@ export class SimulationCore {
       return;
     }
     world.plates = r.plates;
+    if (oldPlate && oldRef && this.disasters) {
+      const n = world.cellCount;
+      const cellRef = this.cellRef;
+      this.disasters.remap(
+        (c) => (oldPlate[c] as number) * n + (oldRef[c] as number),
+        (c) => (world.plate[c] as number) * n + (cellRef[c] as number),
+      );
+    }
     this.shown = { angles: r.angles, speeds: r.motion.map((m) => m.speed), drift: r.drift };
     this.platesMoving = true;
     // Os buffers do motor estão livres para a próxima recomposição.

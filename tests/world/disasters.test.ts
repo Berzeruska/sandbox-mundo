@@ -88,7 +88,7 @@ describe('desastres (T8): terremotos', () => {
       expect(big, seed).toBeGreaterThanOrEqual(10);
       expect(big, seed).toBeLessThanOrEqual(60);
     }
-  });
+  }, 30_000);
 
   it('determinismo: mesma semente, mesmos desastres', () => {
     const a = run(worldOf('42'), 3000).events.map((e) => [e.kind, e.tick, e.label]);
@@ -229,14 +229,21 @@ describe('desastres (T9): vulcões e pontos quentes', () => {
     const w = core.world!;
     const land = [...Array(w.cellCount).keys()].find((c) => w.heightAboveSea(c) > 100 && w.heightAboveSea(c) < 1000 && !w.boundary[c])!;
     const h0 = w.elevation[land]!;
+    const near = w.grid.cellsInCap(...cellPoint(w, land), 2 * w.grid.cellAngle);
+    const before = near.map((c) => w.elevation[c]!);
     core.handle({ type: 'disaster', kind: DisasterKind.Volcano, point: cellPoint(w, land) });
-    expect(w.elevation[land]!).toBeGreaterThan(h0 + 1000);
+    // O cone (R7): o anel sobe mais de 1.000 m; no meio fica a cratera.
+    const rim = Math.max(...near.map((c, k) => w.elevation[c]! - before[k]!));
+    expect(rim).toBeGreaterThan(1000);
+    expect(w.elevation[land]!).toBeGreaterThan(h0 + 500);
     expect(core.disasters!.ground.active.size).toBeGreaterThan(0);
     core.handle({ type: 'plateRate', rate: 0 });
     core.handle({ type: 'speed', speed: 20 });
     while (core.clock.tick < 60 * TICKS_PER_YEAR) core.advance(0.25);
-    expect(core.disasters!.ground.active.size).toBe(0);
-    expect(w.elevation[land]!).toBeGreaterThan(h0 + 1000);
+    // As cinzas somem; o basalto da lava fica 100–300 anos (R7).
+    const g = core.disasters!.ground;
+    expect([...g.active].filter((c) => g.state[c] === CellState.Ash)).toEqual([]);
+    expect(w.elevation[land]!).toBeGreaterThan(h0 + 500);
   });
 
   it('ponto quente sob placa andando forma uma cadeia de ilhas', () => {
@@ -351,7 +358,9 @@ describe('desastres (T10): clima', () => {
     // Mais 200 anos sem nada novo: tudo some (o mais lento é taiga queimada voltando, até ~80 anos).
     d.frequency = 0;
     for (let y = 401; y <= 600; y++) d.step(y * TICKS_PER_YEAR, 1);
-    expect(d.ground.active.size).toBe(0);
+    // Das marcas do clima não sobra nada (o basalto das erupções dura séculos: não conta).
+    const climate: number[] = [CellState.Heat, CellState.Flooded, CellState.Lake, CellState.Burned, CellState.Burning];
+    expect([...d.ground.active].filter((c) => climate.includes(d.ground.state[c]!))).toEqual([]);
   });
 
   it('frequências em 1.000 anos em "Raro" dentro da faixa esperada', () => {

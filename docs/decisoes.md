@@ -874,3 +874,14 @@ Formato: data — decisão — motivo — alternativa descartada.
   shader (precisaria de uma textura de tempos de chegada; fica para o M8 se o usuário quiser a onda no
   mar aberto).
 
+- **2026-10-18 — R7: vulcões (decisões técnicas).**
+  - Rocha do cone numa camada própria do chão (não um estado): a lava passa por cima, esfria, some, e o
+    cone continua. Descartado: estado "cone" (seria apagado pela lava).
+  - O chão inteiro anda com as placas a cada recomposição (não só o basalto): mais simples e coerente
+    (fenda, lama, solo fértil e seca também duram décadas, e as placas andam ~1 célula a cada 13 anos a
+    20× com placas a 100%). Custo: uma passada pelas células do mundo por recomposição.
+  - Os vulcões do começo são criados junto com o mundo (o relevo do cone entra antes das cores e do
+    motor da geologia), pela semente: mesmo mundo, mesmos vulcões.
+  - Vulcões não acordam com as placas paradas (regra de "em 0 a geologia congela"), nem pelo raio
+    natural; o jogador acorda em qualquer caso.
+

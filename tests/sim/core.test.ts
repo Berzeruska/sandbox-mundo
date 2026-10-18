@@ -1,3 +1,5 @@
+import { applyTerrainDeltas } from '../../src/input/tools';
+import { Disasters } from '../../src/world/disasters';
 import { describe, expect, it } from 'vitest';
 import { seedFrom } from '../../src/core/rng';
 import { Tool } from '../../src/input/tools';
@@ -26,8 +28,11 @@ describe('núcleo da simulação (worker)', () => {
     core.handle({ type: 'newWorld', seedText: 'terra', n: N });
     const msg = lastOf(inbox, 'world')!;
     const direct = createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: N, seaLevel: 0, landFraction: 0.3 });
+    // O mundo nasce com os cones dos vulcões (R7), que vêm dos desastres.
+    const disasters = new Disasters(direct);
+    for (const t of disasters.takeInitialTerrain()) applyTerrainDeltas(direct, t.cells, t.deltas);
     const expected = new Uint8Array(direct.cellCount * 4);
-    buildColors(direct, expected);
+    buildColors(direct, expected, undefined, undefined, disasters.ground);
     expect(msg.colors).toEqual(expected);
     expect(core.world!.elevation).toEqual(direct.elevation);
     expect(msg.info).toMatchObject({ n: N, cellCount: direct.cellCount, seedText: 'terra', seed: seedFrom('terra') });
