@@ -17,7 +17,6 @@ interface Fx {
 
 /** Duração das animações (ms). */
 const FX_MS: Record<number, number> = {
-  [DisasterKind.Quake]: 1800,
   [DisasterKind.Tsunami]: 6000,
   [DisasterKind.Volcano]: 3200,
   [DisasterKind.Hurricane]: 9000,
@@ -88,30 +87,10 @@ export class DisasterFx {
     this.list = this.list.filter((f) => now - f.start < f.ms);
     for (const f of this.list) {
       const u = (now - f.start) / f.ms;
-      if (f.e.kind === DisasterKind.Quake) drawQuake(ctx, camera, f.e, u, dpr);
-      else if (f.e.kind === DisasterKind.Tsunami) drawWave(ctx, camera, f.e, u, dpr);
+      if (f.e.kind === DisasterKind.Tsunami) drawWave(ctx, camera, f.e, u, dpr);
       else if (f.e.kind === DisasterKind.Volcano) drawEruption(ctx, camera, f.e, u, f.e.id, dpr);
       else if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
     }
-  }
-}
-
-/** Terremoto: três anéis que se abrem do epicentro e somem; os grandes em vermelho. */
-function drawQuake(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, u: number, dpr: number): void {
-  const color = e.notable ? '255, 80, 50' : '255, 190, 90';
-  for (let k = 0; k < 3; k++) {
-    const t = u * 1.5 - k * 0.22;
-    if (t <= 0 || t >= 1) continue;
-    const alpha = (1 - t) * (e.notable ? 0.95 : 0.7);
-    strokeCap(ctx, camera, e.point, e.radius * t, `rgba(${color}, ${alpha.toFixed(3)})`, (e.notable ? 2.5 : 1.5) * dpr);
-  }
-  // Ponto no epicentro.
-  const c = camera.worldToScreen(e.point);
-  if (c.visible && u < 0.8) {
-    ctx.fillStyle = `rgba(${color}, ${(1 - u / 0.8).toFixed(3)})`;
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, 3 * dpr, 0, Math.PI * 2);
-    ctx.fill();
   }
 }
 

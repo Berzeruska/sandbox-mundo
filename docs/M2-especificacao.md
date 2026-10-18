@@ -854,8 +854,20 @@ teste do bloco. Mar e gelo não ganham degraus.
   bacia fechada (sem encostar no mar): as 12% mais fundas viram lago por 10–30 anos. Floresta alagada
   perde 10–20% da vegetação; campo perde 75–95% e volta verde. A "rodela" da seca e da enchente saiu.
   O toque mostra "calor da seca +4 °C". Testes: `tests/world/drought-flood.test.ts`.
-- [ ] **R5 — Terremoto** (tremor, fenda e deslizamentos pela magnitude, seletor). Testes: raio pela magnitude;
+- [x] **R5 — Terremoto** (tremor, fenda e deslizamentos pela magnitude, seletor). Testes: raio pela magnitude;
   deslizamento só em encosta.
+  **Feito (2026-10-18):** `src/world/disasters/quake-damage.ts`. Raio do estrago e comprimento da fenda
+  pela tabela (interpolados entre os pontos; abaixo de M 6 vão a zero em M 5,5: o pequeno só treme).
+  Fenda: direção da fronteira de placa perto do epicentro (eixo principal das células de fronteira a
+  até 5 células; sem fronteira, sorteada), passos de meia célula com desvio suave, mais larga e aberta
+  para as vizinhas perto do epicentro, galhos em M ≥ 9, some em 50 anos. Deslizamentos: das células
+  mais íngremes do raio (queda > 180 m até a vizinha), descendo sempre para a vizinha mais baixa (2–6
+  células, 2 de largura, entulho espalhando no pé), separados uns dos outros, até 2/4/8/12 em M 7/8/9/9,5;
+  o topo desce 10–60 m e o pé sobe a metade, para sempre (gravado na placa como uma pincelada; caminho
+  novo `applyTerrainDeltas`, que a R6 usa para raspar a costa). Vegetação do raio perde 20–60%. Tela
+  tremendo só na câmera: 0,5–2 s, até ~14 px × a escala da tela pela magnitude, menos com a distância do
+  epicentro ao centro da tela (zero além do raio sentido), 30% se o epicentro está fora da vista. Os
+  anéis por cima saíram. Testes: `tests/world/quake-damage.test.ts`.
 - [ ] **R6 — Tsunami** (recuo, onda, avanço, dano, costa raspada, magnitude). Testes: alcance pela
   magnitude; para em terreno alto; toda célula alcançada perde a vegetação.
 - [ ] **R7 — Vulcão** (vulcões no mapa, cratera, ciclo, lava). Testes: lava desce; lava no mar vira

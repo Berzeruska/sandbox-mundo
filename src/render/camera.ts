@@ -124,12 +124,16 @@ export class Camera {
     return this.baseRadius() * this.zoom;
   }
 
+  /** Tremor da tela (terremoto, R5): deslocamento do globo em pixels, só no desenho. */
+  shakeX = 0;
+  shakeY = 0;
+
   centerX(): number {
-    return this.width / 2;
+    return this.width / 2 + this.shakeX;
   }
 
   centerY(): number {
-    return this.height / 2;
+    return this.height / 2 + this.shakeY;
   }
 
   /** Ponto de tela → vetor de visão na esfera, ou null se cair no espaço. */

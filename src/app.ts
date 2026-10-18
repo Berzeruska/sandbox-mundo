@@ -10,7 +10,8 @@ import { DisasterToasts } from './ui/disaster-panel';
 import { CellState, STATE_NAMES } from './world/disasters/ground';
 import { droughtHeat } from './world/disasters/drought';
 import { MAX_STORMS } from './render/shaders';
-import type { DisasterEvent, DisasterKind } from './world/disasters/types';
+import { DisasterKind, type DisasterEvent } from './world/disasters/types';
+import { feltRadius } from './world/disasters/quakes';
 import type { Vec3 } from './world/cubesphere';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
@@ -150,6 +151,8 @@ export class App {
   private paintGate = new PaintGate();
   /** Animações dos desastres na camada de cima (T8–T10) e se ainda há algo dela na tela. */
   private fx = new DisasterFx();
+  /** Tremor da tela do terremoto em curso (R5): início, duração (ms) e força (px). */
+  private shake: { start: number; ms: number; amp: number } | null = null;
   private fxShown = false;
   /** Nuvens ligadas no menu Clima (o desenho nasce depois do primeiro mundo). */
   private cloudsOn = true;
@@ -495,7 +498,10 @@ export class App {
   /** Desastres que aconteceram: animação, aviso (só os grandes naturais) e lista. */
   private onDisasters(events: DisasterEvent[]): void {
     const now = performance.now();
-    for (const e of events) this.fx.add(e, now);
+    for (const e of events) {
+      this.fx.add(e, now);
+      if (e.kind === DisasterKind.Quake) this.startShake(e, now);
+    }
     for (const e of events) if (isToast(e)) this.toasts.show(toEntry(e));
   }
 
@@ -508,6 +514,41 @@ export class App {
     const speed = this.clock.speed;
     if (speed !== 0 && speed !== 1) this.setSpeed(1);
     this.sim.triggerDisaster(kind, point, this.hud.strengthOf(kind));
+  }
+
+  /**
+   * A tela treme no terremoto (só a câmera): 0,5–2 s e até ~14 px pela magnitude, menos quanto mais
+   * longe o epicentro está do centro da tela; fora da vista, quase nada.
+   */
+  private startShake(e: DisasterEvent, now: number): void {
+    const k = Math.max(0, Math.min(1, (e.magnitude - 6) / 3.5));
+    const c = this.camera.centerPoint();
+    const dist = Math.acos(Math.max(-1, Math.min(1, c[0] * e.point[0] + c[1] * e.point[1] + c[2] * e.point[2])));
+    const near = Math.max(0, 1 - dist / Math.max(1e-3, feltRadius(e.magnitude)));
+    const seen = this.camera.worldToScreen(e.point).visible ? 1 : 0.3;
+    const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+    const amp = (2 + 12 * k) * near * seen * ratio;
+    if (amp < 0.5) return;
+    const ms = 500 + 1500 * k;
+    if (this.shake && this.shake.amp * (1 - (now - this.shake.start) / this.shake.ms) > amp) return;
+    this.shake = { start: now, ms, amp };
+  }
+
+  /** Um quadro do tremor; devolve true enquanto treme. */
+  private updateShake(now: number): boolean {
+    const s = this.shake;
+    if (!s) return false;
+    const t = (now - s.start) / s.ms;
+    if (t >= 1) {
+      this.shake = null;
+      this.camera.shakeX = 0;
+      this.camera.shakeY = 0;
+      return true;
+    }
+    const a = s.amp * (1 - t) * (1 - t);
+    this.camera.shakeX = a * (0.6 * Math.sin(now * 0.09) + 0.4 * Math.sin(now * 0.157 + 1.3));
+    this.camera.shakeY = a * (0.6 * Math.sin(now * 0.113 + 2.1) + 0.4 * Math.sin(now * 0.071 + 0.4));
+    return true;
   }
 
   /** Leva a câmera até um ponto do planeta, suave (~0,8 s). */
@@ -648,6 +689,7 @@ export class App {
     if (this.camera.update(dt)) this.needsDraw = true;
     if (this.keys.update(this.camera, dt)) this.needsDraw = true;
     if (this.updateFlight()) this.needsDraw = true;
+    if (this.updateShake(performance.now())) this.needsDraw = true;
     if (this.input.update(dt)) this.needsDraw = true;
     if (this.updateMotion()) this.needsDraw = true;
     const gate = this.paintGate.frame(performance.now());

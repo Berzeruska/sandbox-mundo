@@ -1,6 +1,6 @@
 import { seedFrom } from '../core/rng';
 import { Clock, TICKS_PER_YEAR } from '../core/time';
-import { applyBrush, RAISE_RATE } from '../input/tools';
+import { applyBrush, applyTerrainDeltas, RAISE_RATE } from '../input/tools';
 import { buildColors, colorCacheBytes, NO_LAYERS, tintStress, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
 import { applyClimateOffset, climateCacheBytes, climateOffsetAt, CONTROL_APPLY_STEP, CONTROL_MAX, CONTROL_MIN, glideToward, updateClimate, updateWaterDistance } from '../world/climate';
@@ -338,6 +338,19 @@ export class SimulationCore {
     const world = this.world;
     if (!world) return null;
     const { region, revealed } = applyBrush(world, tool, point, radius, dt);
+    return this.commitRegion(world, region, revealed);
+  }
+
+  /** Relevo mudado por um desastre, célula a célula: grava na placa como uma pincelada. */
+  private terrain(cells: readonly number[], deltas: readonly number[]): { patches: Patch[]; revealed: Uint8Array | null } | null {
+    const world = this.world;
+    if (!world || !cells.length) return null;
+    const { region, revealed } = applyTerrainDeltas(world, cells, deltas);
+    return this.commitRegion(world, region, revealed);
+  }
+
+  /** O que uma mudança de relevo faz depois de aplicada: crosta, registro na placa, motor e cores. */
+  private commitRegion(world: WorldState, region: number[], revealed: number[]): { patches: Patch[]; revealed: Uint8Array | null } {
     const revealedSet = new Set(revealed);
     // A pincelada fica gravada na placa: anda junto quando ela se mover. Vai para o motor com o passo
     // em que aconteceu e fica guardada até a próxima recomposição aparecer (que ainda não a tem).
@@ -409,6 +422,10 @@ export class SimulationCore {
       if (!done) continue;
       patches.push(...done.patches);
       deposits = done.revealed ?? deposits;
+    }
+    for (const t of o.terrain) {
+      const done = this.terrain(t.cells, t.deltas);
+      if (done) patches.push(...done.patches);
     }
     if (o.marked.length) {
       this.paint(o.marked);

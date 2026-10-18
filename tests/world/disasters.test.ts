@@ -145,7 +145,8 @@ describe('desastres (T8): tsunamis', () => {
     const before = core.colors.slice();
     core.handle({ type: 'disaster', kind: DisasterKind.Tsunami, point: cellPoint(world, start) });
     const d = core.disasters!.ground;
-    const flooded = [...d.active];
+    // O terremoto que gera o tsunami também deixa fenda e estrago perto do epicentro (R5).
+    const flooded = [...d.active].filter((c) => d.state[c] === CellState.Mud);
     expect(flooded.length).toBeGreaterThan(0);
     const c0 = flooded[0]!;
     expect(d.state[c0]).toBe(CellState.Mud);

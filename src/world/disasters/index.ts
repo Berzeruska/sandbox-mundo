@@ -3,6 +3,7 @@ import { TICKS_PER_YEAR } from '../../core/time';
 import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
+import { quakeDamage } from './quake-damage';
 import { DROUGHT_YEARS, NOTABLE_DROUGHT_RADIUS, sampleDroughtRadius, startDrought } from './drought';
 import { DEPTH, FLOOD_CELLS, FloodProcess, floodPlan, lowestNear, NOTABLE_FLOOD_CELLS, PLAYER_FLOOD_CELLS, WET_YEARS } from './flood';
 import { canBurn, FireProcess, LIGHTNING_PER_YEAR, lightningIgnites, NOTABLE_FIRE_CELLS, pickLightningCell, PLAYER_FIRE_BOOST, PLAYER_FIRE_RADIUS } from './fire';
@@ -50,12 +51,20 @@ export interface Uplift {
   meters: number;
 }
 
+/** Relevo mudado célula a célula por um desastre (para sempre, gravado na placa como o pincel). */
+export interface TerrainChange {
+  cells: number[];
+  /** Metros a somar em cada célula. */
+  deltas: number[];
+}
+
 /** O que os desastres de um passo fizeram: o relógio aplica e avisa a tela. */
 export interface DisasterOutcome {
   events: DisasterEvent[];
   /** Células cuja aparência mudou (vegetação ou estado): repintar. */
   marked: number[];
   uplifts: Uplift[];
+  terrain: TerrainChange[];
 }
 
 /**
@@ -122,14 +131,14 @@ export class Disasters {
    * placas andando (`plateRate` > 0: "em 0 a geologia congela").
    */
   step(tick: number, plateRate: number): DisasterOutcome | null {
-    const out: DisasterOutcome = { events: [], marked: [], uplifts: [] };
+    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [] };
     this.ground.expire(tick, TICKS_PER_YEAR);
     this.stepOut = out;
     if (this.processes.length) this.processes = this.processes.filter((p) => p.step(tick, out));
     if (tick % TICKS_PER_YEAR === 0) this.yearly(tick, plateRate, out);
     this.stepOut = null;
     out.marked = this.ground.takeChanged();
-    return out.events.length || out.marked.length || out.uplifts.length ? out : null;
+    return out.events.length || out.marked.length || out.uplifts.length || out.terrain.length ? out : null;
   }
 
   private yearly(tick: number, plateRate: number, out: DisasterOutcome): void {
@@ -164,7 +173,7 @@ export class Disasters {
    * força escolhida no cartão (magnitude do terremoto e do tsunami, categoria do furacão).
    */
   trigger(kind: DisasterKind, point: Vec3, tick: number, strength?: number): DisasterOutcome {
-    const out: DisasterOutcome = { events: [], marked: [], uplifts: [] };
+    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [] };
     const world = this.world;
     this.ground.tick = tick;
     const cell = world.grid.pointToCell(point[0], point[1], point[2]);
@@ -411,6 +420,9 @@ export class Disasters {
   private quake(cell: number, m: number, tick: number, manual: boolean, out: DisasterOutcome): void {
     const world = this.world;
     const point = cellPoint(world, cell);
+    // O que o tremor faz no chão (R5): fenda, deslizamentos (relevo para sempre) e vegetação.
+    const damage = quakeDamage(world, this.ground, cell, m, tick, this.rng);
+    if (damage.terrainCells.length) out.terrain.push({ cells: damage.terrainCells, deltas: damage.terrainDeltas });
     this.count(DisasterKind.Quake);
     out.events.push({
       id: this.nextId++,

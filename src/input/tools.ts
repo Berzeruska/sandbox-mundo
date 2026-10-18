@@ -115,3 +115,38 @@ export function applyBrush(world: WorldState, tool: Tool, center: Vec3, radiusCe
   updateClimate(world, region);
   return { region, revealed };
 }
+
+/**
+ * Muda a altura de células soltas (desastres: deslizamento do terremoto, costa raspada pelo tsunami),
+ * `deltas[k]` metros na célula `cells[k]`, e refaz o clima em volta, como o pincel.
+ */
+export function applyTerrainDeltas(world: WorldState, cells: readonly number[], deltas: readonly number[]): BrushResult {
+  const grid = world.grid;
+  const { positions } = grid;
+  if (!cells.length) return { region: [], revealed: [] };
+  let crossedSea = false;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  cells.forEach((c, k) => {
+    const wasWater = world.isWater(c);
+    const e = world.elevation[c] as number;
+    world.elevation[c] = Math.min(MAX_ELEVATION, Math.max(MIN_ELEVATION, e + (deltas[k] as number)));
+    if (world.isWater(c) !== wasWater) crossedSea = true;
+    x += positions[c * 3] as number;
+    y += positions[c * 3 + 1] as number;
+    z += positions[c * 3 + 2] as number;
+  });
+  const len = Math.hypot(x, y, z) || 1;
+  const center: Vec3 = [x / len, y / len, z / len];
+  let reach = 0;
+  for (const c of cells) {
+    const dot = (positions[c * 3] as number) * center[0] + (positions[c * 3 + 1] as number) * center[1] + (positions[c * 3 + 2] as number) * center[2];
+    reach = Math.max(reach, Math.acos(Math.min(1, dot)));
+  }
+  const region = grid.cellsInCap(center[0], center[1], center[2], reach + SHADOW_REACH + 2 * grid.cellAngle);
+  if (crossedSea) updateWaterDistance(world, region);
+  updateClimate(world, region);
+  return { region, revealed: [] };
+}
+

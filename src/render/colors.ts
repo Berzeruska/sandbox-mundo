@@ -192,6 +192,11 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
     r = stateOut[0] as number;
     g = stateOut[1] as number;
     b = stateOut[2] as number;
+  } else if (showGround && (ground.state[i] === CellState.Slide || ground.state[i] === CellState.Crack)) {
+    quakeColor(ground, i, r, g, b);
+    r = stateOut[0] as number;
+    g = stateOut[1] as number;
+    b = stateOut[2] as number;
   } else if (showGround && ground.state[i]) {
     stateColor(biome, i, ground.state[i] as number, ground.strength(i), r, g, b);
     r = stateOut[0] as number;
@@ -498,7 +503,6 @@ const STATE_COLORS: Readonly<Record<number, { a: readonly [number, number, numbe
   [CellState.Basalt]: { a: [40, 38, 42], b: [50, 46, 48], mix: 0.95, hold: 4 },
   [CellState.Flooded]: { a: [104, 118, 116], b: [92, 110, 114], mix: 0.85, hold: 3 },
   [CellState.Mud]: { a: [124, 110, 92], b: [112, 100, 86], mix: 0.85, hold: 3 },
-  [CellState.Crack]: { a: [30, 24, 22], b: [58, 46, 42], mix: 0.9, hold: 3 },
   [CellState.Fertile]: { a: [52, 150, 52], mix: 0.3, hold: 2 },
   [CellState.Ash]: { a: [118, 112, 108], b: [132, 126, 120], mix: 0.7, hold: 1.5 },
   [CellState.Lake]: { a: [52, 108, 160], b: [48, 102, 152], mix: 1, hold: 20 },
@@ -556,6 +560,27 @@ function droughtColor(world: WorldState, ground: GroundView, biome: number, i: n
   stateOut[0] = r + ((target[0] as number) - r) * t;
   stateOut[1] = g + ((target[1] as number) - g) * t;
   stateOut[2] = b + ((target[2] as number) - b) * t;
+}
+
+/**
+ * Terremoto (R5, imagem `docs/img/m2-dv-terremoto-v2.png`): fenda quase preta no meio (larga) e marrom
+ * escura nas pontas; deslizamento com cicatriz clara no topo, terra no meio e entulho escuro no pé. A
+ * cor fica forte por muitos anos e some no fim, enquanto a vegetação cobre.
+ */
+const CRACK_DEEP: readonly [number, number, number] = [26, 20, 20];
+const CRACK_EDGE: readonly [number, number, number] = [58, 46, 42];
+const SLIDE_SCAR: readonly [number, number, number] = [204, 180, 148];
+const SLIDE_MID: readonly [number, number, number] = [170, 138, 106];
+const SLIDE_DEBRIS: readonly [number, number, number] = [116, 96, 80];
+
+function quakeColor(ground: GroundView, i: number, r: number, g: number, b: number): void {
+  const level = ground.levelOf(i);
+  const crack = ground.state[i] === CellState.Crack;
+  const c = crack ? (level > 0.5 ? CRACK_DEEP : CRACK_EDGE) : level < 0.3 ? SLIDE_SCAR : level < 0.75 ? SLIDE_MID : SLIDE_DEBRIS;
+  const t = Math.min(1, ground.strength(i) * 3) * (crack ? 0.95 : 0.9);
+  stateOut[0] = r + (c[0] - r) * t;
+  stateOut[1] = g + (c[1] - g) * t;
+  stateOut[2] = b + (c[2] - b) * t;
 }
 
 /** Cores da camada "Ver tensão": tensão baixa (verde-amarelo), média (laranja), alta (vermelho). */

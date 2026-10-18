@@ -860,3 +860,9 @@ Formato: data — decisão — motivo — alternativa descartada.
   - Custo: a seca repinta as suas células conforme a vegetação cai (degraus de 4%). Medir com tudo
     acontecendo na R9.
 
+- **2026-10-18 — R5: terremoto (decisões técnicas).** Fenda por cima do deslizamento quando se cruzam
+  (é o que mais conta a história do tremor). Mudança de relevo dos desastres célula a célula pelo mesmo
+  registro do pincel (`commitRegion` no relógio), para andar com a placa. Tremor: deslocamento do centro
+  da câmera em pixels (não mexe no giro nem no zoom; os toques durante o tremor caem um pouco ao lado,
+  aceitável por até 2 s). Descartado: tremer o canvas inteiro pelo CSS (mostraria a borda da página).
+

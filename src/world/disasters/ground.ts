@@ -22,6 +22,8 @@ export const CellState = {
   Ash: 10,
   /** Lago que a enchente deixa numa bacia fechada (R4). */
   Lake: 11,
+  /** Deslizamento do terremoto (R5): cicatriz clara em cima, entulho escuro embaixo (nível = posição). */
+  Slide: 12,
 } as const;
 export type CellState = (typeof CellState)[keyof typeof CellState];
 
@@ -38,6 +40,7 @@ export const STATE_NAMES: Record<number, string> = {
   [CellState.Heat]: 'calor da seca',
   [CellState.Ash]: 'cinzas',
   [CellState.Lake]: 'lago da enchente',
+  [CellState.Slide]: 'deslizamento',
 };
 
 /**
