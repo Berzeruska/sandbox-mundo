@@ -778,3 +778,19 @@ Formato: data — decisão — motivo — alternativa descartada.
      furacão por categoria. Relevo do terreno mais legível: proposta antes de fazer.
   6. Aprovados como estão: raio e incêndio, enchente, desenho do tsunami, nuvens e correção da tampa
      no polo. A R1 (polos, nuvens, GPU e memória no relatório) pode começar.
+
+- **2026-10-18 — R1: polos, nuvens no polo e GPU/memória no relatório (decisões técnicas).**
+  - Polos pela proposta aprovada (patch guardado da proposta, reaplicado). O "losango" de perto: perto
+    do polo as células aparecem giradas 45° (o polo é o centro de uma face do cubo); o gelo é só a cor
+    de cada célula, então não entorta nada que passa por cima (terra, nuvens).
+  - Nuvens: a tampa vinha da emenda das faixas de vento (cada lado girando para um lado) e de quase
+    nenhuma nuvem acima de 60°. Solução: misturar os dois lados numa faixa de ~6° (o ruído é calculado
+    duas vezes só nessa faixa) e +0,32 de cobertura perto do polo. Descartado: vento variando suave
+    com a latitude (as nuvens se esticariam sem fim com o tempo).
+  - GPU: consulta de tempo da GPU (EXT_disjoint_timer_query_webgl2) quando existe; no Firefox ela não
+    existe, e o relatório mede cada desenho esperando a GPU (lendo 1 pixel), o que inclui a CPU.
+    Memória: `measureUserAgentSpecificMemory` (Chrome, página isolada) para a página inteira; os
+    "dados do jogo" são a soma dos arrays do mundo, da geologia e da tela (já existia no painel Dados).
+  - **Achado: a meta de GPU (≤ 8 ms) está quebrada de perto com as placas andando** (~8,1 ms; ~14,6 ms
+    na transição suave depois de cada recomposição, quando a superfície é desenhada duas vezes).
+    Longe e de perto parado ficam em ~4 ms. Parada obrigatória: opções levadas ao usuário.

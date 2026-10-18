@@ -1,5 +1,6 @@
 import { newArray } from '../core/shared';
 import { BIOME_INFO } from '../world/biomes';
+import { SEA_ICE_TEMP } from '../world/climate';
 import { ALL_RESOURCES, depositType, isHiddenOil, isRevealed, Resource, RESOURCE_INFO } from '../world/resources';
 import type { CubeSphere } from '../world/cubesphere';
 import type { WorldState } from '../world/state';
@@ -70,7 +71,7 @@ function iceColor(world: WorldState, i: number, h: number, r: number, g: number,
   const { neighbors } = world.grid;
   let edge = false;
   for (let d = 0; d < 4 && !edge; d++) edge = !world.ice[neighbors[i * 4 + d] as number];
-  const v = ((Math.imul(i ^ 0x5bd1e995, 0x27d4eb2d) >>> 0) / 4294967296 - 0.5) * 10;
+  const v = ((Math.imul(i ^ 0x5bd1e995, 0x27d4eb2d) >>> 0) / 4294967296 - 0.5) * (h > 0 ? 10 : 18);
   if (h > 0) {
     const kr = edge ? 0.82 : 1;
     const kg = edge ? 0.9 : 1;
@@ -80,8 +81,10 @@ function iceColor(world: WorldState, i: number, h: number, r: number, g: number,
     iceOut[2] = b * kb + v;
     return;
   }
-  // Mar congelado: mistura com o azul do mar (fino), mais azul e mais escuro na borda.
-  const t = edge ? 0.45 : 0.18;
+  // Mar congelado: espessura pela temperatura (fino perto da borda, deixa ver o mar; grosso e branco
+  // no miolo), tons por placa de gelo e a borda partida mais azul.
+  const thick = Math.min(1, Math.max(0, (SEA_ICE_TEMP - (world.temperature[i] as number)) / 12));
+  const t = (edge ? 0.5 : 0.42) - 0.36 * thick;
   iceOut[0] = r + ((SEA_COLOR[0] as number) - r) * t + v;
   iceOut[1] = g + ((SEA_COLOR[1] as number) - g) * t + v;
   iceOut[2] = b + ((SEA_COLOR[2] as number) - b) * t + v;

@@ -1,7 +1,9 @@
 # Estado atual do projeto
 
 Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 (R1–R9) aprovado com
-ajustes** (2026-10-18). Em andamento: R1 (polos, nuvens no polo, GPU e memória no relatório).
+ajustes** (2026-10-18). **R1 feita** (polos, nuvens no polo, GPU e memória no relatório). **Parada
+obrigatória:** a meta de GPU (≤ 8 ms) está quebrada de perto com as placas andando (~8 ms; ~15 ms na
+transição depois de cada recomposição); opções levadas ao usuário.
 **Esperando aprovação:** imagens novas da seca, do terremoto, do vulcão e dos seletores, e a proposta
 de relevo do terreno. Depois do bloco: Final (T13, T14).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
@@ -132,6 +134,10 @@ sobre "onde estamos", vale este.
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
+- R1 (2026-10-18, Chrome, 1080p): 60 fps em todos os cenários, pior quadro 17 ms; **GPU do globo**
+  longe ~4 ms, de perto parado ~4 ms, de perto com placas andando ~8 ms (14,6 ms na transição de 0,35 s
+  depois de cada recomposição) — **acima da meta de 8 ms**; memória: dados ~78 MB, página 186 MB;
+  geração 0,84 s, primeira abertura 1,59 s; recomposição ~320–510 ms, relógio sem esperar.
 - `b3297292`, medido pelo usuário (Firefox, 1920×1080): mínimo 59–60 fps em todos os cenários, pior
   quadro 34 ms, nenhum acima de 50 ms, geração 0,96 s, primeira abertura 2,25 s. Faltaram GPU e memória.
 - Fim do bloco Desastres (`b357aaa`), 1920×1080: "Medir desempenho" 60 fps em todos os cenários (com

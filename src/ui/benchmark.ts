@@ -179,6 +179,49 @@ export interface DeviceInfo {
   userAgent: string;
 }
 
+/** Tempo da GPU desenhando o globo, num enquadramento (meta do notebook: ≤ 8 ms por quadro). */
+export interface GpuSample {
+  label: string;
+  /** Tempos de cada desenho (ms). */
+  ms: readonly number[];
+  /** Como foi medido: consulta de tempo da GPU (exata) ou quadro esperando a GPU (inclui a CPU). */
+  method: string;
+}
+
+/** Memória (meta do notebook: ≤ 400 MB). */
+export interface MemoryInfo {
+  /** Dados do jogo somados pelo relógio (arrays do mundo, da geologia e da tela), MB. */
+  dataMb: number;
+  /** O que o navegador diz da página inteira (com os workers), MB; null se ele não informa. */
+  pageMb: number | null;
+  /** De onde veio `pageMb`. */
+  pageHow: string;
+}
+
+/** Média e pior de uma série de tempos, sem o primeiro (aquecimento). */
+export function gpuStats(ms: readonly number[]): { avg: number; max: number } {
+  const v = ms.length > 1 ? ms.slice(1) : ms.slice();
+  if (!v.length) return { avg: 0, max: 0 };
+  return { avg: v.reduce((a, b) => a + b, 0) / v.length, max: Math.max(...v) };
+}
+
+/** Linhas de GPU e memória do relatório. */
+export function gpuMemoryLines(gpu: readonly GpuSample[], memory: MemoryInfo | null): string[] {
+  const lines: string[] = [];
+  if (gpu.length) {
+    const parts = gpu.map((g) => {
+      const st = gpuStats(g.ms);
+      return `${g.label} ${f1(st.avg)} ms (pior ${f1(st.max)})`;
+    });
+    lines.push(`GPU do globo (meta ≤ 8 ms por quadro): ${parts.join(' · ')} — ${gpu[0]?.method ?? ''}`);
+  }
+  if (memory) {
+    const page = memory.pageMb === null ? `página inteira: ${memory.pageHow}` : `página inteira ${f0(memory.pageMb)} MB (${memory.pageHow})`;
+    lines.push(`memória (meta ≤ 400 MB): dados do jogo ~${f0(memory.dataMb)} MB · ${page}`);
+  }
+  return lines;
+}
+
 const f0 = (v: number): string => v.toFixed(0);
 const f1 = (v: number): string => v.toFixed(1);
 const pad = (s: string, n: number): string => (s.length >= n ? s : s + ' '.repeat(n - s.length));
@@ -207,6 +250,8 @@ export function formatReport(
   gen: GenerationResult | null,
   first: FirstLoad | null = null,
   stalls: readonly string[] = [],
+  gpu: readonly GpuSample[] = [],
+  memory: MemoryInfo | null = null,
 ): string {
   const lines = [
     'Sandbox Mundo — medição de desempenho',
@@ -229,6 +274,9 @@ export function formatReport(
     ' foi desenhado. Parado, nada é desenhado e o fps é o ritmo que o aparelho dá a uma página parada.',
     ' A meta de "pausado" vale para "pausado, girando". "De perto" = zoom máximo, células quadradas.)',
   );
+  const extra = gpuMemoryLines(gpu, memory);
+  if (extra.length) lines.push('', ...extra);
+  lines.push('');
   for (const s of scenarios) lines.push(`${s.name}: ${workLine(s)}`);
   if (gen) {
     const stages = Object.entries(gen.stagesMs)

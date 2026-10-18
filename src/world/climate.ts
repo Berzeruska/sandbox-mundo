@@ -2,6 +2,8 @@ import { classifyCell, MOUNTAIN_HEIGHT, SNOW_MIN_PRECIP, type CellClimate } from
 
 export { SNOW_MIN_PRECIP };
 import { newArray } from '../core/shared';
+import { createRng } from '../core/rng';
+import { createNoise3D, fbm } from './noise';
 import type { CubeSphere } from './cubesphere';
 import { IceMode, type WorldState } from './state';
 
@@ -20,7 +22,9 @@ export const DEEP_FREEZE_TEMP = -18;
 /** Mar abaixo desta temperatura média congela. */
 export const SEA_ICE_TEMP = -10;
 /** Variação (±°C) do limite do gelo marinho por correntes: borda irregular, não um círculo. */
-export const SEA_ICE_NOISE = 4;
+export const SEA_ICE_NOISE = 8;
+/** Faixa (°C) da borda do gelo marinho onde ele se parte em placas soltas. */
+export const SEA_ICE_FLOES = 3;
 
 /**
  * Ciclo glacial (T7, decisão do usuário: forte). O desvio global esfria devagar até GLACIAL_AMPLITUDE
@@ -315,6 +319,34 @@ function upwindBarrier(world: WorldState, table: Int32Array, i: number, height: 
   return highest - Math.max(0, height);
 }
 
+/**
+ * Ruído do gelo marinho, fixo por mundo (calculado uma vez): [2i] lobos grandes da borda (−1 a 1),
+ * [2i + 1] placas soltas de poucas células (−1 a 1). Proposta dos polos (teste da 50f0dca).
+ */
+const iceNoiseCache = new WeakMap<WorldState, Float32Array>();
+
+function seaIceNoise(world: WorldState): Float32Array {
+  const cached = iceNoiseCache.get(world);
+  if (cached) return cached;
+  const n = world.cellCount;
+  const out = new Float32Array(n * 2);
+  const big = createNoise3D(createRng((world.params.seed ^ 0x1ce5eed) >>> 0));
+  const small = createNoise3D(createRng((world.params.seed ^ 0x0f10e5) >>> 0));
+  const fine = world.grid.n / 5;
+  const { positions } = world.grid;
+  for (let i = 0; i < n; i++) {
+    const x = positions[i * 3] as number;
+    const y = positions[i * 3 + 1] as number;
+    const z = positions[i * 3 + 2] as number;
+    // Só perto dos polos importa (o resto nunca congela no mar).
+    if (Math.abs(y) < 0.5) continue;
+    out[i * 2] = Math.max(-1, Math.min(1, 1.6 * fbm(big, x * 3, y * 3, z * 3, 3)));
+    out[i * 2 + 1] = Math.max(-1, Math.min(1, 2 * fbm(small, x * fine, y * fine, z * fine, 2)));
+  }
+  iceNoiseCache.set(world, out);
+  return out;
+}
+
 const cellScratch: CellClimate = { height: 0, temp: 0, precip: 0, ice: false, nearWater: false };
 
 /**
@@ -322,7 +354,14 @@ const cellScratch: CellClimate = { height: 0, temp: 0, precip: 0, ice: false, ne
  * neve caindo (montanha alta e seca fica rocha); mar congelado com a borda irregular (correntes).
  */
 export function naturalIce(world: WorldState, i: number, height: number, temp: number): boolean {
-  if (height <= 0) return temp + SEA_ICE_NOISE * (world.rainNoise[i] as number) < SEA_ICE_TEMP;
+  if (height <= 0) {
+    const noise = seaIceNoise(world);
+    const t = temp + SEA_ICE_NOISE * (noise[i * 2] as number);
+    if (t < SEA_ICE_TEMP - SEA_ICE_FLOES) return true;
+    if (t >= SEA_ICE_TEMP + SEA_ICE_FLOES) return false;
+    // Borda partida em placas soltas de algumas células (ruído médio), mais raras quanto mais quente.
+    return (noise[i * 2 + 1] as number) > (t - SEA_ICE_TEMP) / SEA_ICE_FLOES;
+  }
   if (temp < DEEP_FREEZE_TEMP) return true;
   if (height >= MOUNTAIN_HEIGHT) return temp < MOUNTAIN_ICE_TEMP && (world.precipitation[i] as number) >= SNOW_MIN_PRECIP;
   return temp < LAND_ICE_TEMP;

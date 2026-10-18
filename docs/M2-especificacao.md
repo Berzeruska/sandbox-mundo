@@ -759,7 +759,18 @@ Custo: a sombra é calculada junto com as cores (no ajudante, quando a cor é re
 notebook antes de fechar.
 
 ### Tarefas do bloco (depois da aprovação, nesta ordem; cada uma = um commit)
-- [ ] **R1 — Polos, nuvens no polo e relatório** (GPU e memória no "Medir desempenho").
+- [x] **R1 — Polos, nuvens no polo e relatório** (GPU e memória no "Medir desempenho").
+  **Feito (2026-10-18):** gelo do mar com borda em lobos (ruído fixo por mundo, ±8 °C), faixa de ±3 °C
+  partida em placas soltas, cor pela espessura (fino e azulado na borda, branco no miolo) e tons por
+  célula; teste novo `tests/world/sea-ice.test.ts`. Nuvens: as emendas das faixas de vento (30° e 60°)
+  se misturam numa faixa de ~6° e o polo ganhou nuvem; a "tampa" sumiu. Relatório: linha "GPU do
+  globo" (longe, de perto e de perto com placas andando; consulta de tempo da GPU quando o navegador
+  tem, senão quadro esperando a GPU) e linha "memória" (dados do jogo e a página inteira quando o
+  navegador informa; o Firefox não informa). **Medido no notebook (Chrome): longe 3,8–4,1 ms, de perto
+  parado 4,0 ms, de perto com placas deslocadas ~8,1 ms e ~14,6 ms durante a transição de 0,35 s
+  depois de cada recomposição: a meta de ≤ 8 ms está quebrada nesse cenário (já estava; não era
+  medido).** fps continua 60 em todos os cenários. Memória: dados do jogo ~78 MB, página inteira
+  186 MB (meta 400). Geração 0,84 s.
 - [ ] **R2 — Base:** vegetação por célula em %, estados de célula com cor e recuperação, desastres
   passo a passo no relógio, avisos no canto inferior esquerdo, sem a lista, fileira de magnitude.
   Testes: vegetação volta na velocidade do bioma; estados expiram; determinismo passo a passo.

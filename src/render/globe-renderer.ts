@@ -299,6 +299,47 @@ export class GlobeRenderer {
     return true;
   }
 
+  /**
+   * Mede o desenho do globo para o "Medir desempenho" (meta ≤ 8 ms de GPU): `frames` desenhos
+   * seguidos. Com a consulta de tempo da GPU (EXT_disjoint_timer_query_webgl2) o tempo é o da GPU; sem
+   * ela (o Firefox não a oferece), cada desenho espera a GPU terminar (lendo 1 pixel) e o tempo inclui
+   * o envio pela CPU (um pouco acima do real).
+   */
+  async measureDraw(camera: Camera, motion: PlateMotionUniforms | undefined, frames: number): Promise<{ ms: number[]; method: string }> {
+    const gl = this.gl;
+    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null;
+    const px = new Uint8Array(4);
+    const sync: number[] = [];
+    const queries: WebGLQuery[] = [];
+    for (let k = 0; k < frames; k++) {
+      const q = ext ? gl.createQuery() : null;
+      if (ext && q) gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+      const t0 = performance.now();
+      this.draw(camera, motion);
+      if (ext && q) {
+        gl.endQuery(ext.TIME_ELAPSED_EXT);
+        queries.push(q);
+      }
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      sync.push(performance.now() - t0);
+    }
+    if (ext && queries.length) {
+      // Os resultados das consultas chegam alguns quadros depois.
+      const last = queries[queries.length - 1] as WebGLQuery;
+      for (let tries = 0; tries < 30 && !gl.getQueryParameter(last, gl.QUERY_RESULT_AVAILABLE); tries++) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      const disjoint = !!gl.getParameter(ext.GPU_DISJOINT_EXT);
+      const ms: number[] = [];
+      for (const q of queries) {
+        if (!disjoint && gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) ms.push((gl.getQueryParameter(q, gl.QUERY_RESULT) as number) / 1e6);
+        gl.deleteQuery(q);
+      }
+      if (ms.length >= frames / 2) return { ms, method: 'consulta de tempo da GPU' };
+    }
+    return { ms: sync, method: 'quadro esperando a GPU (inclui o envio pela CPU; o navegador não tem a consulta de tempo da GPU)' };
+  }
+
   draw(camera: Camera, motion?: PlateMotionUniforms): void {
     if (this.lost || !this.program) return;
     const gl = this.gl;

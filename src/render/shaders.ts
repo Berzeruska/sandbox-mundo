@@ -613,21 +613,40 @@ uniform float uStormPower[${MAX_STORMS}]; // força 0–1 e sentido (sinal: hemi
 // Rotação fixa qualquer (tira os eixos do ruído do alinhamento com a grade).
 const mat3 CLOUD_ROT = mat3(0.80, 0.36, -0.48, -0.60, 0.48, -0.64, 0.0, 0.80, 0.60);
 
+// Manchas de nuvem de ~1.000 km com borda recortada: três escalas do ruído, cada uma em eixos
+// girados (sem os eixos girados, a grade da textura de ruído aparecia como blocos), e a maior
+// deslocando as menores (formas puxadas, como nuvens). \`a\`: quanto o vento já girou as nuvens.
+float cloudNoise(vec3 p, float a) {
+  vec3 q = vec3(p.x * cos(a) - p.z * sin(a), p.y, p.x * sin(a) + p.z * cos(a));
+  vec3 r1 = CLOUD_ROT * q;
+  vec3 warp = noise3(r1 * 4.0 + 5.0);
+  return 0.55 * noise3(r1 * 8.0 + warp * 0.6).x + 0.3 * noise3(CLOUD_ROT * r1 * 19.0 + warp).y + 0.15 * noise3(r1 * 41.0).z;
+}
+
 float clouds(vec3 p, float show) {
   float cover = 0.0;
   if (show > 0.0) {
     float lat = asin(clamp(p.y, -1.0, 1.0));
-    float band = 0.55 * exp(-pow(lat / 0.14, 2.0)) + 0.5 * exp(-pow((abs(lat) - 0.95) / 0.22, 2.0)) + 0.12;
+    float al = abs(lat);
+    // Faixas: muita nuvem no equador e em ~55°, pouca nos desertos subtropicais; perto dos polos a
+    // cobertura sobe de novo (sem ela, o polo virava uma "tampa" limpa; teste da b3297292).
+    float band = 0.55 * exp(-pow(lat / 0.14, 2.0)) + 0.5 * exp(-pow((al - 0.95) / 0.22, 2.0)) + 0.12
+      + 0.32 * smoothstep(0.95, 1.35, al);
     // Ventos: perto do equador e nas altas latitudes para oeste, no meio para leste.
-    float wind = abs(lat) < 0.52 || abs(lat) > 1.05 ? -1.0 : 1.0;
+    float wind = al < 0.52 || al > 1.05 ? -1.0 : 1.0;
     float a = uCloudTime * 0.004 * wind;
-    vec3 q = vec3(p.x * cos(a) - p.z * sin(a), p.y, p.x * sin(a) + p.z * cos(a));
-    // Manchas de nuvem de ~1.000 km com borda recortada: três escalas do ruído, cada uma em eixos
-    // girados (sem os eixos girados, a grade da textura de ruído aparecia como blocos), e a maior
-    // deslocando as menores (formas puxadas, como nuvens).
-    vec3 r1 = CLOUD_ROT * q;
-    vec3 warp = noise3(r1 * 4.0 + 5.0);
-    float n = 0.55 * noise3(r1 * 8.0 + warp * 0.6).x + 0.3 * noise3(CLOUD_ROT * r1 * 19.0 + warp).y + 0.15 * noise3(r1 * 41.0).z;
+    float n = cloudNoise(p, a);
+    // Emendas das faixas de vento (30° e 60°): os dois lados andam em sentidos opostos e se
+    // desencontravam, desenhando um círculo. Numa faixa de ~6° em volta da emenda, mistura os dois.
+    float e1 = abs(al - 0.52);
+    float e2 = abs(al - 1.05);
+    if (min(e1, e2) < 0.1) {
+      float edge = e1 < e2 ? 0.52 : 1.05;
+      float other = cloudNoise(p, -a);
+      float below = al < edge ? n : other;
+      float above = al < edge ? other : n;
+      n = mix(below, above, smoothstep(edge - 0.1, edge + 0.1, al));
+    }
     cover = smoothstep(0.6 - 0.4 * band, 0.8 - 0.4 * band, n * 0.5 + 0.5) * 0.6 * show;
   }
   for (int k = 0; k < ${MAX_STORMS}; k++) {

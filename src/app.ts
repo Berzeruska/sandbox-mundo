@@ -29,7 +29,7 @@ import { depositLabel, isHiddenOil } from './world/resources';
 import { activeBrush, activeDisaster, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
-import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, workDelta, type FirstLoad, type GenerationResult, type ScenarioResult, type WorkCounters } from './ui/benchmark';
+import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, workDelta, type FirstLoad, type GenerationResult, type GpuSample, type ScenarioResult, type WorkCounters } from './ui/benchmark';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
@@ -752,11 +752,21 @@ export class App {
     this.bench = bench;
     this.hud.closeMenu();
     const startedAt = performance.now();
-    const steps = 12;
+    const steps = 13;
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
       this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
     const scenarios: ScenarioResult[] = [];
+    // Memória da página inteira: o navegador só responde depois de uma limpeza de memória (até ~20 s).
+    const pageMemory = measurePageMemory();
+    const gpu: GpuSample[] = [];
+    const measureGpu = async (label: string): Promise<void> => {
+      const r = this.renderer;
+      if (!r) return;
+      await wait(300);
+      const m = await r.measureDraw(this.camera, this.motion.uniforms, 40);
+      gpu.push({ label, ms: m.ms, method: m.method });
+    };
     // Um cenário: prepara, espera assentar, mede `ms` e guarda quadros + trabalho do worker.
     // `panel`: painel Dados escondido (só a linha de andamento) ou aberto, com ou sem o desfoque antigo.
     const scenario = async (step: number, name: string, ms: number, setup: () => void, panel: PanelMode = 'hidden'): Promise<void> => {
@@ -803,29 +813,37 @@ export class App {
       await scenario(3, 'de perto, girando', 6000, () => {
         this.camera.zoom = this.camera.maxZoom;
       });
-      await scenario(4, 'tempo 20×, placas paradas', 8000, () => {
+      // GPU do globo (meta ≤ 8 ms por quadro): longe com nuvens e de perto, parado.
+      status(4, 'GPU do globo');
+      spin(false);
+      this.camera.zoom = 1;
+      await measureGpu('longe');
+      this.camera.zoom = this.camera.maxZoom;
+      await measureGpu('de perto');
+      await scenario(5, 'tempo 20×, placas paradas', 8000, () => {
         spin(false);
         this.camera.zoom = 1;
         this.setPlateRate(0);
         this.setSpeed(20);
       });
-      await scenario(5, '  idem, painel c/ desfoque', 8000, () => undefined, 'blur');
-      await scenario(6, 'tempo 20×, placas 100%', 12_000, () => this.setPlateRate(1));
-      await scenario(7, '  idem, painel c/ desfoque', 10_000, () => undefined, 'blur');
-      await scenario(8, '  idem, painel s/ desfoque', 10_000, () => undefined, 'plain');
-      await scenario(9, '  idem, de perto', 10_000, () => {
+      await scenario(6, '  idem, painel c/ desfoque', 8000, () => undefined, 'blur');
+      await scenario(7, 'tempo 20×, placas 100%', 12_000, () => this.setPlateRate(1));
+      await scenario(8, '  idem, painel c/ desfoque', 10_000, () => undefined, 'blur');
+      await scenario(9, '  idem, painel s/ desfoque', 10_000, () => undefined, 'plain');
+      await scenario(10, '  idem, de perto', 10_000, () => {
         this.camera.zoom = this.camera.maxZoom;
       });
+      await measureGpu('de perto com placas andando');
       // Deriva longa: continua a mesma deriva por mais 1 min (o planeta passa de ~1,5 min de deriva
       // a 20×, quando os continentes começam a colidir e se soldar).
-      await scenario(10, 'deriva longa c/ colisões', 60_000, () => {
+      await scenario(11, 'deriva longa c/ colisões', 60_000, () => {
         this.camera.zoom = 1;
       });
       // Ruptura forçada (G2): o maior bloco soldado racha agora; mede a recomposição que vem junto.
-      await scenario(11, 'ruptura forçada', 10_000, () => this.sim.forceRupture());
+      await scenario(12, 'ruptura forçada', 10_000, () => this.sim.forceRupture());
       bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(12, 'geração de mundo');
+      status(13, 'geração de mundo');
       this.setSpeed(0);
       this.setPlateRate(before.plateRate);
       await wait(500);
@@ -859,6 +877,8 @@ export class App {
       gen,
       this.firstLoad,
       this.stalls.lines(STALL_KEEP, clockTime),
+      gpu,
+      { dataMb: this.stats.memoryMb, ...(await pageMemory) },
     );
     this.debug.showReport(report);
     this.updateDebug();
@@ -920,4 +940,25 @@ function signed(v: number, digits = 1): string {
   const r = Number(v.toFixed(digits));
   if (r === 0) return '0';
   return `${r > 0 ? '+' : '−'}${Math.abs(r).toFixed(digits).replace('.', ',')}`;
+}
+
+/**
+ * Memória da página inteira (com os workers), se o navegador informa: a medida completa do Chrome com
+ * a página isolada; senão só a memória do JavaScript da tela (Chrome); o Firefox não informa.
+ */
+async function measurePageMemory(): Promise<{ pageMb: number | null; pageHow: string }> {
+  const perf = performance as Performance & {
+    measureUserAgentSpecificMemory?: () => Promise<{ bytes: number }>;
+    memory?: { usedJSHeapSize: number };
+  };
+  try {
+    if (perf.measureUserAgentSpecificMemory && globalThis.crossOriginIsolated) {
+      const r = await perf.measureUserAgentSpecificMemory();
+      return { pageMb: r.bytes / 1e6, pageHow: 'medida do navegador, com os workers' };
+    }
+  } catch {
+    // Cai para a medida mais simples.
+  }
+  if (perf.memory) return { pageMb: perf.memory.usedJSHeapSize / 1e6, pageHow: 'só o JavaScript da tela' };
+  return { pageMb: null, pageHow: 'este navegador não informa' };
 }

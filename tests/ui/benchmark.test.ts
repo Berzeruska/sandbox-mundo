@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyWork, FrameRecorder, formatReport, workDelta } from '../../src/ui/benchmark';
+import { emptyWork, FrameRecorder, formatReport, gpuMemoryLines, gpuStats, workDelta } from '../../src/ui/benchmark';
 
 /** Quadros sintéticos: `gaps` são os intervalos (ms) a partir de t = 1000. */
 function record(gaps: number[], work = 2): FrameRecorder {
@@ -98,5 +98,25 @@ describe('medir desempenho: worker e relatório', () => {
     expect(text).toContain('ajudante fez 48% do terreno');
     expect(text).toContain('120 de 120');
     expect(text).toContain('A meta de "pausado" vale para "pausado, girando"');
+  });
+});
+
+describe('GPU e memória no relatório (metas do notebook)', () => {
+  it('média e pior sem o primeiro desenho (aquecimento)', () => {
+    expect(gpuStats([20, 2, 4, 3])).toEqual({ avg: 3, max: 4 });
+    expect(gpuStats([])).toEqual({ avg: 0, max: 0 });
+  });
+
+  it('mostra os enquadramentos, o método e a memória; diz quando o navegador não informa', () => {
+    const lines = gpuMemoryLines(
+      [
+        { label: 'longe', ms: [9, 1.5, 2.5], method: 'consulta de tempo da GPU' },
+        { label: 'de perto', ms: [9, 3, 3], method: 'consulta de tempo da GPU' },
+      ],
+      { dataMb: 71.4, pageMb: null, pageHow: 'este navegador não informa' },
+    );
+    expect(lines[0]).toBe('GPU do globo (meta ≤ 8 ms por quadro): longe 2.0 ms (pior 2.5) · de perto 3.0 ms (pior 3.0) — consulta de tempo da GPU');
+    expect(lines[1]).toBe('memória (meta ≤ 400 MB): dados do jogo ~71 MB · página inteira: este navegador não informa');
+    expect(gpuMemoryLines([], { dataMb: 70, pageMb: 212, pageHow: 'medida do navegador, com os workers' })[0]).toContain('página inteira 212 MB');
   });
 });

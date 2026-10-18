@@ -22,7 +22,8 @@ const bytesOf = (a: ArrayBufferView): Uint8Array => new Uint8Array(a.buffer, a.b
  * valor do código de antes e do novo é o mesmo (c4bd0869). Valor novo na T7: a erosão passa a depender
  * da chuva e o clima mudou (gelo, umidade, ciclo glacial), de propósito. Valor novo no teste da 50f0dca:
  * plataforma continental larga, jazidas maiores, formação pelo relógio do jogo e cor do gelo presa
- * em 0–255.
+ * em 0–255. Valor novo na R1 (2026-10-18): polos novos (borda do gelo do mar em lobos e placas soltas,
+ * cor pela espessura), de propósito.
  */
 describe('motor da geologia: mesmo resultado', () => {
   it('impressão digital depois de 40 recomposições (terra, N = 64)', () => {
@@ -49,6 +50,6 @@ describe('motor da geologia: mesmo resultado', () => {
       engine.receive({ type: 'advance', world: 1, tick });
       for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
     }
-    expect(h.toString(16)).toBe('b729d5a6');
+    expect(h.toString(16)).toBe('3e95363');
   });
 });

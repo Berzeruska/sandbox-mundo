@@ -142,8 +142,9 @@ docs/
   pior quadro, trabalho da tela, worker por passo e por parte da recomposição, soldas e pedaços.
 - **CPU lenta 6× no Chrome** (Emulation.setCPUThrottlingRate) desacelera só a thread principal, não o
   worker: serve para estimar o custo da tela; o worker se estima pelos números do relatório.
-- **Custo do shader:** consultas de tempo de GPU (EXT_disjoint_timer_query_webgl2) em volta do desenho
-  do globo, com a tela no tamanho do celular (360×664 a 2×). No notebook (Radeon 610M) o globo custa
+- **Custo do shader:** a linha "GPU do globo" do "Medir desempenho" (desde a R1, 2026-10-18): consulta
+  de tempo da GPU (EXT_disjoint_timer_query_webgl2) em volta do desenho, ou, sem ela (Firefox), cada
+  desenho esperando a GPU. Antes: as mesmas consultas com a tela do tamanho do celular (360×664 a 2×). No notebook (Radeon 610M) o globo custa
   ~1,5 ms parado e ~1,8 ms em deriva; a Mali-G52 MP2 é ~5–8× mais lenta. O SwiftShader (GPU por
   software) não serve para medir desempenho: os quadros travam em ~83 ms qualquer que seja o shader.
 - **Suavidade do movimento:** medir quadro a quadro dentro da página (ler os pixels a cada desenho e
