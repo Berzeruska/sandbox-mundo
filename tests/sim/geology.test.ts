@@ -170,7 +170,8 @@ describe('ajudante 2 "Terra" (correção 2)', () => {
     // O ajudante "muito atrasado" fez o relógio esperar, mas nunca mais que APPLY_DELAY_TICKS à frente.
     expect(veryLate.stalls).toBeGreaterThan(0);
     expect(veryLate.maxLead).toBeLessThanOrEqual(APPLY_DELAY_TICKS);
-  });
+    // 4 mundos com os desastres ligados (secas repintando milhares de células por ano em N pequeno).
+  }, 30_000);
 
   it('pincelada feita enquanto a recomposição está no ajudante não some quando ela aparece', () => {
     const { core } = makeCore((c) => new DeferredGeology(c));

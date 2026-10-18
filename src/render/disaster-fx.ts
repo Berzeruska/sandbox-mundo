@@ -21,15 +21,9 @@ const FX_MS: Record<number, number> = {
   [DisasterKind.Tsunami]: 6000,
   [DisasterKind.Volcano]: 3200,
   [DisasterKind.Hurricane]: 9000,
-  [DisasterKind.Drought]: 2600,
-  [DisasterKind.Flood]: 2600,
-  // O incêndio (R3) aparece nas próprias células, sem animação por cima; o raio é um clarão rápido.
+  // Incêndio (R3), seca e enchente (R4) aparecem nas próprias células, sem animação por cima; o raio é
+  // um clarão rápido.
   [DisasterKind.Lightning]: 450,
-};
-/** Cor do pulso de área (seca, enchente). */
-const AREA_COLOR: Record<number, string> = {
-  [DisasterKind.Drought]: '230, 170, 70',
-  [DisasterKind.Flood]: '90, 170, 255',
 };
 /** Raio: duração do clarão (ms) dentro da animação. */
 const FLASH_MS = 300;
@@ -98,7 +92,6 @@ export class DisasterFx {
       else if (f.e.kind === DisasterKind.Tsunami) drawWave(ctx, camera, f.e, u, dpr);
       else if (f.e.kind === DisasterKind.Volcano) drawEruption(ctx, camera, f.e, u, f.e.id, dpr);
       else if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
-      else if (AREA_COLOR[f.e.kind]) drawArea(ctx, camera, f.e, u, AREA_COLOR[f.e.kind] as string, dpr);
     }
   }
 }
@@ -189,16 +182,6 @@ function drawWave(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEven
     ctx.fillStyle = `rgba(235, 250, 255, ${a.toFixed(3)})`;
     ctx.fillRect(q.x - size / 2, q.y - size / 2, size, size);
   }
-}
-
-/** Seca, enchente, incêndio: a área pisca na cor do desastre e o contorno se abre. */
-function drawArea(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, u: number, color: string, dpr: number): void {
-  const pulse = 0.5 + 0.5 * Math.sin(u * Math.PI * 4);
-  const fade = 1 - u;
-  pathCap(ctx, camera, e.point, e.radius);
-  ctx.fillStyle = `rgba(${color}, ${(0.22 * pulse * fade).toFixed(3)})`;
-  ctx.fill();
-  strokeCap(ctx, camera, e.point, e.radius * (0.6 + 0.6 * u), `rgba(${color}, ${(0.9 * fade).toFixed(3)})`, (e.notable ? 2.5 : 1.5) * dpr);
 }
 
 /** Erupção: brilho de lava no centro, fagulhas e a nuvem de cinzas que se abre e some. */

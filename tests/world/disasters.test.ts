@@ -165,15 +165,19 @@ describe('desastres (T8): tsunamis', () => {
 describe('desastres: estados de célula (R2)', () => {
   it('o estado enfraquece com o tempo e sai no fim', () => {
     const d = new Ground(10);
-    d.setState(3, CellState.Flooded, 0, 10, 12);
+    d.setState(3, CellState.Crack, 0, 10, 12);
     d.expire(0, 12);
     expect(d.strength(3)).toBe(1);
     d.expire(60, 12);
     expect(d.strength(3)).toBeCloseTo(0.5, 6);
     d.expire(119, 12);
-    expect(d.state[3]).toBe(CellState.Flooded);
+    expect(d.state[3]).toBe(CellState.Crack);
     d.expire(120, 12);
     expect(d.state[3]).toBe(CellState.None);
+    // Alagada não some: a água baixa e fica solo fértil (R4).
+    d.setState(4, CellState.Flooded, 0, 1, 12);
+    d.expire(12, 12);
+    expect(d.state[4]).toBe(CellState.Fertile);
   });
 
   it('a lava esfria em basalto (100–300 anos), e só lava cobre lava e basalto', () => {

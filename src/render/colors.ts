@@ -1,6 +1,7 @@
 import { newArray } from '../core/shared';
 import { Biome, BIOME_INFO } from '../world/biomes';
-import { CellState, cellHash } from '../world/disasters/ground';
+import { CellState, cellHash, hasVegetation } from '../world/disasters/ground';
+import { patchNoise } from '../world/disasters/drought';
 import { SEA_ICE_TEMP } from '../world/climate';
 import { ALL_RESOURCES, depositType, isHiddenOil, isRevealed, Resource, RESOURCE_INFO } from '../world/resources';
 import type { CubeSphere } from '../world/cubesphere';
@@ -151,6 +152,8 @@ export interface GroundView {
   readonly cover: Float32Array;
   readonly state: Uint8Array;
   strength(c: number): number;
+  /** Intensidade do estado (0–1): calor da seca, profundidade da enchente. */
+  levelOf(c: number): number;
 }
 
 export function writeCellColor(world: WorldState, i: number, out: Uint8Array, layers: Layers = NO_LAYERS, halo?: Uint8Array, ground?: GroundView): void {
@@ -184,7 +187,12 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
     g = iceOut[1] as number;
     b = iceOut[2] as number;
   }
-  if (showGround && ground.state[i]) {
+  if (showGround && ground.state[i] === CellState.Heat) {
+    droughtColor(world, ground, biome, i, r, g, b);
+    r = stateOut[0] as number;
+    g = stateOut[1] as number;
+    b = stateOut[2] as number;
+  } else if (showGround && ground.state[i]) {
     stateColor(biome, i, ground.state[i] as number, ground.strength(i), r, g, b);
     r = stateOut[0] as number;
     g = stateOut[1] as number;
@@ -492,8 +500,8 @@ const STATE_COLORS: Readonly<Record<number, { a: readonly [number, number, numbe
   [CellState.Mud]: { a: [124, 110, 92], b: [112, 100, 86], mix: 0.85, hold: 3 },
   [CellState.Crack]: { a: [30, 24, 22], b: [58, 46, 42], mix: 0.9, hold: 3 },
   [CellState.Fertile]: { a: [52, 150, 52], mix: 0.3, hold: 2 },
-  [CellState.Heat]: { a: [178, 124, 90], mix: 0.35, hold: 2 },
   [CellState.Ash]: { a: [118, 112, 108], b: [132, 126, 120], mix: 0.7, hold: 1.5 },
+  [CellState.Lake]: { a: [52, 108, 160], b: [48, 102, 152], mix: 1, hold: 20 },
 };
 const stateOut = new Float64Array(3);
 /** Queimado em campo, estepe ou savana: mais claro que floresta queimada (cinza de capim). */
@@ -519,6 +527,35 @@ function stateColor(biome: number, i: number, state: number, strength: number, r
   stateOut[0] = r + (c[0] - r) * t;
   stateOut[1] = g + (c[1] - g) * t;
   stateOut[2] = b + (c[2] - b) * t;
+}
+
+/**
+ * Semiárido da seca (R4, imagem `docs/img/m2-dv-seca-v2.png`): cada célula vira chão claro, moita
+ * cinza-esverdeada, árvore seca ou, no miolo mais quente, chão avermelhado, sorteados por manchas fixas
+ * (sem mancha borrada por cima). Aparece conforme a vegetação morre; no deserto, só o chão avermelhado
+ * do calor.
+ */
+const DRY_GROUND: readonly (readonly [number, number, number])[] = [[192, 168, 126], [182, 158, 118]];
+const DRY_SHRUB: readonly (readonly [number, number, number])[] = [[116, 122, 90], [130, 132, 98]];
+const DRY_TREE: readonly [number, number, number] = [148, 140, 128];
+const HOT_GROUND: readonly [number, number, number] = [178, 124, 90];
+
+function droughtColor(world: WorldState, ground: GroundView, biome: number, i: number, r: number, g: number, b: number): void {
+  const k = ground.levelOf(i);
+  const fine = cellHash(i, 0x51);
+  const hot = patchNoise(world, i, 4);
+  let c: readonly number[];
+  if (hot < 0.3 * k * k && fine < 0.8) c = HOT_GROUND;
+  else if (patchNoise(world, i, 3) < 0.45 - 0.15 * k) c = DRY_SHRUB[fine < 0.5 ? 0 : 1] as readonly number[];
+  else if (fine > 0.93) c = DRY_TREE;
+  else c = DRY_GROUND[fine < 0.5 ? 0 : 1] as readonly number[];
+  // Onde não há vegetação (deserto), só o calor avermelha um pouco; onde há, o semiárido aparece
+  // conforme ela morre (perdeu metade = semiárido completo).
+  const t = hasVegetation(biome) ? Math.min(1, (1 - (ground.cover[i] as number)) * 2) : 0.25 * k;
+  const target = hasVegetation(biome) ? c : HOT_GROUND;
+  stateOut[0] = r + ((target[0] as number) - r) * t;
+  stateOut[1] = g + ((target[1] as number) - g) * t;
+  stateOut[2] = b + ((target[2] as number) - b) * t;
 }
 
 /** Cores da camada "Ver tensão": tensão baixa (verde-amarelo), média (laranja), alta (vermelho). */

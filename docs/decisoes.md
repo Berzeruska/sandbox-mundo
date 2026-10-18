@@ -847,3 +847,16 @@ Formato: data — decisão — motivo — alternativa descartada.
     seriam dezenas de clarões por segundo a 20×, sem efeito.
   - O aviso do incêndio sai quando ele apaga (só então se sabe o tamanho).
 
+- **2026-10-18 — R4: seca e enchente (decisões técnicas).**
+  - O calor da seca (+2 a +6 °C) não entra na temperatura do clima: mudaria o bioma das células (e o
+    ajudante refaz o clima a cada recomposição). Fica como intensidade guardada no chão, aparece na cor
+    (mais chão avermelhado) e no toque. Descartado: somar à temperatura do mundo.
+  - A primeira perda de vegetação da seca vem na hora (sem ela, a seca provocada levava 1 ano, 1 s em
+    1×, para aparecer).
+  - A enchente encosta no mar sem problema (planície costeira é o terreno baixo); só sobra lago quando
+    a água não encosta no mar.
+  - O relógio do chão passou a ter agenda por passo de vencimento (antes varria todas as células com
+    algo a cada passo; com secas grandes e solo fértil de décadas, são milhares).
+  - Custo: a seca repinta as suas células conforme a vegetação cai (degraus de 4%). Medir com tudo
+    acontecendo na R9.
+

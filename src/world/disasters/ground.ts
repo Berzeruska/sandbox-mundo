@@ -20,6 +20,8 @@ export const CellState = {
   Fertile: 8,
   Heat: 9,
   Ash: 10,
+  /** Lago que a enchente deixa numa bacia fechada (R4). */
+  Lake: 11,
 } as const;
 export type CellState = (typeof CellState)[keyof typeof CellState];
 
@@ -35,6 +37,7 @@ export const STATE_NAMES: Record<number, string> = {
   [CellState.Fertile]: 'solo fértil',
   [CellState.Heat]: 'calor da seca',
   [CellState.Ash]: 'cinzas',
+  [CellState.Lake]: 'lago da enchente',
 };
 
 /**
@@ -57,7 +60,7 @@ export function hasVegetation(biome: number): boolean {
 }
 
 /** Estados em que a vegetação não volta (o chão ainda queima, é rocha, está salgado ou na seca). */
-const NO_REGROW: ReadonlySet<number> = new Set([CellState.Burning, CellState.Lava, CellState.Basalt, CellState.Mud, CellState.Heat]);
+const NO_REGROW: ReadonlySet<number> = new Set([CellState.Burning, CellState.Lava, CellState.Basalt, CellState.Mud, CellState.Heat, CellState.Lake]);
 /** Solo fértil (o que a enchente deixa): a vegetação volta 2× mais rápido. */
 const FERTILE_REGROW = 2;
 /**
@@ -67,6 +70,9 @@ const FERTILE_REGROW = 2;
 const NEXT_STATE: Readonly<Partial<Record<number, readonly [Exclude<CellState, 0>, number, number]>>> = {
   [CellState.Lava]: [CellState.Basalt, 100, 300],
   [CellState.Burning]: [CellState.Burned, 2, 4],
+  // A água da enchente baixa e deixa solo fértil por 20–40 anos (R4).
+  [CellState.Flooded]: [CellState.Fertile, 20, 40],
+  [CellState.Lake]: [CellState.Fertile, 20, 40],
 };
 /** Estados que só a lava cobre (um alagamento não apaga um derrame de basalto). */
 const ROCK: ReadonlySet<number> = new Set([CellState.Lava, CellState.Basalt]);
@@ -82,6 +88,8 @@ export class Ground {
   readonly state: Uint8Array;
   readonly start: Int32Array;
   readonly until: Int32Array;
+  /** Intensidade do estado na célula (0–255): o calor da seca, a profundidade da enchente. */
+  readonly level: Uint8Array;
   /** Células com vegetação abaixo de 100% ou com estado (para não varrer o mundo todo). */
   readonly active = new Set<number>();
   /** Passo atual (para a força dos estados na hora de pintar). */
@@ -89,25 +97,40 @@ export class Ground {
   /** Aparência já mandada à tela por célula (só repinta quando muda de verdade). */
   private shown: Uint16Array;
   private dirty = new Set<number>();
+  /**
+   * Agenda: em que passo vence o estado de cada célula (células por passo). Cada passo só olha a sua
+   * lista, em vez de varrer todas as células ativas (milhares numa seca grande ou num solo fértil).
+   */
+  private due = new Map<number, number[]>();
+  private expiredUpTo = -1;
 
   constructor(cellCount: number) {
     this.cover = new Float32Array(cellCount).fill(1);
     this.state = new Uint8Array(cellCount);
     this.start = new Int32Array(cellCount);
     this.until = new Int32Array(cellCount);
+    this.level = new Uint8Array(cellCount);
     this.shown = new Uint16Array(cellCount).fill(FULL_KEY);
   }
 
   get bytes(): number {
-    return this.cover.byteLength + this.state.byteLength + this.start.byteLength + this.until.byteLength + this.shown.byteLength;
+    return this.cover.byteLength + this.state.byteLength + this.start.byteLength + this.until.byteLength + this.level.byteLength + this.shown.byteLength;
   }
 
-  /** Põe o estado `s` na célula de `tick` até `tick + years`. Só a lava cobre lava e basalto. */
-  setState(c: number, s: Exclude<CellState, 0>, tick: number, years: number, ticksPerYear: number): void {
+  /**
+   * Põe o estado `s` na célula de `tick` até `tick + years`, com a intensidade `level` (0–1). Só a lava
+   * cobre lava e basalto.
+   */
+  setState(c: number, s: Exclude<CellState, 0>, tick: number, years: number, ticksPerYear: number, level = 1): void {
     if (ROCK.has(this.state[c] as number) && s !== CellState.Lava) return;
     this.state[c] = s;
+    this.level[c] = Math.round(Math.max(0, Math.min(1, level)) * 255);
     this.start[c] = tick;
-    this.until[c] = tick + Math.max(1, Math.round(years * ticksPerYear));
+    const until = tick + Math.max(1, Math.round(years * ticksPerYear));
+    this.until[c] = until;
+    const list = this.due.get(until);
+    if (list) list.push(c);
+    else this.due.set(until, [c]);
     this.touch(c);
   }
 
@@ -134,16 +157,37 @@ export class Ground {
   /** Estados vencidos saem (ou viram o seguinte, ex.: lava → basalto). Roda a cada passo. */
   expire(tick: number, ticksPerYear: number): void {
     this.tick = tick;
-    for (const c of this.active) {
-      const s = this.state[c] as number;
-      if (!s || (this.until[c] as number) > tick) continue;
-      const next = NEXT_STATE[s];
-      this.state[c] = CellState.None;
-      // O fogo acabou: a vegetação virou cinza.
-      if (s === CellState.Burning) this.cover[c] = 0;
-      if (next) this.setState(c, next[0], tick, next[1] + (next[2] - next[1]) * cellHash(c, s), ticksPerYear);
-      this.dirty.add(c);
+    if (!this.due.size) {
+      this.expiredUpTo = tick;
+      return;
     }
+    // Passos vencidos desde a última vez (em ordem); num salto grande, só as listas que existem.
+    const from = this.expiredUpTo + 1;
+    const steps: number[] = [];
+    if (tick >= from && tick - from <= 64) {
+      for (let t = from; t <= tick; t++) if (this.due.has(t)) steps.push(t);
+    } else {
+      for (const t of this.due.keys()) if (t <= tick) steps.push(t);
+      steps.sort((a, b) => a - b);
+    }
+    this.expiredUpTo = tick;
+    for (const t of steps) {
+      const list = this.due.get(t) as number[];
+      this.due.delete(t);
+      for (const c of list) this.expireCell(c, t, tick, ticksPerYear);
+    }
+  }
+
+  private expireCell(c: number, due: number, tick: number, ticksPerYear: number): void {
+    const s = this.state[c] as number;
+    // Entrada velha da agenda (a célula ganhou outro estado depois): ignora.
+    if (!s || (this.until[c] as number) !== due) return;
+    const next = NEXT_STATE[s];
+    this.state[c] = CellState.None;
+    // O fogo acabou: a vegetação virou cinza.
+    if (s === CellState.Burning) this.cover[c] = 0;
+    if (next) this.setState(c, next[0], tick, next[1] + (next[2] - next[1]) * cellHash(c, s), ticksPerYear);
+    this.dirty.add(c);
   }
 
   /**
@@ -187,6 +231,11 @@ export class Ground {
     return (s << 11) | (level << 8) | Math.round((this.cover[c] as number) * 25);
   }
 
+  /** Intensidade do estado (0–1). */
+  levelOf(c: number): number {
+    return (this.level[c] as number) / 255;
+  }
+
   clear(): void {
     for (const c of this.active) {
       this.cover[c] = 1;
@@ -195,6 +244,7 @@ export class Ground {
     }
     this.active.clear();
     this.dirty.clear();
+    this.due.clear();
   }
 }
 

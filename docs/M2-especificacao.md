@@ -838,8 +838,22 @@ teste do bloco. Mar e gelo não ganham degraus.
   em geral 25–110 células, raro passar de 300; antes da R3 era 40–150 fixo). O incêndio vira aviso
   quando apaga, se queimou ≥ 60 células; a animação de "rodela" do incêndio saiu (ele aparece nas
   células). Testes: `tests/world/fire.test.ts`.
-- [ ] **R4 — Seca e enchente.** Testes: seca tira cobertura e aquece; enchente segue o terreno baixo,
+- [x] **R4 — Seca e enchente.** Testes: seca tira cobertura e aquece; enchente segue o terreno baixo,
   deixa solo fértil, e a vegetação volta mais rápido nele.
+  **Feito (2026-10-18):** `src/world/disasters/drought.ts` e `flood.ts`. **Seca:** raio 12–30 células
+  (as grandes raras; a do jogador 22–30), borda recortada por ruído em três escalas, 3–15 anos (mais
+  longa onde já é seco); a intensidade (1 no miolo, 0 na borda) dá o calor (+2 a +6 °C, só no toque e
+  nas cores) e a perda de vegetação por ano (15–35% no miolo, menos na borda; campo, estepe e savana
+  ×1,3, floresta ×0,8; o primeiro ano já na hora). Cor do semiárido como a imagem v2: chão claro, moita
+  cinza-esverdeada, árvore seca e, no miolo quente, chão avermelhado, por manchas fixas, aparecendo
+  conforme a vegetação morre. A vegetação não volta enquanto dura; depois volta na velocidade do bioma.
+  **Enchente:** começa no ponto mais baixo (até 6 passos do toque ou do centro sorteado) e enche pela
+  altura (sempre a próxima célula mais baixa encostada na água), até 30–80 m acima do começo e até
+  40–260 células (jogador 160–300); sobe em 12 passos (~1 s em 1×); a água fica 1–3 anos (mais nas
+  partes fundas) e baixa deixando solo fértil por 20–40 anos (vegetação 2× mais rápida, mais verde);
+  bacia fechada (sem encostar no mar): as 12% mais fundas viram lago por 10–30 anos. Floresta alagada
+  perde 10–20% da vegetação; campo perde 75–95% e volta verde. A "rodela" da seca e da enchente saiu.
+  O toque mostra "calor da seca +4 °C". Testes: `tests/world/drought-flood.test.ts`.
 - [ ] **R5 — Terremoto** (tremor, fenda e deslizamentos pela magnitude, seletor). Testes: raio pela magnitude;
   deslizamento só em encosta.
 - [ ] **R6 — Tsunami** (recuo, onda, avanço, dano, costa raspada, magnitude). Testes: alcance pela

@@ -7,7 +7,8 @@ import { KeyControls } from './input/keys';
 import { DisasterFx } from './render/disaster-fx';
 import { isToast, toEntry } from './ui/disaster-log';
 import { DisasterToasts } from './ui/disaster-panel';
-import { STATE_NAMES } from './world/disasters/ground';
+import { CellState, STATE_NAMES } from './world/disasters/ground';
+import { droughtHeat } from './world/disasters/drought';
 import { MAX_STORMS } from './render/shaders';
 import type { DisasterEvent, DisasterKind } from './world/disasters/types';
 import type { Vec3 } from './world/cubesphere';
@@ -610,6 +611,7 @@ export class App {
     if (!cell.water && !cell.ice) {
       const state = STATE_NAMES[cell.state];
       if (state) name += ` · ${state}`;
+      if (cell.state === CellState.Heat) name += ` +${Math.round(droughtHeat(cell.level))} °C`;
       if (cell.cover < 0.995 || state) name += ` · vegetação ${Math.round(cell.cover * 100)}%`;
     }
     const visible = cell.deposit && !isHiddenOil(cell.deposit) && !cell.ice;

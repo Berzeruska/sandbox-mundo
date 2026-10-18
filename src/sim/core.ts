@@ -570,6 +570,7 @@ export class SimulationCore {
         deposit: depositNear(world, c),
         cover: this.disasters?.ground.cover[c] ?? 1,
         state: this.disasters?.ground.state[c] ?? 0,
+        level: this.disasters?.ground.levelOf(c) ?? 0,
       },
     });
   }

@@ -88,6 +88,8 @@ export interface CellQuery {
   /** Vegetação (0–1) e estado da célula depois dos desastres (`CellState`; 0 = nenhum). */
   cover: number;
   state: number;
+  /** Intensidade do estado (0–1): calor da seca, profundidade da enchente. */
+  level: number;
 }
 
 export type FromWorker =

@@ -3,6 +3,8 @@ import { TICKS_PER_YEAR } from '../../core/time';
 import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
+import { DROUGHT_YEARS, NOTABLE_DROUGHT_RADIUS, sampleDroughtRadius, startDrought } from './drought';
+import { DEPTH, FLOOD_CELLS, FloodProcess, floodPlan, lowestNear, NOTABLE_FLOOD_CELLS, PLAYER_FLOOD_CELLS, WET_YEARS } from './flood';
 import { canBurn, FireProcess, LIGHTNING_PER_YEAR, lightningIgnites, NOTABLE_FIRE_CELLS, pickLightningCell, PLAYER_FIRE_BOOST, PLAYER_FIRE_RADIUS } from './fire';
 import { buildFaults, type Fault, feltRadius, MAX_MAGNITUDE, NOTABLE_MAGNITUDE, sampleMagnitude, stressDrop, yearlyStress } from './quakes';
 import { propagateTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, wavePoints } from './tsunami';
@@ -297,25 +299,39 @@ export class Disasters {
     this.start(fire);
   }
 
+  /**
+   * Seca (R4): região grande de borda irregular vira semiárido; a vegetação morre ano a ano (processo).
+   * Mais longa onde já é seco.
+   */
   private drought(center: number, tick: number, manual: boolean, out: DisasterOutcome): void {
     const world = this.world;
-    // Raio de 5 a 13 células, os grandes raros (u²); a do jogador sempre grande.
-    const radius = manual ? this.rng.int(10, 13) : 5 + Math.floor(9 * this.rng.next() ** 2);
-    const years = this.rng.int(5, 15);
-    const cells = landAround(world, center, radius);
-    if (!cells.length) return;
-    for (const c of cells) this.ground.setState(c, CellState.Heat, tick, years, TICKS_PER_YEAR);
-    this.event(DisasterKind.Drought, center, cells.length, radius >= 12, manual, `Seca · ${areaLabel(cells.length, world.cellCount)}, ${years} anos`, radius, tick, out);
+    const radius = sampleDroughtRadius(this.rng, manual);
+    const dryness = 1 - Math.min(1, (world.precipitation[center] as number) / 2000);
+    const years = Math.round(DROUGHT_YEARS[0] + (DROUGHT_YEARS[1] - DROUGHT_YEARS[0]) * Math.min(1, this.rng.next() * 0.6 + dryness * 0.5));
+    const started = startDrought(world, this.ground, center, radius, years, tick);
+    if (!started) return;
+    this.start(started.process);
+    const cells = started.cells.length;
+    this.event(DisasterKind.Drought, center, cells, radius >= NOTABLE_DROUGHT_RADIUS, manual, `Seca · ${areaLabel(cells, world.cellCount)}, ${years} anos`, radius, tick, out);
   }
 
+  /**
+   * Enchente (R4): a água sobe a partir do ponto mais baixo perto de `center`, pelo terreno baixo, em ~1 s
+   * (processo); fica 1–3 anos e deixa solo fértil (numa bacia fechada, um lago).
+   */
   private flood(center: number, tick: number, manual: boolean, out: DisasterOutcome): void {
     const world = this.world;
-    const radius = manual ? this.rng.int(6, 8) : 3 + Math.floor(6 * this.rng.next() ** 2);
-    const cells = landAround(world, center, radius, (c) => world.heightAboveSea(c) < 250);
-    if (!cells.length) return;
-    const years = this.rng.int(2, 5);
-    for (const c of cells) this.ground.setState(c, CellState.Flooded, tick, years, TICKS_PER_YEAR);
-    this.event(DisasterKind.Flood, center, cells.length, cells.length >= 110, manual, `Enchente · ${areaLabel(cells.length, world.cellCount)}`, radius, tick, out);
+    const start = lowestNear(world, this.ground, center);
+    if (start < 0) return;
+    const [lo, hi] = manual ? PLAYER_FLOOD_CELLS : FLOOD_CELLS;
+    const maxCells = Math.round(lo + (hi - lo) * (manual ? this.rng.next() : this.rng.next() ** 2));
+    const depth = this.rng.range(DEPTH[0], DEPTH[1]);
+    const plan = floodPlan(world, this.ground, start, depth, maxCells);
+    const years = this.rng.range(WET_YEARS[0], WET_YEARS[1]);
+    this.start(new FloodProcess(world, this.ground, plan, tick, years, this.rng));
+    const n = plan.cells.length;
+    const radius = Math.sqrt(n / Math.PI) + 1;
+    this.event(DisasterKind.Flood, start, n, n >= NOTABLE_FLOOD_CELLS, manual, `Enchente · ${areaLabel(n, world.cellCount)}${plan.closed ? ' · vai sobrar um lago' : ''}`, radius, tick, out);
   }
 
   private hurricane(start: number, category: number, tick: number, manual: boolean, out: DisasterOutcome): void {
