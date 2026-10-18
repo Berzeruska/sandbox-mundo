@@ -121,3 +121,7 @@ Pedido do usuário (2026-10-16): formações de erosão vistas de perto (pilares
 China, grandes "braços" de pedra); a erosão pelo clima em si é da T7 do M2.
 Ideia do usuário (2026-10-17): zoom maior que o de hoje, para humanos pequenos ficarem
 proporcionais ao relevo (ver a questão de escala do M3).
+
+Ideia do usuário (2026-10-18), para o M8 ou depois: **câmera em primeira pessoa de um indivíduo**
+(ver o mundo pelos olhos de uma criatura ou pessoa). Depende das criaturas (M3/M4) e do relevo em 3D
+(o pseudo-3D do M8).

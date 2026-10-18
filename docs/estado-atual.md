@@ -1,8 +1,9 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-17**, branch `marco-2`. O usuário testou a `b3297292` (bloco Desastres
-T8–T12) e pediu o **redesenho dos desastres**. **Especificação e imagens do Bloco Desastres v2
-(R1–R9) prontas, esperando aprovação do usuário antes de codar.** Depois: Final (T13, T14).
+Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 (R1–R9) aprovado com
+ajustes** (2026-10-18). Em andamento: R1 (polos, nuvens no polo, GPU e memória no relatório).
+**Esperando aprovação:** imagens novas da seca, do terremoto, do vulcão e dos seletores, e a proposta
+de relevo do terreno. Depois do bloco: Final (T13, T14).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -40,8 +41,12 @@ sobre "onde estamos", vale este.
   avança 3–14 células e raspa a costa; vulcões no mapa com cratera, adormecido/acordado e lava;
   furacões das nuvens, vários, ciclone/furacão, estrago no caminho; magnitude ao provocar; avisos no
   canto inferior esquerdo, sem lista. Imagens: `docs/img/m2-dv-*.png` e `docs/img/m2-nuvens-polo.png`.
-  **5 perguntas ao usuário** no fim da seção (velocidade dos desastres em 20×, terreno mudando para
-  sempre, raio × vulcão, enchente, alcance do tsunami).
+  **Respostas do usuário (2026-10-18):** provocar volta para 1× (o natural não); tsunami e terremoto
+  mudam o relevo para sempre, pouco (reverte 2026-10-15); raio e vulcão nos dois sentidos; raio num
+  furacão cria furacão de fogo; enchente aprovada; tsunami de 3 a 28 células; seca maior e semiárida
+  (caatinga) célula a célula; terremoto pela magnitude, fenda irregular; vulcão com tamanhos, lava pelo
+  terreno, cone e basalto separados; seletor do furacão por categoria; relevo do terreno: proposta
+  antes. Aprovados: raio e incêndio, enchente, desenho do tsunami, nuvens, tampa do polo.
 - **Fronteiras de placa:** o usuário não voltou a reclamar no teste da `b3297292`.
 - **Limite:** a textura de cores guarda o bioma em 4 bits (16 biomas, o número de hoje). Bioma novo
   exige mudar isso; bioma novo só perguntando ao usuário, com o custo.
@@ -163,6 +168,8 @@ sobre "onde estamos", vale este.
   encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
 
 ## Ideias registradas para marcos futuros (não fazer agora)
+- 2026-10-18: câmera em primeira pessoa de um indivíduo (M8 ou depois; depende das criaturas e do
+  pseudo-3D).
 - 2026-10-17: características do mundo em porcentagem; seca −30% de vida; furacão "puxa as coisas";
   terremoto destrói o que há em cima (`docs/04-ecologia.md`); nômades caçam depois de "dominar o
   fogo" (M4); eventos de exemplo da crônica: "Fim da Pangeia", "Ora, temos um Sócrates aqui",

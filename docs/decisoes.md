@@ -759,3 +759,22 @@ Formato: data — decisão — motivo — alternativa descartada.
      que há em cima, características do mundo em porcentagem (`docs/04-ecologia.md`); nômades caçam
      depois de "dominar o fogo" (`docs/02-marcos.md`, M4); eventos de exemplo da crônica ("Fim da
      Pangeia", "Ora, temos um Sócrates aqui", "Piromania") em `docs/07-cronica-nomes.md`.
+
+- **2026-10-18 — Redesenho dos desastres: respostas e ajustes do usuário** (detalhes em
+  `docs/M2-especificacao.md`, Bloco Desastres v2).
+  1. Velocidade: provocar um desastre volta o jogo para 1×; desastre natural não mexe na velocidade.
+     Motivo: os desastres andam no relógio do jogo (determinismo), e em 20× o provocado passaria em
+     menos de 1 s; frear no natural frearia o tempo toda hora.
+  2. **Reversão da decisão de 2026-10-15** ("só o vulcão muda o relevo para sempre; os outros se
+     recuperam"): agora o tsunami raspa a costa e o terremoto derruba encostas, para sempre e pouco.
+     Alternativa descartada: só a vegetação mudar.
+  3. Raio e vulcão: os dois sentidos (erupção solta raios que acendem fogo; raio acorda vulcão
+     adormecido). Raio do jogador num furacão cria um **furacão de fogo**.
+  4. Enchente aprovada. Tsunami aprovado com alcance de 3 a 28 células pela magnitude (o usuário
+     dobrou o máximo proposto, 14).
+  5. Ajustes: seca maior e semiárida (caatinga), desenhada célula a célula, sem mancha por cima;
+     terremoto com fenda e estrago pela magnitude, fenda irregular, deslizamentos seguindo a encosta;
+     vulcão em tamanhos variados, lava seguindo o terreno, cone e basalto bem separados; seletor do
+     furacão por categoria. Relevo do terreno mais legível: proposta antes de fazer.
+  6. Aprovados como estão: raio e incêndio, enchente, desenho do tsunami, nuvens e correção da tampa
+     no polo. A R1 (polos, nuvens, GPU e memória no relatório) pode começar.

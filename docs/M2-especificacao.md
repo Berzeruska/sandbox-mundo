@@ -540,8 +540,10 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
 
 ## Bloco Desastres v2 — redesenho (pedido do usuário em 2026-10-17, teste da `b3297292`)
 
-**Esperando aprovação do usuário (especificação e imagens) antes de codar.** Refaz T8–T12; depois
-vêm T13 e T14. Ainda não decidido: as perguntas no fim desta seção.
+**Aprovado pelo usuário em 2026-10-18 com ajustes** (respostas e ajustes no fim desta seção). Refaz
+T8–T12; depois vêm T13 e T14. **Ainda esperando aprovação:** as imagens novas da seca, do terremoto,
+do vulcão e do seletor do furacão, e a proposta de relevo do terreno (item "Relevo do terreno"). O que
+já está aprovado segue (R1 primeiro).
 
 ### O que o usuário pediu
 - **Regra geral:** todo desastre tem efeito visível que **muda o mundo** (terreno, bioma, vegetação),
@@ -568,10 +570,11 @@ vêm T13 e T14. Ainda não decidido: as perguntas no fim desta seção.
    o fogo avança célula por célula, a lava escorre, o furacão anda pelo mapa, a água sobe e desce.
    Tudo pelo sorteio com semente: mesma semente + mesmos comandos = mesmo mundo, em qualquer
    velocidade. **Consequência:** em 20× tudo passa 20× mais rápido (um incêndio de 15 s em 1× dura
-   menos de 1 s). Ver a pergunta 1.
-4. **Mudança de terreno para sempre** (hoje só o vulcão): proposta de que o tsunami raspe a costa e o
-   terremoto derrube encostas (pergunta 2). Sempre pelo mesmo caminho do pincel (gravado na placa,
-   anda com ela).
+   menos de 1 s). **Decidido (2026-10-18):** quando o jogador provoca um desastre, o jogo volta para 1×
+   (se estiver mais rápido); desastre natural não mexe na velocidade.
+4. **Mudança de terreno para sempre** (decidido em 2026-10-18, revertendo a decisão de 2026-10-15 de
+   que só o vulcão mudava o relevo): vulcão ergue; tsunami raspa a costa; terremoto derruba encostas,
+   para sempre e pouco. Sempre pelo mesmo caminho do pincel (gravado na placa, anda com ela).
 5. **A camada que anda com as placas:** estados que duram séculos (basalto) andam com a crosta nas
    recomposições, como o relevo; os curtos ficam no lugar (detalhe técnico, decidido na implementação).
 6. **Escala:** uma célula tem ~36 km (N = 256, planeta do tamanho da Terra). Para se ver no globo, os
@@ -600,20 +603,26 @@ O resultado final segue a especificação, não o protótipo.
 - O raio que cai em floresta ou campo começa um incêndio (chance pela cobertura e pela seca; no
   jogador, sempre). No mar, no deserto e no gelo não faz nada além do clarão.
 - Visual: o raio em zigue-zague e um clarão (0,3 s), e a célula atingida em chamas.
-- Com o vulcão: pergunta 3.
+- **Com o vulcão:** a erupção solta raios que acendem incêndios em volta; raio num vulcão adormecido
+  pode acordá-lo (decidido em 2026-10-18; ver Vulcão).
+- **Num furacão:** o raio do jogador transforma o furacão em furacão de fogo (ver Furacão).
 - Raio não vira aviso; o incêndio grande que ele começa, sim.
 
-**Seca** (`m2-dv-seca-enchente.png`)
-- Região de 5–13 células de raio, por 3–15 anos (mais provável onde já é seco).
-- **Calor na região:** +2 a +6 °C na temperatura local enquanto dura (aparece na cor: o terreno
-  puxa para o ocre/laranja), mais forte no centro.
-- **Mata a vegetação aos poucos:** a cada ano tira 15–35% da cobertura no centro, menos na borda. Campo
-  amarela primeiro; floresta vai a marrom. Quando a seca acaba, a vegetação volta na velocidade do
-  bioma.
+**Seca** (`m2-dv-seca-v2.png`; ajustada em 2026-10-18, esperando aprovação da imagem nova)
+- **Região maior:** raio de 12–30 células (antes 5–13), borda irregular (não um círculo), por 3–15
+  anos (mais provável onde já é seco).
+- **A região vira semiárido**, no estilo da caatinga: enquanto dura, as células funcionam como mato
+  seco e espinhoso, desenhadas **célula a célula** (sem mancha borrada por cima): chão de terra clara,
+  moitas cinza-esverdeadas espalhadas, e no miolo mais quente chão avermelhado e rachado. Floresta vai
+  perdendo a cobertura até virar esse mato; campo e savana secam primeiro.
+- **Calor:** +2 a +6 °C na temperatura local, mais forte no centro. Aparece só pelas próprias células
+  (mais chão avermelhado e menos moita onde é mais quente), nunca como "rodela" laranja.
+- **Mata a vegetação aos poucos:** a cada ano tira 15–35% da cobertura no centro, menos na borda.
+  Quando a seca acaba, a vegetação volta na velocidade do bioma.
 - Raio "seco" e incêndio ×3 dentro da seca. No M3/M4, dificulta a vida na região em até 30%
   (`docs/04-ecologia.md`).
 
-**Enchente** (proposta; `m2-dv-seca-enchente.png`)
+**Enchente** (aprovada em 2026-10-18; `m2-dv-seca-enchente.png`)
 - **Diferente do tsunami:** vem da chuva, de dentro do continente, devagar, e **fertiliza** em vez de
   destruir. O tsunami vem do mar, rápido, raspa a costa e deixa lama salgada onde nada cresce por anos.
 - Nasce numa anomalia de chuva forte ou quando um furacão entra em terra. Escolhe o ponto mais baixo
@@ -625,16 +634,18 @@ O resultado final segue a especificação, não o protótipo.
   agricultura melhor (várzeas). Se a área for uma bacia fechada, sobra um **lago** por 10–30 anos.
 - Floresta alagada não morre (perde 10–20%); campo alagado perde a cobertura e volta verde.
 
-**Terremoto** (`m2-dv-terremoto.png`)
+**Terremoto** (`m2-dv-terremoto-v2.png`; ajustado em 2026-10-18, esperando aprovação da imagem nova)
 - **A tela treme** (só a câmera, 0,5–2 s, pela magnitude e pela distância do epicentro ao centro da
   tela; longe ou fora da vista, quase nada).
-- **Destrói o que está em cima do epicentro** (no M2, terreno e bioma), num raio pela magnitude
-  (M 6: 1 célula; M 7: 2; M 8: 4; M 9: 7; M 9,5: 9):
-  - **fenda:** uma linha escura de células ao longo da fronteira de placa, passando pelo epicentro,
-    com o dobro do raio de comprimento; some em ~50 anos;
-  - **deslizamentos:** nas encostas íngremes e montanhas do raio, células viram terra/rocha nua
-    (vegetação 0%) e perdem altura para a vizinha mais baixa (para sempre, 10–60 m; pergunta 2);
-  - vegetação do raio perde 20–50% (árvores derrubadas).
+- **Quanto maior a magnitude, maior a fenda e o estrago.** Raio do estrago: M 6: 1 célula; M 7: 3;
+  M 8: 5; M 9: 8; M 9,5: 11. Fenda: M 6 quase nada; M 7 ~6 células; M 8 ~12; M 9 ~24; M 9,5 ~32, mais
+  larga perto do epicentro e com galhos nas maiores.
+- **Fenda irregular:** anda ao longo da fronteira de placa, mas com desvios suaves (sem retas e sem
+  curvas em ângulo reto), afinando nas pontas; some em ~50 anos.
+- **Deslizamentos seguindo o terreno:** começam nas células mais íngremes do raio e descem pela encosta
+  em línguas de 2–6 células (cicatriz clara em cima, entulho escuro embaixo), não quadrados soltos. A
+  encosta perde altura para baixo (para sempre, 10–60 m). Vegetação do raio perde 20–60% (mais perto do
+  epicentro).
 - No M3 em diante, destrói criaturas e construções no raio (`docs/04-ecologia.md`).
 - **Magnitude ao provocar:** M 6 · 7 · 8 · 9 · 9,5.
 
@@ -645,15 +656,16 @@ O resultado final segue a especificação, não o protótipo.
 - **2. A onda anda pelo mar** (como hoje, pela profundidade), desenhada nas próprias células: uma
   faixa clara e espumosa que avança.
 - **3. Avança sobre a terra:** entra até o alcance pela magnitude, parando onde o terreno é mais alto
-  que a onda. **Proposta de alcance em terra** (hoje 2 células):
+  que a onda. **Alcance em terra** (aprovado em 2026-10-18; o mais forte vai a 28 células, o dobro da
+  proposta; hoje são 2):
 
   | Magnitude | Entra em terra | Altura que vence | Costa atingida |
   |-----------|----------------|------------------|----------------|
   | 7,5 | 3 células (~110 km) | 20 m | ~20 células de costa |
-  | 8   | 5 (~180 km) | 35 m | ~50 |
-  | 8,5 | 7 (~250 km) | 50 m | ~100 |
-  | 9   | 10 (~360 km) | 70 m | ~200 |
-  | 9,5 | 14 (~500 km) | 100 m | o oceano todo |
+  | 8   | 6 (~220 km) | 40 m | ~50 |
+  | 8,5 | 10 (~360 km) | 60 m | ~100 |
+  | 9   | 17 (~610 km) | 90 m | ~200 |
+  | 9,5 | 28 (~1.000 km) | 140 m | o oceano todo |
 
 - **Dano (sempre):** toda célula que a água cobriu perde a vegetação (0%) e vira **lama** (cinza-
   -amarronzada) por 15–30 anos; a vegetação só começa a voltar depois disso (o sal).
@@ -674,33 +686,47 @@ O resultado final segue a especificação, não o protótipo.
 - **Destruição no caminho** (raio do estrago: ciclone 2 células, furacão 3–5): a vegetação perde
   30–70% (floresta derrubada fica marrom-esverdeada); na costa, a ressaca alaga 1–3 células de terra
   baixa; em terra, a chuva dispara **enchentes** nas partes baixas. No M3, "puxa as coisas".
-- **Categoria ao provocar:** Ciclone 1 · Ciclone 2 · Furacão 3 · 4 · 5.
+- **Categoria ao provocar:** Ciclone 1 · Ciclone 2 · Furacão 3 · 4 · 5 (o seletor usa categorias, não
+  magnitude; imagem `m2-dv-seletores.png`).
+- **Furacão de fogo** (pedido do usuário, 2026-10-18): o jogador joga um raio (ferramenta Raio) num
+  furacão ou ciclone e ele vira **furacão de fogo** até o fim da vida: a espiral fica alaranjada e
+  escura de fumaça, e em terra cada célula com vegetação no miolo (1–2 células do centro) pega fogo
+  (o incêndio espalha como qualquer outro). No mar só muda a cor. Raio natural não faz isso.
 
-**Vulcão** (`m2-dv-vulcao.png`)
+**Vulcão** (`m2-dv-vulcao-v2.png`; ajustado em 2026-10-18, esperando aprovação da imagem nova)
 - **Vulcões passam a existir no mapa** (hoje a erupção sorteia um ponto e some): nos arcos de
   subducção, nos pontos quentes e onde o jogador criar; andam com a placa. Os das dorsais ficam no
   fundo do mar, sem cratera visível.
-- **Cratera visível:** o cone (anel de rocha escura em volta) e a cratera no meio.
+- **Tamanhos:** pequeno (cone de raio 1–2 células, cratera de 1), médio (3) e grande (4–5, cratera de
+  3×3). Arcos e pontos quentes debaixo de continente tendem a grandes; ilhas novas começam pequenas e
+  crescem a cada erupção.
+- **Cratera visível:** o cone é terreno de verdade (mais alto no anel, com o relevo desenhado) em tons
+  de rocha; a cratera no meio é escura.
 - **Adormecido ↔ acordado:** cada vulcão dorme por 200–3.000 anos (sorteado) e acorda por 3–20 anos.
-  - Adormecido: cratera escura, fria; a vegetação volta nas encostas.
+  - Adormecido: cratera escura, fria; a vegetação volta nas encostas baixas.
   - Acordado: **lava no meio da cratera** (laranja/vermelho vivo) e erupções a cada 1–3 anos.
-- **Erupção espalha lava de forma controlada:** a lava sai da cratera e **escorre morro abaixo**, uma
-  célula por passo, em 1–3 línguas, até um total pela força (IEV 0–2: 10–40 células; IEV 3+: 20–60
-  e cinzas). **A lava queima a vegetação** em que encosta (e acende incêndio na vizinha). Lava que
-  chega ao mar endurece e **cria terra nova** (a costa cresce).
-- A lava esfria: vermelho vivo (1–3 anos) → crosta escura → **basalto** quase preto por 100–300 anos →
-  a vegetação volta devagar.
+- **Lava seguindo o terreno:** sai pela borda mais baixa da cratera e escorre sempre para a vizinha
+  mais baixa, alargando onde o chão fica plano (leque) e se dividindo quando duas descidas são
+  parecidas. Uma célula por passo; total pela força (IEV 0–2: 10–40 células; IEV 3+: 20–80 e cinzas).
+  Nada de faixas retas ou em cruz. **A lava queima a vegetação** em que encosta (e acende incêndio na
+  vizinha). Lava que chega ao mar endurece e **cria terra nova**.
+- **Divisão clara entre o cone e a lava:** o cone fica em tons de rocha marrom-acinzentada; o derrame
+  esfria em **basalto** quase preto, liso, com borda definida (não se mistura com o cone). Vermelho vivo
+  (1–3 anos) → crosta escura → basalto por 100–300 anos → a vegetação volta devagar.
 - Continua: a erupção ergue o terreno para sempre; ilhas e cadeias dos pontos quentes.
 - Cinzas só nas erupções fortes (IEV ≥ 4): cinza no terreno a favor do vento, tirando 20–40% da
-  vegetação.
+  vegetação, desenhada célula a célula.
+- **Raio e vulcão** (decidido em 2026-10-18, opção c): a erupção solta raios na nuvem de cinza, que
+  acendem incêndios em volta; e um raio que cai num vulcão adormecido pode acordá-lo (o do jogador
+  sempre acorda; o natural, raramente).
 - **Jogador:** tocar num vulcão acorda e faz entrar em erupção; tocar fora cria um vulcão novo ali
   (ergue o cone e já acorda).
 
 **Avisos** (`m2-dv-tela.png`)
 - Sai a lista. Os desastres grandes aparecem como aviso no **canto inferior esquerdo** (6 s, até 3);
   tocar no aviso leva a câmera até lá. Os provocados pelo jogador não viram aviso (ele está vendo).
-- **Escolha de magnitude:** com Terremoto, Tsunami ou Furacão ativo, o cartão da ferramenta mostra a
-  fileira de níveis (como a de Frequência); o último escolhido fica.
+- **Escolha de força:** com Terremoto ou Tsunami ativo, o cartão mostra a fileira de magnitudes; com
+  Furacão, a de categorias (Ciclone 1 · Ciclone 2 · Furacão 3 · 4 · 5). O último escolhido fica.
 
 ### Polos e nuvens (decisões do usuário de 2026-10-17, entram no bloco)
 - **Polos:** troca pela proposta aprovada (`docs/img/m2-polos-proposta.png`: borda em lobos, placas
@@ -718,6 +744,20 @@ O resultado final segue a especificação, não o protótipo.
 - **"Medir desempenho"** passa a mostrar o tempo de GPU do globo (meta ≤ 8 ms) e a memória (meta ≤
   400 MB).
 
+### Relevo do terreno (pedido do usuário em 2026-10-18; proposta esperando aprovação)
+O usuário quer que a textura dos biomas e do terreno mostre bem o que é mais alto e o que é mais baixo.
+Hoje a altura só clareia um pouco a cor das terras altas. Opções em `docs/img/m2-relevo-proposta.png`
+(mesmo lugar, de perto e de média distância):
+- **(a) Sombra de encosta:** cada célula fica mais clara se a encosta está virada para a luz (noroeste)
+  e mais escura do outro lado, pela inclinação até as vizinhas. Suave, como um mapa de relevo.
+- **(b) Degraus:** a altura é dividida em níveis (a cada ~150 m em terra); a célula com vizinha de
+  nível mais alto do lado da luz fica em sombra, e a de nível mais baixo fica iluminada. Parece um mapa
+  em terraços, no estilo de pixel.
+- **(c) Sombra de encosta + cor pela altura:** a (a) mais a cor puxando para mais escura e saturada nas
+  baixadas e mais clara e acinzentada no alto.
+Custo: a sombra é calculada junto com as cores (no ajudante, quando a cor é refeita); medir no
+notebook antes de fechar.
+
 ### Tarefas do bloco (depois da aprovação, nesta ordem; cada uma = um commit)
 - [ ] **R1 — Polos, nuvens no polo e relatório** (GPU e memória no "Medir desempenho").
 - [ ] **R2 — Base:** vegetação por célula em %, estados de célula com cor e recuperação, desastres
@@ -727,29 +767,31 @@ O resultado final segue a especificação, não o protótipo.
   anda a favor do vento; raio em floresta acende, no mar não.
 - [ ] **R4 — Seca e enchente.** Testes: seca tira cobertura e aquece; enchente segue o terreno baixo,
   deixa solo fértil, e a vegetação volta mais rápido nele.
-- [ ] **R5 — Terremoto** (tremor, fenda, deslizamentos, magnitude). Testes: raio pela magnitude;
+- [ ] **R5 — Terremoto** (tremor, fenda e deslizamentos pela magnitude, seletor). Testes: raio pela magnitude;
   deslizamento só em encosta.
 - [ ] **R6 — Tsunami** (recuo, onda, avanço, dano, costa raspada, magnitude). Testes: alcance pela
   magnitude; para em terreno alto; toda célula alcançada perde a vegetação.
 - [ ] **R7 — Vulcão** (vulcões no mapa, cratera, ciclo, lava). Testes: lava desce; lava no mar vira
   terra; adormecido não entra em erupção sozinho; anda com a placa.
-- [ ] **R8 — Furacão e ciclone** (das nuvens, vários, destruição, categoria). Testes: no máximo 2 por
+- [ ] **R8 — Furacão e ciclone** (das nuvens, vários, destruição, seletor de categoria, furacão de fogo). Testes: no máximo 2 por
   quadrante; nome pela categoria; estrago só no raio.
 - [ ] **R9 — Frequências e medição:** recalibrar "Raro" (~1 aviso a cada 1–2 min em 1×), "Medir
   desempenho" com tudo acontecendo.
 
-### Perguntas ao usuário (regra 9)
-1. **Velocidade dos desastres.** Para valer "mesma semente = mesmo mundo", eles andam no relógio do
-   jogo: em 20× passam 20× mais rápido. (a) Deixar assim; (b) ao provocar um desastre, o jogo volta
-   sozinho para 1× (recomendado: você vê o que provocou; o natural continua na velocidade escolhida).
-2. **Terreno mudando para sempre fora do vulcão** (a decisão de 2026-10-15 era "só o vulcão muda o
-   relevo para sempre"). (a) Tsunami raspa a costa e terremoto derruba encostas, para sempre, pouco
-   (recomendado); (b) só a vegetação muda, o terreno volta.
-3. **Raio e vulcão.** (a) A erupção solta raios na nuvem de cinza, que acendem incêndios em volta (é o
-   que acontece de verdade); (b) raio que cai num vulcão adormecido pode acordá-lo (regra de jogo);
-   (c) os dois (recomendado).
-4. **Enchente:** aprova a proposta (chuva, segue o terreno baixo, deixa solo fértil e às vezes lago)?
-5. **Alcance do tsunami:** aprova a tabela (3 a 14 células em terra)?
+### Respostas do usuário (2026-10-18)
+1. **Velocidade:** volta para 1× só quando o desastre é provocado pelo jogador; o natural não mexe na
+   velocidade (senão o tempo frearia toda hora).
+2. **Terreno permanente:** opção (a): tsunami raspa a costa e terremoto derruba encostas, para sempre e
+   pouco. Reverte a decisão de 2026-10-15 ("só o vulcão muda o relevo").
+3. **Raio e vulcão:** opção (c), os dois.
+4. **Enchente:** aprovada.
+5. **Tsunami:** aprovado por magnitude, com o mais forte a 28 células (o dobro); tabela ajustada.
+6. Ajustes: seca maior, semiárido tipo caatinga, célula a célula, sem "rodela"; terremoto com fenda e
+   estrago pela magnitude, fenda irregular, deslizamentos sem cara de ruído; vulcão com divisão clara
+   entre cone e lava, lava seguindo o terreno, tamanhos variados; furacão aprovado, seletor por
+   categoria e furacão de fogo com raio; relevo do terreno (proposta antes de fazer).
+7. Aprovados como estão: raio e incêndio, enchente, o desenho do tsunami, o planeta (nuvens) e a
+   correção da tampa no polo.
 
 ## Bloco Final (depois do Bloco Desastres v2)
 
@@ -1627,7 +1669,8 @@ muda" ficam para quando houver cidades, no M4), crônica permanente (M5), som, s
 ## Decisões de design do usuário (2026-10-15)
 1. **Ritmo da deriva:** ~2 minutos reais para a Pangeia se partir, com placas no máximo e tempo em 20×.
 2. **Desastres:** controle de frequência na tela, padrão "raro".
-3. **Marcas:** vulcão muda o relevo para sempre; os outros desastres se recuperam.
+3. **Marcas:** vulcão muda o relevo para sempre; os outros desastres se recuperam. (Revertido em
+   2026-10-18: tsunami e terremoto também mudam o relevo para sempre, pouco.)
 4. **Eras glaciais:** automáticas e suaves, mais um controle de temperatura global.
 5. **Avisos:** só os desastres grandes; lista completa no painel. (Mudado em 2026-10-17: sai a lista;
    só o aviso, no canto inferior esquerdo.)
