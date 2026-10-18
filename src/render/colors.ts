@@ -1,5 +1,6 @@
 import { newArray } from '../core/shared';
-import { BIOME_INFO } from '../world/biomes';
+import { Biome, BIOME_INFO } from '../world/biomes';
+import { CellState, cellHash } from '../world/disasters/ground';
 import { SEA_ICE_TEMP } from '../world/climate';
 import { ALL_RESOURCES, depositType, isHiddenOil, isRevealed, Resource, RESOURCE_INFO } from '../world/resources';
 import type { CubeSphere } from '../world/cubesphere';
@@ -141,22 +142,44 @@ function resourceHalo(world: WorldState, mask: number, rebuild: boolean): Uint8A
   return halo;
 }
 
-export function writeCellColor(world: WorldState, i: number, out: Uint8Array, layers: Layers = NO_LAYERS, halo?: Uint8Array): void {
-  const info = BIOME_INFO[world.biome[i] as number];
+/**
+ * O chão depois dos desastres (`src/world/disasters/ground.ts`): vegetação (0–1) e estado de cada
+ * célula. Só o relógio tem; as cores do ajudante saem sem ele e o relógio repinta por cima as células
+ * com algo.
+ */
+export interface GroundView {
+  readonly cover: Float32Array;
+  readonly state: Uint8Array;
+  strength(c: number): number;
+}
+
+export function writeCellColor(world: WorldState, i: number, out: Uint8Array, layers: Layers = NO_LAYERS, halo?: Uint8Array, ground?: GroundView): void {
+  const biome = world.biome[i] as number;
+  const info = BIOME_INFO[biome];
   if (!info) throw new Error(`Bioma inválido na célula ${i}`);
   const h = world.heightAboveSea(i);
+  // Camadas de leitura (biomas, recursos, tensão) mostram o mundo sem os desastres.
+  const showGround = ground !== undefined && h > 0 && !world.ice[i] && !layers.biomes && !layers.resources && !layers.stress;
+  let base: readonly number[] = info.color;
+  if (showGround && (ground.cover[i] as number) < 1) base = vegetationColor(biome, ground.cover[i] as number) ?? base;
   let k: number;
   if (h <= 0 && !world.ice[i]) k = 1.12 - 0.42 * Math.min(1, -h / 5000);
   else k = (world.ice[i] ? 0.94 : 0.88) + 0.2 * Math.min(1, Math.max(0, h) / 6000);
   if (h > 0) k *= hillshade(world, i);
-  let r = Math.min(255, info.color[0] * k);
-  let g = Math.min(255, info.color[1] * k);
-  let b = Math.min(255, info.color[2] * k);
+  let r = Math.min(255, (base[0] as number) * k);
+  let g = Math.min(255, (base[1] as number) * k);
+  let b = Math.min(255, (base[2] as number) * k);
   if (world.ice[i]) {
     iceColor(world, i, h, r, g, b);
     r = iceOut[0] as number;
     g = iceOut[1] as number;
     b = iceOut[2] as number;
+  }
+  if (showGround && ground.state[i]) {
+    stateColor(biome, i, ground.state[i] as number, ground.strength(i), r, g, b);
+    r = stateOut[0] as number;
+    g = stateOut[1] as number;
+    b = stateOut[2] as number;
   }
   if (layers.biomes && !layers.resources) {
     // Cor forte e lisa por bioma (sem sombreado nem gelo marinho misturado): para ler de longe.
@@ -368,35 +391,91 @@ export function hillshade(world: WorldState, i: number): number {
 }
 
 /** Preenche as cores do mundo todo (ou só das células listadas). */
-export function buildColors(world: WorldState, out: Uint8Array, cells?: readonly number[], layers: Layers = NO_LAYERS): void {
+export function buildColors(world: WorldState, out: Uint8Array, cells?: Iterable<number>, layers: Layers = NO_LAYERS, ground?: GroundView): void {
   // Repintura completa refaz o halo (as jazidas podem ter andado); a parcial (pincel) reaproveita.
   const halo = layers.resources ? resourceHalo(world, layers.resourceMask, !cells) : undefined;
-  if (cells) for (const c of cells) writeCellColor(world, c, out, layers, halo);
-  else for (let i = 0; i < world.cellCount; i++) writeCellColor(world, i, out, layers, halo);
+  if (cells) for (const c of cells) writeCellColor(world, c, out, layers, halo, ground);
+  else for (let i = 0; i < world.cellCount; i++) writeCellColor(world, i, out, layers, halo, ground);
 }
 
 /**
- * Cor das marcas temporárias dos desastres (`src/world/disasters/disturbance.ts`), por tipo: alagado
- * (água rasa), cinzas, queimado, ressecado. A força (0–1) vai caindo até a marca sumir.
+ * Solo nu de cada bioma com vegetação (R2): a cor da célula vai da cor do bioma até esta conforme a
+ * vegetação cai. Floresta a 30% fica marrom com manchas verdes.
  */
-const MARK_COLORS: readonly (readonly [number, number, number, number])[] = [
-  [0, 0, 0, 0],
-  [58, 112, 168, 0.75], // alagado
-  [118, 112, 108, 0.7], // cinzas
-  [42, 34, 30, 0.8], // queimado
-  [196, 164, 96, 0.5], // ressecado
-];
+export const SOIL_COLORS: Readonly<Partial<Record<number, readonly [number, number, number]>>> = {
+  [Biome.Tundra]: [140, 128, 108],
+  [Biome.Taiga]: [100, 86, 66],
+  [Biome.TemperateForest]: [116, 90, 60],
+  [Biome.Grassland]: [168, 144, 102],
+  [Biome.Steppe]: [166, 146, 110],
+  [Biome.Savanna]: [160, 132, 96],
+  [Biome.TropicalForest]: [120, 86, 54],
+  [Biome.Swamp]: [98, 90, 66],
+};
+/** Floresta que volta passa por campo: abaixo desta cobertura ela tem cara de campo. */
+const FOREST_AS_GRASS = 0.5;
+const FORESTS: ReadonlySet<number> = new Set([Biome.Taiga, Biome.TemperateForest, Biome.TropicalForest]);
+const GRASS_COLOR = BIOME_INFO[Biome.Grassland]?.color ?? [138, 186, 80];
+const vegOut: [number, number, number] = [0, 0, 0];
 
-/** Tinge a cor já escrita da célula `i` com a marca `kind` de força `strength`. */
-export function tintMark(out: Uint8Array, i: number, kind: number, strength: number): void {
-  const m = MARK_COLORS[kind];
-  if (!m || strength <= 0) return;
-  const t = m[3] * Math.min(1, strength * 1.5);
-  const o = i * 4;
-  const decor = (out[o + 2] as number) & DECOR_BIT;
-  out[o] = clampByte((out[o] as number) + (m[0] - (out[o] as number)) * t);
-  out[o + 1] = clampByte((out[o + 1] as number) + (m[1] - (out[o + 1] as number)) * t);
-  out[o + 2] = (clampByte((out[o + 2] as number) + (m[2] - (out[o + 2] as number)) * t) & ~DECOR_BIT) | decor;
+/** Cor do bioma com a vegetação em `cover` (0–1), ou null se o bioma não tem vegetação. */
+export function vegetationColor(biome: number, cover: number): readonly [number, number, number] | null {
+  const soil = SOIL_COLORS[biome];
+  const full = BIOME_INFO[biome]?.color;
+  if (!soil || !full) return null;
+  let from: readonly number[] = soil;
+  let to: readonly number[] = full;
+  let t = Math.max(0, Math.min(1, cover));
+  if (FORESTS.has(biome)) {
+    if (t < FOREST_AS_GRASS) {
+      to = GRASS_COLOR;
+      t /= FOREST_AS_GRASS;
+    } else {
+      from = GRASS_COLOR;
+      t = (t - FOREST_AS_GRASS) / (1 - FOREST_AS_GRASS);
+    }
+  }
+  for (let k = 0; k < 3; k++) vegOut[k] = (from[k] as number) + ((to[k] as number) - (from[k] as number)) * t;
+  return vegOut;
+}
+
+/**
+ * Cor de cada estado de célula (R2): [r, g, b, mistura] e, para alguns, um segundo tom sorteado por
+ * célula (o desenho célula a célula, sem mancha lisa). A força do estado (1 → 0) vai apagando a cor.
+ */
+const STATE_COLORS: Readonly<Record<number, { a: readonly [number, number, number]; b?: readonly [number, number, number]; mix: number; hold?: number }>> = {
+  [CellState.Burning]: { a: [255, 100, 18], b: [244, 150, 34], mix: 1, hold: 99 },
+  [CellState.Burned]: { a: [36, 30, 28], b: [48, 40, 34], mix: 0.85, hold: 2 },
+  [CellState.Lava]: { a: [255, 120, 26], b: [232, 70, 20], mix: 1, hold: 99 },
+  [CellState.Basalt]: { a: [40, 38, 42], b: [50, 46, 48], mix: 0.95, hold: 4 },
+  [CellState.Flooded]: { a: [104, 118, 116], b: [92, 110, 114], mix: 0.85, hold: 3 },
+  [CellState.Mud]: { a: [124, 110, 92], b: [112, 100, 86], mix: 0.85, hold: 3 },
+  [CellState.Crack]: { a: [30, 24, 22], b: [58, 46, 42], mix: 0.9, hold: 3 },
+  [CellState.Fertile]: { a: [52, 150, 52], mix: 0.3, hold: 2 },
+  [CellState.Heat]: { a: [178, 124, 90], mix: 0.35, hold: 2 },
+  [CellState.Ash]: { a: [118, 112, 108], b: [132, 126, 120], mix: 0.7, hold: 1.5 },
+};
+const stateOut = new Float64Array(3);
+/** Queimado em campo, estepe ou savana: mais claro que floresta queimada (cinza de capim). */
+const GRASS_BURNED: readonly [number, number, number] = [62, 54, 46];
+const GRASSY: ReadonlySet<number> = new Set([Biome.Grassland, Biome.Steppe, Biome.Savanna]);
+
+/** Escreve em `stateOut` a cor (r, g, b) com o estado `state` de força `strength` por cima. */
+function stateColor(biome: number, i: number, state: number, strength: number, r: number, g: number, b: number): void {
+  const sc = STATE_COLORS[state];
+  if (!sc || strength <= 0) {
+    stateOut[0] = r;
+    stateOut[1] = g;
+    stateOut[2] = b;
+    return;
+  }
+  let c = sc.b && cellHash(i, state) < 0.5 ? sc.b : sc.a;
+  if (state === CellState.Burned && GRASSY.has(biome)) c = GRASS_BURNED;
+  // Fica forte quase até o fim e some no último pedaço (`hold`: quanto maior, mais tarde começa a sumir).
+  const t = sc.mix * Math.min(1, strength * (sc.hold ?? 1.5));
+  stateOut[0] = r + (c[0] - r) * t;
+  stateOut[1] = g + (c[1] - g) * t;
+  stateOut[2] = b + (c[2] - b) * t;
 }
 
 /** Cores da camada "Ver tensão": tensão baixa (verde-amarelo), média (laranja), alta (vermelho). */

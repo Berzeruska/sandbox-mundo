@@ -111,8 +111,8 @@ export class SimClient {
   }
 
   /** Provoca um desastre no ponto (T8–T11). */
-  triggerDisaster(kind: DisasterKind, point: Vec3): void {
-    this.send({ type: 'disaster', kind, point });
+  triggerDisaster(kind: DisasterKind, point: Vec3, strength?: number): void {
+    this.send(strength === undefined ? { type: 'disaster', kind, point } : { type: 'disaster', kind, point, strength });
   }
 
   /** Nível de frequência dos desastres naturais (índice de FREQUENCIES). */

@@ -807,3 +807,17 @@ Formato: data — decisão — motivo — alternativa descartada.
      enquanto; o semiárido deve ficar mais bonito com a ecologia (M3, `docs/04-ecologia.md`).
   4. Ordem do bloco: R2 → RL (relevo) → RG (GPU) → R3 a R9.
   5. Docs: referência da câmera em primeira pessoa (vídeo do Andrezitos) em `docs/02-marcos.md`.
+
+- **2026-10-18 — R2: base dos desastres v2 (decisões técnicas).**
+  - O chão (vegetação e estados) vive só no relógio, com as células fixas no lugar: a recomposição
+    das placas leva décadas para andar uma célula e quase tudo volta antes disso. O que dura séculos
+    (basalto) passa a andar com a placa na R7. O ajudante 2 continua pintando o mundo sem o chão; o
+    relógio repinta por cima só as células com algo (lista de células ativas).
+  - Vegetação em ponto flutuante (0–1) por célula (~1,5 MB em N = 256); a tela só recebe a célula
+    quando a aparência muda de degrau (4% de cobertura ou 1/8 da força do estado), para não mandar
+    remendos a cada ano em 20×.
+  - Uma célula tem um estado de cada vez; o novo substitui o anterior, menos lava e basalto (só lava
+    cobre). Descartado: vários estados por célula (mais memória e cor ambígua).
+  - Provocar volta para 1× pela tela (o seletor de velocidade acompanha); pausado continua pausado
+    (a decisão do usuário fala em "se estiver mais rápido").
+

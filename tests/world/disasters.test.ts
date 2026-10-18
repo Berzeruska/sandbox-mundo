@@ -4,7 +4,8 @@ import { TICKS_PER_YEAR } from '../../src/core/time';
 import { SimulationCore } from '../../src/sim/core';
 import { createWorld } from '../../src/world/create';
 import { cellPoint, DisasterKind, Disasters, type DisasterEvent } from '../../src/world/disasters';
-import { Disturbance, Mark } from '../../src/world/disasters/disturbance';
+import { CellState, Ground } from '../../src/world/disasters/ground';
+import { writeCellColor } from '../../src/render/colors';
 import { MIN_MAGNITUDE, sampleMagnitude } from '../../src/world/disasters/quakes';
 import { propagateTsunami, TSUNAMI_MIN_MAGNITUDE } from '../../src/world/disasters/tsunami';
 import type { WorldState } from '../../src/world/state';
@@ -125,7 +126,7 @@ describe('desastres (T8): tsunamis', () => {
     for (let k = 1; k < r.times.length; k++) expect(r.times[k]!).toBeGreaterThanOrEqual(r.times[k - 1]!);
   });
 
-  it('o jogador provoca tsunami no mar com qualquer frequência, e a costa alagada aparece nas cores e volta ao normal', () => {
+  it('o jogador provoca tsunami no mar com qualquer frequência: a costa vira lama sem vegetação, aparece nas cores e volta ao normal', () => {
     const core = new SimulationCore(() => undefined, () => 0);
     core.handle({ type: 'newWorld', seedText: 'terra', n: 64 });
     core.handle({ type: 'disasterFrequency', level: 0 });
@@ -143,38 +144,59 @@ describe('desastres (T8): tsunamis', () => {
     expect(start).toBeGreaterThanOrEqual(0);
     const before = core.colors.slice();
     core.handle({ type: 'disaster', kind: DisasterKind.Tsunami, point: cellPoint(world, start) });
-    const d = core.disasters!.disturbance;
+    const d = core.disasters!.ground;
     const flooded = [...d.active];
     expect(flooded.length).toBeGreaterThan(0);
-    // Mais azul que antes (alagado).
     const c0 = flooded[0]!;
-    expect(core.colors[c0 * 4 + 2]! - core.colors[c0 * 4]!).toBeGreaterThan(before[c0 * 4 + 2]! - before[c0 * 4]!);
-    // Anos depois a marca some e a cor volta (tempo andando, placas paradas).
+    expect(d.state[c0]).toBe(CellState.Mud);
+    expect(d.cover[c0]).toBe(0);
+    expect([0, 1, 2].some((k) => core.colors[c0 * 4 + k] !== before[c0 * 4 + k])).toBe(true);
+    // Décadas depois a lama sai, a vegetação volta e a cor é a do mundo sem desastre (tempo andando, placas paradas).
     core.handle({ type: 'plateRate', rate: 0 });
     core.handle({ type: 'speed', speed: 20 });
-    while (core.clock.tick < 20 * TICKS_PER_YEAR) core.advance(0.25);
+    while (core.clock.tick < 150 * TICKS_PER_YEAR) core.advance(0.25);
     expect(d.active.size).toBe(0);
-    expect(core.colors[c0 * 4 + 2]).toBe(before[c0 * 4 + 2]);
+    const clean = new Uint8Array(world.cellCount * 4);
+    writeCellColor(world, c0, clean);
+    expect([...core.colors.subarray(c0 * 4, c0 * 4 + 4)]).toEqual([...clean.subarray(c0 * 4, c0 * 4 + 4)]);
   });
 });
 
-describe('desastres: marcas temporárias', () => {
-  it('a marca enfraquece com o tempo e some no fim', () => {
-    const d = new Disturbance(10);
-    d.mark(3, Mark.Burned, 0, 10, 12);
-    expect(d.strength(3, 0)).toBe(1);
-    expect(d.strength(3, 60)).toBeCloseTo(0.5, 6);
-    expect(d.expire(119)).toEqual([]);
-    expect(d.expire(120)).toEqual([3]);
-    expect(d.kind[3]).toBe(Mark.None);
-    expect(d.active.size).toBe(0);
+describe('desastres: estados de célula (R2)', () => {
+  it('o estado enfraquece com o tempo e sai no fim', () => {
+    const d = new Ground(10);
+    d.setState(3, CellState.Flooded, 0, 10, 12);
+    d.expire(0, 12);
+    expect(d.strength(3)).toBe(1);
+    d.expire(60, 12);
+    expect(d.strength(3)).toBeCloseTo(0.5, 6);
+    d.expire(119, 12);
+    expect(d.state[3]).toBe(CellState.Flooded);
+    d.expire(120, 12);
+    expect(d.state[3]).toBe(CellState.None);
   });
 
-  it('marca mais curta não encurta uma mais longa', () => {
-    const d = new Disturbance(4);
-    d.mark(1, Mark.Ash, 0, 25, 12);
-    d.mark(1, Mark.Flood, 0, 8, 12);
-    expect(d.kind[1]).toBe(Mark.Ash);
+  it('a lava esfria em basalto (100–300 anos), e só lava cobre lava e basalto', () => {
+    const d = new Ground(10);
+    d.setState(2, CellState.Lava, 0, 2, 12);
+    d.setState(2, CellState.Flooded, 0, 8, 12);
+    expect(d.state[2]).toBe(CellState.Lava);
+    d.expire(24, 12);
+    expect(d.state[2]).toBe(CellState.Basalt);
+    const years = (d.until[2]! - 24) / 12;
+    expect(years).toBeGreaterThanOrEqual(100);
+    expect(years).toBeLessThanOrEqual(300);
+    d.setState(2, CellState.Mud, 30, 20, 12);
+    expect(d.state[2]).toBe(CellState.Basalt);
+  });
+
+  it('só repinta o que mudou de aparência', () => {
+    const d = new Ground(10);
+    d.damage(4, 0.6);
+    expect(d.takeChanged()).toEqual([4]);
+    expect(d.takeChanged()).toEqual([]);
+    d.damage(4, 0.001);
+    expect(d.takeChanged()).toEqual([]);
   });
 });
 
@@ -201,11 +223,11 @@ describe('desastres (T9): vulcões e pontos quentes', () => {
     const h0 = w.elevation[land]!;
     core.handle({ type: 'disaster', kind: DisasterKind.Volcano, point: cellPoint(w, land) });
     expect(w.elevation[land]!).toBeGreaterThan(h0 + 1000);
-    expect(core.disasters!.disturbance.active.size).toBeGreaterThan(0);
+    expect(core.disasters!.ground.active.size).toBeGreaterThan(0);
     core.handle({ type: 'plateRate', rate: 0 });
     core.handle({ type: 'speed', speed: 20 });
-    while (core.clock.tick < 40 * TICKS_PER_YEAR) core.advance(0.25);
-    expect(core.disasters!.disturbance.active.size).toBe(0);
+    while (core.clock.tick < 60 * TICKS_PER_YEAR) core.advance(0.25);
+    expect(core.disasters!.ground.active.size).toBe(0);
     expect(w.elevation[land]!).toBeGreaterThan(h0 + 1000);
   });
 
@@ -300,14 +322,14 @@ describe('desastres (T10): clima', () => {
     for (let y = 1; y <= 6000; y++) {
       const tick = y * TICKS_PER_YEAR;
       // Antes do passo: guarda quais células estavam secas.
-      const before = d.disturbance.kind.slice();
+      const before = d.ground.state.slice();
       const o = d.step(tick, 1);
       for (const e of o?.events ?? []) {
         if (e.kind !== DisasterKind.Fire) continue;
         fires++;
         const c = w.grid.pointToCell(e.point[0], e.point[1], e.point[2]);
         expect([5, 6, 12]).toContain(w.biome[c]);
-        expect(before[c]).toBe(Mark.Dry);
+        expect(before[c]).toBe(CellState.Heat);
       }
     }
     expect(fires).toBeGreaterThan(5);
@@ -317,10 +339,10 @@ describe('desastres (T10): clima', () => {
     const w = worldOf('terra', 64);
     const { d } = run(w, 400);
     expect(d.counts[DisasterKind.Drought]! + d.counts[DisasterKind.Flood]!).toBeGreaterThan(0);
-    // Mais 100 anos sem nada novo: tudo some (a mais longa, queimado, dura 60).
+    // Mais 200 anos sem nada novo: tudo some (o mais lento é taiga queimada voltando, até ~80 anos).
     d.frequency = 0;
-    for (let y = 401; y <= 500; y++) d.step(y * TICKS_PER_YEAR, 1);
-    expect(d.disturbance.active.size).toBe(0);
+    for (let y = 401; y <= 600; y++) d.step(y * TICKS_PER_YEAR, 1);
+    expect(d.ground.active.size).toBe(0);
   });
 
   it('frequências em 1.000 anos em "Raro" dentro da faixa esperada', () => {

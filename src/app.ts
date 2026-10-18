@@ -5,8 +5,9 @@ import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
 import { KeyControls } from './input/keys';
 import { DisasterFx } from './render/disaster-fx';
-import { DisasterLog, isToast, type LogEntry } from './ui/disaster-log';
-import { DisasterListPanel, DisasterToasts } from './ui/disaster-panel';
+import { isToast, toEntry } from './ui/disaster-log';
+import { DisasterToasts } from './ui/disaster-panel';
+import { STATE_NAMES } from './world/disasters/ground';
 import { MAX_STORMS } from './render/shaders';
 import type { DisasterEvent, DisasterKind } from './world/disasters/types';
 import type { Vec3 } from './world/cubesphere';
@@ -112,9 +113,7 @@ export class App {
   private biomeLegend!: BiomeLegend;
   private stressLegend!: BiomeLegend;
   /** Lista e avisos de desastres (T12) e o voo da câmera até um deles. */
-  private disasterLog = new DisasterLog();
   private toasts!: DisasterToasts;
-  private disasterList!: DisasterListPanel;
   private flight: { from: Vec3; to: Vec3; start: number } | null = null;
   /** Ferramenta de desastre ativa (tocar no globo provoca), ou null. */
   private disasterTool: DisasterKind | null = null;
@@ -172,7 +171,7 @@ export class App {
       // Com uma ferramenta de desastre (T11), provoca o desastre ali.
       onTap: (sx, sy) => {
         const p = this.disasterTool !== null ? this.camera.pick(sx, sy) : null;
-        if (p && this.disasterTool !== null) this.sim.triggerDisaster(this.disasterTool, p);
+        if (p && this.disasterTool !== null) this.provoke(this.disasterTool, p);
         else void this.showDepositAt(sx, sy);
       },
       onHover: (sx, sy) => {
@@ -215,7 +214,6 @@ export class App {
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
           if (action === 'newWorld') this.worldDialog.show(this.info?.seedText ?? '');
-          if (action === 'disasterList') this.disasterList.toggle();
           if (action === 'debug') {
             this.debug.toggle();
             this.updateDebug();
@@ -274,7 +272,6 @@ export class App {
       order.map((b) => BIOME_LAYER_COLORS[b] ?? [0, 0, 0]),
     );
     this.toasts = new DisasterToasts(this.hud.root, (p) => this.flyTo(p));
-    this.disasterList = new DisasterListPanel(this.hud.root, this.disasterLog, (p) => this.flyTo(p));
     // Camada "Ver tensão" (T11): a escala de cores das fronteiras.
     this.stressLegend = new BiomeLegend(this.hud.root, ['Tensão baixa', 'média', 'alta: terremoto perto'], STRESS_COLORS);
     this.errorScreen = new ErrorScreen(root, () => void retry());
@@ -347,8 +344,6 @@ export class App {
     this.lastGenerationSignal = this.worldRequestedAt;
     this.fx.clear();
     this.toasts?.clear();
-    this.disasterLog.clear();
-    this.disasterList?.changed();
     this.sim.newWorld(seedText, DEFAULT_N);
   }
 
@@ -499,11 +494,18 @@ export class App {
   private onDisasters(events: DisasterEvent[]): void {
     const now = performance.now();
     for (const e of events) this.fx.add(e, now);
-    const added = this.disasterLog.add(events);
-    events.forEach((e, k) => {
-      if (isToast(e)) this.toasts.show(added[k] as LogEntry);
-    });
-    this.disasterList.changed();
+    for (const e of events) if (isToast(e)) this.toasts.show(toEntry(e));
+  }
+
+  /**
+   * O jogador provoca um desastre (com a força escolhida no cartão). Os desastres andam no relógio do
+   * jogo: se o tempo estiver mais rápido que 1×, volta para 1× para dar para ver (decisão do usuário,
+   * 2026-10-18; pausado continua pausado).
+   */
+  private provoke(kind: DisasterKind, point: Vec3): void {
+    const speed = this.clock.speed;
+    if (speed !== 0 && speed !== 1) this.setSpeed(1);
+    this.sim.triggerDisaster(kind, point, this.hud.strengthOf(kind));
   }
 
   /** Leva a câmera até um ponto do planeta, suave (~0,8 s). */
@@ -602,7 +604,13 @@ export class App {
     // Sem a camada de recursos: o bioma e, se houver jazida à vista (não escondida, não sob o gelo),
     // ela também. No modo pintar (Rebaixar) só a camada de recursos mostra; o resto pinta.
     if (this.mode !== 'move') return false;
-    const name = BIOME_INFO[cell.biome]?.name ?? '';
+    let name = BIOME_INFO[cell.biome]?.name ?? '';
+    // Depois de um desastre: o estado e a vegetação ("Floresta temperada · queimada · vegetação 20%").
+    if (!cell.water && !cell.ice) {
+      const state = STATE_NAMES[cell.state];
+      if (state) name += ` · ${state}`;
+      if (cell.cover < 0.995 || state) name += ` · vegetação ${Math.round(cell.cover * 100)}%`;
+    }
     const visible = cell.deposit && !isHiddenOil(cell.deposit) && !cell.ice;
     this.tip.show(visible ? `${name} · ${depositLabel(cell.deposit)}` : name, rect.left + sx * k, rect.top + sy * k);
     return false;

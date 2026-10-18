@@ -2,7 +2,7 @@ import { createRng, type Rng } from '../../core/rng';
 import { TICKS_PER_YEAR } from '../../core/time';
 import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
-import { Disturbance, Mark, MARK_YEARS } from './disturbance';
+import { CellState, Ground } from './ground';
 import { buildFaults, type Fault, feltRadius, MAX_MAGNITUDE, NOTABLE_MAGNITUDE, sampleMagnitude, stressDrop, yearlyStress } from './quakes';
 import { propagateTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, wavePoints } from './tsunami';
 import { areaLabel, decimal, DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './types';
@@ -40,7 +40,7 @@ import { Boundary, Crust } from '../plates';
 import { MAX_PLATE_RATE } from '../tectonics';
 
 export { DisasterKind, FREQUENCIES, DEFAULT_FREQUENCY, DISASTER_NAMES, type DisasterEvent } from './types';
-export { Mark } from './disturbance';
+export { CellState, Ground } from './ground';
 
 /** Relevo erguido por um desastre (erupção): o relógio aplica como um pincel de Elevar. */
 export interface Uplift {
@@ -53,10 +53,24 @@ export interface Uplift {
 /** O que os desastres de um passo fizeram: o relógio aplica e avisa a tela. */
 export interface DisasterOutcome {
   events: DisasterEvent[];
-  /** Células cuja marca mudou (repintar). */
+  /** Células cuja aparência mudou (vegetação ou estado): repintar. */
   marked: number[];
   uplifts: Uplift[];
 }
+
+/**
+ * Um desastre que anda passo a passo no relógio (R2: 1 passo = 1 mês; o fogo avança, a lava escorre, a
+ * água sobe e desce). Roda uma vez por passo, na ordem em que começou; sorteios só pelo gerador com
+ * semente dos desastres. Devolve false quando acabou.
+ */
+export interface DisasterProcess {
+  step(tick: number, out: DisasterOutcome): boolean;
+}
+
+/** Quanto tempo (anos) cada marca curta dos desastres de hoje dura (R3–R8 refazem cada um). */
+const ASH_YEARS = 10;
+const BURNED_YEARS = 3;
+const MUD_YEARS: readonly [number, number] = [15, 30];
 
 /**
  * Desastres do mundo (T8–T12): vivem no relógio e andam com o passo do jogo; sorteios próprios, na ordem
@@ -64,7 +78,8 @@ export interface DisasterOutcome {
  * por ano de jogo; os do jogador acontecem no passo em que chegam.
  */
 export class Disasters {
-  readonly disturbance: Disturbance;
+  /** Vegetação e estado de cada célula. */
+  readonly ground: Ground;
   /** Nível de frequência (índice de FREQUENCIES). */
   frequency = DEFAULT_FREQUENCY;
   private rng: Rng;
@@ -75,12 +90,14 @@ export class Disasters {
   /** Secas em curso: as células de floresta dentro delas (onde pode pegar fogo) e até quando. */
   private droughts: { forest: number[]; since: number; until: number }[] = [];
   private nextId = 1;
+  /** Desastres em andamento (passo a passo). */
+  private processes: DisasterProcess[] = [];
   /** Contagem por tipo (para testes e o painel). */
   readonly counts = new Array<number>(7).fill(0);
 
   constructor(private world: WorldState) {
     this.rng = createRng((world.params.seed ^ 0x6d15a57e) >>> 0);
-    this.disturbance = new Disturbance(world.cellCount);
+    this.ground = new Ground(world.cellCount);
     this.hotspots = makeHotspots(createRng((world.params.seed ^ 0x40750f07) >>> 0));
     this.onRecompose();
   }
@@ -90,13 +107,32 @@ export class Disasters {
     this.faults = buildFaults(this.world, this.faults, this.rng);
   }
 
+  /** Começa um desastre que anda passo a passo (roda a partir do próximo passo). */
+  start(p: DisasterProcess): void {
+    this.processes.push(p);
+  }
+
+  /** Quantos desastres estão andando agora. */
+  get running(): number {
+    return this.processes.length;
+  }
+
   /**
-   * Um passo do jogo. Os desastres naturais só correm com as placas andando (`plateRate` > 0: "em 0 a
-   * geologia congela").
+   * Um passo do jogo: os desastres em andamento avançam, os estados vencidos saem e, uma vez por ano,
+   * a vegetação volta e os naturais são sorteados. Os desastres naturais da geologia só correm com as
+   * placas andando (`plateRate` > 0: "em 0 a geologia congela").
    */
   step(tick: number, plateRate: number): DisasterOutcome | null {
-    if (tick % TICKS_PER_YEAR !== 0) return null;
-    const out: DisasterOutcome = { events: [], marked: this.disturbance.expire(tick), uplifts: [] };
+    const out: DisasterOutcome = { events: [], marked: [], uplifts: [] };
+    this.ground.expire(tick, TICKS_PER_YEAR);
+    if (this.processes.length) this.processes = this.processes.filter((p) => p.step(tick, out));
+    if (tick % TICKS_PER_YEAR === 0) this.yearly(tick, plateRate, out);
+    out.marked = this.ground.takeChanged();
+    return out.events.length || out.marked.length || out.uplifts.length ? out : null;
+  }
+
+  private yearly(tick: number, plateRate: number, out: DisasterOutcome): void {
+    this.ground.year(this.world);
     const factor = FREQUENCIES[this.frequency]?.factor ?? 0;
     if (plateRate > 0) this.hotspotGrowth(tick, plateRate, factor, out);
     // Clima: continua com as placas paradas.
@@ -120,18 +156,21 @@ export class Disasters {
         this.quake(cell, m, tick, false, out);
       }
     }
-    return out.events.length || out.marked.length || out.uplifts.length ? out : null;
   }
 
-  /** Desastre provocado pelo jogador no ponto `point` (funciona com qualquer frequência). */
-  trigger(kind: DisasterKind, point: Vec3, tick: number): DisasterOutcome {
+  /**
+   * Desastre provocado pelo jogador no ponto `point` (funciona com qualquer frequência). `strength`: a
+   * força escolhida no cartão (magnitude do terremoto e do tsunami, categoria do furacão).
+   */
+  trigger(kind: DisasterKind, point: Vec3, tick: number, strength?: number): DisasterOutcome {
     const out: DisasterOutcome = { events: [], marked: [], uplifts: [] };
     const world = this.world;
+    this.ground.tick = tick;
     const cell = world.grid.pointToCell(point[0], point[1], point[2]);
     if (kind === DisasterKind.Quake) {
-      // Do jogador: sempre forte (7 a 9), do tamanho que a fronteira mais perto permite.
+      // Do jogador: a magnitude escolhida; sem escolha, forte (7 a 9), do tamanho que a fronteira deixa.
       const max = Math.max(8, MAX_MAGNITUDE[world.boundary[cell] as number] ?? 8.5);
-      this.quake(cell, 7 + (max - 7) * this.rng.next(), tick, true, out);
+      this.quake(cell, strength ?? 7 + (max - 7) * this.rng.next(), tick, true, out);
     } else if (kind === DisasterKind.Volcano) {
       // Do jogador: sempre forte (IEV 4 a 6) e ergue mais (no mar raso já vira ilha).
       this.eruption(cell, 4 + this.rng.int(0, 2), tick, true, '', out, 900);
@@ -141,14 +180,15 @@ export class Disasters {
       if (!world.isWater(cell)) this.flood(cell, tick, true, out);
     } else if (kind === DisasterKind.Hurricane) {
       const sea = nearestWater(world, cell, 12);
-      if (sea >= 0) this.hurricane(sea, 3 + this.rng.int(0, 2), tick, true, out);
+      if (sea >= 0) this.hurricane(sea, strength ?? 3 + this.rng.int(0, 2), tick, true, out);
     } else if (kind === DisasterKind.Fire) {
       const forest = nearest(world, cell, 6, (c) => FOREST_BIOMES.has(world.biome[c] as number) && !world.ice[c]);
       if (forest >= 0) this.fire(forest, 40 + this.rng.int(0, 110), tick, true, () => true, out);
     } else if (kind === DisasterKind.Tsunami) {
       const sea = nearestWater(world, cell, 12);
-      if (sea >= 0) this.quake(sea, 8.3 + 0.9 * this.rng.next(), tick, true, out);
+      if (sea >= 0) this.quake(sea, strength ?? 8.3 + 0.9 * this.rng.next(), tick, true, out);
     }
+    out.marked = this.ground.takeChanged();
     return out;
   }
 
@@ -217,7 +257,7 @@ export class Disasters {
     for (const d of this.droughts) {
       // O fogo vem com a seca já instalada (a partir do ano seguinte).
       if (d.since >= tick || rng.next() >= FIRE_CHANCE * factor) continue;
-      const dry = (c: number) => this.disturbance.kind[c] === Mark.Dry;
+      const dry = (c: number) => this.ground.state[c] === CellState.Heat;
       const start = d.forest[rng.int(0, d.forest.length - 1)] as number;
       if (!dry(start) || !FOREST_BIOMES.has(world.biome[start] as number)) continue;
       // Tamanho log-uniforme: muitos pequenos, poucos enormes.
@@ -232,10 +272,7 @@ export class Disasters {
     const years = this.rng.int(5, 15);
     const cells = landAround(world, center, radius);
     if (!cells.length) return;
-    for (const c of cells) {
-      this.disturbance.mark(c, Mark.Dry, tick, years, TICKS_PER_YEAR);
-      out.marked.push(c);
-    }
+    for (const c of cells) this.ground.setState(c, CellState.Heat, tick, years, TICKS_PER_YEAR);
     this.droughts.push({ forest: cells.filter((c) => FOREST_BIOMES.has(world.biome[c] as number)), since: tick, until: tick + years * TICKS_PER_YEAR });
     this.event(DisasterKind.Drought, center, cells.length, radius >= 12, manual, `Seca · ${areaLabel(cells.length, world.cellCount)}, ${years} anos`, radius, tick, out);
   }
@@ -246,10 +283,7 @@ export class Disasters {
     const cells = landAround(world, center, radius, (c) => world.heightAboveSea(c) < 250);
     if (!cells.length) return;
     const years = this.rng.int(2, 5);
-    for (const c of cells) {
-      this.disturbance.mark(c, Mark.Flood, tick, years, TICKS_PER_YEAR);
-      out.marked.push(c);
-    }
+    for (const c of cells) this.ground.setState(c, CellState.Flooded, tick, years, TICKS_PER_YEAR);
     this.event(DisasterKind.Flood, center, cells.length, cells.length >= 110, manual, `Enchente · ${areaLabel(cells.length, world.cellCount)}`, radius, tick, out);
   }
 
@@ -262,8 +296,7 @@ export class Disasters {
       for (const j of landAround(world, c, 2, (i) => world.heightAboveSea(i) < 150)) {
         if (seen.has(j)) continue;
         seen.add(j);
-        this.disturbance.mark(j, Mark.Flood, tick, 3, TICKS_PER_YEAR);
-        out.marked.push(j);
+        this.ground.setState(j, CellState.Flooded, tick, 3, TICKS_PER_YEAR);
       }
     }
     const n = t.points.length;
@@ -296,8 +329,8 @@ export class Disasters {
     const world = this.world;
     const burned = spreadFire(world, start, size, dry);
     for (const c of burned) {
-      this.disturbance.mark(c, Mark.Burned, tick, MARK_YEARS[Mark.Burned], TICKS_PER_YEAR);
-      out.marked.push(c);
+      this.ground.damage(c, 1);
+      this.ground.setState(c, CellState.Burned, tick, BURNED_YEARS, TICKS_PER_YEAR);
     }
     const radius = Math.sqrt(burned.length / Math.PI) + 1;
     this.event(DisasterKind.Fire, start, burned.length, burned.length >= 60, manual, `Incêndio · ${areaLabel(burned.length, world.cellCount)} queimados`, radius, tick, out);
@@ -318,8 +351,8 @@ export class Disasters {
     const ash = ashRadius(vei);
     for (const c of world.grid.cellsInCap(point[0], point[1], point[2], ash * world.grid.cellAngle)) {
       if (world.isWater(c)) continue;
-      this.disturbance.mark(c, Mark.Ash, tick, MARK_YEARS[Mark.Ash], TICKS_PER_YEAR);
-      out.marked.push(c);
+      this.ground.damage(c, 0.3);
+      this.ground.setState(c, CellState.Ash, tick, ASH_YEARS, TICKS_PER_YEAR);
     }
     this.count(DisasterKind.Volcano);
     out.events.push({
@@ -356,9 +389,10 @@ export class Disasters {
     });
     if (m < TSUNAMI_MIN_MAGNITUDE || !world.isWater(cell)) return;
     const r = propagateTsunami(world, cell, m);
+    // O mar deixa lama salgada: a vegetação some e só volta depois que a lama sai.
     for (const c of r.flooded) {
-      this.disturbance.mark(c, Mark.Flood, tick, MARK_YEARS[Mark.Flood], TICKS_PER_YEAR);
-      out.marked.push(c);
+      this.ground.damage(c, 1);
+      this.ground.setState(c, CellState.Mud, tick, this.rng.range(MUD_YEARS[0], MUD_YEARS[1]), TICKS_PER_YEAR);
     }
     const wave = wavePoints(world, r);
     this.count(DisasterKind.Tsunami);

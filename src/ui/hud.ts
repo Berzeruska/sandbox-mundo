@@ -1,8 +1,9 @@
 import { SPEEDS, speedLabel, type Speed } from '../core/time';
 import { MAX_BRUSH, MIN_BRUSH } from '../input/tools';
-import { DEFAULT_FREQUENCY, FREQUENCIES } from '../world/disasters/types';
+import { DEFAULT_FREQUENCY, FREQUENCIES, type DisasterKind } from '../world/disasters/types';
 import {
   CATEGORIES,
+  DEFAULT_STRENGTH,
   INITIAL_MENU,
   isOn,
   itemById,
@@ -12,6 +13,7 @@ import {
   selectCategory,
   selectItem,
   SPEED_CARD,
+  STRENGTHS,
   toggleMenu,
   type MenuEffect,
   type MenuState,
@@ -66,6 +68,8 @@ export class Hud {
   private platePercent: number;
   private frequency = DEFAULT_FREQUENCY;
   private climateDegrees = 0;
+  /** Força escolhida por desastre (o último escolhido fica). */
+  private strengths = new Map<number, number>(Object.entries(DEFAULT_STRENGTH).map(([k, v]) => [Number(k), v as number]));
   private lastDate = '';
 
   private dateText: HTMLSpanElement;
@@ -196,6 +200,29 @@ export class Hud {
     return wrap;
   }
 
+  /** Força escolhida para provocar o desastre (magnitude ou categoria), ou undefined se ele não tem. */
+  strengthOf(kind: DisasterKind): number | undefined {
+    return STRENGTHS[kind] ? this.strengths.get(kind) : undefined;
+  }
+
+  /** Fileira de força do desastre (R2): M 6 · 7 · 8 · 9 · 9,5, ou Ciclone 1 · 2 · Furacão 3 · 4 · 5. */
+  private strengthChoices(kind: DisasterKind): HTMLElement | null {
+    const choices = STRENGTHS[kind];
+    if (!choices) return null;
+    const wrap = el('span', 'hud-freq hud-strength');
+    for (const c of choices) {
+      const b = btn('hud-speed hud-strength-choice', `${c.label}${c.sub ? ` ${c.sub}` : ''}`, () => {
+        this.strengths.set(kind, c.value);
+        for (const o of wrap.querySelectorAll<HTMLElement>('.hud-strength-choice')) o.classList.toggle('selected', o === b);
+      });
+      b.append(el('span', '', c.label));
+      if (c.sub) b.append(el('small', '', c.sub));
+      b.classList.toggle('selected', this.strengths.get(kind) === c.value);
+      wrap.append(b);
+    }
+    return wrap;
+  }
+
   /** Frequência dos desastres naturais: Nenhum, Raro, Às vezes, Frequente, Muitos (T11). */
   private frequencyChoices(): HTMLElement {
     const wrap = el('span', 'hud-freq');
@@ -282,6 +309,8 @@ export class Hud {
     } else if (item.disaster !== undefined) {
       name.append(el('small', '', 'toque no globo'));
       card.append(name);
+      const row = this.strengthChoices(item.disaster);
+      if (row) card.append(row);
     } else if (item.id === 'disasterFreq') {
       name.textContent = 'Desastres';
       name.append(el('small', '', 'frequência'));

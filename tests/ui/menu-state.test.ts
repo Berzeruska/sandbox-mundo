@@ -15,6 +15,8 @@ import {
   selectCategory,
   selectItem,
   SPEED_CARD,
+  DEFAULT_STRENGTH,
+  STRENGTHS,
   toggleMenu,
 } from '../../src/ui/menu-state';
 
@@ -33,7 +35,7 @@ describe('menu de ferramentas: conteúdo', () => {
     expect(itemsOf('tempo').map((i) => i.speed)).toEqual([0, 1, 2, 5, 20, 'max']);
   });
 
-  it('Desastres: os 7 desastres, a frequência e "Ver tensão"; Clima tem "Temperatura", "Ver biomas" e "Nuvens"; Geologia tem "Ver placas", "Ver recursos" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
+  it('Desastres: os 7 desastres, a frequência e "Ver tensão" (sem a lista, R2); Clima tem "Temperatura", "Ver biomas" e "Nuvens"; Geologia tem "Ver placas", "Ver recursos" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
     expect(itemsOf('desastres').map((i) => [i.label, i.available])).toEqual([
       ['Terremoto', true],
       ['Vulcão', true],
@@ -44,7 +46,6 @@ describe('menu de ferramentas: conteúdo', () => {
       ['Incêndio', true],
       ['Frequência', true],
       ['Ver tensão', true],
-      ['Lista', true],
     ]);
     expect(itemsOf('clima').map((i) => [i.label, i.available])).toEqual([['Temperatura', true], ['Ver biomas', true], ['Nuvens', true]]);
     expect(itemsOf('geologia').map((i) => [i.label, i.available])).toEqual([['Ver placas', true], ['Ver recursos', true], ['Velocidade', true]]);
@@ -129,4 +130,14 @@ it('ferramenta de desastre: fica na tela, um dedo continua girando, e o toque pr
   expect(inputModeOf(state)).toBe('move');
   expect(activeDisaster(state)).toBe(DisasterKind.Volcano);
   expect(activeDisaster(INITIAL_MENU)).toBeNull();
+});
+
+it('força ao provocar (R2): magnitudes no terremoto e no tsunami, categorias no furacão; o padrão está na fileira', () => {
+  expect(STRENGTHS[DisasterKind.Quake]!.map((c) => c.label)).toEqual(['M 6', 'M 7', 'M 8', 'M 9', 'M 9,5']);
+  expect(STRENGTHS[DisasterKind.Tsunami]!.map((c) => c.value)).toEqual([7.5, 8, 8.5, 9, 9.5]);
+  expect(STRENGTHS[DisasterKind.Hurricane]!.map((c) => `${c.label}${c.sub ? ' ' + c.sub : ''}`)).toEqual(['Ciclone 1', 'Ciclone 2', 'Furacão 3', '4', '5']);
+  for (const [kind, v] of Object.entries(DEFAULT_STRENGTH)) {
+    expect(STRENGTHS[Number(kind) as DisasterKind]!.some((c) => c.value === v)).toBe(true);
+  }
+  expect(STRENGTHS[DisasterKind.Volcano]).toBeUndefined();
 });

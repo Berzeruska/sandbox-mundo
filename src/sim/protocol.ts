@@ -53,7 +53,7 @@ export type ToWorker =
   /** Controle de temperatura global (°C, T7). */
   | { type: 'climateControl'; control: number }
   /** Desastre provocado pelo jogador (T8–T11) e nível de frequência dos naturais (índice de FREQUENCIES). */
-  | { type: 'disaster'; kind: DisasterKind; point: Vec3 }
+  | { type: 'disaster'; kind: DisasterKind; point: Vec3; strength?: number }
   | { type: 'disasterFrequency'; level: number }
   /** "Medir desempenho": racha agora o maior bloco soldado (ciclo de Wilson, G2). */
   | { type: 'forceRupture' }
@@ -85,6 +85,9 @@ export interface CellQuery {
   ice: boolean;
   /** Jazida na célula ou numa vizinha (código de `resources.ts`; 0 = nenhuma). */
   deposit: number;
+  /** Vegetação (0–1) e estado da célula depois dos desastres (`CellState`; 0 = nenhum). */
+  cover: number;
+  state: number;
 }
 
 export type FromWorker =

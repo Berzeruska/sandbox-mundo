@@ -534,7 +534,7 @@ rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s. Sem opçã
   Aviso curto só para desastres grandes; lista completa no painel; tocar leva a câmera ao local.
   (Não é a crônica permanente, que fica no M5.)
   **Feito (2026-10-17):** aviso no alto da tela só para desastre grande e natural (o provocado o jogador
-  já está vendo), 6 s, até 3 ao mesmo tempo; "Lista" no menu Desastres abre o painel com os últimos 300
+  já está vendo), 6 s, até 3 ao mesmo tempo; "Lista" no menu Desastres abre o painel com os últimos 300 (a lista saiu na R2)
   (mais recentes primeiro, os grandes em destaque, "(provocado)" nos do jogador); tocar num aviso ou
   numa linha leva a câmera até o lugar (voo de 0,8 s). Mundo novo limpa a lista.
 
@@ -774,9 +774,23 @@ teste do bloco. Mar e gelo não ganham degraus.
   depois de cada recomposição: a meta de ≤ 8 ms está quebrada nesse cenário (já estava; não era
   medido).** fps continua 60 em todos os cenários. Memória: dados do jogo ~78 MB, página inteira
   186 MB (meta 400). Geração 0,84 s.
-- [ ] **R2 — Base:** vegetação por célula em %, estados de célula com cor e recuperação, desastres
+- [x] **R2 — Base:** vegetação por célula em %, estados de célula com cor e recuperação, desastres
   passo a passo no relógio, avisos no canto inferior esquerdo, sem a lista, fileira de magnitude.
   Testes: vegetação volta na velocidade do bioma; estados expiram; determinismo passo a passo.
+  **Feito (2026-10-18):** `src/world/disasters/ground.ts` (vegetação 0–100% e estado de cada célula,
+  no relógio; lava vira basalto; a vegetação não volta sob fogo, lava, basalto, lama e calor; volta 2×
+  no solo fértil; ritmo varia por região, ±25%, para voltar em manchas). Cor: bioma misturado com o
+  solo nu pela vegetação, floresta abaixo de 50% com cara de campo, cor de cada estado por cima,
+  célula a célula (dois tons sorteados por célula); as camadas "Ver biomas", "Ver recursos" e "Ver
+  tensão" mostram o mundo sem os desastres. Só repinta a célula quando a aparência muda (cobertura de
+  4 em 4%, força do estado em 8 degraus). Desastres em andamento rodam um passo por mês
+  (`Disasters.start`); os de hoje ainda são instantâneos e passam a andar nas R3–R8. Os de hoje já
+  usam o chão novo: incêndio zera a vegetação e deixa "queimada"; tsunami deixa lama (15–30 anos) sem
+  vegetação; cinzas tiram 30%; seca = "calor"; enchente = "alagada". Provocar volta para 1× (pausado
+  continua pausado). Fileira de força no cartão (terremoto M 6–9,5, tsunami M 7,5–9,5, furacão por
+  categoria; o último escolhido fica). Avisos no canto inferior esquerdo; a lista saiu. Tocar mostra
+  "Floresta temperada · queimada · vegetação 20%". Testes novos em `tests/world/ground.test.ts`
+  (inclui o mesmo chão e as mesmas cores em 1× e em 20×).
 - [ ] **RL — Relevo em degraus** (opção b): níveis a cada 150 m em terra, sombra do lado oposto à luz
   (noroeste) e borda iluminada, calculados junto com as cores. Testes: célula com vizinha mais alta do
   lado da luz fica mais escura; terreno plano não muda; mar não muda.

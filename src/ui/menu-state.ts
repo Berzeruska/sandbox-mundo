@@ -68,7 +68,6 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: true, disaster: DisasterKind.Fire },
   { id: 'disasterFreq', category: 'desastres', label: 'Frequência', icon: '🎲', kind: 'tool', available: true },
   { id: 'stressLayer', category: 'desastres', label: 'Ver tensão', icon: '📈', kind: 'toggle', available: true },
-  { id: 'disasterList', category: 'desastres', label: 'Lista', icon: '📜', kind: 'action', available: true },
 
   { id: 'platesLayer', category: 'geologia', label: 'Ver placas', icon: '🧩', kind: 'toggle', available: true },
   { id: 'resourcesLayer', category: 'geologia', label: 'Ver recursos', icon: '💎', kind: 'toggle', available: true },
@@ -81,6 +80,36 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'newWorld', category: 'mundo', label: 'Novo mundo', icon: '🌍', kind: 'action', available: true },
   { id: 'debug', category: 'mundo', label: 'Dados', icon: '🐞', kind: 'action', available: true },
 ];
+
+/**
+ * Escolha de força ao provocar (R2, imagem `docs/img/m2-dv-seletores.png`): magnitude no terremoto e no
+ * tsunami, categoria no furacão (1–2 ciclone, 3–5 furacão). `value` vai para a simulação.
+ */
+export interface StrengthChoice {
+  value: number;
+  label: string;
+  /** Segunda linha do botão (ex.: o número da categoria). */
+  sub?: string;
+}
+
+export const STRENGTHS: Readonly<Partial<Record<DisasterKind, readonly StrengthChoice[]>>> = {
+  [DisasterKind.Quake]: [6, 7, 8, 9, 9.5].map((m) => ({ value: m, label: `M ${String(m).replace('.', ',')}` })),
+  [DisasterKind.Tsunami]: [7.5, 8, 8.5, 9, 9.5].map((m) => ({ value: m, label: `M ${String(m).replace('.', ',')}` })),
+  [DisasterKind.Hurricane]: [
+    { value: 1, label: 'Ciclone', sub: '1' },
+    { value: 2, label: 'Ciclone', sub: '2' },
+    { value: 3, label: 'Furacão', sub: '3' },
+    { value: 4, label: '4' },
+    { value: 5, label: '5' },
+  ],
+};
+
+/** Força já escolhida ao abrir o jogo (o último escolhido fica). */
+export const DEFAULT_STRENGTH: Readonly<Partial<Record<DisasterKind, number>>> = {
+  [DisasterKind.Quake]: 8,
+  [DisasterKind.Tsunami]: 9,
+  [DisasterKind.Hurricane]: 3,
+};
 
 /** Item que fica na tela quando o jogador escolhe uma velocidade (o seletor de tempo). */
 export const SPEED_CARD = 'speed';

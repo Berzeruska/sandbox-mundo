@@ -686,15 +686,14 @@ body {
   min-width: 0;
 }
 
-/* Avisos de desastre grande (T12): no alto, no meio; tocar leva a câmera até lá. */
+/* Avisos de desastre grande (T12; R2: canto inferior esquerdo, acima da barra); tocar leva a câmera até lá. */
 .dis-toasts {
   position: absolute;
-  top: calc(var(--gap) + env(safe-area-inset-top) + 40px);
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: calc(var(--gap) + env(safe-area-inset-bottom) + 52px + 8px);
+  left: calc(var(--gap) + env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   z-index: 3;
   pointer-events: none;
@@ -722,7 +721,7 @@ body {
 @keyframes dis-in {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateX(-8px);
   }
 }
 
@@ -730,47 +729,22 @@ body {
   font-size: 16px;
 }
 
-/* Lista de desastres (T12). */
-.dis-panel {
-  right: 10px;
-  top: calc(48px + env(safe-area-inset-top));
-  width: min(calc(100vw - 20px), 380px);
-  max-height: calc(100% - 140px - env(safe-area-inset-top));
+
+/* Escolha de força ao provocar (R2): magnitude ou categoria, na fileira do cartão. */
+.hud-strength .hud-speed {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: center;
+  line-height: 1.1;
 }
 
-.dis-head {
-  justify-content: space-between;
-  align-items: center;
+.hud-strength .hud-speed small {
+  font-size: 11px;
 }
 
-.dis-list {
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.dis-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-align: left;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  font-size: 12px;
-  color: inherit;
-}
-
-.dis-row.big {
-  background: rgba(180, 50, 30, 0.35);
-  font-weight: 600;
-}
-
-.dis-empty {
-  font-size: 12px;
-  opacity: 0.7;
+/* Na tela larga a barra fica à direita: os avisos descem até a altura dela. */
+@media (min-width: 900px) {
+  .dis-toasts {
+    bottom: calc(var(--gap) + env(safe-area-inset-bottom));
+  }
 }

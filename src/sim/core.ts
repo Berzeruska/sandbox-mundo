@@ -1,7 +1,7 @@
 import { seedFrom } from '../core/rng';
 import { Clock, TICKS_PER_YEAR } from '../core/time';
 import { applyBrush, RAISE_RATE } from '../input/tools';
-import { buildColors, colorCacheBytes, NO_LAYERS, tintMark, tintStress, withRing, type Layers } from '../render/colors';
+import { buildColors, colorCacheBytes, NO_LAYERS, tintStress, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
 import { applyClimateOffset, climateCacheBytes, climateOffsetAt, CONTROL_APPLY_STEP, CONTROL_MAX, CONTROL_MIN, glideToward, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellPool } from '../world/cell-pool';
@@ -16,8 +16,6 @@ import type { WorldState } from '../world/state';
 import { emptyWork, type WorkCounters } from '../ui/benchmark';
 import { makePatches, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
 
-/** De quantos em quantos anos as marcas dos desastres são repintadas enquanto somem. */
-const MARK_FADE_YEARS = 3;
 /** De quantos em quantos anos a camada "Ver tensão" é repintada (a tensão sobe devagar). */
 const STRESS_REFRESH_YEARS = 2;
 import {
@@ -203,7 +201,7 @@ export class SimulationCore {
         this.setLayers(msg.layers);
         break;
       case 'disaster':
-        if (this.world && this.disasters) this.applyDisasters(this.disasters.trigger(msg.kind, msg.point, this.clock.tick));
+        if (this.world && this.disasters) this.applyDisasters(this.disasters.trigger(msg.kind, msg.point, this.clock.tick, msg.strength));
         break;
       case 'disasterFrequency':
         this.disasterFrequency = Math.max(0, Math.min(FREQUENCIES.length - 1, Math.round(msg.level)));
@@ -366,20 +364,17 @@ export class SimulationCore {
     this.brushLog.push({ tick: this.clock.tick, delta });
     this.geology.send({ type: 'brush', world: this.worldId, tick: this.clock.tick, delta });
     const painted = withRing(world.grid, region);
-    buildColors(world, this.colors, painted, this.layers);
-    this.tintMarks(painted);
+    this.paint(painted);
     const patches = makePatches(this.colors, world.params.n, dirtyRects(world.grid, painted));
     // Petróleo revelado: a tela recebe as jazidas de novo (raro: só quando o Rebaixar acha petróleo).
     return { patches, revealed: revealed.length ? world.deposit.slice() : null };
   }
 
-  /** Pinta por cima as marcas dos desastres (alagado, cinzas, queimado, seco) nas células dadas. */
-  private tintMarks(cells: Iterable<number>): void {
-    const d = this.disasters?.disturbance;
-    if (d && d.active.size) {
-      const tick = this.clock.tick;
-      for (const c of cells) if (d.kind[c]) tintMark(this.colors, c, d.kind[c] as number, d.strength(c, tick));
-    }
+  /** Repinta as células dadas (com a vegetação e os estados dos desastres, e a camada de tensão). */
+  private paint(cells: readonly number[]): void {
+    const world = this.world;
+    if (!world) return;
+    buildColors(world, this.colors, cells, this.layers, this.disasters?.ground);
     if (this.layers.stress && !this.layers.resources) this.tintStressCells(cells);
   }
 
@@ -399,8 +394,7 @@ export class SimulationCore {
     if (!world || !this.layers.stress || this.layers.resources) return;
     const cells: number[] = [];
     for (let c = 0; c < world.cellCount; c++) if (world.boundary[c]) cells.push(c);
-    buildColors(world, this.colors, cells, this.layers);
-    this.tintMarks(cells);
+    this.paint(cells);
     this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
   }
 
@@ -417,32 +411,21 @@ export class SimulationCore {
       deposits = done.revealed ?? deposits;
     }
     if (o.marked.length) {
-      buildColors(world, this.colors, o.marked, this.layers);
-      this.tintMarks(o.marked);
+      this.paint(o.marked);
       patches.push(...makePatches(this.colors, world.params.n, dirtyRects(world.grid, o.marked)));
     }
     if (patches.length) this.send(deposits ? { type: 'patch', patches, brushMs: -1, deposits } : { type: 'patch', patches, brushMs: -1 });
     if (o.events.length) this.send({ type: 'disasters', events: o.events });
   }
 
-  /** As marcas vão sumindo aos poucos: repinta as que estão ativas (a cada MARK_FADE_YEARS anos). */
-  private fadeMarks(): void {
-    const world = this.world;
-    const d = this.disasters?.disturbance;
-    if (!world || !d || !d.active.size) return;
-    const cells = [...d.active];
-    buildColors(world, this.colors, cells, this.layers);
-    this.tintMarks(cells);
-    this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
-  }
-
-  /** Marcas dos desastres e camada de tensão por cima das cores do mundo todo (sem mandar). */
+  /**
+   * Vegetação e estados dos desastres e camada de tensão por cima das cores do mundo todo vindas do
+   * ajudante (que não tem o chão): repinta só as células com algo (sem mandar).
+   */
   private overlayAll(): void {
-    const d = this.disasters?.disturbance;
-    if (d && d.active.size) {
-      const tick = this.clock.tick;
-      for (const c of d.active) tintMark(this.colors, c, d.kind[c] as number, d.strength(c, tick));
-    }
+    const world = this.world;
+    const ground = this.disasters?.ground;
+    if (world && ground && ground.active.size) buildColors(world, this.colors, ground.active, this.layers, ground);
     if (this.layers.stress && !this.layers.resources) this.tintStressCells();
   }
 
@@ -450,8 +433,8 @@ export class SimulationCore {
   private sendAllColors(): void {
     const world = this.world;
     if (!world) return;
-    buildColors(world, this.colors, undefined, this.layers);
-    this.overlayAll();
+    buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);
+    if (this.layers.stress && !this.layers.resources) this.tintStressCells();
     const n = world.params.n;
     const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
     this.send({ type: 'patch', patches: makePatches(this.colors, n, faces), brushMs: -1 });
@@ -540,7 +523,7 @@ export class SimulationCore {
     const cells = [...region];
     updateWaterDistance(world, cells);
     updateClimate(world, cells);
-    buildColors(world, this.colors, withRing(world.grid, cells), this.layers);
+    buildColors(world, this.colors, withRing(world.grid, cells), this.layers, this.disasters?.ground);
   }
 
   /** Anda o controle aplicado rumo ao escolhido (tempo real, também pausado) e refaz o clima a cada degrau. */
@@ -579,14 +562,23 @@ export class SimulationCore {
     this.send({
       type: 'query',
       id,
-      cell: { elevation: world.elevation[c] as number, biome: world.biome[c] as number, water: world.isWater(c), ice: world.ice[c] === 1, deposit: depositNear(world, c) },
+      cell: {
+        elevation: world.elevation[c] as number,
+        biome: world.biome[c] as number,
+        water: world.isWater(c),
+        ice: world.ice[c] === 1,
+        deposit: depositNear(world, c),
+        cover: this.disasters?.ground.cover[c] ?? 1,
+        state: this.disasters?.ground.state[c] ?? 0,
+      },
     });
   }
 
   /** Memória aproximada da simulação (bytes): mundo, grade, caches, cores e o motor da geologia. */
   memoryBytes(): number {
     const caches = this.grid ? climateCacheBytes(this.grid) + colorCacheBytes(this.grid) : 0;
-    return typedBytes(this.world) + typedBytes(this.grid) + caches + this.colors.byteLength + this.cellRef.byteLength + this.geology.bytes;
+    const ground = this.disasters?.ground.bytes ?? 0;
+    return typedBytes(this.world) + typedBytes(this.grid) + caches + this.colors.byteLength + this.cellRef.byteLength + this.geology.bytes + ground;
   }
 
   /** Avança o relógio pelo tempo real `dt` (segundos). Chamado pelo laço do worker. */
@@ -640,7 +632,6 @@ export class SimulationCore {
     if (this.disasters) {
       const o = this.disasters.step(tick, this.plateRate);
       if (o) this.applyDisasters(o);
-      if (tick % (MARK_FADE_YEARS * TICKS_PER_YEAR) === 0) this.fadeMarks();
       if (tick % (STRESS_REFRESH_YEARS * TICKS_PER_YEAR) === 0) this.refreshStress();
     }
   }
