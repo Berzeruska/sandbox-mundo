@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, seedFrom } from '../../src/core/rng';
 import { TICKS_PER_YEAR } from '../../src/core/time';
+import { IMPACT_RAMP_YEARS } from '../../src/world/climate';
 import { SimulationCore } from '../../src/sim/core';
 import { createWorld } from '../../src/world/create';
 import { cellPoint, DisasterKind, Disasters } from '../../src/world/disasters';
@@ -66,19 +67,30 @@ describe('meteoro (C12)', () => {
     }
   });
 
-  it('o gigante esfria o planeta por um tempo (inverno de impacto) e depois volta', () => {
+  it('o gigante esfria o planeta aos poucos (E6), sem mexer no mar, e volta no tempo certo', () => {
     const core = new SimulationCore(() => undefined, () => 0);
     core.handle({ type: 'newWorld', seedText: 'terra', n: 32 });
     core.handle({ type: 'disasterFrequency', level: 0 });
     core.handle({ type: 'plateRate', rate: 0 });
     const w = core.world!;
     const before = w.climateOffset;
+    const sea = w.seaLevel;
     core.handle({ type: 'disaster', kind: DisasterKind.Meteor, point: cellPoint(w, inland(w)), strength: 4 });
     core.handle({ type: 'speed', speed: 20 });
-    while (core.clock.tick < ENTRY_TICKS + 24) core.advance(0.05);
-    expect(w.climateOffset).toBeLessThan(before - GIANT_WINTER.amount * 0.9);
-    while (core.clock.tick < (GIANT_WINTER.years + 2 + 41) * TICKS_PER_YEAR) core.advance(0.25);
-    expect(Math.abs(w.climateOffset - before)).toBeLessThan(0.6);
+    const yearsAfterHit = (y: number) => {
+      while (core.clock.tick < ENTRY_TICKS + y * TICKS_PER_YEAR) core.advance(0.05);
+    };
+    // Chega aos poucos: no primeiro ano, menos da metade do frio.
+    yearsAfterHit(1);
+    expect(w.climateOffset).toBeGreaterThan(before - GIANT_WINTER.amount * 0.5);
+    // Depois de IMPACT_RAMP_YEARS, quase todo (a prévia anda em degraus de meio grau).
+    yearsAfterHit(IMPACT_RAMP_YEARS + 0.5);
+    expect(w.climateOffset).toBeLessThan(before - GIANT_WINTER.amount + 0.6);
+    // O mar não muda (o mar segue o gelo das geleiras, que leva milênios).
+    expect(w.seaLevel).toBe(sea);
+    // Volta ao normal no fim do inverno (sem esperar o motor).
+    yearsAfterHit(GIANT_WINTER.years + 1);
+    expect(Math.abs(w.climateOffset - before)).toBeLessThan(0.3);
   }, 60_000);
 
   it('naturais: pequenos os mais comuns, depois médios, grandes e gigante raríssimo', () => {

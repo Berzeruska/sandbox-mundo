@@ -99,8 +99,4 @@ export class IceReturnProcess {
   get pending(): boolean {
     return this.due.size > 0;
   }
-
-  remap(moved: ReadonlyMap<number, number>): void {
-    for (const [t, list] of this.due) this.due.set(t, list.map((c) => moved.get(c) ?? -1).filter((c) => c >= 0));
-  }
 }

@@ -147,3 +147,40 @@ describe('desastres passo a passo (R2)', () => {
     expect(fast.colors).toEqual(slow.colors);
   }, 60_000);
 });
+
+describe('revisão dos efeitos que mudam o mundo (E13, 2026-10-19)', () => {
+  const worldOf = () => createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: 32, seaLevel: 0, landFraction: 0.3 });
+
+  it('estado de terra firme sai quando a célula vira mar; seca, fogo, cinzas e areia saem debaixo do gelo; o basalto fica', () => {
+    const w = worldOf();
+    const g = new Ground(w.cellCount);
+    const land = [...Array(w.cellCount).keys()].filter((c) => !w.isWater(c) && !w.ice[c]).slice(0, 4);
+    const [a, b, c, d] = land as [number, number, number, number];
+    g.setState(a, CellState.Mud, 0, 20, TICKS_PER_YEAR);
+    g.setState(b, CellState.Heat, 0, 20, TICKS_PER_YEAR);
+    g.setState(c, CellState.Basalt, 0, 200, TICKS_PER_YEAR);
+    g.setState(d, CellState.Fertile, 0, 20, TICKS_PER_YEAR);
+    // O mar sobe por cima de a, c e d (a costa foi raspada); b fica coberta de gelo.
+    for (const x of [a, c, d]) w.elevation[x] = w.seaLevel - 5;
+    w.ice[b] = 1;
+    g.year(w);
+    expect(g.state[a]).toBe(CellState.None);
+    expect(g.state[d]).toBe(CellState.None);
+    expect(g.state[b]).toBe(CellState.None);
+    expect(g.state[c]).toBe(CellState.Basalt);
+  });
+
+  it('gelo derretido volta no mesmo lugar mesmo com as placas andando (o modo do gelo não anda com a placa)', () => {
+    const w = worldOf();
+    const d = new Disasters(w);
+    d.frequency = 0;
+    const cell = [...Array(w.cellCount).keys()].find((c) => !w.isWater(c))!;
+    (d as unknown as { iceReturn: { add(cells: number[], tick: number): void } }).iceReturn.add([cell], 0);
+    // As placas andam: toda célula "vai" para a vizinha (identidade deslocada de 1).
+    const n = w.cellCount;
+    d.remap((c) => c, (c) => (c + 1) % n);
+    const back: number[] = [];
+    for (let t = 1; t <= 151 * TICKS_PER_YEAR; t++) for (const ice of d.step(t, 0)?.ice ?? []) back.push(...ice.cells);
+    expect(back).toEqual([cell]);
+  });
+});

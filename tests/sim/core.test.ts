@@ -3,7 +3,7 @@ import { Disasters } from '../../src/world/disasters';
 import { describe, expect, it } from 'vitest';
 import { seedFrom } from '../../src/core/rng';
 import { Tool } from '../../src/input/tools';
-import { buildColors } from '../../src/render/colors';
+import { buildColors, NO_LAYERS } from '../../src/render/colors';
 import { SimulationCore } from '../../src/sim/core';
 import { applyPatch, type FromWorker } from '../../src/sim/protocol';
 import { createWorld } from '../../src/world/create';
@@ -165,6 +165,25 @@ describe('placas no worker', () => {
     // O relógio manda os ângulos atuais para o desenho suave.
     expect(lastOf(inbox, 'clock')!.angles.length).toBe(core.world!.plates.length);
     expect(lastOf(inbox, 'clock')!.work.recompositions).toBe(core.tectonics!.recompositions);
+  });
+
+  it('visão ligada no meio de uma recomposição continua ligada quando ela aparece (E9/E5)', () => {
+    const { core, inbox } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'visao', n: 32 });
+    core.handle({ type: 'plateRate', rate: 1 });
+    core.handle({ type: 'speed', speed: 20 });
+    const pending = () => (core as unknown as { pending: unknown[] }).pending.length;
+    // Anda até o motor ter feito uma recomposição que ainda não apareceu (pintada sem a visão).
+    while (pending() === 0) core.advance(1 / 240 + 1e-12);
+    for (const layers of [{ ...NO_LAYERS, plates: true }, NO_LAYERS, { ...NO_LAYERS, resources: true }]) {
+      core.handle({ type: 'layers', layers });
+      inbox.length = 0;
+      while (!inbox.some((m) => m.type === 'recomposed')) core.advance(1 / 240 + 1e-12);
+      const expected = new Uint8Array(core.colors.length);
+      buildColors(core.world!, expected, undefined, layers, core.disasters!.ground);
+      expect(core.colors).toEqual(expected);
+      while (pending() === 0) core.advance(1 / 240 + 1e-12);
+    }
   });
 
   it('controle em 0 congela a geologia mesmo com o tempo correndo', () => {

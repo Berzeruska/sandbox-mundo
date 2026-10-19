@@ -4,7 +4,7 @@ import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
-import { type DustView, MAX_SANDSTORMS, NOTABLE_SAND_RADIUS, pickSandstormCell, PLAYER_SAND_RADIUS, SAND_RADIUS, SANDSTORM_CHANCE, SandstormProcess } from './sandstorm';
+import { canStartSandstorm, type DustView, MAX_SANDSTORMS, NOTABLE_SAND_RADIUS, pickSandstormCell, PLAYER_SAND_RADIUS, SAND_RADIUS, SANDSTORM_CHANCE, SandstormProcess } from './sandstorm';
 import { CRATER_RADIUS, GIANT_WINTER, impact, METEOR_NAMES, MeteorProcess, sampleNaturalMeteor, SEA_TSUNAMI } from './meteor';
 import { IceReturnProcess, MELT_CELLS_PER_ICE, MELT_MAX_CELLS, MELT_MIN_ICE, MeltwaterProcess, NOTABLE_MELT_CELLS } from './meltwater';
 import { IceMode } from '../state';
@@ -232,7 +232,8 @@ export class Disasters {
       return true;
     });
     for (const p of this.processes) p.remap?.(moved);
-    this.iceReturn.remap(moved);
+    // O gelo para voltar ao clima não anda: o modo do gelo fica no lugar, não vai com a placa (achado
+    // da revisão E13, 2026-10-19: andando, a volta caía em outra célula e o gelo apagado ficava).
   }
 
   /** Fronteiras novas (depois de cada recomposição): refaz os trechos, a tensão continua. */
@@ -345,7 +346,9 @@ export class Disasters {
       const start = nearest(world, cell, 6, (c) => canBurn(world, this.ground, c));
       if (start >= 0) this.startFire(start, tick, true, 'jogador');
     } else if (kind === DisasterKind.Sandstorm) {
-      if (!world.isWater(cell)) this.sandstorm(cell, tick, true, out);
+      // Só em areia ou seca (E4): no deserto ou seca mais perto do toque (até 6 células).
+      const start = nearest(world, cell, 6, (c) => canStartSandstorm(world, this.ground, c));
+      if (start >= 0) this.sandstorm(start, tick, true, out);
     } else if (kind === DisasterKind.Meteor) {
       this.meteor(cell, strength ?? 2, tick, true, out);
     } else if (kind === DisasterKind.Lightning) {
@@ -731,9 +734,12 @@ export class Disasters {
     const [lo, hi] = manual ? PLAYER_SAND_RADIUS : SAND_RADIUS;
     const radius = lo + Math.floor((hi - lo + 1) * (manual ? this.rng.next() : this.rng.next() ** 2));
     const p = new SandstormProcess(this.world, this.ground, cell, radius, this.rng, tick, this.dust.filter((x) => x.startTick === tick).length);
+    // Perto do mar ela nasce menor (a poeira fica em terra, E4).
+    const r = p.radiusCells;
+    if (r <= 0) return;
     this.dust.push(p);
     this.start(p);
-    this.event(DisasterKind.Sandstorm, cell, radius, radius >= NOTABLE_SAND_RADIUS, manual, `Tempestade de areia · ${areaLabel(Math.round(Math.PI * radius * radius), this.world.cellCount)}`, radius, tick, out);
+    this.event(DisasterKind.Sandstorm, cell, r, r >= NOTABLE_SAND_RADIUS, manual, `Tempestade de areia · ${areaLabel(Math.round(Math.PI * r * r), this.world.cellCount)}`, r, tick, out);
   }
 
   /** Tempestades de areia andando agora (para o desenho). */

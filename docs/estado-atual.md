@@ -1,10 +1,9 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-19**, branch `marco-2`. Correções do teste da `30e5e93` **todas feitas**
-(C1–C12): vulcão sob gelo (jökulhlaup), meteoro e tempestade de areia codados. Trava de commit ativa
-(`.githooks/pre-commit`). **Ainda esperando o teste do usuário na prévia** (correções + desastres novos).
-Enquanto isso, **Bloco Final: T13 feita** (teste longo de 12.000 anos, abaixo); próxima: **T14** (medição
-no notebook contra a linha de base da v1.1).
+Atualizado em: **2026-10-19**, branch `marco-2`. Teste da `d644319` feito pelo usuário; **correções
+E1–E13 feitas** (lista em `docs/M2-especificacao.md`, "Correções do teste da `d644319`"). **Esperando o
+teste do usuário na prévia** (lista abaixo). A T13 está feita (começada antes da hora; a ordem do fluxo
+vale também para teste automático). **A T14 só depois deste teste.**
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -74,7 +73,7 @@ sobre "onde estamos", vale este.
 - **R2 feita (2026-10-18):** vegetação por célula em % e estados de célula (em chamas, queimada, lava,
   basalto, alagada, lama, fenda, solo fértil, calor, cinzas) com cor célula a célula e recuperação na
   velocidade do bioma; desastres podem andar passo a passo no relógio (os de hoje ainda instantâneos,
-  refeitos nas R3–R8); provocar volta para 1×; fileira de força no cartão; avisos no canto inferior
+  refeitos nas R3–R8); provocar voltava para 1× (revertido em 2026-10-19); fileira de força no cartão; avisos no canto inferior
   esquerdo; a lista saiu; tocar mostra estado e vegetação. Verificado no Chromium (Vulkan, 1080p).
 - **Bloco Desastres v2 (R1–R9, mais RL relevo e RG GPU), especificado e aprovado em `docs/M2-especificacao.md`:**
   vegetação por célula em %, estados de célula (em chamas, queimado, lava, basalto, alagado, lama,
@@ -84,7 +83,7 @@ sobre "onde estamos", vale este.
   avança 3–14 células e raspa a costa; vulcões no mapa com cratera, adormecido/acordado e lava;
   furacões das nuvens, vários, ciclone/furacão, estrago no caminho; magnitude ao provocar; avisos no
   canto inferior esquerdo, sem lista. Imagens: `docs/img/m2-dv-*.png` e `docs/img/m2-nuvens-polo.png`.
-  **Respostas do usuário (2026-10-18):** provocar volta para 1× (o natural não); tsunami e terremoto
+  **Respostas do usuário (2026-10-18):** provocar volta para 1× (revertido em 2026-10-19); tsunami e terremoto
   mudam o relevo para sempre, pouco (reverte 2026-10-15); raio e vulcão nos dois sentidos; raio num
   furacão cria furacão de fogo; enchente aprovada; tsunami de 3 a 28 células; seca maior e semiárida
   (caatinga) célula a célula; terremoto pela magnitude, fenda irregular; vulcão com tamanhos, lava pelo
@@ -116,55 +115,44 @@ sobre "onde estamos", vale este.
   tem que mostrar o último commit do `marco-2` com mudança no jogo.
 - **Publicado em `main`:** v1.1.
 
-## Teste do fim do bloco Desastres v2 (no notebook, Firefox)
+## Teste das correções da `d644319` (no notebook, com o jogo sozinho)
 Prévia: berzeruska.github.io/sandbox-mundo/previa/marco-2/ (a linha "versão" do painel Dados tem que
-mostrar o último commit do `marco-2`). Em cada item: o que fazer → o que deve aparecer → o que seria defeito.
-1. **Polos (R1):** girar até um polo, de longe e de perto → gelo do mar com borda em lobos, placas soltas,
-   fino e azulado na borda, branco no miolo; nada entortado por cima. Defeito: borda redonda lisa, gelo
-   rosa/azul forte, terra deformada.
-2. **Nuvens no polo (R1):** de longe, olhar o polo com nuvens → sem "tampa" limpa nem círculo nas
-   latitudes 30° e 60°. Defeito: anel ou mancha oval sem nuvem.
-3. **Relevo em degraus (RL):** de média distância e de perto, numa serra → degraus a cada 150 m (sombra ao
-   pé, borda clara), como o quadro 7. Defeito: listras sem sentido, terreno plano com degraus.
-4. **Vegetação e toque (R2):** provocar um incêndio e tocar (modo Mover) numa célula queimada → "Floresta
-   ... · queimada · vegetação 0%"; anos depois, a cor volta (floresta passa por campo). Defeito: cor que
-   não volta, texto sem estado.
-5. **Força ao provocar (R2):** escolher Terremoto, Tsunami e Furacão → fileira M 6–9,5 / M 7,5–9,5 /
-   Ciclone 1 · 2 · Furacão 3 · 4 · 5; o último escolhido fica. Defeito: fileira faltando ou trocada.
-6. **Volta para 1× (R2):** em 20×, provocar qualquer desastre → o tempo vai para 1×; pausado continua
-   pausado. Defeito: continua em 20×.
-7. **Avisos (R2):** em "Muitos", esperar → avisos no canto inferior esquerdo; tocar leva a câmera; a
-   "Lista" não existe mais. Defeito: aviso no alto ou por cima dos botões.
-8. **Incêndio e raio (R3):** Desastres → Raio, tocar numa floresta e num campo → clarão em zigue-zague e
-   fogo andando célula a célula (frente amarela), mais a favor do vento; no mar só o clarão. Incêndio
-   (ferramenta) num campo → fogo anda e apaga sozinho. Defeito: fogo em deserto, gelo ou mar; quadrado
-   perfeito; fogo que nunca apaga.
-9. **Seca (R4):** Desastres → Seca num campo com floresta → região grande e irregular vira semiárido
-   (chão claro, moitas, avermelhado no miolo) em poucos segundos; tocar → "calor da seca +N °C"; anos
-   depois a vegetação volta. Defeito: mancha redonda lisa por cima, nada acontecendo.
-10. **Enchente (R4):** Enchente numa planície úmida → a água sobe em ~1 s pelo terreno baixo (não em
-    círculo), fica 1–3 anos e baixa deixando o chão mais verde; numa bacia fechada, sobra um lago.
-    Defeito: água subindo morro, círculo.
-11. **Terremoto (R5):** M 7, M 8 e M 9,5 numa região de serra → tela treme mais quanto maior; fenda
-    irregular maior a cada magnitude, com galhos no 9,5; deslizamentos descendo as encostas (claro em
-    cima, escuro embaixo). Defeito: fenda reta, deslizamentos em quadrados soltos, tremor longe da tela.
-12. **Tsunami (R6):** M 9 no mar perto de uma costa baixa → o mar raso recua (areia), a faixa de espuma
-    chega, a água entra em terra e volta, fica lama; a costa recua um pouco. M 7,5 → bem menor. Defeito:
-    água subindo morro alto, lama que não sai em décadas.
-13. **Vulcão (R7):** procurar os cones com cratera escura (de média distância) → existem desde o começo.
-    Vulcão: tocar num cone → acorda, lava na cratera e escorrendo por um canal, seguindo o terreno, depois
-    basalto preto; tocar fora → cone novo. No mar perto da costa → a lava vira terra. Defeito: lava em
-    cruz ou reta, lava misturada com o cone, cone sem relevo.
-14. **Furacão (R8):** Furacão 4 no mar tropical → nuvens torcidas em espiral com olho, andando para oeste;
-    Ciclone 1 → espiral menor sem olho. Raio no furacão → fica alaranjado com fumaça e, em terra, acende
-    fogo. Depois da passagem, faixa de vegetação derrubada e costa alagada. Defeito: espiral desenhada
-    parada, furacão que some do nada, fogo no mar.
-15. **Placas andando com o chão (R7):** provocar um vulcão, ligar placas a 100% e 20× por ~1 min → o cone
-    e o basalto andam junto com o continente. Defeito: basalto ficando para trás no mar.
-16. **Frequência "Raro" (R9):** jogar ~5 min em 1× → ~1 aviso a cada 1–2 min. Defeito: vários por minuto
-    ou nenhum.
-17. **Medir desempenho:** rodar e mandar o relatório inteiro (agora com "desastres Muitos, 20×" e a GPU
-    de longe nele). Metas: 60 fps, nenhum quadro > 50 ms, GPU ≤ 8 ms, memória ≤ 400 MB.
+mostrar o último commit do `marco-2`). **Enquanto você testa, o Claude Code não roda nada pesado no
+notebook** (no teste da `d644319` as sondas dele rodavam junto e pesaram nas medições). Em cada item: o
+que fazer → o que deve aparecer → o que seria defeito.
+1. **Um efeito por vez (E9):** Geologia → Ver placas; depois Ver recursos → só os recursos ficam (placas
+   desligam); tocar de novo em Ver recursos → desliga. Com Ver tensão ligada, escolher Elevar ou um
+   desastre → a tensão desliga. Com Ver placas ligada, mexer em Velocidade (placas), Temperatura ou no
+   tempo → a visão continua. Defeito: duas visões juntas, ou visão + pincel juntos.
+2. **Visão não muda sozinha (E5/E9):** placas 100%, 20×, ligar Ver placas e esperar 1 min → continua
+   ligada. Ligar e desligar Ver recursos com as placas andando → o terreno não volta a escurecer depois.
+   Defeito: a visão some ou volta sozinha; o mundo escurece do nada.
+3. **Provocar não muda a velocidade (E11):** em 20×, provocar qualquer desastre → continua em 20×.
+4. **Avisos e menu (E8):** desastres em "Muitos", abrir o menu → nenhum aviso por cima; fechar → os avisos
+   que ainda valem voltam. Defeito: aviso por cima das ferramentas.
+5. **Tempestade de areia (E4):** provocar no meio de um deserto grande → a poeira fica em terra, encolhe
+   perto da costa e se desfaz antes do mar; tocar numa floresta longe de deserto ou no mar → nada. As
+   naturais também nunca no mar. Defeito: poeira por cima do mar.
+6. **Duração dos furacões (E7):** em 1×, tocar em terra perto da costa: Ciclone 1 → dura como o Ciclone 2
+   (~3–10 s); Furacão 3, 4, 5 → cada vez mais, o 5 até ~24 s. No mar aberto, todos ~24 s. Defeito:
+   Ciclone 1 sumindo em ~1 s.
+7. **Meteoro (E12):** Médio, Grande e Gigante → a bola caindo cresce com a cratera (no gigante, bem
+   grande). Defeito: bola pequena com cratera enorme.
+8. **Meteoro gigante e clima (E6):** em 1×, com o painel Dados aberto → a temperatura cai aos poucos
+   (~3 s até −3 °C), o gelo e a neve avançam aos poucos, a linha "mar" **não muda**; volta ao normal até
+   ~30 anos depois, sem salto ~40 anos depois. Defeito: o mundo "virando" num quadro.
+9. **Degelo (E6):** Clima → Temperatura até +10 → o gelo derrete aos poucos e o mar sobe alagando as
+   terras baixas; o relevo em degraus não "pula" no mundo inteiro a cada subida do mar. Defeito: o
+   desenho do relevo mudando inteiro de uma vez.
+10. **Gelo volta depois do vulcão (E13):** vulcão sob gelo num lugar bem frio, placas 100%, 20×, esperar
+    ~150 anos → o gelo volta onde o clima é de gelo. Defeito: buraco no gelo que nunca fecha.
+11. **Tsunami e painel Dados (E10):** provocar um tsunami e abrir o Dados no meio → o tsunami continua.
+    (O "Medir desempenho" gera o mundo de novo no fim: tudo volta ao ano 0. Ver pergunta abaixo.)
+12. **Jogar 1× com placas 100% por ~5 min (E2):** sem outro programa pesado aberto → rodapé do Dados com
+    0 travadas da data. Se aparecerem, mandar as linhas do rodapé (hora, causa, contexto).
+13. **Medir desempenho (E1, E3):** com o jogo sozinho (fechar outras abas), rodar e mandar o relatório
+    inteiro. Metas: 60 fps, nenhum quadro > 50 ms, GPU ≤ 8 ms, memória ≤ 400 MB, recomposição ≤ 1 s
+    (esperado ~400 ms), "relógio esperou 0 ms" em todos os cenários.
 
 ## Decidido em 2026-10-16
 1. Correção 1 aprovada: fenda entre continentes com menos de 3 células nasce como vale de rifte.
@@ -220,12 +208,19 @@ mostrar o último commit do `marco-2`). Em cada item: o que fazer → o que deve
 - [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] Teste do usuário do Bloco Desastres v2 no notebook (lista abaixo).
+- [ ] Teste do usuário das correções E1–E13 no notebook (lista abaixo).
 - [x] T13 (teste longo).
 - [ ] T14 (medição final contra a linha de base da v1.1).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
+- 2026-10-19 (correções E1–E13): no notebook, 150 s em 1× com placas 100% sem outra carga: 0 travadas.
+  Recomposição no Node (N = 256, mesmo trecho): ~430 ms (placas 230 · clima 74 · cores 80 · aplicar 40)
+  contra ~390 ms na RG. "Medir desempenho" do Claude Code **não vale** desta vez (o jogo do usuário
+  estava aberto no Firefox, dividindo CPU e GPU): fica para o relatório do usuário (item 13).
+- `d6443190`, medido pelo usuário: relógio esperou 81 ms em "desastres Muitos, 20×"; 195 travadas da
+  data de 300–376 ms em 1× com placas 100% por volta das 07:27; recomposições ~650–720 ms. Na mesma hora
+  o Claude Code rodava sondas e testes pesados no notebook.
 - R1 (2026-10-18, Chrome, 1080p): 60 fps em todos os cenários, pior quadro 17 ms; **GPU do globo**
 - Depois da C12 (2026-10-18, Chrome headless no notebook, 1080p): 60 fps em todos os cenários, pior quadro
   17 ms, **0 travadas** (a medição de GPU não conta mais); "desastres Muitos, 20×": relógio 240 passos/s,
@@ -281,10 +276,13 @@ mostrar o último commit do `marco-2`). Em cada item: o que fazer → o que deve
   sementes passam aos 3 min).
 
 ## Decisões abertas (do usuário)
-- **Meteoro natural com "Placas 0":** decidi (técnico) que não cai, porque "Placas 0" congela o relevo
-  e a cratera muda o relevo para sempre. O do jogador cai sempre. Falta o usuário confirmar.
-- **C5 (tsunami recomeça ao abrir o "relatório"):** não reproduzido; falta saber se é o painel Dados
-  ou o "Medir desempenho" (que gera o mundo de novo no fim).
+- **Inverno de impacto sem mexer no mar (E6, técnico):** antes o mar descia 50 m de uma vez; agora só
+  a temperatura cai (o mar acompanha as geleiras, que levam milênios). Confirmar.
+- **Controles não desligam a visão (E9, técnico):** tempo, temperatura, frequência e velocidade das
+  placas não contam como "efeito"; dá para ver as placas mudando a velocidade delas. Confirmar.
+- **"Medir desempenho" gera o mundo de novo no fim** (para medir a geração): o jogo volta ao ano 0.
+  Opções: (a) fica assim, com aviso no botão; (b) pergunta antes de começar; (c) mede a geração sem
+  trocar o mundo do jogador (mais trabalho).
 - **"Tamanho fixo" das placas:** hoje ficam fixas a identidade e a forma; placas oceânicas podem
   encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
 

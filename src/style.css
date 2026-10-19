@@ -718,6 +718,12 @@ body {
   animation: dis-in 0.25s ease-out;
 }
 
+/* Com o menu aberto os avisos somem (E8: numa janela estreita ficavam por cima das ferramentas); os
+   que ainda estiverem valendo voltam ao fechar. */
+.menu-open .dis-toasts {
+  display: none;
+}
+
 @keyframes dis-in {
   from {
     opacity: 0;

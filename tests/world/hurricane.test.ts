@@ -90,3 +90,32 @@ describe('furacão e ciclone (R8)', () => {
     expect(d2.stormViews().length).toBe(1);
   });
 });
+
+describe('duração do furacão do jogador tocando em terra perto da costa (E7, teste da d644319)', () => {
+  it('o Ciclone 1 dura o mesmo que o Ciclone 2 (aprovado); do 3 ao 5, cada vez mais, até os 24 s', () => {
+    const w = worldOf('terra', 128);
+    // Terra tropical a até 6 células do mar (onde o jogador tocou no teste).
+    const coast: number[] = [];
+    for (let c = 0; c < w.cellCount && coast.length < 6; c += 211) {
+      if (w.isWater(c) || Math.abs(Math.asin(w.grid.positions[c * 3 + 1]!)) > 0.35) continue;
+      const d = w.waterDistance[c]!;
+      if (d >= 1 && d <= 6) coast.push(c);
+    }
+    expect(coast.length).toBeGreaterThan(2);
+    const life = (cell: number, cat: number): number => {
+      const d = new Disasters(w);
+      d.frequency = 0;
+      d.trigger(DisasterKind.Hurricane, cellPoint(w, cell), 0, cat);
+      let t = 0;
+      while (d.stormViews().length && t < 1000) d.step(++t, 0);
+      return t;
+    };
+    for (const c of coast) {
+      const l = [1, 2, 3, 4, 5].map((cat) => life(c, cat));
+      expect(l[0]!, `célula ${c}`).toBeGreaterThanOrEqual(l[1]!);
+      for (let k = 2; k < 5; k++) expect(l[k]!, `célula ${c}`).toBeGreaterThanOrEqual(l[k - 1]!);
+      // Furacão 5: pelo menos 12 s a mais que o Ciclone 2 em terra, até o teto de 24 s (288 passos).
+      expect(l[4]!, `célula ${c}`).toBeGreaterThanOrEqual(Math.min(288, l[1]! + 144));
+    }
+  });
+});

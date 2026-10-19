@@ -102,6 +102,11 @@ export const BOUNDARY_COLORS: readonly (readonly [number, number, number])[] = [
 /** Quanto a cor da placa tinge o bioma na camada "Ver placas". */
 const PLATE_TINT = 0.38;
 
+/** As jazidas andaram (recomposição): o halo guardado do mundo não vale mais. */
+export function forgetResourceHalo(world: WorldState): void {
+  halos.delete(world);
+}
+
 /**
  * Halo das jazidas na camada "Ver recursos": cada jazida do filtro tinge até HALO_CELLS células em volta
  * (mais fraco com a distância), para aparecer de longe, onde uma célula tem 1–2 pixels. Valor: tipo nos
@@ -200,7 +205,9 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   if (showGround && ground.rock[i]) base = rockColor(ground.rock[i] as number, base);
   let k: number;
   if (h <= 0 && !world.ice[i]) k = 1.12 - 0.42 * Math.min(1, -h / 5000);
-  else k = (world.ice[i] ? 0.94 : 0.88) + 0.2 * Math.min(1, Math.max(0, h) / 6000);
+  // Em terra, altura e degraus contam do nível de base do mar: com o mar subindo ou descendo (gelo,
+  // inverno de impacto) só a costa muda, e não o relevo do mundo inteiro de uma vez (E6).
+  else k = (world.ice[i] ? 0.94 : 0.88) + 0.2 * Math.min(1, Math.max(0, world.heightAboveBase(i)) / 6000);
   if (h > 0) k *= hillshade(world, i);
   let r = Math.min(255, (base[0] as number) * k);
   let g = Math.min(255, (base[1] as number) * k);
@@ -448,11 +455,11 @@ export function adoptShadeWeights(grid: CubeSphere, weights: Float32Array): void
 export function hillshade(world: WorldState, i: number): number {
   const weights = shadeWeightsFor(world.grid);
   const { neighbors } = world.grid;
-  const hi = Math.max(0, world.heightAboveSea(i));
+  const hi = Math.max(0, world.heightAboveBase(i));
   let upTowardLight = 0;
   for (let d = 0; d < 4; d++) {
     const j = neighbors[i * 4 + d] as number;
-    upTowardLight += (Math.max(0, world.heightAboveSea(j)) - hi) * (weights[i * 4 + d] as number);
+    upTowardLight += (Math.max(0, world.heightAboveBase(j)) - hi) * (weights[i * 4 + d] as number);
   }
   // Terreno que sobe rumo à luz tem a encosta virada para longe dela: mais escuro.
   return 1 - SHADE_STRENGTH * Math.tanh(upTowardLight / SHADE_SLOPE);
@@ -476,13 +483,13 @@ const TERRACE_SHADOW: readonly [number, number, number] = [20, 24, 40];
 export function terraceShade(world: WorldState, i: number): number {
   const weights = shadeWeightsFor(world.grid);
   const { neighbors } = world.grid;
-  const level = Math.floor(Math.max(0, world.heightAboveSea(i)) / TERRACE_METERS);
+  const level = Math.floor(Math.max(0, world.heightAboveBase(i)) / TERRACE_METERS);
   let t = 0;
   for (let d = 0; d < 4; d++) {
     // Peso positivo: a vizinha fica do lado de onde vem a luz.
     if ((weights[i * 4 + d] as number) <= 0) continue;
     const j = neighbors[i * 4 + d] as number;
-    const lj = Math.floor(Math.max(0, world.heightAboveSea(j)) / TERRACE_METERS);
+    const lj = Math.floor(Math.max(0, world.heightAboveBase(j)) / TERRACE_METERS);
     if (lj > level) t += TERRACE_UP;
     else if (lj < level) t += TERRACE_DOWN;
   }

@@ -34,6 +34,8 @@ export interface HudCallbacks {
   onAction(action: string): void;
   /** Interruptor do menu (ex.: 'platesLayer'). */
   onToggle(id: string, on: boolean): void;
+  /** A visão ligada mudou (uma por vez; null: nenhuma). */
+  onView(id: string | null): void;
   /** A ferramenta ativa (ou o menu) mudou. */
   onMenuChange(state: MenuState): void;
 }
@@ -153,6 +155,7 @@ export class Hud {
     if (effect.type === 'speed') this.cb.onSpeed(effect.speed);
     if (effect.type === 'action') this.cb.onAction(effect.action);
     if (effect.type === 'toggle') this.cb.onToggle(effect.id, effect.on);
+    if (effect.type === 'view') this.cb.onView(effect.id);
     this.cb.onMenuChange(state);
   }
 

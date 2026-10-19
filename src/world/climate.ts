@@ -67,14 +67,17 @@ export function glacialOffset(tick: number): number {
 
 /**
  * Inverno de impacto (meteoro gigante, C12; decisão do usuário: poeira e fuligem no ar esfriam o
- * planeta por um tempo, como no impacto que extinguiu os dinossauros): `amount` °C a menos no passo
- * `tick`, todo o frio nos primeiros IMPACT_FULL_YEARS anos e voltando ao normal até `years`.
+ * planeta por um tempo, como no impacto que extinguiu os dinossauros): `amount` °C a menos, chegando
+ * aos poucos em IMPACT_RAMP_YEARS (E6, teste da d644319: o clima "virava de uma vez"), todo o frio até
+ * IMPACT_FULL_YEARS anos e voltando ao normal até `years`. O frio não mexe no nível do mar (o mar
+ * acompanha o gelo das geleiras, que leva milênios; ver `applyClimateOffset`).
  */
 export interface ImpactWinter {
   tick: number;
   amount: number;
   years: number;
 }
+export const IMPACT_RAMP_YEARS = 3;
 export const IMPACT_FULL_YEARS = 5;
 
 /** Frio (°C, ≥ 0) dos invernos de impacto no passo `tick`. */
@@ -83,14 +86,16 @@ export function impactCooling(tick: number, impacts: readonly ImpactWinter[]): n
   for (const i of impacts) {
     const years = (tick - i.tick) / TICKS_PER_YEAR;
     if (years < 0 || years >= i.years) continue;
-    cold += i.amount * (years < IMPACT_FULL_YEARS ? 1 : 1 - (years - IMPACT_FULL_YEARS) / (i.years - IMPACT_FULL_YEARS));
+    const x = Math.min(1, years / IMPACT_RAMP_YEARS);
+    const onset = x * x * (3 - 2 * x);
+    cold += i.amount * (years < IMPACT_FULL_YEARS ? onset : 1 - (years - IMPACT_FULL_YEARS) / (i.years - IMPACT_FULL_YEARS));
   }
   return cold;
 }
 
-/** Desvio total: ciclo + controle do jogador + invernos de impacto. */
-export function climateOffsetAt(tick: number, control: number, impacts: readonly ImpactWinter[] = []): number {
-  return glacialOffset(tick) + Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, control)) - impactCooling(tick, impacts);
+/** Desvio do ciclo glacial + controle do jogador (move o nível do mar). */
+export function climateOffsetAt(tick: number, control: number): number {
+  return glacialOffset(tick) + Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, control));
 }
 
 /**
@@ -466,18 +471,19 @@ export function shiftClimate(world: WorldState, offset: number): void {
 }
 
 /**
- * Leva o clima do mundo para o desvio `offset`: com o mesmo nível do mar, o recálculo parcial; se o
- * mar mudou de degrau, a costa anda e tudo é refeito (distância até a água, chuva). Retorna true se
- * o nível do mar mudou.
+ * Leva o clima do mundo para o desvio `offset` (ciclo glacial + controle) menos o frio de impacto
+ * `cooling`: com o mesmo nível do mar, o recálculo parcial; se o mar mudou de degrau, a costa anda e
+ * tudo é refeito (distância até a água, chuva). O mar segue só `offset`. Retorna true se o nível do
+ * mar mudou.
  */
-export function applyClimateOffset(world: WorldState, offset: number): boolean {
+export function applyClimateOffset(world: WorldState, offset: number, cooling = 0): boolean {
   const sea = seaLevelFor(world.params.seaLevel, offset);
   if (sea === world.seaLevel) {
-    shiftClimate(world, offset);
+    shiftClimate(world, offset - cooling);
     return false;
   }
   world.seaLevel = sea;
-  world.climateOffset = offset;
+  world.climateOffset = offset - cooling;
   computeWaterDistance(world);
   updateClimate(world);
   return true;

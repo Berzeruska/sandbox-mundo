@@ -235,24 +235,21 @@ export class App {
           }
         },
         onToggle: (id, on) => {
-          if (id === 'platesLayer') this.layers = { ...this.layers, plates: on };
-          if (id === 'biomesLayer') this.layers = { ...this.layers, biomes: on };
           if (id === 'cloudsLayer') {
             if (this.renderer) this.renderer.clouds = on ? 1 : 0;
             this.cloudsOn = on;
             this.requestDraw();
-            return;
           }
-          if (id === 'stressLayer') this.layers = { ...this.layers, stress: on };
-          if (id === 'resourcesLayer') {
-            this.layers = { ...this.layers, resources: on };
-            if (!on) this.tip.hide();
-            if (this.renderer) this.renderer.resourcesLayer = on;
-          }
-          // Uma legenda por vez: a de recursos tem prioridade (a camada de recursos fica por cima).
-          this.legend.show(this.layers.resources);
-          this.biomeLegend.show(this.layers.biomes && !this.layers.resources);
-          this.stressLegend.show(this.layers.stress && !this.layers.resources && !this.layers.biomes);
+        },
+        // Uma visão por vez (decisão do usuário, 2026-10-19): ligar uma desliga as outras.
+        onView: (id) => {
+          const resources = id === 'resourcesLayer';
+          this.layers = { ...this.layers, plates: id === 'platesLayer', biomes: id === 'biomesLayer', stress: id === 'stressLayer', resources };
+          if (!resources) this.tip.hide();
+          if (this.renderer) this.renderer.resourcesLayer = resources;
+          this.legend.show(resources);
+          this.biomeLegend.show(this.layers.biomes);
+          this.stressLegend.show(this.layers.stress);
           this.sim.setLayers(this.layers);
           this.requestDraw();
         },
@@ -580,13 +577,10 @@ export class App {
   }
 
   /**
-   * O jogador provoca um desastre (com a força escolhida no cartão). Os desastres andam no relógio do
-   * jogo: se o tempo estiver mais rápido que 1×, volta para 1× para dar para ver (decisão do usuário,
-   * 2026-10-18; pausado continua pausado).
+   * O jogador provoca um desastre (com a força escolhida no cartão). A velocidade não muda: o jogo nunca
+   * muda as escolhas do jogador sozinho (decisão do usuário, 2026-10-19, revertendo a volta para 1×).
    */
   private provoke(kind: DisasterKind, point: Vec3): void {
-    const speed = this.clock.speed;
-    if (speed !== 0 && speed !== 1) this.setSpeed(1);
     this.sim.triggerDisaster(kind, point, this.hud.strengthOf(kind));
   }
 

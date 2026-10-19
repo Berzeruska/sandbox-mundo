@@ -107,6 +107,14 @@ const NEXT_STATE: Readonly<Partial<Record<number, readonly [Exclude<CellState, 0
   // A enchente do degelo passa e deixa areia e cascalho (30–80 anos).
   [CellState.Meltwater]: [CellState.Outwash, 30, 80],
 };
+/**
+ * Estados de terra firme: saem se a célula virar mar (o mar subiu, a costa foi raspada). E os que saem
+ * se a célula ficar coberta de gelo (achados da revisão E13, 2026-10-19: ficavam escondidos lá).
+ */
+const LAND_ONLY_TABLE = new Uint8Array(32);
+for (const s of [CellState.Burning, CellState.Burned, CellState.Heat, CellState.Sand, CellState.Fertile, CellState.Mud, CellState.Ash, CellState.Slide, CellState.Crack, CellState.Outwash, CellState.Flooded, CellState.Lake]) LAND_ONLY_TABLE[s] = 1;
+const NOT_ON_ICE_TABLE = new Uint8Array(32);
+for (const s of [CellState.Burning, CellState.Burned, CellState.Heat, CellState.Sand, CellState.Ash]) NOT_ON_ICE_TABLE[s] = 1;
 /** Estados que só a lava cobre (um alagamento não apaga um derrame de basalto). */
 const ROCK: ReadonlySet<number> = new Set([CellState.Lava, CellState.Basalt]);
 
@@ -240,7 +248,11 @@ export class Ground {
     const { biome, ice, elevation } = world;
     const sea = world.seaLevel;
     for (const c of this.active) {
-      const s = this.state[c] as number;
+      let s = this.state[c] as number;
+      if (s && ((LAND_ONLY_TABLE[s] && (elevation[c] as number) <= sea) || (NOT_ON_ICE_TABLE[s] && ice[c]))) {
+        this.state[c] = CellState.None;
+        s = CellState.None;
+      }
       // Estado que vai sumindo: a cor pode mudar de degrau.
       if (s) this.dirty.add(c);
       const cover = this.cover[c] as number;

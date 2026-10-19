@@ -27,6 +27,9 @@ const bytesOf = (a: ArrayBufferView): Uint8Array => new Uint8Array(a.buffer, a.b
  * propósito (a R2, logo antes, não mudou o valor: o chão dos desastres não entra nas cores do motor).
  * Valor novo na RG (2026-10-18): só a textura de placas do desenho mudou (candidatas a 8 passos e a
  * distância até a outra placa); sem ela, o valor antes e depois é o mesmo (8636d30e).
+ * Valor novo no teste da d644319 (E6, 2026-10-19): em terra, a altura e os degraus das cores contam do
+ * nível de base do mar (antes, do nível do mar atual, que o ciclo glacial move); sem essa mudança das
+ * cores, o valor é o mesmo de antes (b0dbcd8f).
  */
 describe('motor da geologia: mesmo resultado', () => {
   it('impressão digital depois de 40 recomposições (terra, N = 64)', () => {
@@ -53,6 +56,6 @@ describe('motor da geologia: mesmo resultado', () => {
       engine.receive({ type: 'advance', world: 1, tick });
       for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
     }
-    expect(h.toString(16)).toBe('b0dbcd8f');
+    expect(h.toString(16)).toBe('aee2695d');
   });
 });

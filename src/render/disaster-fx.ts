@@ -17,6 +17,8 @@ interface Fx {
 
 /** Meteoro: quanto tempo o risco leva até bater (1 s = os 12 passos da entrada em 1×). */
 const METEOR_ENTRY_MS = 1000;
+/** Raio da bola do meteoro em relação ao raio da cratera na tela (E12). */
+const METEOR_HEAD = 0.35;
 
 /** Duração das animações (ms). */
 const FX_MS: Record<number, number> = {
@@ -61,17 +63,20 @@ export class DisasterFx {
 
 /**
  * Meteoro (C12): risco brilhante descendo na diagonal até o ponto (direção sorteada pelo id) e, ao
- * bater, um clarão. Tamanho pelo zoom e pelo tamanho do meteoro.
+ * bater, um clarão. O tamanho acompanha a cratera (E12, teste da d644319: o meteoro era pequeno e só a
+ * cratera grande): a bola tem ~1/3 do raio da cratera na tela, a cauda e o clarão crescem junto.
  */
 function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, ms: number, id: number, dpr: number): void {
   const c = camera.worldToScreen(e.point);
   if (!c.visible || !Number.isFinite(c.x) || !Number.isFinite(c.y)) return;
-  const scale = Math.max(0.15, Math.min(1, camera.cellPixels() / 30)) * (0.6 + 0.2 * e.magnitude);
+  // Raio da cratera na tela (px): e.radius é o raio dela em radianos.
+  const crater = (e.radius / camera.cellAngle) * camera.cellPixels();
+  const head = Math.max(4 * dpr, METEOR_HEAD * crater);
   const a = ((Math.imul(id, 2654435761) >>> 0) / 4294967296) * Math.PI * 2;
-  const len = 320 * dpr * scale;
+  const len = Math.max(120 * dpr, head * 16);
   if (ms < METEOR_ENTRY_MS) {
     const t = ms / METEOR_ENTRY_MS;
-    // Cabeça indo do alto até o ponto; cauda atrás.
+    // Cabeça indo do alto até o ponto; cauda atrás, da largura da bola.
     const hx = c.x + Math.cos(a) * len * (1 - t);
     const hy = c.y - Math.abs(Math.sin(a)) * len * (1 - t) - len * 0.3 * (1 - t);
     const tx = hx + Math.cos(a) * len * 0.45;
@@ -80,20 +85,26 @@ function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEv
     g.addColorStop(0, 'rgba(255, 200, 120, 0)');
     g.addColorStop(1, 'rgba(255, 245, 210, 0.95)');
     ctx.strokeStyle = g;
-    ctx.lineWidth = 8 * dpr * scale;
+    ctx.lineWidth = head * 1.6;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(tx, ty);
     ctx.lineTo(hx, hy);
     ctx.stroke();
+    // Brilho em volta da bola e a bola (rocha incandescente).
+    const glow = ctx.createRadialGradient(hx, hy, 0, hx, hy, head * 2.2);
+    glow.addColorStop(0, 'rgba(255, 230, 170, 0.9)');
+    glow.addColorStop(1, 'rgba(255, 140, 60, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(hx - head * 2.2, hy - head * 2.2, head * 4.4, head * 4.4);
     ctx.fillStyle = 'rgba(255, 250, 230, 1)';
     ctx.beginPath();
-    ctx.arc(hx, hy, 5 * dpr * scale, 0, Math.PI * 2);
+    ctx.arc(hx, hy, head, 0, Math.PI * 2);
     ctx.fill();
     return;
   }
   const fade = Math.max(0, 1 - (ms - METEOR_ENTRY_MS) / 500);
-  const r = Math.max(10 * dpr, 140 * dpr * scale);
+  const r = Math.max(10 * dpr, crater * 1.6);
   const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
   g.addColorStop(0, `rgba(255, 255, 255, ${(0.95 * fade).toFixed(3)})`);
   g.addColorStop(0.4, `rgba(255, 216, 144, ${(0.7 * fade).toFixed(3)})`);

@@ -63,7 +63,17 @@ export function sampleCategory(u: number): number {
  * curvando para o polo e, passando de ~25°, para leste. Perde força em terra (uma categoria a cada ~3
  * passos) e em mar frio; some quando chega a 0.
  */
-export function hurricaneTrack(world: WorldState, start: number, category: number, rng: Rng, step = TRACK_STEP, maxPoints = TRACK_POINTS, steady = false): HurricaneTrack {
+export function hurricaneTrack(
+  world: WorldState,
+  start: number,
+  category: number,
+  rng: Rng,
+  step = TRACK_STEP,
+  maxPoints = TRACK_POINTS,
+  steady = false,
+  /** Primeiros pontos em terra em que o do jogador não perde força (E7). */
+  holdPoints = 0,
+): HurricaneTrack {
   // Ganho e perda de força por ponto, na escala do passo (os números são para TRACK_STEP).
   const k = step / TRACK_STEP;
   // O do jogador segura a categoria escolhida: não enfraquece em mar frio e perde a metade em terra.
@@ -90,7 +100,7 @@ export function hurricaneTrack(world: WorldState, start: number, category: numbe
     } else {
       landfall = true;
       landCells.push(c);
-      strength -= land;
+      if (landCells.length > holdPoints) strength -= land;
     }
     peak = Math.max(peak, strength);
     // Leste e norte locais.

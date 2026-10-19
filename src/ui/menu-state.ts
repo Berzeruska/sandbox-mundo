@@ -24,7 +24,8 @@ export const CATEGORIES: readonly { id: CategoryId; label: string; icon: string 
  * - `speed`: muda a velocidade e deixa o seletor de velocidade na tela;
  * - `tool`: vira a ferramenta ativa (fica na tela);
  * - `action`: faz algo uma vez (novo mundo, painel de dados) sem trocar a ferramenta ativa;
- * - `toggle`: liga/desliga algo (camadas como "Ver placas") sem trocar a ferramenta ativa.
+ * - `toggle`: liga/desliga algo. As visões (VIEWS) são "um efeito por vez" junto com as ferramentas;
+ *   as nuvens são um padrão do mundo e ficam independentes.
  */
 export type ItemKind = 'speed' | 'tool' | 'action' | 'toggle';
 
@@ -132,13 +133,22 @@ export function itemsOf(category: CategoryId): MenuItem[] {
   return ITEMS.filter((i) => i.category === category);
 }
 
+/**
+ * Visões do mundo: entram no "um efeito por vez" (decisão do usuário, 2026-10-19) com as ferramentas de
+ * pincel e os desastres. Só um poder selecionado; escolher outro substitui o anterior; tocar no
+ * selecionado desliga.
+ */
+export const VIEWS: ReadonlySet<string> = new Set(['platesLayer', 'resourcesLayer', 'stressLayer', 'biomesLayer']);
+
 export interface MenuState {
   open: boolean;
   /** Categoria mostrada no menu. */
   category: CategoryId;
   /** O que está na tela: o id de uma ferramenta, ou SPEED_CARD (seletor de velocidade). */
   active: string;
-  /** Interruptores ligados (ids de itens `toggle`). */
+  /** Visão ligada (uma de VIEWS), ou null. */
+  view: string | null;
+  /** Interruptores dos padrões do mundo ligados (hoje só as nuvens). */
   toggles: readonly string[];
 }
 
@@ -146,10 +156,17 @@ export type MenuEffect =
   | { type: 'none' }
   | { type: 'speed'; speed: Speed }
   | { type: 'action'; action: string }
-  | { type: 'toggle'; id: string; on: boolean };
+  | { type: 'toggle'; id: string; on: boolean }
+  /** A visão ligada agora (null: nenhuma). */
+  | { type: 'view'; id: string | null };
 
 /** Nuvens começam ligadas (T10). */
-export const INITIAL_MENU: MenuState = { open: false, category: 'relevo', active: 'move', toggles: ['cloudsLayer'] };
+export const INITIAL_MENU: MenuState = { open: false, category: 'relevo', active: 'move', view: null, toggles: ['cloudsLayer'] };
+
+/** Poder = pincel ou desastre: entra no "um efeito por vez" com as visões. */
+function isPower(item: MenuItem | undefined): boolean {
+  return item !== undefined && (item.brush !== undefined || item.disaster !== undefined);
+}
 
 /** Categoria do que está ativo na tela (para abrir o menu "no lugar certo"). */
 export function categoryOfActive(state: MenuState): CategoryId {
@@ -184,20 +201,28 @@ export function selectItem(state: MenuState, id: string): { state: MenuState; ef
   if (item.kind === 'action') {
     return { state: { ...state, open: false }, effect: { type: 'action', action: item.id } };
   }
+  if (item.kind === 'toggle' && VIEWS.has(item.id)) {
+    // Uma visão por vez; ligar uma visão desliga o pincel ou desastre em uso (volta para Mover).
+    const view = state.view === item.id ? null : item.id;
+    const active = view && isPower(itemById(state.active)) ? 'move' : state.active;
+    return { state: { ...state, open: false, view, active }, effect: { type: 'view', id: view } };
+  }
   if (item.kind === 'toggle') {
     const on = !state.toggles.includes(item.id);
     const toggles = on ? [...state.toggles, item.id] : state.toggles.filter((t) => t !== item.id);
-    // Ligar uma visão desliga a ferramenta em uso (teste da 30e5e93): volta para Mover.
-    const active = on && itemById(state.active)?.kind === 'tool' ? 'move' : state.active;
-    return { state: { ...state, open: false, toggles, active }, effect: { type: 'toggle', id: item.id, on } };
+    return { state: { ...state, open: false, toggles }, effect: { type: 'toggle', id: item.id, on } };
   }
   // Tocar de novo na ferramenta em uso desliga ela (volta para Mover).
   const active = item.id === state.active && item.id !== 'move' ? 'move' : item.id;
+  // Escolher um pincel ou desastre desliga a visão ligada (um efeito por vez).
+  if (isPower(item) && active === item.id && state.view !== null) {
+    return { state: { ...state, open: false, active, view: null }, effect: { type: 'view', id: null } };
+  }
   return { state: { ...state, open: false, active }, effect: { type: 'none' } };
 }
 
 export function isOn(state: MenuState, id: string): boolean {
-  return state.toggles.includes(id);
+  return state.view === id || state.toggles.includes(id);
 }
 
 /** Desastre da ferramenta ativa (tocar no globo provoca), ou null. */

@@ -211,3 +211,60 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **Correção:** a ruptura vale no passo seguinte (T + 1); e o motor, enquanto um comando do passo T
   espera, só avisa T − 1. O commit `ec4976c` foi publicado com este teste falhando (o encadeamento do
   commit não olhou o código de saída do `npm run check`); corrigido no commit seguinte.
+
+## 2026-10-19 — Visão desligando sozinha / mundo escurecendo do nada (notebook, `d644319`, E9/E5)
+- **Como reproduzir:** placas andando; ligar ou desligar "Ver placas" ou "Ver recursos". Uns segundos
+  depois a visão some (ou volta: "Ver recursos" acinzenta e escurece o terreno) sem tocar em nada.
+- **Causa:** o ajudante 2 pinta as cores de cada recomposição com as visões que valiam quando ela
+  começou, e o relógio a mostra APPLY_DELAY_TICKS passos depois. Ao aplicar, o relógio copiava essas
+  cores sem conferir as visões. Junto: o halo das jazidas ("Ver recursos") guardado no relógio não era
+  refeito quando as jazidas andavam.
+- **Correção:** o resultado leva as visões com que foi pintado; se forem outras, o relógio repinta com
+  as de agora; o halo é refeito a cada recomposição (`src/sim/core.ts`). Teste em
+  `tests/sim/core.test.ts` ("visão ligada no meio de uma recomposição…", falha sem a correção).
+  Também entra o "um efeito por vez" (decisão do usuário): duas visões juntas não existem mais.
+
+## 2026-10-19 — Tempestade de areia no mar (notebook, `d644319`, E4)
+- **Como reproduzir:** tempestade natural num deserto perto da costa, ou provocada em qualquer terra.
+- **Causa:** a poeira desenhada vai até ~2,5 raios do centro (o shader a alonga no sentido do vento),
+  bem além da área de efeito (0,8 raio), e o caminho seguia pelo vento até o mar. O jogador podia
+  provocar em qualquer terra.
+- **Correção:** nasce só em deserto ou seca com espaço até a água; o raio de cada ponto do caminho é o
+  que cabe em terra (conferido célula a célula perto da costa) e ela se desfaz antes do mar; o jogador
+  provoca no deserto ou seca mais perto do toque (até 6 células), senão nada
+  (`src/world/disasters/sandstorm.ts`). Testes em `tests/world/sandstorm.test.ts`.
+
+## 2026-10-19 — Clima e gelo mudando de uma vez (notebook, `d644319`, E6)
+- **Como reproduzir:** meteoro gigante; ou o controle de temperatura subindo até +10 °C.
+- **Causa (medida):** (1) o inverno do impacto entrava inteiro num passo (−3 °C e o mar −50 m: 58% das
+  células trocavam de cor num quadro) e a volta aparecia 40 anos atrasada (o resultado do ajudante 2
+  entra 480 passos depois); (2) em terra, o brilho pela altura e os degraus do relevo contavam do
+  nível do mar atual: cada degrau de 10 m do mar deslocava os degraus do mundo inteiro (16% das
+  células mudando de uma vez).
+- **Correção:** o frio do impacto chega em 3 anos e é cuidado só pelo relógio, em degraus de 0,5 °C,
+  sem mexer no nível do mar; em terra, altura e degraus contam do nível de base do mar
+  (`src/world/climate.ts`, `src/sim/core.ts`, `src/render/colors.ts`). Depois: 5–7% das células por
+  degrau de 0,5 °C, e 1–2% de mudança visível por degrau do mar. Teste em `tests/world/meteor.test.ts`.
+
+## 2026-10-19 — Ciclone 1 dura ~1 s, Furacão 5 ~10 s (notebook, `d644319`, E7)
+- **Como reproduzir:** provocar em terra perto da costa.
+- **Causa:** o furacão do jogador perdia em terra a mesma força por passo em qualquer categoria; a
+  categoria 1 tinha pouca força para gastar (1,5–8 s medidos), a 5 chegava a 9–15 s.
+- **Correção:** o do jogador segura a força em terra por um tempo que cresce com a categoria (1: +2 s;
+  2: igual, aprovado; 3: +4 s; 4: +8 s; 5: +12 s), com o teto de 24 s (`PLAYER_LAND_HOLD`). Teste em
+  `tests/world/hurricane.test.ts`.
+
+## 2026-10-19 — Gelo derretido por vulcão não voltava com as placas andando (revisão E13)
+- **Como reproduzir:** vulcão acordando sob o gelo com as placas a 100%; desastres desligados; esperar
+  200 anos num lugar frio. O gelo apagado continua apagado.
+- **Causa:** o modo do gelo (pintado/apagado) fica no lugar, não anda com a placa; a agenda da volta
+  andava com a placa e, na hora, devolvia outra célula.
+- **Correção:** a agenda também fica no lugar (`src/world/disasters/index.ts`). Teste em
+  `tests/world/ground.test.ts`. Sonda de 600 anos com tudo ligado + 500 de calma: 0 células sobrando.
+
+## 2026-10-19 — Estados do chão escondidos em água e gelo (revisão E13)
+- **Como reproduzir:** seca, lama do tsunami ou areia; depois o mar sobe (ciclo glacial, costa raspada)
+  ou o gelo cobre a célula. O estado ficava lá, invisível, até vencer.
+- **Correção:** na passagem anual, estado de terra firme sai se a célula virou mar; seca, fogo, cinzas e
+  areia saem debaixo do gelo; lava e basalto ficam (`src/world/disasters/ground.ts`). Teste em
+  `tests/world/ground.test.ts`.

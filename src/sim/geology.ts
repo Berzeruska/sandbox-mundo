@@ -1,6 +1,6 @@
 import { newArray } from '../core/shared';
 import { buildColors, NO_LAYERS, type Layers } from '../render/colors';
-import { applyClimateOffset, climateOffsetAt, type ImpactWinter, computeWaterDistance, seaLevelFor, updateClimate, updateWaterDistance } from '../world/climate';
+import { applyClimateOffset, climateOffsetAt, computeWaterDistance, seaLevelFor, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellsRequest } from '../world/cell-pool';
 import type { CubeSphere } from '../world/cubesphere';
 import type { Plate } from '../world/plates';
@@ -88,8 +88,6 @@ export type GeologyCommand =
   | { type: 'rupture'; world: number; tick: number }
   /** Controle de temperatura global (°C), a partir deste passo. */
   | { type: 'climate'; world: number; tick: number; control: number }
-  /** Inverno de impacto (meteoro gigante) começando neste passo. */
-  | { type: 'impact'; world: number; tick: number; amount: number; years: number }
   | { type: 'layers'; world: number; layers: Layers }
   | { type: 'consumed'; world: number; index: number };
 
@@ -106,6 +104,8 @@ export interface GeologyResult {
   climateOffset: number;
   seaLevel: number;
   control: number;
+  /** Visões (Ver placas, recursos, biomas, tensão) com que as cores foram pintadas. */
+  layers: Layers;
   /** Passo do relógio em que a recomposição aconteceu (aparece em tick + APPLY_DELAY_TICKS). */
   tick: number;
   /** Ângulos das placas e deriva na recomposição; eixo, velocidade e centro de cada placa. */
@@ -197,8 +197,6 @@ export class GeologyEngine {
   private rate: number;
   private layers: Layers;
   private climateControl: number;
-  /** Invernos de impacto (meteoro gigante), somados ao clima. */
-  private impacts: ImpactWinter[] = [];
   private queue: GeologyCommand[] = [];
   private nextIndex = 0;
   /** Índice da recomposição entregue e ainda não aplicada pelo relógio (-1: nenhuma). */
@@ -295,7 +293,7 @@ export class GeologyEngine {
 
   /** O clima precisa ser refeito no passo `tick` (desvio andou CLIMATE_STEP, ou o mar mudou de degrau)? */
   private climateDue(tick: number): boolean {
-    const offset = climateOffsetAt(tick, this.climateControl, this.impacts);
+    const offset = climateOffsetAt(tick, this.climateControl);
     const w = this.world;
     return Math.abs(offset - w.climateOffset) >= CLIMATE_STEP || seaLevelFor(w.params.seaLevel, offset) !== w.seaLevel;
   }
@@ -327,8 +325,6 @@ export class GeologyEngine {
       this.rate = Math.max(0, Math.min(1, cmd.rate));
     } else if (cmd.type === 'climate') {
       this.climateControl = cmd.control;
-    } else if (cmd.type === 'impact') {
-      this.impacts.push({ tick: cmd.tick, amount: cmd.amount, years: cmd.years });
     } else if (cmd.type === 'brush') {
       this.applyBrush(cmd.delta);
     } else if (cmd.type === 'rupture') {
@@ -380,7 +376,7 @@ export class GeologyEngine {
   private refreshClimate(): void {
     const t0 = this.now();
     const world = this.world;
-    applyClimateOffset(world, climateOffsetAt(this.tick, this.climateControl, this.impacts));
+    applyClimateOffset(world, climateOffsetAt(this.tick, this.climateControl));
     const t1 = this.now();
     buildColors(world, this.colors, undefined, this.layers);
     const t2 = this.now();
@@ -394,7 +390,7 @@ export class GeologyEngine {
     if (!tectonics) return;
     const t1 = this.now();
     // Clima do passo atual (ciclo glacial + controle): nível do mar, costa, chuva, gelo e biomas.
-    world.climateOffset = climateOffsetAt(this.tick, this.climateControl, this.impacts);
+    world.climateOffset = climateOffsetAt(this.tick, this.climateControl);
     world.seaLevel = seaLevelFor(world.params.seaLevel, world.climateOffset);
     computeWaterDistance(world);
     updateClimate(world);
@@ -421,6 +417,7 @@ export class GeologyEngine {
       climateOffset: world.climateOffset,
       seaLevel: world.seaLevel,
       control: this.climateControl,
+      layers: this.layers,
       tick: this.tick,
       angles: tectonics ? Array.from(tectonics.angle) : [],
       drift: tectonics?.driftNow ?? 0,

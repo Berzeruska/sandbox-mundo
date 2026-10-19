@@ -14,6 +14,7 @@ import {
   openMenu,
   selectCategory,
   selectItem,
+  isOn,
   SPEED_CARD,
   DEFAULT_STRENGTH,
   STRENGTHS,
@@ -108,18 +109,47 @@ describe('menu de ferramentas: comportamento', () => {
   });
 });
 
-describe('interruptores (camadas)', () => {
-  it('"Ver placas" liga e desliga e fecha o menu; ligar uma visão desliga a ferramenta em uso', () => {
+describe('um efeito por vez (decisão do usuário, 2026-10-19): pincéis, desastres e visões', () => {
+  it('"Ver placas" liga e fecha o menu; ligar uma visão desliga o pincel em uso', () => {
     const s0 = { ...INITIAL_MENU, active: 'raise', open: true, category: 'geologia' as const };
     const a = selectItem(s0, 'platesLayer');
-    expect(a.effect).toEqual({ type: 'toggle', id: 'platesLayer', on: true });
-    // As nuvens já começam ligadas; o pincel em uso desliga (volta para Mover).
-    expect(a.state).toMatchObject({ open: false, active: 'move', toggles: ['cloudsLayer', 'platesLayer'] });
-    const b = selectItem({ ...a.state, open: true, active: 'raise' }, 'platesLayer');
-    // Desligar a visão não mexe na ferramenta.
-    expect(b.state.active).toBe('raise');
-    expect(b.effect).toEqual({ type: 'toggle', id: 'platesLayer', on: false });
-    expect(b.state.toggles).toEqual(['cloudsLayer']);
+    expect(a.effect).toEqual({ type: 'view', id: 'platesLayer' });
+    expect(a.state).toMatchObject({ open: false, active: 'move', view: 'platesLayer', toggles: ['cloudsLayer'] });
+  });
+
+  it('escolher outra visão substitui a anterior; tocar na selecionada desliga', () => {
+    const a = selectItem(openMenu(INITIAL_MENU, 'geologia'), 'platesLayer');
+    const b = selectItem(openMenu(a.state, 'geologia'), 'resourcesLayer');
+    expect(b.effect).toEqual({ type: 'view', id: 'resourcesLayer' });
+    expect(b.state.view).toBe('resourcesLayer');
+    expect(isOn(b.state, 'platesLayer')).toBe(false);
+    const c = selectItem(openMenu(b.state), 'resourcesLayer');
+    expect(c.effect).toEqual({ type: 'view', id: null });
+    expect(c.state.view).toBeNull();
+  });
+
+  it('escolher um pincel ou desastre desliga a visão ligada', () => {
+    const a = selectItem(openMenu(INITIAL_MENU, 'desastres'), 'stressLayer');
+    expect(a.state.view).toBe('stressLayer');
+    const b = selectItem(openMenu(a.state, 'desastres'), 'volcano');
+    expect(b.state).toMatchObject({ active: 'volcano', view: null });
+    expect(b.effect).toEqual({ type: 'view', id: null });
+    const c = selectItem(openMenu(selectItem(openMenu(INITIAL_MENU), 'biomesLayer').state, 'relevo'), 'water');
+    expect(c.state).toMatchObject({ active: 'water', view: null });
+  });
+
+  it('controles (temperatura, frequência, velocidade das placas, tempo) e Mover não desligam a visão', () => {
+    const a = selectItem(openMenu(INITIAL_MENU, 'geologia'), 'platesLayer');
+    for (const id of ['plateSpeed', 'temperature', 'disasterFreq', 'speed20', 'move']) {
+      expect(selectItem(openMenu(a.state), id).state.view, id).toBe('platesLayer');
+    }
+  });
+
+  it('nuvens são um padrão do mundo: ligam e desligam sem mexer na visão nem na ferramenta', () => {
+    const a = selectItem(openMenu(INITIAL_MENU, 'geologia'), 'platesLayer');
+    const b = selectItem(openMenu({ ...a.state, active: 'raise' }, 'clima'), 'cloudsLayer');
+    expect(b.effect).toEqual({ type: 'toggle', id: 'cloudsLayer', on: false });
+    expect(b.state).toMatchObject({ view: 'platesLayer', active: 'raise', toggles: [] });
   });
 });
 

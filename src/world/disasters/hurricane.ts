@@ -30,6 +30,12 @@ export function damageRadius(category: number): number {
  */
 export const MAX_TRACK_TICKS = 288;
 export const TRACK_CELLS_PER_TICK = 0.5;
+/**
+ * Quanto tempo (passos, 12 = 1 s em 1×) o furacão do jogador segura a força em terra antes de começar a
+ * enfraquecer, pela categoria (E7, teste da d644319: o Ciclone 1 durava ~1 s e o Furacão 5 ~10 s
+ * tocando perto da costa; o Ciclone 2 estava bom e fica igual).
+ */
+export const PLAYER_LAND_HOLD: readonly number[] = [0, 24, 0, 48, 96, 144];
 /** Até 2 por quadrante do globo e 8 ao todo. */
 export const MAX_PER_QUADRANT = 2;
 export const MAX_STORMS_WORLD = 8;
@@ -81,7 +87,8 @@ export class HurricaneProcess {
       flood(cell: number, tick: number): void;
     },
   ) {
-    this.track = hurricaneTrack(world, start, category, rng, world.grid.cellAngle * TRACK_CELLS_PER_TICK, MAX_TRACK_TICKS, steady);
+    const hold = steady ? (PLAYER_LAND_HOLD[Math.max(1, Math.min(5, Math.round(category)))] as number) : 0;
+    this.track = hurricaneTrack(world, start, category, rng, world.grid.cellAngle * TRACK_CELLS_PER_TICK, MAX_TRACK_TICKS, steady, hold);
   }
 
   /** Onde ele está agora e com que força (para o desenho e para o raio do jogador). */

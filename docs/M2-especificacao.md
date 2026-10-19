@@ -1084,23 +1084,42 @@ mais comuns, médios e grandes cada vez mais raros, gigante raríssimo.
 ## Correções do teste da `d644319` (2026-10-19, antes da T14)
 Teste do usuário no notebook (relatório `d6443190`). Ordem dele: estas correções, prévia e teste dele,
 depois a T14. Decisões em `docs/decisoes.md` (2026-10-19).
-- [ ] **E1 — Relógio esperou 81 ms** em "desastres Muitos, 20×" (meta: nunca espera).
-- [ ] **E2 — 195 travadas do relógio de 300–376 ms** ("relógio atrasou, núcleo ocupado") em 1× com
+- [x] **E1 — Relógio esperou 81 ms** em "desastres Muitos, 20×" (meta: nunca espera).
+- [x] **E2 — 195 travadas do relógio de 300–376 ms** ("relógio atrasou, núcleo ocupado") em 1× com
   placas 100%, jogando. Diagnosticar e corrigir.
-- [ ] **E3 — Recomposição ~650–720 ms** (antes ~400): ver se são os desastres novos.
-- [ ] **E4 — Tempestade de areia no mar:** só onde há areia e o lugar é seco.
-- [ ] **E5 — O jogo escurece do nada** às vezes.
-- [ ] **E6 — Temperatura e gelo mudando de uma vez** depois do meteoro gigante e no degelo (o
+- [x] **E3 — Recomposição ~650–720 ms** (antes ~400): ver se são os desastres novos.
+- [x] **E4 — Tempestade de areia no mar:** só onde há areia e o lugar é seco.
+- [x] **E5 — O jogo escurece do nada** às vezes.
+- [x] **E6 — Temperatura e gelo mudando de uma vez** depois do meteoro gigante e no degelo (o
   alagamento está certo; a mudança tem que ser gradual).
-- [ ] **E7 — Duração:** Ciclone 1 dura ~1 s e Furacão 5 ~10 s em 1× (o Ciclone 2 está bom).
-- [ ] **E8 — Avisos atrapalhando o menu.**
-- [ ] **E9 — Um efeito por vez** (decisão 12): dois efeitos ligados juntos e "Ver placas" desligando
+- [x] **E7 — Duração:** Ciclone 1 dura ~1 s e Furacão 5 ~10 s em 1× (o Ciclone 2 está bom).
+- [x] **E8 — Avisos atrapalhando o menu.**
+- [x] **E9 — Um efeito por vez** (decisão 12): dois efeitos ligados juntos e "Ver placas" desligando
   sozinho.
-- [ ] **E10 — Tsunami recomeçando** com o painel Dados ou o "Medir desempenho" (C5): testar os dois.
-- [ ] **E11 — Provocar não muda mais a velocidade** (decisão 13, reverte 2026-10-18).
-- [ ] **E12 — Meteoro maior**, proporcional à cratera (decisão 14).
-- [ ] **E13 — Revisão de todos os efeitos que mudam o mundo** (relevo, bioma, vegetação, gelo, nível
+- [x] **E10 — Tsunami recomeçando** com o painel Dados ou o "Medir desempenho" (C5): testar os dois.
+- [x] **E11 — Provocar não muda mais a velocidade** (decisão 13, reverte 2026-10-18).
+- [x] **E12 — Meteoro maior**, proporcional à cratera (decisão 14).
+- [x] **E13 — Revisão de todos os efeitos que mudam o mundo** (relevo, bioma, vegetação, gelo, nível
   do mar, clima): o que muda, se volta quando deve, e combinações.
+
+  **Feito (2026-10-19)** (detalhes em `docs/bugs.md` e `docs/decisoes.md`):
+  - E1–E3: diagnóstico. As travadas das 07:27 coincidem com sondas e testes pesados do Claude Code no
+    mesmo notebook (todos os núcleos); sem carga, 150 s em 1× com placas 100%: 0 travadas. Recomposição
+    medida no Node, mesmo mundo: hoje ~430 ms contra ~390 ms na RG (+10% com os desastres novos, não o
+    dobro). Falta a medição limpa no notebook (jogo sozinho): vai na lista de teste.
+  - E4: tempestade de areia só em areia/seca com espaço até a água; a poeira não passa por cima do mar.
+  - E5/E9: o relógio repinta quando o resultado do ajudante foi pintado com outras visões; um efeito
+    por vez (pincéis, desastres e visões); controles e Mover não desligam a visão.
+  - E6: inverno de impacto em 3 anos, só no relógio, sem mexer no mar; relevo em terra conta do nível
+    de base do mar.
+  - E7: furacão do jogador segura a força em terra (2/0/4/8/12 s pela categoria), teto de 24 s.
+  - E8: avisos somem com o menu aberto.
+  - E10: não reproduzido (Dados não mexe no tsunami); o "Medir desempenho" gera o mundo de novo no fim:
+    pergunta ao usuário.
+  - E11: provocar não muda a velocidade.
+  - E12: meteoro com ~1/3 do raio da cratera.
+  - E13: dois bugs achados e corrigidos (gelo derretido que não voltava com as placas andando; estados
+    escondidos em água e gelo); sonda de 600 anos com tudo ligado + 500 de calma: o mundo volta.
 
 ## Bloco Final (depois do Bloco Desastres v2)
 

@@ -970,3 +970,37 @@ Formato: data — decisão — motivo — alternativa descartada.
 4. **Meteoro maior**, proporcional à cratera (hoje o meteoro é pequeno e só a cratera é grande).
 5. **Aprovados:** raio, tempestade de areia, terremoto e a duração geral dos desastres.
 6. **Meteoro natural com "Placas 0":** confirmada a escolha técnica (não cai).
+
+## 2026-10-19 — Correções E1–E13 do teste da `d644319` (decisões técnicas)
+- **Um efeito por vez (E9):** pincéis, desastres e as visões Ver placas, Ver recursos, Ver tensão e Ver
+  biomas dividem a mesma vez: escolher um substitui o anterior; tocar no selecionado desliga. Os
+  controles (tempo, temperatura, frequência, velocidade das placas) e "Mover" não são poderes: não
+  desligam a visão (ex.: ver as placas enquanto muda a velocidade delas). Nuvens continuam à parte.
+- **Avisos com o menu aberto (E8):** somem enquanto o menu está aberto (numa janela mais estreita que
+  ~900 px ficavam por cima das ferramentas) e voltam ao fechar, se ainda valerem.
+- **Tempestade de areia (E4):** a poeira desenhada vai até ~2,5 raios do centro; o raio de cada ponto
+  do caminho é o que cabe em terra até a água, e abaixo de 5 células ela se desfaz. Perto da costa ela
+  nasce menor. O desenho (aprovado) não mudou. Alternativa descartada: recortar a poeira no shader pela
+  água (uma leitura a mais por pixel e erro de algumas células com as placas andando).
+- **Furacão do jogador (E7):** segura a força em terra por 2/0/4/8/12 s (categorias 1–5) antes de
+  enfraquecer como antes; teto de 24 s. Os naturais não mudaram.
+- **Meteoro (E12):** a bola tem ~1/3 do raio da cratera na tela (cauda e clarão crescem junto).
+- **Inverno de impacto (E6):** chega em 3 anos (suave) e é cuidado só pelo relógio (o ajudante 2 não o
+  vê mais), em degraus de 0,5 °C como o controle de temperatura (~100 ms por degrau no relógio em
+  N = 256). **Não mexe no nível do mar:** o mar acompanha o volume das geleiras, que leva milênios; um
+  inverno de 30 anos não o baixa (antes descia 50 m de uma vez). A confirmar com o usuário.
+- **Cores (E6):** em terra, o brilho pela altura, a sombra de encosta e os degraus contam do nível de
+  base do mar, não do atual. A troca entre terra e mar e a cor da profundidade seguem o mar atual.
+  Impressão digital do motor nova (`aee2695d`).
+- **Visões e recomposição (E5/E9):** o resultado do ajudante leva as visões com que foi pintado; se o
+  jogador trocou de visão no meio, o relógio repinta.
+- **Revisão (E13):** a agenda de volta do gelo derretido fica no lugar (o modo do gelo não anda com a
+  placa); estados de terra firme saem quando a célula vira mar ou fica sob o gelo.
+- **Tsunami recomeçando (E10):** não reproduzido. Com o painel Dados aberto o tsunami segue normal
+  (capturas a cada 0,4 s). O "Medir desempenho" pausa e, no fim, gera o mundo de novo (para medir a
+  geração): tudo volta ao ano 0. Pergunta ao usuário se isso deve mudar.
+- **Desempenho (E1–E3):** as travadas das 07:27 coincidem com as sondas e testes pesados que o Claude
+  Code rodava no mesmo notebook (07:25–07:35, todos os núcleos ocupados); o jogo do usuário no Firefox
+  também estava aberto durante a medição do Claude Code (GPU dividida). Sem carga, 1× com placas 100%
+  por 150 s: 0 travadas. Achado à parte: com a janela coberta (sem a página ficar "escondida"), o
+  navegador desenha 1 quadro por segundo e o rodapé conta travadas falsas da tela.

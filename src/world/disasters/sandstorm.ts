@@ -25,6 +25,14 @@ export const MAX_SANDSTORMS = 4;
 /** A vegetação embaixo perde 20–50% (mais perto do miolo); a areia fica 3–10 anos. */
 export const SAND_DAMAGE: readonly [number, number] = [0.2, 0.5];
 export const SAND_YEARS: readonly [number, number] = [3, 10];
+/**
+ * A poeira desenhada (`dust` em `src/render/shaders.ts`) aparece até ~DUST_SPAN raios do centro no
+ * sentido do vento (1,55 raio × 1,6 de alongamento) e 1,55 no outro. Para ela ficar só em terra (E4:
+ * "só onde há areia e o lugar é seco"), o raio de cada ponto do caminho é no máximo o que cabe até a
+ * água; abaixo de MIN_DUST_RADIUS células a tempestade se desfaz.
+ */
+export const DUST_SPAN = 2.5;
+export const MIN_DUST_RADIUS = 5;
 /** Tempestade a partir deste raio vira aviso. */
 export const NOTABLE_SAND_RADIUS = 20;
 
@@ -41,8 +49,11 @@ export interface DustView {
 /** Uma tempestade de areia andando com o vento. */
 export class SandstormProcess {
   private points: Vec3[] = [];
+  /** Raio (células) em cada ponto do caminho. */
+  private radii: number[] = [];
   private k = 0;
   private covered = new Set<number>();
+  /** Raio (células) no começo (o do aviso). */
   readonly radiusCells: number;
 
   constructor(
@@ -54,15 +65,18 @@ export class SandstormProcess {
     readonly startTick: number,
     private slot: number,
   ) {
-    this.radiusCells = radius;
     const pos = world.grid.positions;
     let p: Vec3 = [pos[start * 3] as number, pos[start * 3 + 1] as number, pos[start * 3 + 2] as number];
     const life = rng.int(SAND_TICKS[0], SAND_TICKS[1]);
     const step = world.grid.cellAngle * SAND_CELLS_PER_TICK;
     const wobble = rng.range(-0.3, 0.3);
     for (let k = 0; k < life; k++) {
-      this.points.push(p);
       const c = world.grid.pointToCell(p[0], p[1], p[2]);
+      // Chegando perto do mar (ou do gelo) ela encolhe e, sem espaço, se desfaz.
+      const r = dustRadius(world, p, c, radius);
+      if (r < MIN_DUST_RADIUS) break;
+      this.points.push(p);
+      this.radii.push(r);
       const w = windAt(world, c);
       // Leste-oeste do vento, com um pouco para o lado (sorteado por tempestade).
       const n: Vec3 = [p[1] * w[2] - p[2] * w[1], p[2] * w[0] - p[0] * w[2], p[0] * w[1] - p[1] * w[0]];
@@ -70,6 +84,7 @@ export class SandstormProcess {
       const l = Math.hypot(q[0], q[1], q[2]);
       p = [q[0] / l, q[1] / l, q[2] / l];
     }
+    this.radiusCells = this.radii[0] ?? 0;
   }
 
   view(): DustView | null {
@@ -77,7 +92,7 @@ export class SandstormProcess {
     if (this.k >= n) return null;
     const p = this.points[this.k] as Vec3;
     const fade = Math.min(1, (this.k + 1) / 6, (n - this.k) / 12);
-    return { id: this.startTick * 16 + 8 + this.slot, point: p, radius: this.radiusCells * this.world.grid.cellAngle, power: fade };
+    return { id: this.startTick * 16 + 8 + this.slot, point: p, radius: (this.radii[this.k] as number) * this.world.grid.cellAngle, power: fade };
   }
 
   step(tick: number): boolean {
@@ -86,7 +101,7 @@ export class SandstormProcess {
     const world = this.world;
     const p = this.points[this.k] as Vec3;
     const ang = world.grid.cellAngle;
-    const reach = this.radiusCells * 0.8;
+    const reach = (this.radii[this.k] as number) * 0.8;
     for (const c of world.grid.cellsInCap(p[0], p[1], p[2], reach * ang)) {
       if (this.covered.has(c) || world.isWater(c) || world.ice[c]) continue;
       const biome = world.biome[c] as number;
@@ -103,12 +118,42 @@ export class SandstormProcess {
   }
 }
 
-/** Onde nasce uma tempestade natural: deserto, ou a seca. Devolve a célula ou −1. */
+/**
+ * Estimativa rápida do raio (células) de poeira que cabe em terra em volta de `c` (0 na água e no
+ * gelo): a distância até a água é contada em passos de célula (4 vizinhas), que em linha reta pode ser
+ * até √2 menor, e as células perto dos cantos do cubo são menores que a média.
+ */
+export function dustRoom(world: WorldState, c: number): number {
+  if (world.isWater(c) || world.ice[c]) return 0;
+  return ((world.waterDistance[c] as number) * 0.6) / DUST_SPAN;
+}
+
+/** Raio (células, até `radius`) da poeira em `p` sem nenhuma água debaixo do desenho; 0 se não cabe. */
+export function dustRadius(world: WorldState, p: Vec3, c: number, radius: number): number {
+  if (world.isWater(c) || world.ice[c]) return 0;
+  // Longe da água a estimativa basta; perto, confere célula a célula e encolhe até caber.
+  if (dustRoom(world, c) >= radius) return radius;
+  const ang = world.grid.cellAngle;
+  let r = Math.min(radius, ((world.waterDistance[c] as number) / Math.SQRT2 / DUST_SPAN) * 1.2);
+  while (r >= MIN_DUST_RADIUS) {
+    if (!world.grid.cellsInCap(p[0], p[1], p[2], r * DUST_SPAN * ang).some((x) => world.isWater(x))) return r;
+    r *= 0.85;
+  }
+  return 0;
+}
+
+/** A célula serve para nascer uma tempestade: areia (deserto) ou seca, com espaço até o mar. */
+export function canStartSandstorm(world: WorldState, ground: Ground, c: number): boolean {
+  if (!DESERTS.has(world.biome[c] as number) && ground.state[c] !== CellState.Heat) return false;
+  const pos = world.grid.positions;
+  return dustRadius(world, [pos[c * 3] as number, pos[c * 3 + 1] as number, pos[c * 3 + 2] as number], c, MIN_DUST_RADIUS) > 0;
+}
+
+/** Onde nasce uma tempestade natural: deserto, ou a seca, longe do mar. Devolve a célula ou −1. */
 export function pickSandstormCell(world: WorldState, ground: Ground, rng: Rng): number {
   for (let k = 0; k < 400; k++) {
     const c = rng.int(0, world.cellCount - 1);
-    if (world.isWater(c) || world.ice[c]) continue;
-    if (DESERTS.has(world.biome[c] as number) || ground.state[c] === CellState.Heat) return c;
+    if (canStartSandstorm(world, ground, c)) return c;
   }
   return -1;
 }
