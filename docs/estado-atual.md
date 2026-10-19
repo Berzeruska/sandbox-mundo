@@ -1,9 +1,9 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-18**, branch `marco-2`. Correções do teste da `30e5e93`: C1–C9 e C11 feitas
-(o usuário ainda vai testar na prévia). **Propostas aprovadas** (vulcão sob gelo, tempestade de areia
-maior desenhada como nuvem, meteoro com inverno de impacto e naturais de todos os tamanhos): **em código
-agora**. Trava de commit ativa (`.githooks/pre-commit`). Depois: T13 e T14.
+Atualizado em: **2026-10-18**, branch `marco-2`. Correções do teste da `30e5e93` **todas feitas**
+(C1–C12): vulcão sob gelo (jökulhlaup), meteoro e tempestade de areia codados. Trava de commit ativa
+(`.githooks/pre-commit`). **Esperando o teste do usuário na prévia** (correções + desastres novos).
+Depois: T13 e T14.
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 

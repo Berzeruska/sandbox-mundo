@@ -1009,7 +1009,25 @@ T13 e T14). Decisões em `docs/decisoes.md` (2026-10-18, teste da `30e5e93`).
   continua descendo 15 m por °C), alagando as terras baixas; volta ao normal quando o clima volta.
   C11: raio num vulcão (acordado ou dormindo) solta 4–8 respingos de lava no cone, que podem acender o
   mato em volta; o do jogador continua acordando o adormecido. Testes novos.
-- [ ] **C12 — Tempestade de areia e meteoro:** aprovados, em código.
+- [x] **C12 — Tempestade de areia e meteoro.** **Feito (2026-10-18):**
+  - **Meteoro** (`src/world/disasters/meteor.ts`): Desastres → Meteoro, fileira Pequeno · Médio · Grande ·
+    Gigante (cratera de raio 1, 3, 6, 12 células, fundo de 200 a 1.500 m). Entra em 12 passos (o risco
+    na tela) e bate: cratera no relevo (tigela com borda erguida, para sempre; em terra o fundo fica pelo
+    menos 20 m acima do mar, a cratera não vira mar), rocha escura no fundo (100–300 anos), entulho claro
+    na borda (20–50), vegetação derrubada até 2,5 raios e 1/3/5/8 incêndios (origem "meteoro"). No mar,
+    médio, grande e gigante fazem tsunami (como M 8, 8,5 e 9,5). Grande e gigante tremem a tela (como M
+    7,5 e 9). **Gigante: inverno de impacto**, −3 °C por 30 anos (o frio todo nos 5 primeiros, depois
+    volta), no relógio e no motor da geologia. Naturais por ano antes da frequência: 1/500 pequeno,
+    1/3.000 médio, 1/20.000 grande, 1/200.000 gigante (em "Raro", um pequeno a cada ~1.250 anos). Como mudam o
+    relevo, os naturais seguem a regra "com as placas em 0 a geologia congela" (decisão técnica minha,
+    a confirmar com o usuário).
+  - **Tempestade de areia** (`src/world/disasters/sandstorm.ts`): raio 10–24 células (jogador 18–24),
+    vida 6–15 s em 1×, andando com o vento da latitude (meia célula por passo). Fora do deserto, onde
+    passa: areia por cima, vegetação −20 a 50% (mais no miolo), por 3–10 anos; o bioma não muda (o deserto
+    não avança). Nasce em deserto ou na seca (3% por ano antes da frequência; até 4 ao mesmo tempo);
+    aviso a partir de raio 20. Desenho: o mesmo ruído das nuvens do globo, mais fino e preso à tempestade
+    (borda recortada, faixas mais grossas e mais ralas), alongado no sentido do vento, em poeira
+    alaranjada; aparece de longe e de perto.
 
 ## Propostas: vulcão sob gelo, tempestade de areia e meteoro (2026-10-18; aprovadas com ajustes)
 Pedidos do teste da `30e5e93` (C10 e C12). Imagens: `docs/img/m2-dv-gelo-vulcao.png`,

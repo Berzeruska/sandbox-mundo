@@ -466,14 +466,14 @@ export class SimulationCore {
 
   /** Manda à tela onde estão os furacões (enquanto houver algum, e uma vez quando o último acaba). */
   private postStorms(): void {
-    const views = this.disasters?.stormViews() ?? [];
+    const views = [...(this.disasters?.stormViews() ?? []).map((v) => ({ ...v, kind: 0 })), ...(this.disasters?.dustViews() ?? []).map((v) => ({ ...v, kind: 1 }))];
     if (!views.length && !this.stormsShown) return;
     // Pausado e sem nada novo: nada a mandar.
     if (views.length === this.stormsShown && this.clock.tick === this.stormsTick) return;
     this.stormsShown = views.length;
     this.stormsTick = this.clock.tick;
     const data = new Float32Array(views.length * STORM_FLOATS);
-    views.forEach((v, k) => data.set([v.id, v.point[0], v.point[1], v.point[2], v.radius, v.power], k * STORM_FLOATS));
+    views.forEach((v, k) => data.set([v.id, v.point[0], v.point[1], v.point[2], v.radius, v.power, v.kind], k * STORM_FLOATS));
     this.post({ type: 'storms', storms: data }, [data.buffer as ArrayBuffer]);
   }
 

@@ -119,13 +119,13 @@ export type FromWorker =
   /** Desastres que aconteceram neste passo (animação, aviso e lista na tela). */
   | { type: 'disasters'; events: DisasterEvent[] }
   /**
-   * Furacões e ciclones andando agora (R8), STORM_FLOATS números por furacão: id, x, y, z, raio (rad),
-   * força com o sinal do giro.
+   * Furacões, ciclones (R8) e tempestades de areia (C12) andando agora, STORM_FLOATS números por um: id,
+   * x, y, z, raio (rad), força (no furacão, com o sinal do giro), tipo (0 furacão, 1 areia).
    */
   | { type: 'storms'; storms: Float32Array }
   | { type: 'sharedProbe'; ok: boolean };
 
-export const STORM_FLOATS = 6;
+export const STORM_FLOATS = 7;
 
 /** Empacota os retângulos alterados (cada um no seu próprio buffer, para transferir). */
 export function makePatches(colors: Uint8Array, n: number, rects: readonly DirtyRect[]): Patch[] {

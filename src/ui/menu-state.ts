@@ -68,6 +68,7 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: true, disaster: DisasterKind.Fire },
   { id: 'lightning', category: 'desastres', label: 'Raio', icon: '⚡', kind: 'tool', available: true, disaster: DisasterKind.Lightning },
   { id: 'meteor', category: 'desastres', label: 'Meteoro', icon: '☄️', kind: 'tool', available: true, disaster: DisasterKind.Meteor },
+  { id: 'sandstorm', category: 'desastres', label: 'Tempestade de areia', icon: '🌪️', kind: 'tool', available: true, disaster: DisasterKind.Sandstorm },
   { id: 'disasterFreq', category: 'desastres', label: 'Frequência', icon: '🎲', kind: 'tool', available: true },
   { id: 'stressLayer', category: 'desastres', label: 'Ver tensão', icon: '📈', kind: 'toggle', available: true },
 

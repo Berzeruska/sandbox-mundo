@@ -35,7 +35,7 @@ describe('menu de ferramentas: conteúdo', () => {
     expect(itemsOf('tempo').map((i) => i.speed)).toEqual([0, 1, 2, 5, 20, 'max']);
   });
 
-  it('Desastres: os 9 desastres (o raio entrou na R3, o meteoro na C12), a frequência e "Ver tensão" (sem a lista, R2); Clima tem "Temperatura", "Ver biomas" e "Nuvens"; Geologia tem "Ver placas", "Ver recursos" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
+  it('Desastres: os 10 desastres (o raio entrou na R3, meteoro e tempestade de areia na C12), a frequência e "Ver tensão" (sem a lista, R2); Clima tem "Temperatura", "Ver biomas" e "Nuvens"; Geologia tem "Ver placas", "Ver recursos" e "Velocidade"; Mundo tem Novo mundo e Dados', () => {
     expect(itemsOf('desastres').map((i) => [i.label, i.available])).toEqual([
       ['Terremoto', true],
       ['Vulcão', true],
@@ -46,6 +46,7 @@ describe('menu de ferramentas: conteúdo', () => {
       ['Incêndio', true],
       ['Raio', true],
       ['Meteoro', true],
+      ['Tempestade de areia', true],
       ['Frequência', true],
       ['Ver tensão', true],
     ]);

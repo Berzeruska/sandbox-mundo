@@ -90,3 +90,13 @@ describe('meteoro (C12)', () => {
     expect(count[2]!).toBeGreaterThan(count[3]!);
   });
 });
+
+it('em terra a cratera não vira mar: o fundo fica acima do nível do mar', () => {
+  const w = worldOf();
+  // Terra baixa (100–400 m): a cratera grande (900 m) passaria do nível do mar.
+  const c = [...Array(w.cellCount).keys()].find((x) => !w.isWater(x) && w.heightAboveSea(x) > 100 && w.heightAboveSea(x) < 400 && w.waterDistance[x]! > 8)!;
+  const hit = impact(w, new Ground(w.cellCount), c, 3, 0, createRng(1));
+  hit.terrainCells.forEach((x, k) => {
+    if (!w.isWater(x)) expect(w.heightAboveSea(x) + hit.terrainDeltas[k]!).toBeGreaterThan(0);
+  });
+});

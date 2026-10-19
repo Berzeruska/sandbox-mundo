@@ -4,6 +4,7 @@ import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
+import { type DustView, MAX_SANDSTORMS, NOTABLE_SAND_RADIUS, pickSandstormCell, PLAYER_SAND_RADIUS, SAND_RADIUS, SANDSTORM_CHANCE, SandstormProcess } from './sandstorm';
 import { CRATER_RADIUS, GIANT_WINTER, impact, METEOR_NAMES, MeteorProcess, sampleNaturalMeteor, SEA_TSUNAMI } from './meteor';
 import { IceReturnProcess, MELT_CELLS_PER_ICE, MELT_MAX_CELLS, MELT_MIN_ICE, MeltwaterProcess, NOTABLE_MELT_CELLS } from './meltwater';
 import { IceMode } from '../state';
@@ -131,6 +132,8 @@ export class Disasters {
   private nextId = 1;
   /** Gelo derretido por vulcões, voltando ao clima devagar (C10). */
   private iceReturn = new IceReturnProcess();
+  /** Tempestades de areia andando (C12). */
+  private dust: SandstormProcess[] = [];
   /** Furacões e ciclones andando (R8). */
   private storms: HurricaneProcess[] = [];
   /** Vulcões no mapa (R7), na ordem em que nasceram. */
@@ -279,8 +282,9 @@ export class Disasters {
     }
     // Clima: continua com as placas paradas.
     if (factor > 0) this.weather(tick, factor, out);
-    // Meteoros naturais: pequenos os mais comuns, gigante raríssimo (C12).
-    if (factor > 0) {
+    // Meteoros naturais: pequenos os mais comuns, gigante raríssimo (C12). Mudam o relevo: com as placas
+    // paradas não caem (a regra "em 0 a geologia congela"; o do jogador cai sempre).
+    if (factor > 0 && plateRate > 0) {
       const size = sampleNaturalMeteor(this.rng, factor);
       if (size) this.meteor(this.rng.int(0, this.world.cellCount - 1), size, tick, false, out);
     }
@@ -340,6 +344,8 @@ export class Disasters {
       // Na vegetação mais perto (até 6 células) do toque.
       const start = nearest(world, cell, 6, (c) => canBurn(world, this.ground, c));
       if (start >= 0) this.startFire(start, tick, true, 'jogador');
+    } else if (kind === DisasterKind.Sandstorm) {
+      if (!world.isWater(cell)) this.sandstorm(cell, tick, true, out);
     } else if (kind === DisasterKind.Meteor) {
       this.meteor(cell, strength ?? 2, tick, true, out);
     } else if (kind === DisasterKind.Lightning) {
@@ -539,6 +545,11 @@ export class Disasters {
       });
       if (c >= 0) this.hurricane(c, sampleCategory(rng.next()), tick, false, out);
     }
+    // Tempestade de areia: nasce num deserto (ou na seca).
+    if (rng.next() < SANDSTORM_CHANCE * factor) {
+      const c = pickSandstormCell(world, this.ground, rng);
+      if (c >= 0) this.sandstorm(c, tick, false, out);
+    }
     // Raios: caem debaixo das nuvens carregadas e, "secos", na seca; só os que acendem fogo contam.
     const strikes = LIGHTNING_PER_YEAR * factor;
     const n = Math.floor(strikes) + (rng.next() < strikes - Math.floor(strikes) ? 1 : 0);
@@ -711,6 +722,24 @@ export class Disasters {
         if (s === 4) o.winters.push({ amount: GIANT_WINTER.amount, years: GIANT_WINTER.years });
       }),
     );
+  }
+
+  /** Tempestade de areia (C12): anda com o vento e deixa areia por cima da vegetação fora do deserto. */
+  private sandstorm(cell: number, tick: number, manual: boolean, out: DisasterOutcome): void {
+    this.dust = this.dust.filter((x) => x.view());
+    if (this.dust.length >= MAX_SANDSTORMS) return;
+    const [lo, hi] = manual ? PLAYER_SAND_RADIUS : SAND_RADIUS;
+    const radius = lo + Math.floor((hi - lo + 1) * (manual ? this.rng.next() : this.rng.next() ** 2));
+    const p = new SandstormProcess(this.world, this.ground, cell, radius, this.rng, tick, this.dust.filter((x) => x.startTick === tick).length);
+    this.dust.push(p);
+    this.start(p);
+    this.event(DisasterKind.Sandstorm, cell, radius, radius >= NOTABLE_SAND_RADIUS, manual, `Tempestade de areia · ${areaLabel(Math.round(Math.PI * radius * radius), this.world.cellCount)}`, radius, tick, out);
+  }
+
+  /** Tempestades de areia andando agora (para o desenho). */
+  dustViews(): DustView[] {
+    this.dust = this.dust.filter((x) => x.view());
+    return this.dust.map((x) => x.view() as DustView);
   }
 
   /** Furacões e ciclones andando agora (para o desenho). */

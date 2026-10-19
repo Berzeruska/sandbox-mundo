@@ -34,6 +34,8 @@ export const CellState = {
   /** Meteoro (C12): rocha escura no fundo da cratera e entulho claro na borda. */
   Impact: 18,
   Ejecta: 19,
+  /** Areia que a tempestade de areia deixa por cima da vegetação (C12). */
+  Sand: 20,
 } as const;
 export type CellState = (typeof CellState)[keyof typeof CellState];
 
@@ -58,6 +60,7 @@ export const STATE_NAMES: Record<number, string> = {
   [CellState.Outwash]: 'areia e cascalho do degelo',
   [CellState.Impact]: 'fundo da cratera',
   [CellState.Ejecta]: 'entulho do meteoro',
+  [CellState.Sand]: 'areia da tempestade',
 };
 
 /**

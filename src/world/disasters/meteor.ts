@@ -69,7 +69,9 @@ export function impact(world: WorldState, ground: Ground, center: number, size: 
     // Distância em raios da cratera, com a borda um pouco recortada.
     const d = Math.acos(Math.max(-1, Math.min(1, dot))) / ang / (r * (0.9 + 0.2 * patchNoise(world, c, 3)));
     let delta = 0;
-    if (d < 1) delta = -depth * (1 - d * d);
+    // Em terra o fundo fica acima do mar (a cratera não vira mar; no mar ela fica no fundo).
+    const floor = world.isWater(c) ? depth : Math.min(depth, Math.max(0, world.heightAboveSea(c) - 20));
+    if (d < 1) delta = -floor * (1 - d * d);
     else if (d < 1.4) delta = depth * 0.25 * (1 - (d - 1) / 0.4);
     if (Math.abs(delta) > 1) {
       terrainCells.push(c);

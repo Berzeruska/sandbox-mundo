@@ -651,6 +651,11 @@ ${motion ? `  int pl = -1;
   // Nuvens (T10): somem ao aproximar a câmera (a partir de ~2 px por célula).
   float cloudShow = uClouds * (1.0 - smoothstep(1.5, 4.0, cellPx));
   if (cloudShow > 0.0 || uStormCount > 0) base = mix(base, vec3(0.96, 0.97, 1.0), clouds(p, cloudShow));
+  if (uDustCount > 0) {
+    float dd = dust(p);
+    // Poeira alaranjada, mais escura onde é densa.
+    base = mix(base, mix(vec3(0.88, 0.72, 0.5), vec3(0.62, 0.42, 0.25), dd), clamp(dd * 0.95, 0.0, 0.9));
+  }
 
   // Luz suave: lado iluminado e sombra sem ficar preto; um toque de atmosfera na borda.
   float diffuse = max(dot(nView, uLight), 0.0);
@@ -663,6 +668,8 @@ ${motion ? `  int pl = -1;
 
 /** Furacões desenhados ao mesmo tempo, no máximo. */
 export const MAX_STORMS = 8;
+/** Tempestades de areia desenhadas ao mesmo tempo, no máximo. */
+export const MAX_DUST = 4;
 
 /**
  * Nuvens (T10, pedido do usuário: simples, translúcidas, somem ao aproximar; furacões em redemoinho).
@@ -676,6 +683,10 @@ uniform float uCloudTime;   // segundos (anda só com o tempo do jogo correndo)
 uniform int uStormCount;
 uniform vec4 uStorms[${MAX_STORMS}];     // centro (xyz) e raio (rad)
 uniform float uStormPower[${MAX_STORMS}]; // força 0–1 e sentido (sinal: hemisfério)
+uniform int uDustCount;
+uniform vec4 uDust[${MAX_DUST}];          // tempestade de areia (C12): centro (xyz) e raio (rad)
+uniform float uDustPower[${MAX_DUST}];
+
 
 // Rotação fixa qualquer (tira os eixos do ruído do alinhamento com a grade).
 const mat3 CLOUD_ROT = mat3(0.80, 0.36, -0.48, -0.60, 0.48, -0.64, 0.0, 0.80, 0.60);
@@ -700,6 +711,33 @@ vec3 rotAxis(vec3 v, vec3 k, float a) {
 // Cobertura de nuvem em p. Furacões e ciclones (R8) torcem as nuvens do próprio globo em volta do
 // centro (cada vez mais apertadas perto dele), juntam mais nuvem e, quando fortes, abrem o olho; a
 // torção gira com o tempo.
+// Poeira das tempestades de areia (C12): como as nuvens (três escalas de ruído, a maior deslocando as
+// menores), presa à tempestade (anda com ela) e se mexendo devagar, com a borda recortada pelo próprio
+// ruído (nada de mancha redonda). Devolve a densidade 0–1.
+float dust(vec3 p) {
+  float best = 0.0;
+  for (int k = 0; k < ${MAX_DUST}; k++) {
+    if (k >= uDustCount) break;
+    vec3 c = uDust[k].xyz;
+    vec3 e = normalize(vec3(c.z, 0.0, -c.x) + vec3(1e-6, 0.0, 0.0));
+    vec3 nn = cross(c, e);
+    vec3 rel = (p - c) / uDust[k].w;
+    // Mais comprida no sentido do vento (leste-oeste).
+    float d = length(vec2(dot(rel, e) / 1.6, dot(rel, nn)));
+    if (d > 1.8) continue;
+    // O mesmo ruído das nuvens, 3× mais fino e preso à tempestade (anda com ela), mexendo devagar.
+    float n = cloudNoise((p - c) * 3.0 + vec3(float(k) * 1.7, 0.4, 0.9), uCloudTime * 0.03);
+    float body = 1.0 - smoothstep(0.15, 1.6, d);
+    // Como a cobertura das nuvens: o "corpo" da tempestade sobe a cobertura; a borda fica recortada.
+    float b = 1.6 * body;
+    float dens = smoothstep(0.62 - 0.4 * b, 0.82 - 0.4 * b, n * 0.5 + 0.5);
+    // Por dentro, mais grossa e mais rala em faixas (o mesmo ruído, mais fino).
+    float inner = cloudNoise((p - c) * 7.0 + vec3(3.1, float(k), 0.0), uCloudTime * 0.05);
+    best = max(best, dens * (0.55 + 0.45 * smoothstep(-0.4, 0.5, inner)) * smoothstep(0.0, 0.2, body) * uDustPower[k]);
+  }
+  return best;
+}
+
 float clouds(vec3 p, float show) {
   vec3 pw = p;
   float boost = 0.0;

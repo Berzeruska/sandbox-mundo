@@ -9,7 +9,7 @@ import { isToast, toEntry } from './ui/disaster-log';
 import { DisasterToasts } from './ui/disaster-panel';
 import { CellState, STATE_NAMES } from './world/disasters/ground';
 import { droughtHeat } from './world/disasters/drought';
-import { MAX_STORMS } from './render/shaders';
+import { MAX_DUST, MAX_STORMS } from './render/shaders';
 import { DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './world/disasters/types';
 import { STORM_FLOATS } from './sim/protocol';
 import { feltRadius } from './world/disasters/quakes';
@@ -156,7 +156,7 @@ export class App {
   /** Frequência dos desastres naturais escolhida (o "Medir desempenho" volta para ela). */
   private disasterFrequency = DEFAULT_FREQUENCY;
   /** Furacões andando (R8), pela identidade: o que está no desenho e para onde vai. */
-  private storms = new Map<number, { shown: { p: Vec3; radius: number; power: number }; target: { p: Vec3; radius: number; power: number } }>();
+  private storms = new Map<number, { kind: number; shown: { p: Vec3; radius: number; power: number }; target: { p: Vec3; radius: number; power: number } }>();
   /** Tremor da tela do terremoto em curso (R5): início, duração (ms) e força (px). */
   private shake: { start: number; ms: number; amp: number } | null = null;
   private fxShown = false;
@@ -517,9 +517,10 @@ export class App {
         radius: data[k + 4] as number,
         power: data[k + 5] as number,
       };
+      const kind = data[k + 6] as number;
       const s = this.storms.get(id);
       if (s) s.target = target;
-      else this.storms.set(id, { shown: { ...target, p: [...target.p] as Vec3 }, target });
+      else this.storms.set(id, { kind, shown: { ...target, p: [...target.p] as Vec3 }, target });
     }
     for (const id of [...this.storms.keys()]) if (!seen.has(id)) this.storms.delete(id);
     this.requestDraw();
@@ -534,8 +535,9 @@ export class App {
     if (!r) return 0;
     const a = 1 - Math.exp(-dt * 15);
     let n = 0;
+    let dust = 0;
     for (const s of this.storms.values()) {
-      if (n >= MAX_STORMS) break;
+      if (s.kind === 0 ? n >= MAX_STORMS : dust >= MAX_DUST) continue;
       const sh = s.shown;
       const t = s.target;
       let x = sh.p[0] + (t.p[0] - sh.p[0]) * a;
@@ -548,11 +550,19 @@ export class App {
       sh.p = [x, y, z];
       sh.radius += (t.radius - sh.radius) * a;
       sh.power += (t.power - sh.power) * a;
+      if (s.kind === 1) {
+        // Tempestade de areia (C12).
+        r.dust.set([x, y, z, sh.radius], dust * 4);
+        r.dustPower[dust] = sh.power;
+        dust++;
+        continue;
+      }
       r.storms.set([x, y, z, sh.radius], n * 4);
       r.stormPower[n] = sh.power;
       n++;
     }
-    return n;
+    r.dustCount = dust;
+    return n + dust;
   }
 
   /** Desastres que aconteceram: animação, aviso (só os grandes naturais) e lista. */
@@ -770,9 +780,10 @@ export class App {
       const r = this.renderer;
       const running = this.clock.speed !== 0;
       if (running) r.cloudTime += dt;
-      const storms = this.updateStorms(dt);
-      if (storms || r.stormCount) this.needsDraw = true;
-      r.stormCount = storms;
+      const before = r.stormCount + r.dustCount;
+      const moving = this.updateStorms(dt);
+      if (moving || before) this.needsDraw = true;
+      r.stormCount = moving - r.dustCount;
       if (running && r.clouds > 0 && this.camera.cellPixels() < 4) this.needsDraw = true;
     }
     const drew = this.needsDraw;
