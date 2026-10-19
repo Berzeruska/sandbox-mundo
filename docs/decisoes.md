@@ -917,3 +917,20 @@ Formato: data — decisão — motivo — alternativa descartada.
   8. **Ordem:** bugs e decisões (itens 2–12 do teste) → desastres novos → T13 e T14.
   9. Raio derretendo gelo: na vida real é irrelevante; não implementar.
 
+- **2026-10-18 — Respostas às propostas do `e8c6104` (regra do usuário: respeitar o mundo real).**
+  1. Vulcão sob gelo e meteoro aprovados; tempestade de areia aprovada **maior** e com a poeira
+     desenhada como as nuvens (borda recortada, andando), nunca uma mancha laranja redonda ("rodela").
+  2. Gelo derretido pelo vulcão volta sozinho **só onde o clima é de gelo**, e devagar; onde não é, não
+     volta.
+  3. Tempestade de areia: só a areia temporária (a tempestade não faz o deserto avançar; isso vem da
+     seca prolongada).
+  4. Meteoro gigante também esfria o planeta por um tempo (poeira e fuligem no ar). Meteoros naturais
+     de todos os tamanhos: pequenos os mais comuns, médios e grandes cada vez mais raros, gigante
+     raríssimo.
+  5. **Processo:** o `f81f2f7` saiu com teste falhando (o comando decidia o commit pelo `grep` depois da
+     verificação, não pelo resultado dela). Corrigido com uma trava mecânica: `.githooks/pre-commit`
+     roda `npm run check` e recusa o commit se falhar (testada: recusou um teste falhando de propósito).
+  6. **Critério do teste vem do desenho:** o `ee890c6` usou "raios acendem mais de 1/3 dos incêndios",
+     um número tirado do resultado. Agora cada incêndio registra a origem (raio, lava ou jogador) e o
+     teste exige que todo incêndio natural venha de raio ou de lava.
+

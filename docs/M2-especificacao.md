@@ -996,15 +996,15 @@ T13 e T14). Decisões em `docs/decisoes.md` (2026-10-18, teste da `30e5e93`).
     Ver biomas, Ver tensão, Nuvens) volta para Mover.
   - C8: furacão de fogo removido (simulação, tela e shader).
 - [x] **C9 — Calotas derretendo sobem o mar** acima do normal e alagam terras baixas (corrige a T7).
-- [ ] **C10 — Vulcão sob gelo** (jökulhlaup): proposta e imagem antes de codar (proposta abaixo, esperando).
+- [ ] **C10 — Vulcão sob gelo** (jökulhlaup): aprovado, em código.
 - [x] **C11 — Raio num vulcão faz a lava espirrar.**
   **Feito (2026-10-18), C9 e C11:** C9: o mar sobe 6 m por °C acima do normal (+60 m em +10 °C; o frio
   continua descendo 15 m por °C), alagando as terras baixas; volta ao normal quando o clima volta.
   C11: raio num vulcão (acordado ou dormindo) solta 4–8 respingos de lava no cone, que podem acender o
   mato em volta; o do jogador continua acordando o adormecido. Testes novos.
-- [ ] **C12 — Tempestade de areia e meteoro:** especificação e imagens antes de codar (proposta abaixo, esperando).
+- [ ] **C12 — Tempestade de areia e meteoro:** aprovados, em código.
 
-## Propostas: vulcão sob gelo, tempestade de areia e meteoro (2026-10-18; esperando aprovação)
+## Propostas: vulcão sob gelo, tempestade de areia e meteoro (2026-10-18; aprovadas com ajustes)
 Pedidos do teste da `30e5e93` (C10 e C12). Imagens: `docs/img/m2-dv-gelo-vulcao.png`,
 `docs/img/m2-dv-areia.png`, `docs/img/m2-dv-meteoro.png` (protótipo pintado sobre o globo de verdade,
 semente `terra`; o resultado segue o texto).
@@ -1040,7 +1040,14 @@ semente `terra`; o resultado segue o texto).
 - No mar: Médio ou maior faz tsunami (como M 8, 8,5 e 9,5).
 - Natural: raríssimo (em "Raro", um pequeno a cada ~2.000 anos de jogo).
 
-**Perguntas ao usuário**
+**Respostas do usuário (2026-10-18)** (regra: respeitar o mundo real): vulcão sob gelo e meteoro
+aprovados; tempestade de areia aprovada **maior** (raio 10–24 células) e com a poeira desenhada como as
+nuvens (borda recortada, andando), não a mancha redonda da imagem. (1) O gelo derretido volta sozinho só
+onde o clima é de gelo, e devagar; onde não é, não volta. (2) Areia só temporária. (3) Meteoro gigante
+também esfria o planeta por um tempo (poeira e fuligem). (4) Naturais de todos os tamanhos: pequenos os
+mais comuns, médios e grandes cada vez mais raros, gigante raríssimo.
+
+**Perguntas ao usuário (respondidas acima)**
 1. Gelo **pintado** que o vulcão derreteu: (a) fica o buraco até o jogador pintar de novo; (b) volta
    sozinho depois que o vulcão dorme. (Gelo do clima volta sozinho se continuar frio.)
 2. Tempestade de areia: (a) só a areia temporária; (b) também o deserto avança 1–2 células para sempre

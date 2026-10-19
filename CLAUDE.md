@@ -74,6 +74,12 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
   criar a tag `vN.0` (ex.: `v1.0`).
 - O GitHub Actions roda `npm run check` em todo push e publica `main` no GitHub Pages.
 - Nunca use `git push --force` em `main`. Nunca apague histórico.
+- **Trava de commit** (pedido do usuário, 2026-10-18, depois de dois commits com teste falhando):
+  `.githooks/pre-commit` roda `npm run check` e recusa o commit se falhar (só `docs/` e `*.md` dispensam).
+  Ative num clone novo com `git config core.hooksPath .githooks`. Nunca use `--no-verify`.
+- **Critério de teste vem do desenho, não do resultado observado** (regra do usuário, 2026-10-18): ao
+  mudar uma regra, o teste verifica o que a especificação diz (ex.: "todo incêndio natural vem de raio
+  ou de lava", com a origem registrada), não um número tirado do que o código deu.
 
 ## Documentação viva
 - **Ao fim de cada tarefa: commit e push no branch do marco**, com `docs/estado-atual.md` reescrito

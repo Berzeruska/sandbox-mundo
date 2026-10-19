@@ -1,0 +1,15 @@
+#!/bin/sh
+# Trava de commit (pedido do usuário, 2026-10-18, depois de dois commits com teste falhando):
+# nenhum commit sai sem `npm run check` passando. Só documentação (docs/, *.md) dispensa.
+changed=$(git diff --cached --name-only)
+code=$(printf '%s\n' "$changed" | grep -v -E '^docs/|\.md$' | grep -v '^$')
+if [ -z "$code" ]; then
+  exit 0
+fi
+echo "pre-commit: rodando npm run check…"
+if ! npm run check >/tmp/sandbox-mundo-precommit.log 2>&1; then
+  echo "pre-commit: npm run check FALHOU — commit recusado. Fim do relatório:"
+  tail -30 /tmp/sandbox-mundo-precommit.log
+  exit 1
+fi
+echo "pre-commit: check passou."

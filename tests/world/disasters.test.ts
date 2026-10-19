@@ -342,14 +342,16 @@ describe('desastres (T10): clima', () => {
         if (e.kind === DisasterKind.Lightning) bolts++;
         if (e.kind !== DisasterKind.Fire) continue;
         fires++;
+        // Pelo desenho (R3, R7, C11): na natureza só raio e lava acendem fogo.
+        expect(e.manual).toBe(false);
+        expect(['raio', 'lava']).toContain(e.cause);
         const c = w.grid.pointToCell(e.point[0], e.point[1], e.point[2]);
         expect(w.isWater(c)).toBe(false);
         expect(hasVegetation(w.biome[c]!)).toBe(true);
       }
     }
     expect(fires).toBeGreaterThan(5);
-    // Os raios acendem a maior parte (a lava das erupções e os respingos também acendem, R7 e C11).
-    expect(bolts).toBeGreaterThan(fires / 3);
+    expect(bolts).toBeGreaterThan(0);
   }, 120_000);
 
   it('as marcas do clima somem: seca, enchente e queimado voltam ao normal', () => {

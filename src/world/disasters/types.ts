@@ -69,7 +69,12 @@ export interface DisasterEvent {
   times?: Float32Array;
   /** Força em cada ponto da trilha (furacão: categoria). */
   strength?: Float32Array;
+  /** Incêndio: o que acendeu (raio, lava ou o jogador). */
+  cause?: FireCause;
 }
+
+/** O que acende um incêndio: só raio e lava na natureza (desenho da R3/R7), ou o jogador. */
+export type FireCause = 'raio' | 'lava' | 'jogador';
 
 /** Texto de magnitude com vírgula decimal. */
 export function decimal(v: number, digits = 1): string {

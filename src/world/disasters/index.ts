@@ -28,7 +28,7 @@ import { DEPTH, FLOOD_CELLS, FloodProcess, floodPlan, lowestNear, NOTABLE_FLOOD_
 import { canBurn, FireProcess, LIGHTNING_PER_YEAR, lightningIgnites, NOTABLE_FIRE_CELLS, pickLightningCell, PLAYER_FIRE_BOOST, PLAYER_FIRE_RADIUS } from './fire';
 import { buildFaults, type Fault, feltRadius, MAX_MAGNITUDE, NOTABLE_MAGNITUDE, sampleMagnitude, stressDrop, yearlyStress } from './quakes';
 import { planTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, TsunamiProcess } from './tsunami';
-import { areaLabel, decimal, DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './types';
+import { areaLabel, decimal, DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent, type FireCause } from './types';
 import {
   DROUGHT_CHANCE,
   FLOOD_CHANCE,
@@ -57,6 +57,7 @@ import { MAX_PLATE_RATE } from '../tectonics';
 
 export { DisasterKind, FREQUENCIES, DEFAULT_FREQUENCY, DISASTER_NAMES, type DisasterEvent } from './types';
 export { CellState, Ground } from './ground';
+export type { FireCause } from './types';
 
 /** Relevo erguido por um desastre (erupção): o relógio aplica como um pincel de Elevar. */
 export interface Uplift {
@@ -312,11 +313,11 @@ export class Disasters {
     } else if (kind === DisasterKind.Fire) {
       // Na vegetação mais perto (até 6 células) do toque.
       const start = nearest(world, cell, 6, (c) => canBurn(world, this.ground, c));
-      if (start >= 0) this.startFire(start, tick, true);
+      if (start >= 0) this.startFire(start, tick, true, 'jogador');
     } else if (kind === DisasterKind.Lightning) {
       // O raio do jogador sempre cai onde ele tocou e, em vegetação, sempre acende.
       this.lightning(cell, tick, true, out);
-      if (canBurn(world, this.ground, cell)) this.startFire(cell, tick, true);
+      if (canBurn(world, this.ground, cell)) this.startFire(cell, tick, true, 'raio');
     } else if (kind === DisasterKind.Tsunami) {
       const sea = nearestWater(world, cell, 12);
       if (sea >= 0) this.quake(sea, strength ?? 8.3 + 0.9 * this.rng.next(), tick, true, out);
@@ -426,7 +427,7 @@ export class Disasters {
         lavaBudget(vei, this.rng),
         // A lava acende fogo na vegetação em que encosta.
         (c) => {
-          if (this.rng.next() < LAVA_FIRE && canBurn(world, ground, c)) this.startFire(c, ground.tick, manual);
+          if (this.rng.next() < LAVA_FIRE && canBurn(world, ground, c)) this.startFire(c, ground.tick, manual, 'lava');
         },
         (lc, ld) => {
           if (lc.length) this.stepOut?.terrain.push({ cells: lc, deltas: ld });
@@ -440,7 +441,7 @@ export class Disasters {
       for (let k = 0; k < bolts; k++) {
         const c = plume[this.rng.int(0, plume.length - 1)] as number;
         this.lightning(c, tick, manual, out);
-        if (canBurn(world, ground, c) && this.rng.next() < ASH_LIGHTNING_FIRE) this.startFire(c, tick, manual);
+        if (canBurn(world, ground, c) && this.rng.next() < ASH_LIGHTNING_FIRE) this.startFire(c, tick, manual, 'raio');
       }
     }
     const source = v.kind === 'hotspot' ? 'ponto quente' : v.kind === 'arc' ? 'arco vulcânico' : '';
@@ -485,7 +486,7 @@ export class Disasters {
       const c = pickLightningCell(world, this.ground, rng);
       if (c < 0 || rng.next() >= lightningIgnites(world, this.ground, c)) continue;
       this.lightning(c, tick, false, out);
-      this.startFire(c, tick, false);
+      this.startFire(c, tick, false, 'raio');
     }
   }
 
@@ -515,13 +516,13 @@ export class Disasters {
       this.ground.setState(x, CellState.Lava, tick, this.rng.range(0.3, 1), TICKS_PER_YEAR);
       for (let d = 0; d < 4; d++) {
         const j = world.grid.neighbors[x * 4 + d] as number;
-        if (canBurn(world, this.ground, j) && this.rng.next() < LAVA_FIRE * 2) this.startFire(j, tick, manual);
+        if (canBurn(world, this.ground, j) && this.rng.next() < LAVA_FIRE * 2) this.startFire(j, tick, manual, 'lava');
       }
     }
   }
 
   /** Começa um incêndio em `start` (anda passo a passo; o aviso sai quando apaga, se foi grande). */
-  private startFire(start: number, tick: number, manual: boolean): void {
+  private startFire(start: number, tick: number, manual: boolean, cause: FireCause): void {
     const world = this.world;
     const fire = new FireProcess(
       world,
@@ -534,6 +535,7 @@ export class Disasters {
         if (!out) return;
         const radius = Math.sqrt(burned / Math.PI) + 1;
         this.event(DisasterKind.Fire, start, burned, burned >= NOTABLE_FIRE_CELLS, manual, `Incêndio · ${areaLabel(burned, world.cellCount)} queimados`, radius, this.ground.tick, out);
+        (out.events[out.events.length - 1] as DisasterEvent).cause = cause;
       },
       manual ? PLAYER_FIRE_BOOST : 1,
     );
