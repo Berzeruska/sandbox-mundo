@@ -1,8 +1,10 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-18**, branch `marco-2`. **Bloco Desastres v2 terminado** (R1–R9, mais RL
-relevo em degraus e RG GPU). **Esperando o teste do usuário no notebook** (lista abaixo, em "Teste do
-fim do bloco"). Depois do bloco: Final (T13, T14).
+Atualizado em: **2026-10-18**, branch `marco-2`. **Teste do Bloco Desastres v2 (`30e5e93`) feito
+pelo usuário:** modelo da Terra aprovado, metas batidas; agora as correções C1–C12 da especificação
+(travadas, temperatura, furacão, duração, tsunami, raio, ferramentas, sem furacão de fogo, mar subindo
+no calor, vulcão sob gelo, lava espirrando), depois tempestade de areia e meteoro (especificação e
+imagens antes), depois T13 e T14.
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -218,6 +220,9 @@ mostrar o último commit do `marco-2`). Em cada item: o que fazer → o que deve
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
 - R1 (2026-10-18, Chrome, 1080p): 60 fps em todos os cenários, pior quadro 17 ms; **GPU do globo**
+- `30e5e93`, medido pelo usuário (Chrome, notebook): 60 fps em todos os cenários (inclusive desastres
+  "Muitos" 20×), pior quadro 36 ms, GPU ≤ 6,8 ms, memória 160 MB, geração 0,93 s; 6 travadas no rodapé
+  (117–217 ms em 20× logo depois de recomposição; ~1 s em 1× mexendo na temperatura): em correção (C1).
 - R9 (2026-10-18, Chrome headless no próprio notebook, 1080p): 60 fps em todos os cenários, inclusive
   "desastres Muitos, 20×" (placas 100%), pior quadro 17 ms; relógio nesse cenário 240 passos/s, 0,5 ms
   por passo, ocupado 12%; GPU: longe 2,9, de perto 4,3, de perto andando 4,6, de perto na transição 6,1,
@@ -268,6 +273,8 @@ mostrar o último commit do `marco-2`). Em cada item: o que fazer → o que deve
   encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
 
 ## Ideias registradas para marcos futuros (não fazer agora)
+- 2026-10-18: M8 com lua (bolinha cinza orbitando) e sol (bola amarela ao fundo); furacão com cara de
+  mapa de meteorologia.
 - 2026-10-18: o semiárido da seca mais bonito com a ecologia (M3, `docs/04-ecologia.md`); referência
   da câmera em primeira pessoa: vídeo do Andrezitos com o WorldBox em 3D (`docs/02-marcos.md`).
 - 2026-10-18: câmera em primeira pessoa de um indivíduo (M8 ou depois; depende das criaturas e do

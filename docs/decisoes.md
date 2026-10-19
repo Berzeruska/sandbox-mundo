@@ -898,3 +898,22 @@ Formato: data — decisão — motivo — alternativa descartada.
   N = 256: 12–17 avisos por 1.000 anos de jogo. Descartado: subir o limite de "grande" de cada desastre
   (os avisos deixariam de mostrar coisas que o usuário quer ver, como erupção IEV 4).
 
+- **2026-10-18 — Teste da `30e5e93` no notebook (decisões do usuário).** Modelo da Terra aprovado
+  ("ficou lindo"); todas as metas batidas no relatório (pior quadro 36 ms, GPU ≤ 6,8 ms, memória
+  160 MB, geração 0,93 s), mas o rodapé mostrou 6 travadas (117–217 ms em 20× logo depois de
+  recomposição; ~1 s em 1× mexendo na temperatura): diagnosticar e corrigir (meta: nenhum quadro > 50 ms).
+  1. **Furacão de fogo: removido** (reverte o pedido de 2026-10-18; "ideia ruim minha").
+  2. **Derretimento das calotas sobe o mar:** com o clima quente o gelo derrete, o mar sobe acima do
+     normal e alaga as terras baixas. Corrige a T7 (o nível do mar "só descia") e segue o item 4 da T7
+     na especificação (eras quentes alagam planícies).
+  3. **Vulcão coberto de gelo** continua ativo: o calor e a lava derretem o gelo em volta e a água desce
+     de uma vez numa enchente súbita (jökulhlaup). Proposta e imagem antes de codar.
+  4. **Raio que acerta um vulcão faz a lava espirrar.** Raios saindo do vulcão (opção c) estão certos.
+  5. Tsunami fica como está (até 28 células). Terremoto aprovado (fenda escura, aceitável). Aprovados:
+     seca, vulcão, relevo em degraus e polos.
+  6. Decisões técnicas do bloco aceitas: calor da seca só visual; vulcões desde o começo; incêndio do
+     jogador maior; "Raro" 0,4; chão andando com as placas; furacão com braços de espiral.
+  7. **Desastres novos:** tempestade de areia e meteoro (especificação e imagem antes de codar).
+  8. **Ordem:** bugs e decisões (itens 2–12 do teste) → desastres novos → T13 e T14.
+  9. Raio derretendo gelo: na vida real é irrelevante; não implementar.
+

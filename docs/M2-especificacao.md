@@ -959,6 +959,24 @@ teste do bloco. Mar e gelo não ganham degraus.
    `docs/04-ecologia.md`).
 5. Ordem: R2 → RL (relevo) → RG (GPU) → R3 a R9. (R2, RL e RG feitas em 2026-10-18.)
 
+## Bloco Desastres v2 — correções do teste da `30e5e93` (2026-10-18)
+Pedido do usuário depois do teste no notebook (ordem dele: estas, depois os desastres novos, depois
+T13 e T14). Decisões em `docs/decisoes.md` (2026-10-18, teste da `30e5e93`).
+- [ ] **C1 — Travadas:** 117–217 ms em 20× com placas 100% logo depois de recomposição; ~1 s em 1×
+  mexendo na temperatura. Meta: nenhum quadro > 50 ms.
+- [ ] **C2 — Temperatura:** a animação do controle reinicia e trava para voltar.
+- [ ] **C3 — Furacão:** às vezes precisa de vários cliques para aparecer, ou não aparece.
+- [ ] **C4 — Duração:** furacão e ciclone duram pouco; no geral os desastres precisam durar mais.
+- [ ] **C5 — Tsunami:** a animação reinicia quando o relatório é aberto.
+- [ ] **C6 — Raio** visto de longe parece cair do espaço.
+- [ ] **C7 — Ferramentas:** tocar de novo na ferramenta ativa desliga ela; ligar uma visão (ex.: Ver
+  recursos) desliga a ferramenta em uso.
+- [ ] **C8 — Furacão de fogo removido** (decisão do usuário).
+- [ ] **C9 — Calotas derretendo sobem o mar** acima do normal e alagam terras baixas (corrige a T7).
+- [ ] **C10 — Vulcão sob gelo** (jökulhlaup): proposta e imagem antes de codar.
+- [ ] **C11 — Raio num vulcão faz a lava espirrar.**
+- [ ] **C12 — Tempestade de areia e meteoro:** especificação e imagens antes de codar.
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [ ] **T13 — Teste longo de estabilidade**

@@ -117,6 +117,8 @@ plantação, lítio e terras raras para eletrônica.
 Inclui o acabamento visual do menu de ferramentas (decidido no M2) e a escala visual pequena de
 pessoas e cidades.
 Sprites melhores, animações, possível pseudo-3D, som.
+Pedidos do usuário (2026-10-18): uma lua (bolinha cinza orbitando o planeta) e um sol (bola amarela ao
+fundo), simples, só para dizer que tem; o visual do furacão lembrando mais um mapa de meteorologia.
 Pedido do usuário (2026-10-16): formações de erosão vistas de perto (pilares de arenito como os da
 China, grandes "braços" de pedra); a erosão pelo clima em si é da T7 do M2.
 Ideia do usuário (2026-10-17): zoom maior que o de hoje, para humanos pequenos ficarem
