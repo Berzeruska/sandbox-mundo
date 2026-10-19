@@ -1081,6 +1081,27 @@ mais comuns, médios e grandes cada vez mais raros, gigante raríssimo.
    no céu), somado ao clima.
 4. Meteoros naturais: (a) só pequenos, raríssimos; (b) também médios e grandes (mais raros ainda).
 
+## Correções do teste da `d644319` (2026-10-19, antes da T14)
+Teste do usuário no notebook (relatório `d6443190`). Ordem dele: estas correções, prévia e teste dele,
+depois a T14. Decisões em `docs/decisoes.md` (2026-10-19).
+- [ ] **E1 — Relógio esperou 81 ms** em "desastres Muitos, 20×" (meta: nunca espera).
+- [ ] **E2 — 195 travadas do relógio de 300–376 ms** ("relógio atrasou, núcleo ocupado") em 1× com
+  placas 100%, jogando. Diagnosticar e corrigir.
+- [ ] **E3 — Recomposição ~650–720 ms** (antes ~400): ver se são os desastres novos.
+- [ ] **E4 — Tempestade de areia no mar:** só onde há areia e o lugar é seco.
+- [ ] **E5 — O jogo escurece do nada** às vezes.
+- [ ] **E6 — Temperatura e gelo mudando de uma vez** depois do meteoro gigante e no degelo (o
+  alagamento está certo; a mudança tem que ser gradual).
+- [ ] **E7 — Duração:** Ciclone 1 dura ~1 s e Furacão 5 ~10 s em 1× (o Ciclone 2 está bom).
+- [ ] **E8 — Avisos atrapalhando o menu.**
+- [ ] **E9 — Um efeito por vez** (decisão 12): dois efeitos ligados juntos e "Ver placas" desligando
+  sozinho.
+- [ ] **E10 — Tsunami recomeçando** com o painel Dados ou o "Medir desempenho" (C5): testar os dois.
+- [ ] **E11 — Provocar não muda mais a velocidade** (decisão 13, reverte 2026-10-18).
+- [ ] **E12 — Meteoro maior**, proporcional à cratera (decisão 14).
+- [ ] **E13 — Revisão de todos os efeitos que mudam o mundo** (relevo, bioma, vegetação, gelo, nível
+  do mar, clima): o que muda, se volta quando deve, e combinações.
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

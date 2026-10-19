@@ -956,3 +956,17 @@ Formato: data — decisão — motivo — alternativa descartada.
 - **Não corrigido agora:** a lava medida em células só vale para N = 256, a resolução do jogo até o M3.
   Se a resolução mudar, a lava passa a ser medida em área (como o espaçamento dos vulcões na R9).
 - **Alternativa descartada:** rodar em N = 256 no CI (~46 s por semente, só o teste).
+
+## 2026-10-19 — Teste da `d644319` no notebook (decisões do usuário)
+1. **Processo:** a T13 foi começada antes do teste do usuário. Fica, mas a ordem do fluxo vale mesmo
+   para teste automático: teste do usuário → correções → próximas tarefas. A T14 só depois das
+   correções (E1–E13 na especificação) e do teste delas.
+2. **Um efeito por vez** (referência do usuário: a seleção de poderes de um jogo de deus, só a ideia):
+   só um poder selecionado e destacado; escolher outro substitui o anterior; tocar no selecionado
+   desliga. Vale para ferramentas, desastres e visões (Ver placas, Ver recursos, Ver tensão). Os
+   padrões do mundo (nuvens) continuam ligados.
+3. **O jogo nunca muda as escolhas do jogador sozinho:** provocar um desastre não volta mais o tempo
+   para 1×. **Reverte** a decisão de 2026-10-18 ("provocar volta para 1×").
+4. **Meteoro maior**, proporcional à cratera (hoje o meteoro é pequeno e só a cratera é grande).
+5. **Aprovados:** raio, tempestade de areia, terremoto e a duração geral dos desastres.
+6. **Meteoro natural com "Placas 0":** confirmada a escolha técnica (não cai).
