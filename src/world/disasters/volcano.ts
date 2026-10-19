@@ -172,6 +172,8 @@ export class LavaProcess {
     private onBurn: (cell: number) => void,
     /** Terminou: mudanças de relevo (terra nova no mar). */
     private onEnd: (cells: number[], deltas: number[]) => void,
+    /** A lava passou por cima de gelo: ele derrete. */
+    private onIce: (cell: number) => void = () => undefined,
   ) {
     const { neighbors } = world.grid;
     const { cells } = coneCells(world, volcano);
@@ -216,6 +218,7 @@ export class LavaProcess {
       this.ground.setState(c, CellState.Basalt, tick, 100 + 200 * cellHash(c, 0x1a), TICKS_PER_YEAR);
       return;
     }
+    if (world.ice[c]) this.onIce(c);
     this.ground.damage(c, 1);
     this.ground.setState(c, CellState.Lava, tick, this.rng.range(LAVA_YEARS[0], LAVA_YEARS[1]), TICKS_PER_YEAR);
     const { neighbors } = world.grid;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRng, seedFrom } from '../../src/core/rng';
 import { TICKS_PER_YEAR } from '../../src/core/time';
 import { SimulationCore } from '../../src/sim/core';
+import { Tool } from '../../src/input/tools';
 import { createWorld } from '../../src/world/create';
 import { cellPoint, DisasterKind, Disasters, type DisasterOutcome } from '../../src/world/disasters';
 import { CellState, Ground } from '../../src/world/disasters/ground';
@@ -162,4 +163,66 @@ it('raio num vulcão faz a lava espirrar no cone (teste da 30e5e93)', () => {
   expect(lava.length).toBeGreaterThan(lavaBefore + 3);
   // O do jogador também acorda o vulcão.
   expect(v.awake).toBe(true);
+});
+
+describe('vulcão debaixo do gelo (C10)', () => {
+  /** Relógio com um vulcão do jogador coberto por gelo pintado. */
+  function iced(icyClimate: boolean) {
+    const core = new SimulationCore(() => undefined, () => 0);
+    core.handle({ type: 'newWorld', seedText: 'terra', n: 64 });
+    core.handle({ type: 'disasterFrequency', level: 0 });
+    core.handle({ type: 'plateRate', rate: 0 });
+    const w = core.world!;
+    // Lugar quente (sem gelo do clima) ou frio (de gelo).
+    let c = -1;
+    for (let x = 0; x < w.cellCount; x++) {
+      if (w.isWater(x) || w.heightAboveSea(x) < 200 || w.heightAboveSea(x) > 1500) continue;
+      const cold = w.temperature[x]! < -8;
+      if (cold !== icyClimate) continue;
+      if (!icyClimate && w.ice[x]) continue;
+      if (c < 0 || w.waterDistance[x]! > w.waterDistance[c]!) c = x;
+    }
+    expect(c, icyClimate ? 'lugar frio' : 'lugar quente').toBeGreaterThanOrEqual(0);
+    core.handle({ type: 'disaster', kind: DisasterKind.Volcano, point: cellPoint(w, c) });
+    const d = core.disasters!;
+    const v = d.volcanoes[d.volcanoes.length - 1]!;
+    v.awake = false;
+    // Gelo pintado por cima do cone e em volta.
+    core.handle({ type: 'brush', tool: Tool.Ice, point: cellPoint(w, c), radius: v.cone + 4, dt: 1 });
+    return { core, w, d, v, c };
+  }
+
+  it('acordado, derrete o gelo em volta e solta a enchente do degelo, que deixa areia e cascalho', () => {
+    const { core, w, d, v, c } = iced(false);
+    expect(w.ice[c]).toBe(1);
+    core.handle({ type: 'disaster', kind: DisasterKind.Volcano, point: cellPoint(w, c) });
+    expect(v.awake).toBe(true);
+    expect(w.ice[c]).toBe(0);
+    core.handle({ type: 'speed', speed: 1 });
+    for (let k = 0; k < 30; k++) core.advance(1 / 12);
+    // A água passa em 1–2 anos e vira areia e cascalho: conta as duas.
+    const water = [...d.ground.active].filter((x) => d.ground.state[x] === CellState.Meltwater || d.ground.state[x] === CellState.Outwash);
+    expect(water.length).toBeGreaterThan(5);
+    // Desce: termina mais baixo que o pé do cone.
+    expect(Math.min(...water.map((x) => w.elevation[x]!))).toBeLessThan(w.elevation[c]!);
+    core.handle({ type: 'speed', speed: 20 });
+    while (core.clock.tick < 5 * 12) core.advance(0.25);
+    expect([...d.ground.active].some((x) => d.ground.state[x] === CellState.Outwash)).toBe(true);
+  });
+
+  it('o gelo derretido volta só onde o clima é de gelo, e devagar', () => {
+    for (const icy of [false, true]) {
+      const { core, w, v, c } = iced(icy);
+      core.handle({ type: 'disaster', kind: DisasterKind.Volcano, point: cellPoint(w, c) });
+      v.awake = false;
+      v.until = Number.MAX_SAFE_INTEGER;
+      expect(w.ice[c]).toBe(0);
+      core.handle({ type: 'speed', speed: 20 });
+      // Em 30 anos ainda não voltou.
+      while (core.clock.tick < 30 * 12) core.advance(0.25);
+      expect(w.ice[c]).toBe(0);
+      while (core.clock.tick < 160 * 12) core.advance(0.25);
+      expect(w.ice[c], icy ? 'clima de gelo' : 'clima quente').toBe(icy ? 1 : 0);
+    }
+  }, 120_000);
 });

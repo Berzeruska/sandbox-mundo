@@ -996,7 +996,14 @@ T13 e T14). Decisões em `docs/decisoes.md` (2026-10-18, teste da `30e5e93`).
     Ver biomas, Ver tensão, Nuvens) volta para Mover.
   - C8: furacão de fogo removido (simulação, tela e shader).
 - [x] **C9 — Calotas derretendo sobem o mar** acima do normal e alagam terras baixas (corrige a T7).
-- [ ] **C10 — Vulcão sob gelo** (jökulhlaup): aprovado, em código.
+- [x] **C10 — Vulcão sob gelo** (jökulhlaup). **Feito (2026-10-18):** `src/world/disasters/meltwater.ts`. Ao
+  acordar (e em cada erupção), o vulcão derrete o gelo do cone e em volta (raio do cone + 2); a lava
+  derrete o gelo por onde passa. Com 3 ou mais células derretidas, a água desce de uma vez pela célula
+  mais baixa em volta do cone, sempre pela mais baixa da frente (enche as baixadas e transborda),
+  2 células por passo, 4 células por célula de gelo (até 150); água barrenta 1–2 anos, depois areia e
+  cascalho 30–80 anos, vegetação zerada; aviso "Enchente do degelo" a partir de 60 células. O gelo
+  derretido volta ao clima 40–150 anos depois (onde o clima é de gelo ele volta; onde não é, não). A
+  mudança de gelo é gravada na placa como o pincel de gelo. Testes em `tests/world/volcano.test.ts`.
 - [x] **C11 — Raio num vulcão faz a lava espirrar.**
   **Feito (2026-10-18), C9 e C11:** C9: o mar sobe 6 m por °C acima do normal (+60 m em +10 °C; o frio
   continua descendo 15 m por °C), alagando as terras baixas; volta ao normal quando o clima volta.

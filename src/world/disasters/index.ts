@@ -4,6 +4,8 @@ import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
+import { IceReturnProcess, MELT_CELLS_PER_ICE, MELT_MAX_CELLS, MELT_MIN_ICE, MeltwaterProcess, NOTABLE_MELT_CELLS } from './meltwater';
+import { IceMode } from '../state';
 import { HurricaneProcess, MAX_PER_QUADRANT, MAX_STORMS_WORLD, quadrantOf, stormName, type StormView } from './hurricane';
 import {
   arcSpacing,
@@ -74,6 +76,13 @@ export interface TerrainChange {
   deltas: number[];
 }
 
+/** Gelo mudado por um desastre (vulcão derretendo; volta ao clima depois), gravado na placa. */
+export interface IceChange {
+  cells: number[];
+  /** `IceMode` novo das células. */
+  mode: number;
+}
+
 /** O que os desastres de um passo fizeram: o relógio aplica e avisa a tela. */
 export interface DisasterOutcome {
   events: DisasterEvent[];
@@ -81,6 +90,7 @@ export interface DisasterOutcome {
   marked: number[];
   uplifts: Uplift[];
   terrain: TerrainChange[];
+  ice: IceChange[];
 }
 
 /**
@@ -116,6 +126,8 @@ export class Disasters {
   hotspots: Vec3[];
   private hotspotTravel: number[] = [];
   private nextId = 1;
+  /** Gelo derretido por vulcões, voltando ao clima devagar (C10). */
+  private iceReturn = new IceReturnProcess();
   /** Furacões e ciclones andando (R8). */
   private storms: HurricaneProcess[] = [];
   /** Vulcões no mapa (R7), na ordem em que nasceram. */
@@ -214,6 +226,7 @@ export class Disasters {
       return true;
     });
     for (const p of this.processes) p.remap?.(moved);
+    this.iceReturn.remap(moved);
   }
 
   /** Fronteiras novas (depois de cada recomposição): refaz os trechos, a tensão continua. */
@@ -238,14 +251,19 @@ export class Disasters {
    */
   step(tick: number, plateRate: number): DisasterOutcome | null {
     this.plateRate = plateRate;
-    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [] };
+    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [] };
     this.ground.expire(tick, TICKS_PER_YEAR);
+    // Gelo derretido por vulcão voltando ao clima (só fica gelo onde o clima é de gelo).
+    if (this.iceReturn.pending) {
+      const back = this.iceReturn.take(tick);
+      if (back.length) out.ice.push({ cells: back, mode: IceMode.Auto });
+    }
     this.stepOut = out;
     if (this.processes.length) this.processes = this.processes.filter((p) => p.step(tick, out));
     if (tick % TICKS_PER_YEAR === 0) this.yearly(tick, plateRate, out);
     this.stepOut = null;
     out.marked = this.ground.takeChanged();
-    return out.events.length || out.marked.length || out.uplifts.length || out.terrain.length ? out : null;
+    return out.events.length || out.marked.length || out.uplifts.length || out.terrain.length || out.ice.length ? out : null;
   }
 
   private yearly(tick: number, plateRate: number, out: DisasterOutcome): void {
@@ -287,7 +305,7 @@ export class Disasters {
    * força escolhida no cartão (magnitude do terremoto e do tsunami, categoria do furacão).
    */
   trigger(kind: DisasterKind, point: Vec3, tick: number, strength?: number): DisasterOutcome {
-    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [] };
+    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [] };
     const world = this.world;
     this.ground.tick = tick;
     const cell = world.grid.pointToCell(point[0], point[1], point[2]);
@@ -386,6 +404,32 @@ export class Disasters {
     }
   }
 
+  /**
+   * Vulcão acordado debaixo do gelo (C10): o calor derrete o gelo do cone e em volta (raio do cone + 2) e
+   * a água do degelo desce de uma vez pelo terreno (jökulhlaup). O gelo volta ao clima décadas depois.
+   */
+  private meltUnderIce(v: Volcano, tick: number, manual: boolean, out: DisasterOutcome): void {
+    const world = this.world;
+    const { cells, dist } = coneCells(world, v, v.cone + 2);
+    const melted = cells.filter((c) => world.ice[c] && !world.isWater(c));
+    if (!melted.length) return;
+    out.ice.push({ cells: melted, mode: IceMode.Erased });
+    this.iceReturn.add(melted, tick);
+    if (melted.length < MELT_MIN_ICE) return;
+    // A água sai pelo ponto mais baixo em volta do cone.
+    let start = -1;
+    cells.forEach((c, k) => {
+      const d = dist[k] as number;
+      if (d < v.cone || world.isWater(c)) return;
+      if (start < 0 || (world.elevation[c] as number) < (world.elevation[start] as number)) start = c;
+    });
+    if (start < 0) return;
+    const budget = Math.min(MELT_MAX_CELLS, MELT_CELLS_PER_ICE * melted.length);
+    const cone = cells.filter((c, k) => (dist[k] as number) < v.cone && c !== start);
+    this.start(new MeltwaterProcess(world, this.ground, start, cone, budget));
+    this.event(DisasterKind.Flood, start, budget, budget >= NOTABLE_MELT_CELLS, manual, `Enchente do degelo · vulcão sob o gelo`, Math.sqrt(budget / Math.PI) + 1, tick, out);
+  }
+
   /** IEV de uma erupção natural, pelo tipo: arco forte; ponto quente no oceano manso, no continente explosivo. */
   private sampleVolcanoVei(v: Volcano): number {
     if (v.kind === 'hotspot') {
@@ -418,6 +462,7 @@ export class Disasters {
     v.top += (v.cone - from.cone) * 380 + 15 * vei;
     const grown = growCone(world, ground, v, from);
     if (grown.cells.length) out.terrain.push(grown);
+    this.meltUnderIce(v, tick, manual, out);
     this.start(
       new LavaProcess(
         world,
@@ -431,6 +476,11 @@ export class Disasters {
         },
         (lc, ld) => {
           if (lc.length) this.stepOut?.terrain.push({ cells: lc, deltas: ld });
+        },
+        // Lava por cima de gelo: derrete (volta ao clima depois, devagar).
+        (c) => {
+          this.stepOut?.ice.push({ cells: [c], mode: IceMode.Erased });
+          this.iceReturn.add([c], ground.tick);
         },
       ),
     );

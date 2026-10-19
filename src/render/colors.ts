@@ -552,6 +552,8 @@ const STATE_COLORS: Readonly<Record<number, { a: readonly [number, number, numbe
   [CellState.Fertile]: { a: [52, 150, 52], mix: 0.3, hold: 2 },
   [CellState.Ash]: { a: [118, 112, 108], b: [132, 126, 120], mix: 0.7, hold: 1.5 },
   [CellState.Lake]: { a: [52, 108, 160], b: [48, 102, 152], mix: 1, hold: 20 },
+  [CellState.Meltwater]: { a: [112, 118, 112], b: [96, 108, 108], mix: 0.95, hold: 99 },
+  [CellState.Outwash]: { a: [170, 162, 146], b: [156, 150, 138], mix: 0.9, hold: 3 },
 };
 const stateOut = new Float64Array(3);
 /** Queimado em campo, estepe ou savana: mais claro que floresta queimada (cinza de capim). */

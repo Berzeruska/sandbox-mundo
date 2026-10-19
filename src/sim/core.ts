@@ -438,6 +438,12 @@ export class SimulationCore {
       const done = this.terrain(t.cells, t.deltas);
       if (done) patches.push(...done.patches);
     }
+    // Gelo derretido (ou voltando ao clima): muda o modo do gelo e grava na placa como o pincel de gelo.
+    for (const ice of o.ice) {
+      for (const c of ice.cells) world.iceMode[c] = ice.mode;
+      const done = this.terrain(ice.cells, ice.cells.map(() => 0));
+      if (done) patches.push(...done.patches);
+    }
     // A aparência das células (fogo andando, onda, vegetação voltando) é repintada uma vez por laço do
     // relógio, juntando os passos: a 20× seriam 240 mensagens por segundo (`flushPaint`).
     for (const c of o.marked) this.pendingPaint.add(c);
