@@ -69,9 +69,17 @@ export function climateOffsetAt(tick: number, control: number): number {
   return glacialOffset(tick) + Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, control));
 }
 
-/** Nível do mar para um desvio de temperatura (só desce: o gelo em terra guarda a água). */
+/**
+ * Quanto o mar sobe por grau de aquecimento acima do normal (as calotas derretem; decisão do usuário,
+ * teste da 30e5e93, corrigindo a T7 em que o mar só descia): +60 m em +10 °C, perto dos ~70 m que a
+ * Terra subiria sem gelo nenhum.
+ */
+export const SEA_RISE_PER_DEGREE = 6;
+
+/** Nível do mar para um desvio de temperatura: desce no frio (o gelo em terra guarda a água) e sobe no calor. */
 export function seaLevelFor(base: number, offset: number): number {
-  return base + Math.round((Math.min(0, offset) * SEA_DROP_PER_DEGREE) / SEA_LEVEL_STEP) * SEA_LEVEL_STEP;
+  const meters = offset < 0 ? offset * SEA_DROP_PER_DEGREE : offset * SEA_RISE_PER_DEGREE;
+  return base + Math.round(meters / SEA_LEVEL_STEP) * SEA_LEVEL_STEP;
 }
 
 /**

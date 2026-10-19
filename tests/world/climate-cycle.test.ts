@@ -74,7 +74,9 @@ describe('clima (T7): temperatura global e ciclo glacial', () => {
 
   it('no máximo glacial o mar desce ~120 m e aparece terra nova (nunca sobe acima do normal)', () => {
     expect(seaLevelFor(0, -GLACIAL_AMPLITUDE)).toBe(-120);
-    expect(seaLevelFor(0, 10)).toBe(0);
+    // No calor as calotas derretem e o mar sobe acima do normal (teste da 30e5e93).
+    expect(seaLevelFor(0, 10)).toBe(60);
+    expect(seaLevelFor(0, 0)).toBe(0);
     const w = worldOf();
     const land0 = w.landFraction();
     expect(applyClimateOffset(w, -GLACIAL_AMPLITUDE)).toBe(true);
@@ -158,4 +160,16 @@ describe('clima (T7): no jogo, com placas paradas', () => {
     expect(glideToward(2, 5, 0.5, 2)).toBe(3);
     expect(glideToward(3, 3, 1)).toBe(3);
   });
+});
+
+it('no calor o mar sobe e alaga as terras baixas; no normal elas voltam (teste da 30e5e93)', () => {
+  const w = createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: 64, seaLevel: 0, landFraction: 0.3 });
+  const land0 = w.landFraction();
+  const low = [...Array(w.cellCount).keys()].filter((c) => !w.isWater(c) && w.heightAboveSea(c) < 50);
+  applyClimateOffset(w, 10);
+  expect(w.seaLevel).toBe(60);
+  expect(w.landFraction()).toBeLessThan(land0);
+  expect(low.every((c) => w.isWater(c))).toBe(true);
+  applyClimateOffset(w, 0);
+  expect(w.landFraction()).toBeCloseTo(land0, 6);
 });

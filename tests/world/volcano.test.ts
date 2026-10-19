@@ -150,3 +150,16 @@ describe('vulcão (R7)', () => {
     for (const x of basalt) expect(w.plate[x]).toBe(plate);
   }, 60_000);
 });
+
+it('raio num vulcão faz a lava espirrar no cone (teste da 30e5e93)', () => {
+  const w = worldOf('terra', 64);
+  const d = new Disasters(w);
+  d.frequency = 0;
+  const v = d.volcanoes.find((x) => !w.isWater(x.cell))!;
+  const lavaBefore = [...d.ground.active].filter((c) => d.ground.state[c] === CellState.Lava).length;
+  d.trigger(DisasterKind.Lightning, cellPoint(w, v.cell), 0);
+  const lava = [...d.ground.active].filter((c) => d.ground.state[c] === CellState.Lava);
+  expect(lava.length).toBeGreaterThan(lavaBefore + 3);
+  // O do jogador também acorda o vulcão.
+  expect(v.awake).toBe(true);
+});

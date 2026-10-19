@@ -96,6 +96,8 @@ export interface DisasterProcess {
 /** Quanto tempo (anos) cada marca curta dos desastres de hoje dura (R3–R8 refazem cada um). */
 /** Chance de a lava acender fogo em cada vizinha com vegetação em que encosta. */
 const LAVA_FIRE = 0.12;
+/** Respingos de lava quando um raio acerta um vulcão (células). */
+const SPATTER_CELLS: readonly [number, number] = [4, 8];
 
 /**
  * Desastres do mundo (T8–T12): vivem no relógio e andam com o passo do jogo; sorteios próprios, na ordem
@@ -494,8 +496,28 @@ export class Disasters {
   private lightning(c: number, tick: number, manual: boolean, out: DisasterOutcome): void {
     this.event(DisasterKind.Lightning, c, 1, false, manual, 'Raio', 1, tick, out);
     const v = this.volcanoNear(c, 5);
-    if (!v || v.awake || v.extinct || cellDistance(this.world, v.cell, c) > v.cone + 0.6) return;
+    if (!v || cellDistance(this.world, v.cell, c) > v.cone + 0.6) return;
+    // A lava espirra (teste da 30e5e93): respingos no cone, que podem acender o mato em volta.
+    this.spatter(v, tick, manual);
+    if (v.awake || v.extinct) return;
     if (manual || (this.plateRate > 0 && this.rng.next() < LIGHTNING_WAKE)) this.wake(v, tick, manual, out);
+  }
+
+  /** Respingos de lava do raio: 4–8 células do cone com lava por pouco tempo; o mato em volta pode pegar fogo. */
+  private spatter(v: Volcano, tick: number, manual: boolean): void {
+    const world = this.world;
+    const { cells } = coneCells(world, v, v.cone + 1.6);
+    const land = cells.filter((x) => !world.isWater(x) && this.ground.rock[x] !== 255);
+    const n = Math.min(land.length, this.rng.int(SPATTER_CELLS[0], SPATTER_CELLS[1]));
+    for (let k = 0; k < n; k++) {
+      const x = land.splice(this.rng.int(0, land.length - 1), 1)[0] as number;
+      this.ground.damage(x, 1);
+      this.ground.setState(x, CellState.Lava, tick, this.rng.range(0.3, 1), TICKS_PER_YEAR);
+      for (let d = 0; d < 4; d++) {
+        const j = world.grid.neighbors[x * 4 + d] as number;
+        if (canBurn(world, this.ground, j) && this.rng.next() < LAVA_FIRE * 2) this.startFire(j, tick, manual);
+      }
+    }
   }
 
   /** Começa um incêndio em `start` (anda passo a passo; o aviso sai quando apaga, se foi grande). */

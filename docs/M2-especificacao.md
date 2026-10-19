@@ -995,9 +995,13 @@ T13 e T14). Decisões em `docs/decisoes.md` (2026-10-18, teste da `30e5e93`).
   - C7: tocar de novo na ferramenta em uso volta para Mover; ligar uma visão (Ver placas, Ver recursos,
     Ver biomas, Ver tensão, Nuvens) volta para Mover.
   - C8: furacão de fogo removido (simulação, tela e shader).
-- [ ] **C9 — Calotas derretendo sobem o mar** acima do normal e alagam terras baixas (corrige a T7).
+- [x] **C9 — Calotas derretendo sobem o mar** acima do normal e alagam terras baixas (corrige a T7).
 - [ ] **C10 — Vulcão sob gelo** (jökulhlaup): proposta e imagem antes de codar.
-- [ ] **C11 — Raio num vulcão faz a lava espirrar.**
+- [x] **C11 — Raio num vulcão faz a lava espirrar.**
+  **Feito (2026-10-18), C9 e C11:** C9: o mar sobe 6 m por °C acima do normal (+60 m em +10 °C; o frio
+  continua descendo 15 m por °C), alagando as terras baixas; volta ao normal quando o clima volta.
+  C11: raio num vulcão (acordado ou dormindo) solta 4–8 respingos de lava no cone, que podem acender o
+  mato em volta; o do jogador continua acordando o adormecido. Testes novos.
 - [ ] **C12 — Tempestade de areia e meteoro:** especificação e imagens antes de codar.
 
 ## Bloco Final (depois do Bloco Desastres v2)
