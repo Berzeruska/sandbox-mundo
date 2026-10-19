@@ -1,9 +1,10 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-18**, branch `marco-2`. Correções do teste da `30e5e93` **todas feitas**
+Atualizado em: **2026-10-19**, branch `marco-2`. Correções do teste da `30e5e93` **todas feitas**
 (C1–C12): vulcão sob gelo (jökulhlaup), meteoro e tempestade de areia codados. Trava de commit ativa
-(`.githooks/pre-commit`). **Esperando o teste do usuário na prévia** (correções + desastres novos).
-Depois: T13 e T14.
+(`.githooks/pre-commit`). **Ainda esperando o teste do usuário na prévia** (correções + desastres novos).
+Enquanto isso, **Bloco Final: T13 feita** (teste longo de 12.000 anos, abaixo); próxima: **T14** (medição
+no notebook contra a linha de base da v1.1).
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
@@ -33,6 +34,12 @@ sobre "onde estamos", vale este.
   deformar o que passa por cima perto do polo; calotas e variação de cor; textura fina no M8); a
   "tampa" sem nuvens em volta do polo tem que sumir; floresta tropical e minérios aprovados; prioridade
   visual = o que o desastre faz no mundo (acabamento no M8); **redesenho dos desastres**.
+- **T13 feita (2026-10-19):** teste automático `tests/sim/long-run.test.ts`: o relógio inteiro
+  (placas, clima, gelo, desastres) no padrão do jogo por 12.000 anos, 3 sementes, N = 128. Terra entre
+  20% e 40% o tempo todo, nenhum valor inválido, ≥ 3 continentes no fim, montanhas, os 10 tipos de
+  desastre e avisos na frequência do "Raro". Passa (~40 s). Achado: em N = 64 a lava que vira terra no
+  mar sobe a terra para 40–42% (a lava anda em células, muita área numa grade pequena); no jogo
+  (N = 256) a terra fica estável em 28–32% (medido). Registrado em `docs/decisoes.md`.
 - **R9 feita (2026-10-18):** "Raro" recalibrado (um aviso a cada ~1–1,4 min em 1×, medido) e cenário
   "desastres Muitos, 20×" no "Medir desempenho": 60 fps, relógio a 240 passos/s.
 - **R8 feita (2026-10-18):** furacão e ciclone andando no relógio (até 2 por quadrante, 8 no mundo),
@@ -214,7 +221,8 @@ mostrar o último commit do `marco-2`). Em cada item: o que fazer → o que deve
   depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
 - [ ] Teste do usuário do Bloco Desastres v2 no notebook (lista abaixo).
-- [ ] T13 (teste longo) e T14 (medição final).
+- [x] T13 (teste longo).
+- [ ] T14 (medição final contra a linha de base da v1.1).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)

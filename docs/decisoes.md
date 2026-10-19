@@ -941,3 +941,18 @@ Formato: data — decisão — motivo — alternativa descartada.
   muda o relevo para sempre. O teste "controle em 0 congela a geologia" pegou isso no commit.
 - **Alternativa descartada:** meteoro natural independente das placas (mudaria a regra do "Placas 0").
   Fica em aberto para o usuário confirmar.
+
+## 2026-10-19 — T13: teste longo de estabilidade (decisões técnicas)
+- **"X passos" = 12.000 anos** (144.000 passos, 10 min a 20×): a janela das medições do Bloco G e um
+  ciclo de Wilson inteiro com as placas no máximo. Tudo no padrão do jogo (placas 25%, "Raro").
+- **"Continente grande" = componente de terra com ≥ 2% da terra**, o mesmo corte do critério de formas
+  aprovado (2026-10-15). **"Quantidades esperadas" dos desastres** = os 10 tipos naturais acontecem e
+  os avisos ficam na meta do "Raro" (1 a cada 1–2 min em 1× = 8–17 por 1.000 anos), com a folga do
+  teste da R9 (5 a 25).
+- **Resolução do teste: N = 128.** Em N = 64 o teste reprova: a terra sobe de 30% para 40–42% em
+  12.000 anos. Causa medida: a lava que chega ao mar vira terra (R7) e cada erupção anda um número fixo
+  de células (10–80); numa grade pequena isso é 4× (N = 128) ou 16× (N = 256) mais área. Com desastres
+  em "Nenhum" a terra fica estável; em N = 128 e N = 256 (o jogo) também (+1–2 pontos em 12.000 anos).
+- **Não corrigido agora:** a lava medida em células só vale para N = 256, a resolução do jogo até o M3.
+  Se a resolução mudar, a lava passa a ser medida em área (como o espaçamento dos vulcões na R9).
+- **Alternativa descartada:** rodar em N = 256 no CI (~46 s por semente, só o teste).

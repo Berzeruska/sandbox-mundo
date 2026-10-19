@@ -1083,10 +1083,18 @@ mais comuns, médios e grandes cada vez mais raros, gigante raríssimo.
 
 ## Bloco Final (depois do Bloco Desastres v2)
 
-- [ ] **T13 — Teste longo de estabilidade**
+- [x] **T13 — Teste longo de estabilidade**
   Teste automático: partindo da Pangeia, em velocidade padrão, depois de X passos existem ≥ 3
   continentes grandes, a fração de terra está entre 20% e 40%, há montanhas, nenhum valor inválido,
   e os desastres aconteceram nas quantidades esperadas.
+  **Feito (2026-10-19):** `tests/sim/long-run.test.ts`, o núcleo inteiro do relógio (placas, clima,
+  gelo, desastres) no padrão do jogo (placas 25%, desastres "Raro", temperatura 0), 12.000 anos
+  (144.000 passos = 10 min a 20×), sementes `terra`, `mundo` e `7`, N = 128. A cada 500 anos: terra
+  entre 20% e 40% e nenhum valor inválido (relevo entre −11.000 e 9.000 m, temperatura, chuva,
+  vegetação 0–1, nível do mar). No fim: ≥ 3 continentes (componentes com ≥ 2% da terra), montanhas,
+  todos os 10 tipos de desastre natural, avisos entre 5 e 25 por 1.000 anos ("Raro": 1 a cada 1–2 min
+  em 1×) e menos de 100 desastres andando. ~40 s no CI. Medido em N = 256 (`terra`): terra 28–32%,
+  207 avisos em 12.000 anos (1 a cada ~58 anos).
 
 - [ ] **T14 — Medição de desempenho e comparação com a linha de base**
   Placas no máximo + tempo no máximo: tela ≥ 30 fps no celular (≥ 60 no notebook). Medir nas mesmas
