@@ -219,6 +219,11 @@ mostrar o último commit do `marco-2`). Em cada item: o que fazer → o que deve
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
 - R1 (2026-10-18, Chrome, 1080p): 60 fps em todos os cenários, pior quadro 17 ms; **GPU do globo**
+- Depois da C12 (2026-10-18, Chrome headless no notebook, 1080p): 60 fps em todos os cenários, pior quadro
+  17 ms, **0 travadas** (a medição de GPU não conta mais); "desastres Muitos, 20×": relógio 240 passos/s,
+  0,7 ms por passo, ocupado 16%; GPU: longe 2,2, de perto 4,1 (um quadro isolado de 18 ms na medição;
+  na rodada anterior o pior foi 3,8), de perto andando 3,9, transição 5,2, meio andando 5,5, meio na
+  transição 6,1, longe com desastres 3,0 ms; memória: dados 90 MB, página 181 MB; geração 0,85 s.
 - `30e5e93`, medido pelo usuário (Chrome, notebook): 60 fps em todos os cenários (inclusive desastres
   "Muitos" 20×), pior quadro 36 ms, GPU ≤ 6,8 ms, memória 160 MB, geração 0,93 s; 6 travadas no rodapé
   (117–217 ms em 20× logo depois de recomposição; ~1 s em 1× mexendo na temperatura): em correção (C1).

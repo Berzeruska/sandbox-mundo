@@ -153,6 +153,8 @@ export class App {
   private paintGate = new PaintGate();
   /** Animações dos desastres na camada de cima (T8–T10) e se ainda há algo dela na tela. */
   private fx = new DisasterFx();
+  /** O "Medir desempenho" está medindo a GPU (desenhos seguidos): não conta como travada. */
+  private gpuMeasuring = false;
   /** Frequência dos desastres naturais escolhida (o "Medir desempenho" volta para ela). */
   private disasterFrequency = DEFAULT_FREQUENCY;
   /** Furacões andando (R8), pela identidade: o que está no desenho e para onde vai. */
@@ -744,7 +746,7 @@ export class App {
     const workStart = performance.now();
     const dt = this.lastTime ? Math.min(0.1, (time - this.lastTime) / 1000) : 0;
     this.lastTime = time;
-    if (!document.hidden && this.loadingEl.hidden) this.stalls.frame(time, Date.now(), this.stallContext());
+    if (!document.hidden && this.loadingEl.hidden && !this.gpuMeasuring) this.stalls.frame(time, Date.now(), this.stallContext());
     else this.stalls.restart();
     this.frameDt = dt;
     // Vigia: geração sem nenhuma notícia há muito tempo vira erro na tela, nunca espera infinita.
@@ -891,9 +893,11 @@ export class App {
       const r = this.renderer;
       if (!r) return;
       await wait(300);
-      const m = await r.measureDraw(this.camera, this.motion.uniforms, 40);
-      gpu.push({ label, ms: m.ms, method: m.method });
       // Os desenhos seguidos da medição seguram a tela por um instante: não é travada do jogo (C1).
+      this.gpuMeasuring = true;
+      const m = await r.measureDraw(this.camera, this.motion.uniforms, 40);
+      this.gpuMeasuring = false;
+      gpu.push({ label, ms: m.ms, method: m.method });
       this.stalls.restart();
     };
     // Transição suave (0,35 s depois de cada recomposição): espera uma de verdade e mede com os valores
@@ -905,7 +909,9 @@ export class App {
       const until = performance.now() + 8000;
       while (!(u.fade > 0.02 && u.fade < 0.5) && performance.now() < until) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!(u.fade < 1)) return;
+      this.gpuMeasuring = true;
       const m = await r.measureDraw(this.camera, { ...u, fade: 0.5 }, 40);
+      this.gpuMeasuring = false;
       gpu.push({ label, ms: m.ms, method: m.method });
       this.stalls.restart();
     };
