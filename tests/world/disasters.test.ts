@@ -331,7 +331,7 @@ describe('desastres (T10): clima', () => {
     }
   }, 30_000);
 
-  it('incêndio natural nasce de raio, em terra com vegetação (R3)', () => {
+  it('incêndio natural nasce de raio (ou de lava), em terra com vegetação (R3)', () => {
     const w = worldOf('mundo', 64);
     const d = new Disasters(w);
     let fires = 0;
@@ -348,8 +348,8 @@ describe('desastres (T10): clima', () => {
       }
     }
     expect(fires).toBeGreaterThan(5);
-    // Todo incêndio natural começou num raio (o aviso sai quando o fogo apaga).
-    expect(bolts).toBeGreaterThanOrEqual(fires);
+    // Os raios acendem a maior parte (a lava das erupções e os respingos também acendem, R7 e C11).
+    expect(bolts).toBeGreaterThan(fires / 3);
   }, 120_000);
 
   it('as marcas do clima somem: seca, enchente e queimado voltam ao normal', () => {
