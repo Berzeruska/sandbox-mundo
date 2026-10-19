@@ -934,3 +934,10 @@ Formato: data — decisão — motivo — alternativa descartada.
      um número tirado do resultado. Agora cada incêndio registra a origem (raio, lava ou jogador) e o
      teste exige que todo incêndio natural venha de raio ou de lava.
 
+
+## 2026-10-18 — Meteoro natural só com as placas andando (decisão técnica, a confirmar)
+- **Decisão:** com o controle "Placas" em 0 não cai meteoro natural (o do jogador cai sempre).
+- **Motivo:** "Placas 0" foi definido como "a geologia congela" (o relevo não muda sozinho); a cratera
+  muda o relevo para sempre. O teste "controle em 0 congela a geologia" pegou isso no commit.
+- **Alternativa descartada:** meteoro natural independente das placas (mudaria a regra do "Placas 0").
+  Fica em aberto para o usuário confirmar.

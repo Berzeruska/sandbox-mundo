@@ -273,6 +273,10 @@ mostrar o último commit do `marco-2`). Em cada item: o que fazer → o que deve
   sementes passam aos 3 min).
 
 ## Decisões abertas (do usuário)
+- **Meteoro natural com "Placas 0":** decidi (técnico) que não cai, porque "Placas 0" congela o relevo
+  e a cratera muda o relevo para sempre. O do jogador cai sempre. Falta o usuário confirmar.
+- **C5 (tsunami recomeça ao abrir o "relatório"):** não reproduzido; falta saber se é o painel Dados
+  ou o "Medir desempenho" (que gera o mundo de novo no fim).
 - **"Tamanho fixo" das placas:** hoje ficam fixas a identidade e a forma; placas oceânicas podem
   encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
 
