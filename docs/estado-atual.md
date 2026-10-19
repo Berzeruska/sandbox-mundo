@@ -1,7 +1,9 @@
 # Estado atual do projeto
 
 Atualizado em: **2026-10-18**, branch `marco-2`. **Teste do Bloco Desastres v2 (`30e5e93`) feito
-pelo usuário:** modelo da Terra aprovado, metas batidas; **C1–C8 feitas** (falta confirmar a C5 com o usuário); agora C9–C12 da especificação
+pelo usuário:** modelo da Terra aprovado, metas batidas; **C1–C9 e C11 feitas** (falta confirmar a C5 com o usuário). **Esperando aprovação:** propostas de
+vulcão sob gelo (C10), tempestade de areia e meteoro (C12), com 4 perguntas, e a prévia para testar as
+correções; antes eram as C9–C12 da especificação
 (travadas, temperatura, furacão, duração, tsunami, raio, ferramentas, sem furacão de fogo, mar subindo
 no calor, vulcão sob gelo, lava espirrando), depois tempestade de areia e meteoro (especificação e
 imagens antes), depois T13 e T14.

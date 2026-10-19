@@ -996,13 +996,58 @@ T13 e T14). Decisões em `docs/decisoes.md` (2026-10-18, teste da `30e5e93`).
     Ver biomas, Ver tensão, Nuvens) volta para Mover.
   - C8: furacão de fogo removido (simulação, tela e shader).
 - [x] **C9 — Calotas derretendo sobem o mar** acima do normal e alagam terras baixas (corrige a T7).
-- [ ] **C10 — Vulcão sob gelo** (jökulhlaup): proposta e imagem antes de codar.
+- [ ] **C10 — Vulcão sob gelo** (jökulhlaup): proposta e imagem antes de codar (proposta abaixo, esperando).
 - [x] **C11 — Raio num vulcão faz a lava espirrar.**
   **Feito (2026-10-18), C9 e C11:** C9: o mar sobe 6 m por °C acima do normal (+60 m em +10 °C; o frio
   continua descendo 15 m por °C), alagando as terras baixas; volta ao normal quando o clima volta.
   C11: raio num vulcão (acordado ou dormindo) solta 4–8 respingos de lava no cone, que podem acender o
   mato em volta; o do jogador continua acordando o adormecido. Testes novos.
-- [ ] **C12 — Tempestade de areia e meteoro:** especificação e imagens antes de codar.
+- [ ] **C12 — Tempestade de areia e meteoro:** especificação e imagens antes de codar (proposta abaixo, esperando).
+
+## Propostas: vulcão sob gelo, tempestade de areia e meteoro (2026-10-18; esperando aprovação)
+Pedidos do teste da `30e5e93` (C10 e C12). Imagens: `docs/img/m2-dv-gelo-vulcao.png`,
+`docs/img/m2-dv-areia.png`, `docs/img/m2-dv-meteoro.png` (protótipo pintado sobre o globo de verdade,
+semente `terra`; o resultado segue o texto).
+
+**Vulcão debaixo do gelo (jökulhlaup)**
+- Gelo em cima do cone (pintado pelo jogador ou da calota do clima) não "embrulha" o vulcão: ele segue
+  o ciclo dele (dorme, acorda, entra em erupção).
+- Acordado debaixo do gelo: o calor derrete o gelo do cone e em volta (raio do cone + 2 células) em
+  ~1–2 s em 1×; a lava que passa por cima de gelo derrete na hora.
+- A água do degelo se junta e desce **de uma vez** numa enchente súbita: começa na borda mais baixa do
+  cone e segue sempre o terreno mais baixo (como a lava, mais rápida e mais larga), com tamanho pelo
+  gelo derretido (~4 células por célula de gelo, até 150); água barrenta por 1–2 anos, depois areia e
+  cascalho cinza (sedimento) por 30–80 anos, vegetação zerada no caminho; termina no mar ou num lago.
+- Vira aviso ("Enchente do degelo") quando passa de 60 células.
+
+**Tempestade de areia**
+- Nasce em deserto quente ou frio (e mais na seca); anda com o vento da latitude, ~0,5 célula por passo,
+  por 6–15 s em 1×; raio 6–14 células.
+- Desenho: nuvem de poeira alaranjada no shader, como as nuvens (borda recortada, andando), vista de
+  longe e de perto, como os furacões.
+- Efeito: fora do deserto, onde ela passa, fica **areia** por cima (a vegetação cai 20–50%, mais perto
+  do deserto), que some em 3–10 anos. No M3, dificulta a vida (`docs/04-ecologia.md`).
+- Frequência: em "Raro", ~1 a cada 1–2 min em algum deserto; aviso só nas grandes (raio ≥ 12).
+- Jogador: Desastres → Tempestade de areia, tocar em qualquer terra (nasce ali e anda com o vento).
+
+**Meteoro**
+- Jogador: Desastres → Meteoro, com fileira de tamanho **Pequeno · Médio · Grande · Gigante** (cratera
+  de raio 1, 3, 6 e 12 células).
+- Entra em ~1 s (risco brilhante vindo de uma direção sorteada), clarão no impacto.
+- **Cratera de verdade no relevo** (fundo afundado de 200 a 1.500 m, borda erguida; para sempre, anda
+  com a placa), borda clara de entulho (anos), vegetação derrubada e incêndios num raio de 2–3× a
+  cratera; Grande e Gigante tremem a tela como um terremoto M 7–9.
+- No mar: Médio ou maior faz tsunami (como M 8, 8,5 e 9,5).
+- Natural: raríssimo (em "Raro", um pequeno a cada ~2.000 anos de jogo).
+
+**Perguntas ao usuário**
+1. Gelo **pintado** que o vulcão derreteu: (a) fica o buraco até o jogador pintar de novo; (b) volta
+   sozinho depois que o vulcão dorme. (Gelo do clima volta sozinho se continuar frio.)
+2. Tempestade de areia: (a) só a areia temporária; (b) também o deserto avança 1–2 células para sempre
+   nas tempestades grandes.
+3. Meteoro gigante: (a) só o estrago no lugar; (b) também esfria o planeta (~−3 °C por ~30 anos, poeira
+   no céu), somado ao clima.
+4. Meteoros naturais: (a) só pequenos, raríssimos; (b) também médios e grandes (mais raros ainda).
 
 ## Bloco Final (depois do Bloco Desastres v2)
 
