@@ -178,9 +178,13 @@ export function selectItem(state: MenuState, id: string): { state: MenuState; ef
   if (item.kind === 'toggle') {
     const on = !state.toggles.includes(item.id);
     const toggles = on ? [...state.toggles, item.id] : state.toggles.filter((t) => t !== item.id);
-    return { state: { ...state, open: false, toggles }, effect: { type: 'toggle', id: item.id, on } };
+    // Ligar uma visão desliga a ferramenta em uso (teste da 30e5e93): volta para Mover.
+    const active = on && itemById(state.active)?.kind === 'tool' ? 'move' : state.active;
+    return { state: { ...state, open: false, toggles, active }, effect: { type: 'toggle', id: item.id, on } };
   }
-  return { state: { ...state, open: false, active: item.id }, effect: { type: 'none' } };
+  // Tocar de novo na ferramenta em uso desliga ela (volta para Mover).
+  const active = item.id === state.active && item.id !== 'move' ? 'move' : item.id;
+  return { state: { ...state, open: false, active }, effect: { type: 'none' } };
 }
 
 export function isOn(state: MenuState, id: string): boolean {

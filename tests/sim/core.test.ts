@@ -209,3 +209,21 @@ describe('placas no worker', () => {
     expect(core.tectonics).not.toBeNull();
   });
 });
+
+it('controle de temperatura: o clima atrasado do motor não desfaz a prévia na tela (C2)', () => {
+  const { core } = makeCore();
+  core.handle({ type: 'newWorld', seedText: 'terra', n: 32 });
+  core.handle({ type: 'speed', speed: 20 });
+  core.handle({ type: 'climateControl', control: 6 });
+  for (let k = 0; k < 40; k++) core.advance(0.25);
+  // Volta para 2: a prévia desce aos poucos; os resultados do motor feitos com os valores de antes
+  // (mais quentes) chegam APPLY_DELAY_TICKS depois e não podem fazer a temperatura subir de novo.
+  core.handle({ type: 'climateControl', control: 2 });
+  let last = core.world!.climateOffset;
+  for (let k = 0; k < 60; k++) {
+    core.advance(0.25);
+    const now = core.world!.climateOffset;
+    expect(now).toBeLessThanOrEqual(last + 0.05);
+    last = now;
+  }
+});

@@ -107,13 +107,15 @@ describe('menu de ferramentas: comportamento', () => {
 });
 
 describe('interruptores (camadas)', () => {
-  it('"Ver placas" liga e desliga, fecha o menu e não troca a ferramenta ativa', () => {
+  it('"Ver placas" liga e desliga e fecha o menu; ligar uma visão desliga a ferramenta em uso', () => {
     const s0 = { ...INITIAL_MENU, active: 'raise', open: true, category: 'geologia' as const };
     const a = selectItem(s0, 'platesLayer');
     expect(a.effect).toEqual({ type: 'toggle', id: 'platesLayer', on: true });
-    // As nuvens já começam ligadas.
-    expect(a.state).toMatchObject({ open: false, active: 'raise', toggles: ['cloudsLayer', 'platesLayer'] });
-    const b = selectItem({ ...a.state, open: true }, 'platesLayer');
+    // As nuvens já começam ligadas; o pincel em uso desliga (volta para Mover).
+    expect(a.state).toMatchObject({ open: false, active: 'move', toggles: ['cloudsLayer', 'platesLayer'] });
+    const b = selectItem({ ...a.state, open: true, active: 'raise' }, 'platesLayer');
+    // Desligar a visão não mexe na ferramenta.
+    expect(b.state.active).toBe('raise');
     expect(b.effect).toEqual({ type: 'toggle', id: 'platesLayer', on: false });
     expect(b.state.toggles).toEqual(['cloudsLayer']);
   });
@@ -141,4 +143,14 @@ it('força ao provocar (R2): magnitudes no terremoto e no tsunami, categorias no
     expect(STRENGTHS[Number(kind) as DisasterKind]!.some((c) => c.value === v)).toBe(true);
   }
   expect(STRENGTHS[DisasterKind.Volcano]).toBeUndefined();
+});
+
+it('tocar de novo na ferramenta em uso desliga ela (volta para Mover)', () => {
+  const a = selectItem(openMenu(INITIAL_MENU, 'desastres'), 'volcano');
+  expect(a.state.active).toBe('volcano');
+  const b = selectItem(openMenu(a.state), 'volcano');
+  expect(b.state.active).toBe('move');
+  expect(activeDisaster(b.state)).toBeNull();
+  // Mover continua Mover.
+  expect(selectItem(openMenu(INITIAL_MENU, 'relevo'), 'move').state.active).toBe('move');
 });

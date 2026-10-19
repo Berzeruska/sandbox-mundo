@@ -962,16 +962,39 @@ teste do bloco. Mar e gelo não ganham degraus.
 ## Bloco Desastres v2 — correções do teste da `30e5e93` (2026-10-18)
 Pedido do usuário depois do teste no notebook (ordem dele: estas, depois os desastres novos, depois
 T13 e T14). Decisões em `docs/decisoes.md` (2026-10-18, teste da `30e5e93`).
-- [ ] **C1 — Travadas:** 117–217 ms em 20× com placas 100% logo depois de recomposição; ~1 s em 1×
+- [x] **C1 — Travadas:** 117–217 ms em 20× com placas 100% logo depois de recomposição; ~1 s em 1×
   mexendo na temperatura. Meta: nenhum quadro > 50 ms.
-- [ ] **C2 — Temperatura:** a animação do controle reinicia e trava para voltar.
-- [ ] **C3 — Furacão:** às vezes precisa de vários cliques para aparecer, ou não aparece.
-- [ ] **C4 — Duração:** furacão e ciclone duram pouco; no geral os desastres precisam durar mais.
+- [x] **C2 — Temperatura:** a animação do controle reinicia e trava para voltar.
+- [x] **C3 — Furacão:** às vezes precisa de vários cliques para aparecer, ou não aparece.
+- [x] **C4 — Duração:** furacão e ciclone duram pouco; no geral os desastres precisam durar mais.
 - [ ] **C5 — Tsunami:** a animação reinicia quando o relatório é aberto.
-- [ ] **C6 — Raio** visto de longe parece cair do espaço.
-- [ ] **C7 — Ferramentas:** tocar de novo na ferramenta ativa desliga ela; ligar uma visão (ex.: Ver
+- [x] **C6 — Raio** visto de longe parece cair do espaço.
+- [x] **C7 — Ferramentas:** tocar de novo na ferramenta ativa desliga ela; ligar uma visão (ex.: Ver
   recursos) desliga a ferramenta em uso.
-- [ ] **C8 — Furacão de fogo removido** (decisão do usuário).
+- [x] **C8 — Furacão de fogo removido** (decisão do usuário).
+  **Feito (2026-10-18), C1–C8:**
+  - C1: as quatro travadas de 117–217 ms em 20× "logo depois de recomposição" eram da própria medição
+    de GPU do "Medir desempenho" (40 desenhos seguidos; a da transição espera uma recomposição). A
+    medição não conta mais como travada e, com a consulta de tempo da GPU, não espera a GPU a cada
+    desenho. As de ~1 s mexendo na temperatura: não reproduzi; as causas prováveis eram as da C2 (cada
+    resultado atrasado do motor refazia o mundo inteiro numa temperatura antiga) e cada degrau mandando
+    o mundo inteiro à tela (agora só o que mudou de cor).
+  - C2: o motor da geologia devolve o clima 480 passos depois (40 s em 1×) com o controle que valia lá
+    atrás; isso voltava o mundo para a temperatura antiga ("animação reiniciando"). Agora o resultado
+    traz o controle usado e, se a tela já está noutro valor, a prévia é reaplicada. Teste novo.
+  - C3: o furacão do jogador nasce no mar mais perto até 40 passos (antes 12; longe de todo mar, nasce
+    ali mesmo), aparece logo (antes levava 8 passos para ganhar força) e segura a categoria (não
+    enfraquece em mar frio; em terra, metade).
+  - C4: fases animadas com o dobro da duração: furacão meia célula por passo (até 24 s), fogo passando
+    a cada 3 passos, enchente subindo em 2 s, tsunami (viagem, recuo, água em terra) o dobro, lava uma
+    célula por passo.
+  - C5: não reproduzi: abrindo o painel Dados no meio de um tsunami, ele continua andando (passos 23 → 65
+    sem voltar). A onda chega às costas mais longe depois, o que pode parecer um recomeço. Perguntado
+    ao usuário o que é "o relatório".
+  - C6: o raio tem tamanho pelo zoom (de longe um risquinho junto do chão; antes 220 px fixos).
+  - C7: tocar de novo na ferramenta em uso volta para Mover; ligar uma visão (Ver placas, Ver recursos,
+    Ver biomas, Ver tensão, Nuvens) volta para Mover.
+  - C8: furacão de fogo removido (simulação, tela e shader).
 - [ ] **C9 — Calotas derretendo sobem o mar** acima do normal e alagam terras baixas (corrige a T7).
 - [ ] **C10 — Vulcão sob gelo** (jökulhlaup): proposta e imagem antes de codar.
 - [ ] **C11 — Raio num vulcão faz a lava espirrar.**

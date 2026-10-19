@@ -3,7 +3,7 @@ import { createRng, seedFrom } from '../../src/core/rng';
 import { createWorld } from '../../src/world/create';
 import { cellPoint, DisasterKind, Disasters } from '../../src/world/disasters';
 import { Ground, hasVegetation } from '../../src/world/disasters/ground';
-import { damageRadius, HurricaneProcess, MAX_PER_QUADRANT, quadrantOf, stormName } from '../../src/world/disasters/hurricane';
+import { damageRadius, HurricaneProcess, MAX_PER_QUADRANT, stormName } from '../../src/world/disasters/hurricane';
 import type { WorldState } from '../../src/world/state';
 
 const worldOf = (seed = 'terra', n = 64) => createWorld({ seedText: seed, seed: seedFrom(seed), n, seaLevel: 0, landFraction: 0.3 });
@@ -34,7 +34,8 @@ describe('furacão e ciclone (R8)', () => {
       d.step(t, 0);
       if (t % 12) continue;
       const count = [0, 0, 0, 0];
-      for (const v of d.stormViews()) count[quadrantOf(v.point)]!++;
+      // Pelo quadrante em que nasceu (andando, ele pode atravessar para o vizinho).
+      for (const v of d.stormViews()) count[v.quadrant]!++;
       maxPerQuadrant = Math.max(maxPerQuadrant, ...count);
     }
     expect(maxPerQuadrant).toBeGreaterThan(0);
@@ -48,7 +49,7 @@ describe('furacão e ciclone (R8)', () => {
     // Um que toque terra.
     let h: HurricaneProcess | null = null;
     for (const s of seas) {
-      const p = new HurricaneProcess(w, g, createRng(s), s, 4, 0, 0, { flood: () => undefined, ignite: () => undefined });
+      const p = new HurricaneProcess(w, g, createRng(s), s, 4, 0, 0, false, { flood: () => undefined });
       if (p.track.landfall) {
         h = p;
         break;
@@ -72,29 +73,20 @@ describe('furacão e ciclone (R8)', () => {
     expect(damaged).toBeGreaterThan(5);
   });
 
-  it('raio do jogador num furacão vira furacão de fogo; em terra ele acende a vegetação do miolo', () => {
+  it('o furacão do jogador aparece sempre: longe do mar, nasce mesmo assim; segura a categoria (C3)', () => {
     const w = worldOf('terra', 128);
     const d = new Disasters(w);
     d.frequency = 0;
-    const seas = tropicalSea(w);
-    let sea = -1;
-    for (const s of seas) {
-      const p = new HurricaneProcess(w, new Ground(w.cellCount), createRng(1), s, 4, 0, 0, { flood: () => undefined, ignite: () => undefined });
-      if (p.track.landfall) {
-        sea = s;
-        break;
-      }
-    }
-    d.trigger(DisasterKind.Hurricane, cellPoint(w, sea), 0, 4);
-    const v = d.stormViews()[0]!;
-    expect(v.fire).toBe(false);
-    d.trigger(DisasterKind.Lightning, v.point, 0);
-    expect(d.stormViews()[0]!.fire).toBe(true);
-    let burning = 0;
-    for (let t = 1; t < 400 && d.stormViews().length; t++) {
-      d.step(t, 0);
-      for (const c of d.ground.active) if (d.ground.state[c] === 1) burning++;
-    }
-    expect(burning).toBeGreaterThan(0);
+    // Miolo de continente.
+    let inland = -1;
+    for (let c = 0; c < w.cellCount; c++) if (!w.isWater(c) && (inland < 0 || w.waterDistance[c]! > w.waterDistance[inland]!)) inland = c;
+    d.trigger(DisasterKind.Hurricane, cellPoint(w, inland), 0, 3);
+    expect(d.stormViews().length).toBe(1);
+    // No mar frio, o do jogador não perde força.
+    const cold = [...Array(w.cellCount).keys()].find((c) => w.isWater(c) && !w.ice[c] && w.temperature[c]! < 10)!;
+    const d2 = new Disasters(worldOf('terra', 128));
+    d2.trigger(DisasterKind.Hurricane, cellPoint(w, cold), 0, 4);
+    for (let t = 1; t <= 60; t++) d2.step(t, 0);
+    expect(d2.stormViews().length).toBe(1);
   });
 });

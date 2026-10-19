@@ -11,7 +11,7 @@ import { CellState, cellHash, type Ground, hasVegetation } from './ground';
  */
 
 /** De quantos em quantos passos (meses) o fogo tenta passar para as vizinhas. */
-export const SPREAD_EVERY = 2;
+export const SPREAD_EVERY = 3;
 
 /**
  * Chance de uma vizinha pegar fogo a cada tentativa, pelo bioma dela (antes da vegetação, do

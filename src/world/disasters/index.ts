@@ -304,8 +304,9 @@ export class Disasters {
     } else if (kind === DisasterKind.Flood) {
       if (!world.isWater(cell)) this.flood(cell, tick, true, out);
     } else if (kind === DisasterKind.Hurricane) {
-      const sea = nearestWater(world, cell, 12);
-      if (sea >= 0) this.hurricane(sea, strength ?? 3 + this.rng.int(0, 2), tick, true, out);
+      // No mar mais perto (até 40 passos); longe de qualquer mar, nasce ali mesmo (e logo enfraquece).
+      const sea = nearestWater(world, cell, 40);
+      this.hurricane(sea >= 0 ? sea : cell, strength ?? 3 + this.rng.int(0, 2), tick, true, out);
     } else if (kind === DisasterKind.Fire) {
       // Na vegetação mais perto (até 6 células) do toque.
       const start = nearest(world, cell, 6, (c) => canBurn(world, this.ground, c));
@@ -492,14 +493,6 @@ export class Disasters {
    */
   private lightning(c: number, tick: number, manual: boolean, out: DisasterOutcome): void {
     this.event(DisasterKind.Lightning, c, 1, false, manual, 'Raio', 1, tick, out);
-    // Raio do jogador num furacão ou ciclone: vira furacão de fogo (R8).
-    if (manual) {
-      const p = cellPoint(this.world, c);
-      for (const h of this.storms) {
-        const v = h.view();
-        if (v && Math.acos(Math.min(1, v.point[0] * p[0] + v.point[1] * p[1] + v.point[2] * p[2])) <= v.radius) h.fire = true;
-      }
-    }
     const v = this.volcanoNear(c, 5);
     if (!v || v.awake || v.extinct || cellDistance(this.world, v.cell, c) > v.cone + 0.6) return;
     if (manual || (this.plateRate > 0 && this.rng.next() < LIGHTNING_WAKE)) this.wake(v, tick, manual, out);
@@ -565,8 +558,7 @@ export class Disasters {
   }
 
   /**
-   * Furacão ou ciclone (R8): anda passo a passo; a chuva em terra dispara enchentes e, se o jogador
-   * jogou um raio nele, vira furacão de fogo. No máximo 2 por quadrante (o do jogador só respeita o
+   * Furacão ou ciclone (R8): anda passo a passo; a chuva em terra dispara enchentes. No máximo 2 por quadrante (o do jogador só respeita o
    * total de 8).
    */
   private hurricane(start: number, category: number, tick: number, manual: boolean, out: DisasterOutcome): void {
@@ -574,22 +566,11 @@ export class Disasters {
     const point = cellPoint(world, start);
     const active = this.storms.filter((h) => h.view());
     if (active.length >= MAX_STORMS_WORLD) return;
-    if (!manual && active.filter((h) => quadrantOf((h.view() as StormView).point) === quadrantOf(point)).length >= MAX_PER_QUADRANT) return;
-    let fireProcess: FireProcess | null = null;
-    const h = new HurricaneProcess(world, this.ground, this.rng, start, category, tick, this.storms.filter((x) => x.startTick === tick).length, {
+    if (!manual && active.filter((h) => (h.view() as StormView).quadrant === quadrantOf(point)).length >= MAX_PER_QUADRANT) return;
+    const h = new HurricaneProcess(world, this.ground, this.rng, start, category, tick, this.storms.filter((x) => x.startTick === tick).length, manual, {
       flood: (cell, t) => {
         const out2 = this.stepOut;
         if (out2) this.flood(cell, t, manual, out2);
-      },
-      ignite: (cells, t) => {
-        // Um incêndio por furacão, alimentado pelo miolo dele enquanto anda em terra.
-        const lit = cells.filter((c) => canBurn(world, this.ground, c));
-        if (!lit.length) return;
-        if (!fireProcess || !fireProcess.size) {
-          fireProcess = new FireProcess(world, this.ground, this.rng, lit[0] as number, t, () => undefined, PLAYER_FIRE_BOOST);
-          this.start(fireProcess);
-        }
-        fireProcess.igniteAlso(lit, t);
       },
     });
     this.storms.push(h);

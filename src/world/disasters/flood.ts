@@ -18,7 +18,7 @@ export const DEPTH: readonly [number, number] = [30, 80];
 export const FLOOD_CELLS: readonly [number, number] = [40, 260];
 export const PLAYER_FLOOD_CELLS: readonly [number, number] = [160, 300];
 /** Passos para a água subir toda (12 = 1 s em 1×). */
-export const RISE_TICKS = 12;
+export const RISE_TICKS = 24;
 /** Anos com a água em cima. */
 export const WET_YEARS: readonly [number, number] = [1, 3];
 /** Lago numa bacia fechada: quanto dura (anos) e a fração mais funda que vira lago. */

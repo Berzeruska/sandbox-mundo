@@ -151,7 +151,7 @@ export function nextWake(v: Volcano, tick: number, factor: number, rng: Rng): nu
 /**
  * Lava de uma erupção, andando passo a passo: sai pela borda mais baixa da cratera, desce o cone por um
  * canal (sempre a vizinha mais baixa) e, fora do cone, vai enchendo o terreno pelo mais baixo (com um
- * pouco de ruído fixo), alargando onde é plano e sem subir mais que um pouco. Uma a duas células por
+ * pouco de ruído fixo), alargando onde é plano e sem subir mais que um pouco. Uma célula por
  * passo. No mar, a célula vira terra nova (basalto) e a lava não passa dali.
  */
 export class LavaProcess {
@@ -235,7 +235,7 @@ export class LavaProcess {
     }
     // Depois o terreno: as mais baixas primeiro (ruído fixo para não andar em linha reta).
     const height = (x: number): number => (world.elevation[x] as number) + 70 * patchNoise(world, x, 2) + 40 * cellHash(x, 0x3c);
-    for (let k = 0; k < 2 && this.front.length && this.placed < this.budget; k++) {
+    for (let k = 0; k < 1 && this.front.length && this.placed < this.budget; k++) {
       let best = 0;
       for (let i = 1; i < this.front.length; i++) if (height(this.front[i] as number) < height(this.front[best] as number)) best = i;
       const c = this.front.splice(best, 1)[0] as number;

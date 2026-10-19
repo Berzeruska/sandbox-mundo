@@ -155,7 +155,7 @@ export class App {
   /** Frequência dos desastres naturais escolhida (o "Medir desempenho" volta para ela). */
   private disasterFrequency = DEFAULT_FREQUENCY;
   /** Furacões andando (R8), pela identidade: o que está no desenho e para onde vai. */
-  private storms = new Map<number, { shown: { p: Vec3; radius: number; power: number; fire: number }; target: { p: Vec3; radius: number; power: number; fire: number } }>();
+  private storms = new Map<number, { shown: { p: Vec3; radius: number; power: number }; target: { p: Vec3; radius: number; power: number } }>();
   /** Tremor da tela do terremoto em curso (R5): início, duração (ms) e força (px). */
   private shake: { start: number; ms: number; amp: number } | null = null;
   private fxShown = false;
@@ -515,7 +515,6 @@ export class App {
         p: [data[k + 1] as number, data[k + 2] as number, data[k + 3] as number] as Vec3,
         radius: data[k + 4] as number,
         power: data[k + 5] as number,
-        fire: data[k + 6] as number,
       };
       const s = this.storms.get(id);
       if (s) s.target = target;
@@ -548,10 +547,8 @@ export class App {
       sh.p = [x, y, z];
       sh.radius += (t.radius - sh.radius) * a;
       sh.power += (t.power - sh.power) * a;
-      sh.fire += (t.fire - sh.fire) * a;
       r.storms.set([x, y, z, sh.radius], n * 4);
       r.stormPower[n] = sh.power;
-      r.stormFire[n] = sh.fire;
       n++;
     }
     return n;
@@ -881,6 +878,8 @@ export class App {
       await wait(300);
       const m = await r.measureDraw(this.camera, this.motion.uniforms, 40);
       gpu.push({ label, ms: m.ms, method: m.method });
+      // Os desenhos seguidos da medição seguram a tela por um instante: não é travada do jogo (C1).
+      this.stalls.restart();
     };
     // Transição suave (0,35 s depois de cada recomposição): espera uma de verdade e mede com os valores
     // dela, no meio da mistura.
@@ -893,6 +892,7 @@ export class App {
       if (!(u.fade < 1)) return;
       const m = await r.measureDraw(this.camera, { ...u, fade: 0.5 }, 40);
       gpu.push({ label, ms: m.ms, method: m.method });
+      this.stalls.restart();
     };
     // Um cenário: prepara, espera assentar, mede `ms` e guarda quadros + trabalho do worker.
     // `panel`: painel Dados escondido (só a linha de andamento) ou aberto, com ou sem o desfoque antigo.

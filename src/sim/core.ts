@@ -454,7 +454,7 @@ export class SimulationCore {
     this.stormsShown = views.length;
     this.stormsTick = this.clock.tick;
     const data = new Float32Array(views.length * STORM_FLOATS);
-    views.forEach((v, k) => data.set([v.id, v.point[0], v.point[1], v.point[2], v.radius, v.power, v.fire ? 1 : 0], k * STORM_FLOATS));
+    views.forEach((v, k) => data.set([v.id, v.point[0], v.point[1], v.point[2], v.radius, v.power], k * STORM_FLOATS));
     this.post({ type: 'storms', storms: data }, [data.buffer as ArrayBuffer]);
   }
 
@@ -513,6 +513,13 @@ export class SimulationCore {
     this.cellRef.set(buffers.cellRef);
     world.climateOffset = r.climateOffset;
     world.seaLevel = r.seaLevel;
+    // O motor fez este clima com o controle de temperatura que valia lá atrás (o resultado aparece
+    // APPLY_DELAY_TICKS depois); se a tela já mostra outro valor (a prévia do controle), ela é reaplicada
+    // por cima. Sem isso o mundo voltava para a temperatura antiga e a "animação reiniciava" (C2).
+    if (r.control !== this.climateControl) {
+      applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl));
+      buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);
+    }
     if (before) {
       // Só o clima mudou: a tela recebe só os pedaços com cor nova (gelo e biomas que andaram).
       this.geology.send({ type: 'consumed', world: this.worldId, index: r.index });
@@ -611,7 +618,16 @@ export class SimulationCore {
     if (!world) return;
     this.geology.send({ type: 'climate', world: this.worldId, tick: this.clock.tick, control: this.climateControl });
     applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl));
-    this.sendAllColors();
+    // Só os pedaços com cor nova vão para a tela (a cada meio grau, quase todo o mundo fica igual).
+    const before = this.colors.slice();
+    buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);
+    if (this.layers.stress && !this.layers.resources) this.tintStressCells();
+    const changed: number[] = [];
+    for (let c = 0; c < world.cellCount; c++) {
+      const o = c * 4;
+      if (before[o] !== this.colors[o] || before[o + 1] !== this.colors[o + 1] || before[o + 2] !== this.colors[o + 2] || before[o + 3] !== this.colors[o + 3]) changed.push(c);
+    }
+    if (changed.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, changed)), brushMs: -1 });
   }
 
   /** Liga/desliga camadas: repinta o mundo todo e manda as 6 faces como remendos. */

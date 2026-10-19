@@ -61,10 +61,13 @@ function drawLightning(ctx: CanvasRenderingContext2D, camera: Camera, e: Disaste
   const c = camera.worldToScreen(e.point);
   if (!c.visible || !Number.isFinite(c.x) || !Number.isFinite(c.y)) return;
   const fade = Math.max(0, 1 - ms / FLASH_MS);
+  // Tamanho pelo zoom: de longe um risquinho junto do chão (antes 220 px fixos: parecia cair do espaço).
+  const cell = camera.cellPixels();
+  const scale = Math.max(0.08, Math.min(1, cell / 40));
   const boltAlpha = ms < FLASH_MS ? 1 : Math.max(0, 1 - (ms - FLASH_MS) / 150);
   // Clarão: brilho radial em volta do ponto.
   if (fade > 0) {
-    const r = 60 * dpr;
+    const r = Math.max(8 * dpr, 60 * dpr * scale);
     const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
     g.addColorStop(0, `rgba(255, 255, 255, ${(0.85 * fade).toFixed(3)})`);
     g.addColorStop(1, 'rgba(255, 255, 255, 0)');
@@ -79,13 +82,13 @@ function drawLightning(ctx: CanvasRenderingContext2D, camera: Camera, e: Disaste
     h ^= h << 5;
     return (h >>> 0) / 4294967296;
   };
-  const top = 220 * dpr;
-  let x = c.x + (rnd() - 0.5) * 80 * dpr;
+  const top = Math.max(14 * dpr, 220 * dpr * scale);
+  let x = c.x + (rnd() - 0.5) * 80 * dpr * scale;
   let y = c.y - top;
   const pts: [number, number][] = [[x, y]];
   while (y < c.y - 12 * dpr) {
-    y += (18 + 16 * rnd()) * dpr;
-    x += (rnd() - 0.5) * 34 * dpr + (c.x - x) * 0.22;
+    y += Math.max(3 * dpr, (18 + 16 * rnd()) * dpr * scale);
+    x += (rnd() - 0.5) * 34 * dpr * scale + (c.x - x) * 0.22;
     pts.push([x, Math.min(y, c.y)]);
   }
   pts.push([c.x, c.y]);
@@ -95,7 +98,7 @@ function drawLightning(ctx: CanvasRenderingContext2D, camera: Camera, e: Disaste
     [2.5, `rgba(255, 255, 255, ${boltAlpha.toFixed(3)})`],
   ] as const) {
     ctx.strokeStyle = color;
-    ctx.lineWidth = w * dpr;
+    ctx.lineWidth = w * dpr * Math.max(0.5, scale);
     ctx.beginPath();
     pts.forEach(([px, py], k) => (k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
     ctx.stroke();

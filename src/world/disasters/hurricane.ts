@@ -10,7 +10,8 @@ import { hurricaneTrack, type HurricaneTrack } from './weather';
  * relógio, ~1 célula por passo, pela trilha de sempre (oeste, curva para o polo, depois leste); cresce
  * em mar quente e enfraquece em terra e em mar frio. Por onde passa, derruba vegetação; na costa, a
  * ressaca alaga terra baixa; em terra, a chuva dispara enchentes. O desenho é das nuvens do próprio globo
- * torcidas em volta do centro (shader); a simulação manda a posição e a força a cada laço.
+ * torcidas em volta do centro (shader); a simulação manda a posição e a força a cada laço. (O furacão
+ * de fogo saiu no teste da 30e5e93, decisão do usuário.)
  */
 
 /** Categoria 1–2 é ciclone; 3–5, furacão. */
@@ -23,8 +24,12 @@ export function damageRadius(category: number): number {
   return category < 2.5 ? 2 : Math.min(5, Math.round(category));
 }
 
-/** Vida máxima (passos): 12 s em 1×. */
-export const MAX_TRACK_TICKS = 144;
+/**
+ * Vida máxima (passos): 24 s em 1×. Anda meia célula por passo (teste da 30e5e93: "furacão e ciclone
+ * duram muito pouco"; antes uma célula por passo e 12 s).
+ */
+export const MAX_TRACK_TICKS = 288;
+export const TRACK_CELLS_PER_TICK = 0.5;
 /** Até 2 por quadrante do globo e 8 ao todo. */
 export const MAX_PER_QUADRANT = 2;
 export const MAX_STORMS_WORLD = 8;
@@ -36,8 +41,6 @@ export const SURGE_CELLS = 3;
 /** Chuva em terra: chance por passo de disparar uma enchente (no máximo RAIN_FLOODS por furacão). */
 export const RAIN_FLOOD_CHANCE = 0.08;
 export const RAIN_FLOODS = 2;
-/** Furacão de fogo: acende a vegetação a até FIRE_CORE células do centro. */
-export const FIRE_CORE = 1.6;
 
 /** Quadrante do globo (0–3): hemisfério e metade leste/oeste. */
 export function quadrantOf(p: Vec3): number {
@@ -47,19 +50,18 @@ export function quadrantOf(p: Vec3): number {
 export interface StormView {
   /** Identidade (para a tela acompanhar cada um). */
   id: number;
+  /** Quadrante em que nasceu (o limite de 2 por quadrante conta por ele). */
+  quadrant: number;
   point: Vec3;
   /** Raio do desenho (rad) e força 0–1 com o sinal do giro (hemisfério). */
   radius: number;
   power: number;
-  fire: boolean;
 }
 
 /** Um furacão andando. */
 export class HurricaneProcess {
   readonly track: HurricaneTrack;
   private k = 0;
-  /** Furacão de fogo (o jogador jogou um raio nele). */
-  fire = false;
   private damaged = new Set<number>();
   private floods = 0;
 
@@ -72,14 +74,14 @@ export class HurricaneProcess {
     readonly startTick: number,
     /** Número do furacão entre os que nasceram no mesmo passo. */
     private slot: number,
+    /** Do jogador: segura a categoria escolhida (perde força pela metade em terra e não perde em mar frio). */
+    steady: boolean,
     private hooks: {
       /** A chuva em terra dispara uma enchente perto de `cell`. */
       flood(cell: number, tick: number): void;
-      /** Furacão de fogo: acende estas células. */
-      ignite(cells: number[], tick: number): void;
     },
   ) {
-    this.track = hurricaneTrack(world, start, category, rng, world.grid.cellAngle, MAX_TRACK_TICKS);
+    this.track = hurricaneTrack(world, start, category, rng, world.grid.cellAngle * TRACK_CELLS_PER_TICK, MAX_TRACK_TICKS, steady);
   }
 
   /** Onde ele está agora e com que força (para o desenho e para o raio do jogador). */
@@ -88,9 +90,9 @@ export class HurricaneProcess {
     if (this.k >= n) return null;
     const p = this.track.points[this.k] as Vec3;
     const cat = this.track.strength[this.k] as number;
-    // Nasce e some aos poucos.
-    const fade = Math.min(1, (this.k + 1) / 8, (n - this.k) / 6);
-    return { id: this.startTick * 16 + this.slot, point: p, radius: 0.05 + 0.015 * cat, power: (p[1] >= 0 ? 1 : -1) * Math.max(0.05, Math.min(1, cat / 5) * fade), fire: this.fire };
+    // Nasce e some aos poucos (o do jogador aparece logo).
+    const fade = Math.min(1, (this.k + 1) / 4, (n - this.k) / 8);
+    return { id: this.startTick * 16 + this.slot, quadrant: quadrantOf(this.track.points[0] as Vec3), point: p, radius: 0.05 + 0.015 * cat, power: (p[1] >= 0 ? 1 : -1) * Math.max(0.05, Math.min(1, cat / 5) * fade) };
   }
 
   get category(): number {
@@ -107,7 +109,6 @@ export class HurricaneProcess {
     const center = world.grid.pointToCell(p[0], p[1], p[2]);
     const overLand = !world.isWater(center);
     const ang = world.grid.cellAngle;
-    const burn: number[] = [];
     for (const c of world.grid.cellsInCap(p[0], p[1], p[2], radius * ang)) {
       if (world.isWater(c) || world.ice[c]) continue;
       // Vento: derruba a vegetação uma vez por furacão.
@@ -119,10 +120,6 @@ export class HurricaneProcess {
       if (!overLand && world.heightAboveSea(c) < SURGE_HEIGHT && world.waterDistance[c] !== undefined && (world.waterDistance[c] as number) <= SURGE_CELLS) {
         if (this.ground.state[c] !== CellState.Flooded) this.ground.setState(c, CellState.Flooded, tick, 1 + cellHash(c, 0x5e), TICKS_PER_YEAR, 0.5);
       }
-    }
-    if (this.fire && overLand) {
-      for (const c of world.grid.cellsInCap(p[0], p[1], p[2], FIRE_CORE * ang)) if (!world.isWater(c) && hasVegetation(world.biome[c] as number)) burn.push(c);
-      if (burn.length) this.hooks.ignite(burn, tick);
     }
     // Chuva forte em terra: enchente nas partes baixas.
     if (overLand && this.floods < RAIN_FLOODS && this.rng.next() < RAIN_FLOOD_CHANCE) {

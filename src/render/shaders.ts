@@ -650,13 +650,7 @@ ${motion ? `  int pl = -1;
   }` : `  vec3 base = surface(p, cellPx);`}
   // Nuvens (T10): somem ao aproximar a câmera (a partir de ~2 px por célula).
   float cloudShow = uClouds * (1.0 - smoothstep(1.5, 4.0, cellPx));
-  if (cloudShow > 0.0 || uStormCount > 0) {
-    float fire;
-    float cover = clouds(p, cloudShow, fire);
-    // Furacão de fogo: espiral alaranjada no miolo e fumaça escura em volta.
-    vec3 smoke = mix(vec3(0.3, 0.24, 0.22), vec3(1.0, 0.52, 0.16), smoothstep(0.35, 0.85, fire));
-    base = mix(base, mix(vec3(0.96, 0.97, 1.0), smoke, clamp(fire * 1.6, 0.0, 1.0)), cover);
-  }
+  if (cloudShow > 0.0 || uStormCount > 0) base = mix(base, vec3(0.96, 0.97, 1.0), clouds(p, cloudShow));
 
   // Luz suave: lado iluminado e sombra sem ficar preto; um toque de atmosfera na borda.
   float diffuse = max(dot(nView, uLight), 0.0);
@@ -682,7 +676,6 @@ uniform float uCloudTime;   // segundos (anda só com o tempo do jogo correndo)
 uniform int uStormCount;
 uniform vec4 uStorms[${MAX_STORMS}];     // centro (xyz) e raio (rad)
 uniform float uStormPower[${MAX_STORMS}]; // força 0–1 e sentido (sinal: hemisfério)
-uniform float uStormFire[${MAX_STORMS}];  // 1 = furacão de fogo (R8)
 
 // Rotação fixa qualquer (tira os eixos do ruído do alinhamento com a grade).
 const mat3 CLOUD_ROT = mat3(0.80, 0.36, -0.48, -0.60, 0.48, -0.64, 0.0, 0.80, 0.60);
@@ -706,12 +699,11 @@ vec3 rotAxis(vec3 v, vec3 k, float a) {
 
 // Cobertura de nuvem em p. Furacões e ciclones (R8) torcem as nuvens do próprio globo em volta do
 // centro (cada vez mais apertadas perto dele), juntam mais nuvem e, quando fortes, abrem o olho; a
-// torção gira com o tempo. \`fire\`: quanto daquela nuvem é de um furacão de fogo.
-float clouds(vec3 p, float show, out float fire) {
+// torção gira com o tempo.
+float clouds(vec3 p, float show) {
   vec3 pw = p;
   float boost = 0.0;
   float eye = 1.0;
-  fire = 0.0;
   for (int k = 0; k < ${MAX_STORMS}; k++) {
     if (k >= uStormCount) break;
     vec3 c = uStorms[k].xyz;
@@ -729,7 +721,6 @@ float clouds(vec3 p, float show, out float fire) {
     float arms = 0.5 + 0.5 * sin(2.0 * ang * spin + log(d + 0.04) * 6.0 - uCloudTime * 2.0 * spin);
     float b = (0.35 + 0.65 * power) * (1.0 - smoothstep(0.25, 1.3, d)) * mix(1.0, 0.25 + 0.75 * arms, smoothstep(0.15, 0.45, d));
     boost = max(boost, b);
-    fire = max(fire, uStormFire[k] * b);
     if (power > 0.45) eye = min(eye, smoothstep(0.05, 0.05 + 0.08 * power, d));
   }
   float cover = 0.0;

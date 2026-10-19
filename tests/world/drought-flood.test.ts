@@ -4,7 +4,7 @@ import { TICKS_PER_YEAR } from '../../src/core/time';
 import { createWorld } from '../../src/world/create';
 import { cellPoint, DisasterKind, Disasters } from '../../src/world/disasters';
 import { droughtHeat, HEAT_C, startDrought } from '../../src/world/disasters/drought';
-import { FloodProcess, floodPlan, lowestNear } from '../../src/world/disasters/flood';
+import { FloodProcess, floodPlan, lowestNear, RISE_TICKS } from '../../src/world/disasters/flood';
 import { CellState, Ground, hasVegetation } from '../../src/world/disasters/ground';
 import type { WorldState } from '../../src/world/state';
 
@@ -76,7 +76,7 @@ describe('enchente (R4)', () => {
     }
   });
 
-  it('sobe em ~1 s, deixa solo fértil, e a vegetação volta mais rápido nele', () => {
+  it('sobe em ~2 s, deixa solo fértil, e a vegetação volta mais rápido nele', () => {
     const w = worldOf();
     const g = new Ground(w.cellCount);
     const start = lowestNear(w, g, inland(w, (c) => w.heightAboveSea(c) < 600));
@@ -84,7 +84,7 @@ describe('enchente (R4)', () => {
     const flood = new FloodProcess(w, g, plan, 0, 2, createRng(1));
     let tick = 0;
     while (flood.step(++tick));
-    expect(tick).toBeLessThanOrEqual(13);
+    expect(tick).toBeLessThanOrEqual(RISE_TICKS + 1);
     for (const c of plan.cells) expect([CellState.Flooded, CellState.Lake]).toContain(g.state[c]);
     // Anos depois a água baixa e fica solo fértil.
     for (; tick <= 4 * TICKS_PER_YEAR; tick++) g.expire(tick, TICKS_PER_YEAR);

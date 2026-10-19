@@ -100,9 +100,10 @@ export interface GeologyResult {
    * mar); placas, ângulos e jazidas são os da recomposição anterior.
    */
   kind: 'recompose' | 'climate';
-  /** Desvio da temperatura global e nível do mar usados (T7). */
+  /** Desvio da temperatura global e nível do mar usados (T7), e o controle do jogador que valia. */
   climateOffset: number;
   seaLevel: number;
+  control: number;
   /** Passo do relógio em que a recomposição aconteceu (aparece em tick + APPLY_DELAY_TICKS). */
   tick: number;
   /** Ângulos das placas e deriva na recomposição; eixo, velocidade e centro de cada placa. */
@@ -413,6 +414,7 @@ export class GeologyEngine {
       kind,
       climateOffset: world.climateOffset,
       seaLevel: world.seaLevel,
+      control: this.climateControl,
       tick: this.tick,
       angles: tectonics ? Array.from(tectonics.angle) : [],
       drift: tectonics?.driftNow ?? 0,

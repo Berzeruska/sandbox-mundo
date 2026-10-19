@@ -233,11 +233,13 @@ export function planTsunami(world: WorldState, start: number, m: number): Tsunam
 
 /** Passos da viagem da onda pelo mar (2–5 s em 1×, pelo alcance). */
 export function travelTicks(m: number): number {
-  return Math.round(24 + 36 * Math.min(1, tsunamiReach(m) / 1.5));
+  return Math.round(48 + 72 * Math.min(1, tsunamiReach(m) / 1.5));
 }
 /** O mar recua este tanto de passos antes de a onda chegar; a água fica este tanto no ponto mais longe. */
-const LEAD_TICKS = 8;
-const HOLD_TICKS = 6;
+const LEAD_TICKS = 12;
+const HOLD_TICKS = 12;
+/** A água entra em terra uma célula a cada INLAND_TICKS passos. */
+const INLAND_TICKS = 2;
 /** Lama que fica onde a água passou (anos; o relógio do chão faz água do tsunami → lama). */
 export const MUD_YEARS: readonly [number, number] = [15, 30];
 /** A costa raspada perde 5–20 m (para sempre; a que fica abaixo do mar vira mar raso). */
@@ -288,8 +290,8 @@ export class TsunamiProcess {
     plan.land.forEach((c, k) => {
       const step = plan.landSteps[k] as number;
       const coastTick = at(plan.landTimes[k] as number);
-      const arrive = coastTick + step;
-      const until = coastTick + inland + HOLD_TICKS + (inland - step);
+      const arrive = coastTick + step * INLAND_TICKS;
+      const until = coastTick + (inland + (inland - step)) * INLAND_TICKS + HOLD_TICKS;
       add(arrive, { cell: c, state: CellState.Surge, ticks: Math.max(1, until - arrive), level: 1 - step / Math.max(1, inland) });
       last = Math.max(last, until);
       // As 1–2 primeiras células da costa perdem altura para sempre.
