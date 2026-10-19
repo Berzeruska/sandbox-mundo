@@ -1,6 +1,6 @@
 import { newArray } from '../core/shared';
 import { buildColors, NO_LAYERS, type Layers } from '../render/colors';
-import { applyClimateOffset, climateOffsetAt, computeWaterDistance, seaLevelFor, updateClimate, updateWaterDistance } from '../world/climate';
+import { applyClimateOffset, climateOffsetAt, type ImpactWinter, computeWaterDistance, seaLevelFor, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellsRequest } from '../world/cell-pool';
 import type { CubeSphere } from '../world/cubesphere';
 import type { Plate } from '../world/plates';
@@ -88,6 +88,8 @@ export type GeologyCommand =
   | { type: 'rupture'; world: number; tick: number }
   /** Controle de temperatura global (°C), a partir deste passo. */
   | { type: 'climate'; world: number; tick: number; control: number }
+  /** Inverno de impacto (meteoro gigante) começando neste passo. */
+  | { type: 'impact'; world: number; tick: number; amount: number; years: number }
   | { type: 'layers'; world: number; layers: Layers }
   | { type: 'consumed'; world: number; index: number };
 
@@ -195,6 +197,8 @@ export class GeologyEngine {
   private rate: number;
   private layers: Layers;
   private climateControl: number;
+  /** Invernos de impacto (meteoro gigante), somados ao clima. */
+  private impacts: ImpactWinter[] = [];
   private queue: GeologyCommand[] = [];
   private nextIndex = 0;
   /** Índice da recomposição entregue e ainda não aplicada pelo relógio (-1: nenhuma). */
@@ -291,7 +295,7 @@ export class GeologyEngine {
 
   /** O clima precisa ser refeito no passo `tick` (desvio andou CLIMATE_STEP, ou o mar mudou de degrau)? */
   private climateDue(tick: number): boolean {
-    const offset = climateOffsetAt(tick, this.climateControl);
+    const offset = climateOffsetAt(tick, this.climateControl, this.impacts);
     const w = this.world;
     return Math.abs(offset - w.climateOffset) >= CLIMATE_STEP || seaLevelFor(w.params.seaLevel, offset) !== w.seaLevel;
   }
@@ -323,6 +327,8 @@ export class GeologyEngine {
       this.rate = Math.max(0, Math.min(1, cmd.rate));
     } else if (cmd.type === 'climate') {
       this.climateControl = cmd.control;
+    } else if (cmd.type === 'impact') {
+      this.impacts.push({ tick: cmd.tick, amount: cmd.amount, years: cmd.years });
     } else if (cmd.type === 'brush') {
       this.applyBrush(cmd.delta);
     } else if (cmd.type === 'rupture') {
@@ -374,7 +380,7 @@ export class GeologyEngine {
   private refreshClimate(): void {
     const t0 = this.now();
     const world = this.world;
-    applyClimateOffset(world, climateOffsetAt(this.tick, this.climateControl));
+    applyClimateOffset(world, climateOffsetAt(this.tick, this.climateControl, this.impacts));
     const t1 = this.now();
     buildColors(world, this.colors, undefined, this.layers);
     const t2 = this.now();
@@ -388,7 +394,7 @@ export class GeologyEngine {
     if (!tectonics) return;
     const t1 = this.now();
     // Clima do passo atual (ciclo glacial + controle): nível do mar, costa, chuva, gelo e biomas.
-    world.climateOffset = climateOffsetAt(this.tick, this.climateControl);
+    world.climateOffset = climateOffsetAt(this.tick, this.climateControl, this.impacts);
     world.seaLevel = seaLevelFor(world.params.seaLevel, world.climateOffset);
     computeWaterDistance(world);
     updateClimate(world);

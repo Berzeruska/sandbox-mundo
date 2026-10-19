@@ -1,3 +1,4 @@
+import { TICKS_PER_YEAR } from '../core/time';
 import { classifyCell, MOUNTAIN_HEIGHT, SNOW_MIN_PRECIP, type CellClimate } from './biomes';
 
 export { SNOW_MIN_PRECIP };
@@ -64,9 +65,32 @@ export function glacialOffset(tick: number): number {
   return -GLACIAL_AMPLITUDE * cold + 0; // + 0: sem "−0" no começo do ciclo
 }
 
-/** Desvio total: ciclo + controle do jogador. */
-export function climateOffsetAt(tick: number, control: number): number {
-  return glacialOffset(tick) + Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, control));
+/**
+ * Inverno de impacto (meteoro gigante, C12; decisão do usuário: poeira e fuligem no ar esfriam o
+ * planeta por um tempo, como no impacto que extinguiu os dinossauros): `amount` °C a menos no passo
+ * `tick`, todo o frio nos primeiros IMPACT_FULL_YEARS anos e voltando ao normal até `years`.
+ */
+export interface ImpactWinter {
+  tick: number;
+  amount: number;
+  years: number;
+}
+export const IMPACT_FULL_YEARS = 5;
+
+/** Frio (°C, ≥ 0) dos invernos de impacto no passo `tick`. */
+export function impactCooling(tick: number, impacts: readonly ImpactWinter[]): number {
+  let cold = 0;
+  for (const i of impacts) {
+    const years = (tick - i.tick) / TICKS_PER_YEAR;
+    if (years < 0 || years >= i.years) continue;
+    cold += i.amount * (years < IMPACT_FULL_YEARS ? 1 : 1 - (years - IMPACT_FULL_YEARS) / (i.years - IMPACT_FULL_YEARS));
+  }
+  return cold;
+}
+
+/** Desvio total: ciclo + controle do jogador + invernos de impacto. */
+export function climateOffsetAt(tick: number, control: number, impacts: readonly ImpactWinter[] = []): number {
+  return glacialOffset(tick) + Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, control)) - impactCooling(tick, impacts);
 }
 
 /**

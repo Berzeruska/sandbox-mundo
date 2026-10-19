@@ -31,6 +31,9 @@ export const CellState = {
   /** Vulcão sob gelo (C10): água do degelo descendo de uma vez e o sedimento que ela deixa. */
   Meltwater: 16,
   Outwash: 17,
+  /** Meteoro (C12): rocha escura no fundo da cratera e entulho claro na borda. */
+  Impact: 18,
+  Ejecta: 19,
 } as const;
 export type CellState = (typeof CellState)[keyof typeof CellState];
 
@@ -53,6 +56,8 @@ export const STATE_NAMES: Record<number, string> = {
   [CellState.Surge]: 'água do tsunami',
   [CellState.Meltwater]: 'enchente do degelo',
   [CellState.Outwash]: 'areia e cascalho do degelo',
+  [CellState.Impact]: 'fundo da cratera',
+  [CellState.Ejecta]: 'entulho do meteoro',
 };
 
 /**
@@ -79,7 +84,7 @@ const REGROW_TABLE = new Float32Array(32);
 for (const [b, y] of Object.entries(REGROW_YEARS)) REGROW_TABLE[Number(b)] = y as number;
 
 /** Estados em que a vegetação não volta (o chão ainda queima, é rocha, está salgado ou na seca). */
-const NO_REGROW: ReadonlySet<number> = new Set([CellState.Burning, CellState.Lava, CellState.Basalt, CellState.Mud, CellState.Heat, CellState.Lake, CellState.Surge, CellState.Meltwater, CellState.Outwash]);
+const NO_REGROW: ReadonlySet<number> = new Set([CellState.Burning, CellState.Lava, CellState.Basalt, CellState.Mud, CellState.Heat, CellState.Lake, CellState.Surge, CellState.Meltwater, CellState.Outwash, CellState.Impact, CellState.Ejecta]);
 const NO_REGROW_TABLE = new Uint8Array(32);
 for (const s of NO_REGROW) NO_REGROW_TABLE[s] = 1;
 /** Solo fértil (o que a enchente deixa): a vegetação volta 2× mais rápido. */

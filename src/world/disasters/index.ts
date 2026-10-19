@@ -4,6 +4,7 @@ import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
+import { CRATER_RADIUS, GIANT_WINTER, impact, METEOR_NAMES, MeteorProcess, sampleNaturalMeteor, SEA_TSUNAMI } from './meteor';
 import { IceReturnProcess, MELT_CELLS_PER_ICE, MELT_MAX_CELLS, MELT_MIN_ICE, MeltwaterProcess, NOTABLE_MELT_CELLS } from './meltwater';
 import { IceMode } from '../state';
 import { HurricaneProcess, MAX_PER_QUADRANT, MAX_STORMS_WORLD, quadrantOf, stormName, type StormView } from './hurricane';
@@ -91,6 +92,8 @@ export interface DisasterOutcome {
   uplifts: Uplift[];
   terrain: TerrainChange[];
   ice: IceChange[];
+  /** Invernos de impacto começando neste passo (meteoro gigante): °C a menos e anos. */
+  winters: { amount: number; years: number }[];
 }
 
 /**
@@ -138,7 +141,7 @@ export class Disasters {
   /** Desastres em andamento (passo a passo). */
   private processes: DisasterProcess[] = [];
   /** Contagem por tipo (para testes e o painel). */
-  readonly counts = new Array<number>(8).fill(0);
+  readonly counts = new Array<number>(10).fill(0);
   /** Velocidade das placas no último passo (com elas paradas, a geologia congela). */
   private plateRate = 0;
   /** Saída do passo em andamento (os desastres passo a passo avisam por ela quando acabam). */
@@ -251,7 +254,7 @@ export class Disasters {
    */
   step(tick: number, plateRate: number): DisasterOutcome | null {
     this.plateRate = plateRate;
-    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [] };
+    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [], winters: [] };
     this.ground.expire(tick, TICKS_PER_YEAR);
     // Gelo derretido por vulcão voltando ao clima (só fica gelo onde o clima é de gelo).
     if (this.iceReturn.pending) {
@@ -263,7 +266,7 @@ export class Disasters {
     if (tick % TICKS_PER_YEAR === 0) this.yearly(tick, plateRate, out);
     this.stepOut = null;
     out.marked = this.ground.takeChanged();
-    return out.events.length || out.marked.length || out.uplifts.length || out.terrain.length || out.ice.length ? out : null;
+    return out.events.length || out.marked.length || out.uplifts.length || out.terrain.length || out.ice.length || out.winters.length ? out : null;
   }
 
   private yearly(tick: number, plateRate: number, out: DisasterOutcome): void {
@@ -276,6 +279,11 @@ export class Disasters {
     }
     // Clima: continua com as placas paradas.
     if (factor > 0) this.weather(tick, factor, out);
+    // Meteoros naturais: pequenos os mais comuns, gigante raríssimo (C12).
+    if (factor > 0) {
+      const size = sampleNaturalMeteor(this.rng, factor);
+      if (size) this.meteor(this.rng.int(0, this.world.cellCount - 1), size, tick, false, out);
+    }
     if (factor > 0 && plateRate > 0) {
       for (const f of this.faults.values()) {
         // Arco: nasce um vulcão novo onde ainda não há (e já acorda); dorsal: erupção no fundo do mar.
@@ -305,7 +313,7 @@ export class Disasters {
    * força escolhida no cartão (magnitude do terremoto e do tsunami, categoria do furacão).
    */
   trigger(kind: DisasterKind, point: Vec3, tick: number, strength?: number): DisasterOutcome {
-    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [] };
+    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [], winters: [] };
     const world = this.world;
     this.ground.tick = tick;
     const cell = world.grid.pointToCell(point[0], point[1], point[2]);
@@ -332,6 +340,8 @@ export class Disasters {
       // Na vegetação mais perto (até 6 células) do toque.
       const start = nearest(world, cell, 6, (c) => canBurn(world, this.ground, c));
       if (start >= 0) this.startFire(start, tick, true, 'jogador');
+    } else if (kind === DisasterKind.Meteor) {
+      this.meteor(cell, strength ?? 2, tick, true, out);
     } else if (kind === DisasterKind.Lightning) {
       // O raio do jogador sempre cai onde ele tocou e, em vegetação, sempre acende.
       this.lightning(cell, tick, true, out);
@@ -662,6 +672,45 @@ export class Disasters {
       label: `${stormName(t.category)} categoria ${t.category}${t.landfall ? ' · vai tocar terra' : ''}`,
       radius: 0.04 + 0.012 * t.category,
     });
+  }
+
+  /**
+   * Meteoro (C12): entra no céu (o risco na tela) e bate ENTRY_TICKS passos depois: cratera no relevo,
+   * entulho, vegetação derrubada e incêndios; no mar, tsunami (médio para cima); o gigante esfria o
+   * planeta por um tempo.
+   */
+  private meteor(cell: number, size: number, tick: number, manual: boolean, out: DisasterOutcome): void {
+    const world = this.world;
+    const s = Math.max(1, Math.min(4, Math.round(size)));
+    this.count(DisasterKind.Meteor);
+    out.events.push({
+      id: this.nextId++,
+      kind: DisasterKind.Meteor,
+      tick,
+      point: cellPoint(world, cell),
+      magnitude: s,
+      notable: s >= 2,
+      manual,
+      label: `Meteoro ${METEOR_NAMES[s]}`,
+      radius: (CRATER_RADIUS[s] as number) * world.grid.cellAngle,
+    });
+    this.start(
+      new MeteorProcess(tick, (t) => {
+        const o = this.stepOut;
+        if (!o) return;
+        const atSea = world.isWater(cell);
+        const hit = impact(world, this.ground, cell, s, t, this.rng);
+        if (hit.terrainCells.length) o.terrain.push({ cells: hit.terrainCells, deltas: hit.terrainDeltas });
+        for (const f of hit.fires) if (canBurn(world, this.ground, f)) this.startFire(f, t, manual, 'meteoro');
+        const m = SEA_TSUNAMI[s] as number;
+        if (atSea && m > 0) {
+          this.start(new TsunamiProcess(this.ground, planTsunami(world, cell, m), m, t, this.rng));
+          this.count(DisasterKind.Tsunami);
+          o.events.push({ id: this.nextId++, kind: DisasterKind.Tsunami, tick: t, point: cellPoint(world, cell), magnitude: m, notable: true, manual, label: `Tsunami do meteoro`, radius: tsunamiReach(m) });
+        }
+        if (s === 4) o.winters.push({ amount: GIANT_WINTER.amount, years: GIANT_WINTER.years });
+      }),
+    );
   }
 
   /** Furacões e ciclones andando agora (para o desenho). */

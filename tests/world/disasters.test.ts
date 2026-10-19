@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, seedFrom } from '../../src/core/rng';
 import { hurricaneTrack } from '../../src/world/disasters/weather';
+import { ENTRY_TICKS } from '../../src/world/disasters/meteor';
 import { TICKS_PER_YEAR } from '../../src/core/time';
 import { SimulationCore } from '../../src/sim/core';
 import { createWorld } from '../../src/world/create';
@@ -100,17 +101,22 @@ describe('desastres (T8): terremotos', () => {
 });
 
 describe('desastres (T8): tsunamis', () => {
-  it('tsunami só a partir de terremoto forte no mar', () => {
+  it('tsunami só a partir de terremoto forte no mar ou de meteoro médio ou maior no mar (C12)', () => {
     const { events } = run(worldOf('terra'), 20000);
-    const quakes = new Map(events.filter((e) => e.kind === DisasterKind.Quake).map((e) => [e.tick * 1000 + Math.round(e.point[0] * 999), e]));
+    const key = (tick: number, p: readonly number[]) => tick * 1000 + Math.round(p[0]! * 999);
+    const quakes = new Map(events.filter((e) => e.kind === DisasterKind.Quake).map((e) => [key(e.tick, e.point), e]));
+    // O meteoro bate ENTRY_TICKS passos depois de entrar.
+    const meteors = new Map(events.filter((e) => e.kind === DisasterKind.Meteor).map((e) => [key(e.tick + ENTRY_TICKS, e.point), e]));
     const tsunamis = events.filter((e) => e.kind === DisasterKind.Tsunami);
     expect(tsunamis.length).toBeGreaterThan(0);
     const w = worldOf('terra');
     for (const t of tsunamis) {
-      const q = quakes.get(t.tick * 1000 + Math.round(t.point[0] * 999));
-      expect(q).toBeDefined();
-      expect(q!.magnitude).toBeGreaterThanOrEqual(TSUNAMI_MIN_MAGNITUDE);
       expect(w.isWater(w.grid.pointToCell(t.point[0], t.point[1], t.point[2]))).toBe(true);
+      const q = quakes.get(key(t.tick, t.point));
+      const m = meteors.get(key(t.tick, t.point));
+      expect(q !== undefined || m !== undefined).toBe(true);
+      if (q) expect(q.magnitude).toBeGreaterThanOrEqual(TSUNAMI_MIN_MAGNITUDE);
+      if (m) expect(m.magnitude).toBeGreaterThanOrEqual(2);
     }
   });
 

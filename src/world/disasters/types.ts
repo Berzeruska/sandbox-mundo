@@ -11,6 +11,9 @@ export const DisasterKind = {
   Fire: 6,
   /** Raio (R3): desastre novo; o que cai em vegetação acende um incêndio. */
   Lightning: 7,
+  /** Meteoro e tempestade de areia (C12). */
+  Meteor: 8,
+  Sandstorm: 9,
 } as const;
 export type DisasterKind = (typeof DisasterKind)[keyof typeof DisasterKind];
 
@@ -23,6 +26,8 @@ export const DISASTER_NAMES: Record<DisasterKind, string> = {
   5: 'Furacão',
   6: 'Incêndio',
   7: 'Raio',
+  8: 'Meteoro',
+  9: 'Tempestade de areia',
 };
 
 /**
@@ -73,8 +78,8 @@ export interface DisasterEvent {
   cause?: FireCause;
 }
 
-/** O que acende um incêndio: só raio e lava na natureza (desenho da R3/R7), ou o jogador. */
-export type FireCause = 'raio' | 'lava' | 'jogador';
+/** O que acende um incêndio: na natureza só raio, lava (R3/R7) e meteoro (C12); ou o jogador. */
+export type FireCause = 'raio' | 'lava' | 'meteoro' | 'jogador';
 
 /** Texto de magnitude com vírgula decimal. */
 export function decimal(v: number, digits = 1): string {

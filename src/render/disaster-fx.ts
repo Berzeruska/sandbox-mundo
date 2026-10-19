@@ -15,11 +15,16 @@ interface Fx {
   ms: number;
 }
 
+/** Meteoro: quanto tempo o risco leva até bater (1 s = os 12 passos da entrada em 1×). */
+const METEOR_ENTRY_MS = 1000;
+
 /** Duração das animações (ms). */
 const FX_MS: Record<number, number> = {
   // Incêndio (R3), seca e enchente (R4) aparecem nas próprias células, sem animação por cima; o raio é
   // um clarão rápido.
   [DisasterKind.Lightning]: 450,
+  // Meteoro: ~1 s entrando no céu e o clarão do impacto.
+  [DisasterKind.Meteor]: METEOR_ENTRY_MS + 500,
 };
 /** Raio: duração do clarão (ms) dentro da animação. */
 const FLASH_MS = 300;
@@ -49,8 +54,52 @@ export class DisasterFx {
     this.list = this.list.filter((f) => now - f.start < f.ms);
     for (const f of this.list) {
       if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
+      else if (f.e.kind === DisasterKind.Meteor) drawMeteor(ctx, camera, f.e, now - f.start, f.e.id, dpr);
     }
   }
+}
+
+/**
+ * Meteoro (C12): risco brilhante descendo na diagonal até o ponto (direção sorteada pelo id) e, ao
+ * bater, um clarão. Tamanho pelo zoom e pelo tamanho do meteoro.
+ */
+function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, ms: number, id: number, dpr: number): void {
+  const c = camera.worldToScreen(e.point);
+  if (!c.visible || !Number.isFinite(c.x) || !Number.isFinite(c.y)) return;
+  const scale = Math.max(0.15, Math.min(1, camera.cellPixels() / 30)) * (0.6 + 0.2 * e.magnitude);
+  const a = ((Math.imul(id, 2654435761) >>> 0) / 4294967296) * Math.PI * 2;
+  const len = 320 * dpr * scale;
+  if (ms < METEOR_ENTRY_MS) {
+    const t = ms / METEOR_ENTRY_MS;
+    // Cabeça indo do alto até o ponto; cauda atrás.
+    const hx = c.x + Math.cos(a) * len * (1 - t);
+    const hy = c.y - Math.abs(Math.sin(a)) * len * (1 - t) - len * 0.3 * (1 - t);
+    const tx = hx + Math.cos(a) * len * 0.45;
+    const ty = hy - Math.abs(Math.sin(a)) * len * 0.45 - len * 0.13;
+    const g = ctx.createLinearGradient(tx, ty, hx, hy);
+    g.addColorStop(0, 'rgba(255, 200, 120, 0)');
+    g.addColorStop(1, 'rgba(255, 245, 210, 0.95)');
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 8 * dpr * scale;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(hx, hy);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 250, 230, 1)';
+    ctx.beginPath();
+    ctx.arc(hx, hy, 5 * dpr * scale, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  const fade = Math.max(0, 1 - (ms - METEOR_ENTRY_MS) / 500);
+  const r = Math.max(10 * dpr, 140 * dpr * scale);
+  const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
+  g.addColorStop(0, `rgba(255, 255, 255, ${(0.95 * fade).toFixed(3)})`);
+  g.addColorStop(0.4, `rgba(255, 216, 144, ${(0.7 * fade).toFixed(3)})`);
+  g.addColorStop(1, 'rgba(255, 128, 48, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2);
 }
 
 /**

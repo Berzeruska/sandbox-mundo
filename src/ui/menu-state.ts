@@ -67,6 +67,7 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'hurricane', category: 'desastres', label: 'Furacão', icon: '🌀', kind: 'tool', available: true, disaster: DisasterKind.Hurricane },
   { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: true, disaster: DisasterKind.Fire },
   { id: 'lightning', category: 'desastres', label: 'Raio', icon: '⚡', kind: 'tool', available: true, disaster: DisasterKind.Lightning },
+  { id: 'meteor', category: 'desastres', label: 'Meteoro', icon: '☄️', kind: 'tool', available: true, disaster: DisasterKind.Meteor },
   { id: 'disasterFreq', category: 'desastres', label: 'Frequência', icon: '🎲', kind: 'tool', available: true },
   { id: 'stressLayer', category: 'desastres', label: 'Ver tensão', icon: '📈', kind: 'toggle', available: true },
 
@@ -103,6 +104,12 @@ export const STRENGTHS: Readonly<Partial<Record<DisasterKind, readonly StrengthC
     { value: 4, label: '4' },
     { value: 5, label: '5' },
   ],
+  [DisasterKind.Meteor]: [
+    { value: 1, label: 'Pequeno' },
+    { value: 2, label: 'Médio' },
+    { value: 3, label: 'Grande' },
+    { value: 4, label: 'Gigante' },
+  ],
 };
 
 /** Força já escolhida ao abrir o jogo (o último escolhido fica). */
@@ -110,6 +117,7 @@ export const DEFAULT_STRENGTH: Readonly<Partial<Record<DisasterKind, number>>> =
   [DisasterKind.Quake]: 8,
   [DisasterKind.Tsunami]: 9,
   [DisasterKind.Hurricane]: 3,
+  [DisasterKind.Meteor]: 2,
 };
 
 /** Item que fica na tela quando o jogador escolhe uma velocidade (o seletor de tempo). */

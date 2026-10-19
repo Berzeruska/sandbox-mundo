@@ -13,6 +13,7 @@ import { MAX_STORMS } from './render/shaders';
 import { DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './world/disasters/types';
 import { STORM_FLOATS } from './sim/protocol';
 import { feltRadius } from './world/disasters/quakes';
+import { SHAKE_MAGNITUDE } from './world/disasters/meteor';
 import type { Vec3 } from './world/cubesphere';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
@@ -560,6 +561,8 @@ export class App {
     for (const e of events) {
       this.fx.add(e, now);
       if (e.kind === DisasterKind.Quake) this.startShake(e, now);
+      // Meteoro grande e gigante tremem a tela quando batem (~1 s depois de entrar, em 1×).
+      if (e.kind === DisasterKind.Meteor && SHAKE_MAGNITUDE[e.magnitude]) this.startShake({ ...e, magnitude: SHAKE_MAGNITUDE[e.magnitude] as number }, now + 1000);
     }
     for (const e of events) if (isToast(e)) this.toasts.show(toEntry(e));
   }
@@ -597,6 +600,7 @@ export class App {
   private updateShake(now: number): boolean {
     const s = this.shake;
     if (!s) return false;
+    if (now < s.start) return false;
     const t = (now - s.start) / s.ms;
     if (t >= 1) {
       this.shake = null;

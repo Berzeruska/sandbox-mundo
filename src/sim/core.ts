@@ -3,7 +3,7 @@ import { Clock, TICKS_PER_YEAR } from '../core/time';
 import { applyBrush, applyTerrainDeltas, RAISE_RATE } from '../input/tools';
 import { buildColors, colorCacheBytes, NO_LAYERS, tintStress, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
-import { applyClimateOffset, climateCacheBytes, climateOffsetAt, CONTROL_APPLY_STEP, CONTROL_MAX, CONTROL_MIN, glideToward, updateClimate, updateWaterDistance } from '../world/climate';
+import { applyClimateOffset, climateCacheBytes, type ImpactWinter, climateOffsetAt, CONTROL_APPLY_STEP, CONTROL_MAX, CONTROL_MIN, glideToward, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellPool } from '../world/cell-pool';
 import { createWorld, WORLD_STAGES } from '../world/create';
 import { DEFAULT_FREQUENCY, Disasters, FREQUENCIES, type DisasterOutcome } from '../world/disasters';
@@ -162,6 +162,8 @@ export class SimulationCore {
   private stressBuf = new Float32Array(0);
   /** Células com aparência nova esperando a repintura do fim do laço. */
   private pendingPaint = new Set<number>();
+  /** Invernos de impacto (meteoro gigante, C12), somados ao clima aqui e no motor. */
+  private impacts: ImpactWinter[] = [];
   /** Quantos furacões a tela está mostrando, e de que passo. */
   private stormsShown = 0;
   private stormsTick = -1;
@@ -262,6 +264,7 @@ export class SimulationCore {
     this.worldId++;
     this.pending = [];
     this.pendingPaint.clear();
+    this.impacts = [];
     this.brushLog = [];
     this.engineTick = 0;
     this.stats = null;
@@ -438,6 +441,16 @@ export class SimulationCore {
       const done = this.terrain(t.cells, t.deltas);
       if (done) patches.push(...done.patches);
     }
+    // Meteoro gigante: o planeta esfria por um tempo (aqui e no motor, a partir deste passo).
+    for (const w of o.winters) {
+      const impact = { tick: this.clock.tick, amount: w.amount, years: w.years };
+      this.impacts.push(impact);
+      this.geology.send({ type: 'impact', world: this.worldId, ...impact });
+      applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl, this.impacts));
+      buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);
+      const n = world.params.n;
+      patches.push(...makePatches(this.colors, n, [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }))));
+    }
     // Gelo derretido (ou voltando ao clima): muda o modo do gelo e grava na placa como o pincel de gelo.
     for (const ice of o.ice) {
       for (const c of ice.cells) world.iceMode[c] = ice.mode;
@@ -523,7 +536,7 @@ export class SimulationCore {
     // APPLY_DELAY_TICKS depois); se a tela já mostra outro valor (a prévia do controle), ela é reaplicada
     // por cima. Sem isso o mundo voltava para a temperatura antiga e a "animação reiniciava" (C2).
     if (r.control !== this.climateControl) {
-      applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl));
+      applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl, this.impacts));
       buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);
     }
     if (before) {
@@ -623,7 +636,7 @@ export class SimulationCore {
     const world = this.world;
     if (!world) return;
     this.geology.send({ type: 'climate', world: this.worldId, tick: this.clock.tick, control: this.climateControl });
-    applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl));
+    applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl, this.impacts));
     // Só os pedaços com cor nova vão para a tela (a cada meio grau, quase todo o mundo fica igual).
     const before = this.colors.slice();
     buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);

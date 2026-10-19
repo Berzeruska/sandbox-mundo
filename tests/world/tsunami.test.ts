@@ -43,7 +43,7 @@ function offshore(world: WorldState): number {
 function runAll(world: WorldState, ground: Ground, start: number, m: number): DisasterOutcome['terrain'] {
   const plan = planTsunami(world, start, m);
   const p = new TsunamiProcess(ground, plan, m, 0, createRng(1));
-  const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [] };
+  const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [], winters: [] };
   let tick = 1;
   for (; tick < 2000; tick++) {
     ground.expire(tick, TICKS_PER_YEAR);
