@@ -1,9 +1,22 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-19**, branch `marco-2`. Teste da `d644319` feito pelo usuário; **correções
-E1–E13 feitas** (lista em `docs/M2-especificacao.md`, "Correções do teste da `d644319`"). **Esperando o
-teste do usuário na prévia** (lista abaixo). A T13 está feita (começada antes da hora; a ordem do fluxo
-vale também para teste automático). **A T14 só depois deste teste.**
+Atualizado em: **2026-10-19 (noite)**, branch `marco-2`. Teste da `58f53e79` feito pelo usuário;
+**rodada da noite em andamento** (lista dele, na ordem: defeitos F1–F6, propostas P7–P9, testes do
+Claude Code, lista para amanhã; detalhes em `docs/M2-especificacao.md`, "Correções do teste da
+`58f53e79`"). Regra desta rodada: decisão de design vira proposta escrita, sem código; **não começar a
+T14, não fechar o M2, não mexer nas 5 perguntas pendentes** (meteoro e mar, controles e visão, "Medir
+desempenho" volta ao ano 0, tamanho das placas, 8 sementes).
+
+## Rodada da noite de 2026-10-19 (andamento)
+- [x] F1 tempestade de areia: poeira só sobre areia seca (desenho recortado no shader), funciona no
+  deserto quente, duração 6–15 s. Pergunta nova: areia fora do deserto só em terra em seca?
+- [ ] F2 buraco do terremoto andando com a placa.
+- [ ] F3 tsunamis 9,5 seguidos travando.
+- [ ] F4 relógio esperou / travadas / recomposição de 980 ms.
+- [ ] F5 tamanhos do meteoro.
+- [ ] F6 cadeia de vulcões em muralha.
+- [ ] P7–P9 propostas; testes do Claude Code (item 10); lista para amanhã (itens 11–12).
+
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 

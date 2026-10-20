@@ -33,6 +33,12 @@ export const NO_LAYERS: Layers = { plates: false, biomes: false, resources: fals
  * jazidas nessas células (~1% da terra). Mudar o azul em 1/255 não aparece.
  */
 export const DECOR_BIT = 1;
+/**
+ * Bit mais baixo do vermelho: areia seca (deserto, seca ou areia de tempestade, em terra sem gelo). O
+ * shader só desenha a poeira das tempestades de areia nessas células (E4, teste da `58f53e7`: nem mar
+ * nem outro bioma), lendo a mesma célula que já desenha, com as placas andando.
+ */
+export const SAND_BIT = 1;
 /** Quanto a cor do minério puxa o solo, de longe (visão normal). */
 const SOIL_TINT = 0.22;
 /** Petróleo revelado: mancha escura (em terra e no mar). */
@@ -333,7 +339,9 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   // Prende em 0–255: a textura é Uint8Array, que dá a volta (260 vira 4) em vez de prender. Era isso
   // que pintava pontos rosa e azul-forte no gelo claro (teste da 50f0dca).
   const o = i * 4;
-  out[o] = clampByte(r);
+  const state = ground ? (ground.state[i] as number) : 0;
+  const sand = h > 0 && !world.ice[i] && (biome === Biome.HotDesert || biome === Biome.ColdDesert || state === CellState.Heat || state === CellState.Sand);
+  out[o] = (clampByte(r) & ~SAND_BIT) | (sand ? SAND_BIT : 0);
   out[o + 1] = clampByte(g);
   out[o + 2] = (clampByte(b) & ~DECOR_BIT) | (decor ? DECOR_BIT : 0);
   out[o + 3] = (world.biome[i] as number) | (sameCorners(world, i) << BIOME_BITS);
@@ -371,8 +379,8 @@ function sameCorners(world: WorldState, i: number): number {
 }
 
 /**
- * As células e o anel de 1 célula em volta (na mesma face, com as diagonais): os bits dos cantos das
- * vizinhas dependem do bioma da célula.
+ * As células e o anel de 1 célula em volta (na mesma face, com as diagonais; e as 4 vizinhas da grade,
+ * que na borda ficam em outra face): os bits dos cantos e o sombreado das vizinhas dependem da célula.
  */
 export function withRing(grid: CubeSphere, cells: readonly number[]): number[] {
   const n = grid.n;
@@ -387,6 +395,8 @@ export function withRing(grid: CubeSphere, cells: readonly number[]): number[] {
         if (xx >= 0 && yy >= 0 && xx < n && yy < n) out.add(c + dy * n + dx);
       }
     }
+    // Na borda da face as vizinhas ficam em outra face (o sombreado lê as 4 vizinhas da grade).
+    for (let d = 0; d < 4; d++) out.add(grid.neighbors[c * 4 + d] as number);
   }
   return [...out];
 }
@@ -703,7 +713,8 @@ export function tintStress(out: Uint8Array, i: number, v: number): void {
   const f = t - Math.floor(t);
   const o = i * 4;
   const decor = (out[o + 2] as number) & DECOR_BIT;
-  out[o] = clampByte(a[0] + (b[0] - a[0]) * f);
+  const sand = (out[o] as number) & SAND_BIT;
+  out[o] = (clampByte(a[0] + (b[0] - a[0]) * f) & ~SAND_BIT) | sand;
   out[o + 1] = clampByte(a[1] + (b[1] - a[1]) * f);
   out[o + 2] = (clampByte(a[2] + (b[2] - a[2]) * f) & ~DECOR_BIT) | decor;
 }

@@ -4,7 +4,7 @@ import type { Vec3 } from '../cubesphere';
 import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
-import { canStartSandstorm, type DustView, MAX_SANDSTORMS, NOTABLE_SAND_RADIUS, pickSandstormCell, PLAYER_SAND_RADIUS, SAND_RADIUS, SANDSTORM_CHANCE, SandstormProcess } from './sandstorm';
+import { canStartSandstorm, type DustView, MAX_SANDSTORMS, NOTABLE_SAND_RADIUS, pickSandstormCell, PLAYER_SAND_RADIUS, PLAYER_SAND_SEARCH, SAND_RADIUS, SANDSTORM_CHANCE, SandstormProcess } from './sandstorm';
 import { CRATER_RADIUS, GIANT_WINTER, impact, METEOR_NAMES, MeteorProcess, sampleNaturalMeteor, SEA_TSUNAMI } from './meteor';
 import { IceReturnProcess, MELT_CELLS_PER_ICE, MELT_MAX_CELLS, MELT_MIN_ICE, MeltwaterProcess, NOTABLE_MELT_CELLS } from './meltwater';
 import { IceMode } from '../state';
@@ -346,8 +346,8 @@ export class Disasters {
       const start = nearest(world, cell, 6, (c) => canBurn(world, this.ground, c));
       if (start >= 0) this.startFire(start, tick, true, 'jogador');
     } else if (kind === DisasterKind.Sandstorm) {
-      // Só em areia ou seca (E4): no deserto ou seca mais perto do toque (até 6 células).
-      const start = nearest(world, cell, 6, (c) => canStartSandstorm(world, this.ground, c));
+      // Só em areia seca (E4): no deserto ou seca mais perto do toque onde ela cabe.
+      const start = nearest(world, cell, PLAYER_SAND_SEARCH, (c) => canStartSandstorm(world, this.ground, c));
       if (start >= 0) this.sandstorm(start, tick, true, out);
     } else if (kind === DisasterKind.Meteor) {
       this.meteor(cell, strength ?? 2, tick, true, out);

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { seedFrom } from '../../src/core/rng';
-import { BIOME_BITS, buildColors, hillshade, shadeWeightsFor, TERRACE_METERS, terraceShade, withRing } from '../../src/render/colors';
-import { BIOME_COUNT } from '../../src/world/biomes';
+import { BIOME_BITS, buildColors, SAND_BIT, hillshade, shadeWeightsFor, TERRACE_METERS, terraceShade, withRing } from '../../src/render/colors';
+import { Biome, BIOME_COUNT } from '../../src/world/biomes';
+import { CellState, Ground } from '../../src/world/disasters/ground';
 import { latLonToPoint } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
 import { applyClimateOffset } from '../../src/world/climate';
@@ -13,6 +14,25 @@ describe('cores das células', () => {
 
   it('o canal alfa leva o código do bioma (para o shader)', () => {
     for (let i = 0; i < w.cellCount; i++) expect(out[i * 4 + 3]! & ((1 << BIOME_BITS) - 1)).toBe(w.biome[i]);
+  });
+
+  it('o bit da areia seca (poeira só ali, E4) marca deserto, seca e areia em terra sem gelo, e nada mais', () => {
+    const big = createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: 64, seaLevel: 0, landFraction: 0.3 });
+    const g = new Ground(big.cellCount);
+    const land = [...Array(big.cellCount).keys()].filter((c) => big.heightAboveSea(c) > 0 && !big.ice[c] && big.biome[c] === Biome.Grassland);
+    g.setState(land[0]!, CellState.Heat, 0, 5, 12, 1);
+    g.setState(land[1]!, CellState.Sand, 0, 5, 12, 1);
+    g.setState(land[2]!, CellState.Burned, 0, 5, 12, 1);
+    const o = new Uint8Array(big.cellCount * 4);
+    buildColors(big, o, undefined, undefined, g);
+    let deserts = 0;
+    for (let c = 0; c < big.cellCount; c++) {
+      const st = g.state[c];
+      const dry = big.heightAboveSea(c) > 0 && !big.ice[c] && (big.biome[c] === Biome.HotDesert || big.biome[c] === Biome.ColdDesert || st === CellState.Heat || st === CellState.Sand);
+      if (dry) deserts++;
+      expect((o[c * 4]! & SAND_BIT) !== 0).toBe(dry);
+    }
+    expect(deserts).toBeGreaterThan(2);
   });
 
   it('os biomas cabem nos bits reservados (bioma novo acima de 16 exige mudar o canal alfa)', () => {

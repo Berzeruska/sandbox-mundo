@@ -1004,3 +1004,21 @@ Formato: data — decisão — motivo — alternativa descartada.
   também estava aberto durante a medição do Claude Code (GPU dividida). Sem carga, 1× com placas 100%
   por 150 s: 0 travadas. Achado à parte: com a janela coberta (sem a página ficar "escondida"), o
   navegador desenha 1 quadro por segundo e o rodapé conta travadas falsas da tela.
+
+## 2026-10-19 (noite) — Correções do teste da `58f53e79` (decisões técnicas)
+- **Tempestade de areia (F1):** "areia seca" = deserto quente ou frio, calor da seca ou areia de
+  tempestade, em terra sem gelo. O recorte do desenho é feito no shader por um bit da textura de cores
+  (`SAND_BIT`, o mais baixo do vermelho; mudar 1/255 não aparece), na mesma célula que já é lida. Reverte
+  a alternativa descartada na E4 (recortar no shader): o custo que se temia (leitura a mais) não existe
+  com o bit, e o erro com as placas andando é justamente o que o recorte no shader evita. O centro anda só
+  sobre areia seca e para na borda (duração 6–15 s como desenhado); raio pelo espaço até a borda, mínimo
+  6 células (abaixo disso o ruído da poeira quase não aparece). Alternativa descartada: encolher a
+  poeira até caber inteira no deserto (testada: 40–60% dos toques sem nada e vida mediana < 1 s).
+- **Impressão digital do motor nova (`152f1801`)** só pelo bit da areia seca no vermelho: com o bit
+  mascarado, a impressão é a mesma antes e depois (`064fedfd`).
+- **Anel da repintura (`withRing`) passa a incluir as 4 vizinhas da grade:** na borda da face as vizinhas
+  ficam em outra face e não eram repintadas quando o relevo ao lado mudava (sombreado e degraus leem as
+  4 vizinhas). Achado pelo teste "visão ligada no meio de uma recomposição" (`tests/sim/core.test.ts`),
+  que passou a falhar quando a mudança da tempestade de areia mudou o sorteio dos desastres: 1 byte
+  diferente numa célula de canto da face. Defeito antigo, de efeito pequeno (um tom de sombra errado na
+  borda da face até a próxima repintura).

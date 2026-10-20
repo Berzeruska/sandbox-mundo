@@ -1121,6 +1121,71 @@ depois a T14. Decisões em `docs/decisoes.md` (2026-10-19).
   - E13: dois bugs achados e corrigidos (gelo derretido que não voltava com as placas andando; estados
     escondidos em água e gelo); sonda de 600 anos com tudo ligado + 500 de calma: o mundo volta.
 
+## Correções do teste da `58f53e79` (2026-10-19, noite; antes da T14)
+Teste do usuário no notebook (Chrome). Passaram: um efeito por vez, Ver placas não desliga nem
+escurece, o tempo continua em 20×, bola do meteoro crescendo com a cratera; ciclones de ~20–30 s
+aceitos; frio do meteoro gigante melhor (e congelar o planeta com meteoros agradou). Desempenho: 60 fps,
+nenhum quadro > 50 ms, GPU ≤ 3,7 ms, memória 158 MB, geração 1,0 s, primeira abertura 2,3 s.
+Regra desta rodada (do usuário): decisão de design vira proposta nesta seção e não é codificada; não
+começar a T14, não fechar o M2, não mexer nas 5 perguntas pendentes.
+
+**Defeitos (diagnóstico, correção e teste com critério do desenho)**
+- [x] **F1 — Tempestade de areia** ainda chega ao mar e a outros biomas; no deserto quente não funciona.
+- [ ] **F2 — Buraco do terremoto some** quando o continente anda (tsunami e terremoto mudam o relevo
+  para sempre: a marca anda com a placa).
+- [ ] **F3 — Tsunamis 9,5 seguidos travam** o jogo (meta: nenhum quadro > 50 ms).
+- [ ] **F4 — Relógio esperou 114 ms** na "deriva longa c/ colisões"; 4 travadas de ~300 ms em 1× com
+  placas 100%; pior recomposição 980 ms em "desastres Muitos" (aplicar 223 ms).
+- [ ] **F5 — Meteoros pequeno, médio e grande parecem do mesmo tamanho** (conferir contra a E12).
+- [ ] **F6 — Cadeia de vulcões parecendo muralha** num continente.
+
+**Propostas (sem código; o usuário decide)**
+- [ ] **P7 — Visual do meteoro** por tamanho (hoje todos parecem um "mini sol").
+- [ ] **P8 — Crateras sobrepostas** (hoje o segundo meteoro só redesenha a cratera).
+- [ ] **P9 — Temperatura no extremo transforma o planeta** ("Mad Max" no quente, era glacial total no frio).
+
+### F1 — Tempestade de areia: diagnóstico e correção
+**Medido** (sonda no Node, N = 256, 150 toques do jogador por deserto, sementes `pangeia` e `terra`):
+- **Deserto quente:** 30–53% dos toques não faziam nada e outros 14–16% duravam menos de 2 s. Os
+  desertos quentes são faixas estreitas (distância mediana até o mar: 17–19 células, contra 53–76 nos
+  frios) e ficam onde o vento (alísio) sopra para o oeste, rumo à costa: a tempestade precisava de
+  ~12 células de terra em volta para nascer e se desfazia em poucos passos.
+- **Outros biomas:** ~50% da área debaixo da poeira desenhada não era deserto. A correção da E4 só
+  conferia água; "o lugar é seco" não tinha virado regra nem teste.
+- **Mar:** 0,3–0,7% dos passos com água debaixo da poeira, mesmo na simulação: a conferência usava um
+  círculo de 2,5 raios, e o desenho é uma elipse de até 2,56 raios. No jogo há mais: o globo desenha as
+  placas andando à frente do mundo do relógio (até ~3 células com placas em 100%), e a conferência era
+  feita no mundo do relógio.
+
+**Por que o teste da E4 não pegou:** (1) o teste conferia a poeira com o mesmo círculo que o código usava
+(repetia a implementação em vez de olhar o desenho do shader); (2) só olhava água: o "lugar seco" do
+pedido não virou critério; (3) a tempestade de teste nascia no primeiro deserto da lista com espaço,
+que era um deserto frio grande: nenhum teste tocava num deserto quente; (4) o mundo do teste ficava
+parado (N = 128, sem placas andando), então a diferença entre o globo desenhado e o relógio não
+aparecia.
+
+**Correção:**
+- A poeira só aparece sobre **areia seca**: deserto quente ou frio, seca ("calor da seca") ou areia que
+  outra tempestade deixou, em terra sem gelo. A textura de cores marca essas células num bit invisível
+  do vermelho (`SAND_BIT`, como o `DECOR_BIT` do azul) e o shader só desenha a poeira ali, na mesma
+  célula que ele desenha (vale com as placas andando, sem leitura a mais por pixel).
+- Na simulação o centro anda só sobre areia seca: na borda ele para e sopra ali até o fim (6–15 s em 1×,
+  como desenhado); se o chão deixa de ser seco debaixo dele (a seca acaba, fogo), ela se desfaz. O raio
+  acompanha o espaço até a borda (num deserto estreito ela fica menor), no mínimo 6 células. Para nascer
+  basta areia seca até 3 células em volta; o jogador toca a até 12 células do deserto.
+- A areia que cai "fora do deserto" agora só cai em terra seca (seca) debaixo da poeira (ver a
+  pergunta abaixo).
+- Testes novos (`tests/world/sandstorm.test.ts`, `tests/render/colors.test.ts`): em N = 256, sementes
+  `pangeia`, `terra` e `mundo`, 12 toques em deserto quente e 12 em frio: todos fazem a tempestade, que
+  dura 6–15 s e anda só sobre areia seca; as naturais (300 anos em "Muitos") também; o bit da areia
+  seca marca exatamente deserto, seca e areia em terra sem gelo.
+- **Depois** (sonda): deserto quente 1–3 toques sem nada em 150 (toques na faixa de praia), nenhuma
+  tempestade com menos de 2 s, duração mediana 11 s. Conferido no Chromium (GPU real, placas 100%): a
+  poeira para na linha da costa.
+- **Pergunta ao usuário (consequência do pedido):** com a poeira só sobre areia seca, a "areia por cima
+  da vegetação fora do deserto" (C12) só acontece em terra em seca. Fica assim, ou a poeira pode
+  passar 1–2 células da borda do deserto deixando areia ali?
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

@@ -268,3 +268,17 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **Correção:** na passagem anual, estado de terra firme sai se a célula virou mar; seca, fogo, cinzas e
   areia saem debaixo do gelo; lava e basalto ficam (`src/world/disasters/ground.ts`). Teste em
   `tests/world/ground.test.ts`.
+
+## 2026-10-19 — Tempestade de areia no mar e em outros biomas; não funciona no deserto quente (notebook, `58f53e79`, F1)
+- **Como reproduzir:** Desastres → Tempestade de areia, tocar num deserto quente (faixa perto da costa):
+  nada acontece ou some em ~1 s. Num deserto frio grande: a poeira passa por cima de campo e floresta e,
+  com as placas andando, encosta no mar.
+- **Causa:** a E4 só conferia água, com um círculo menor que a elipse desenhada, no mundo do relógio
+  (o globo desenha as placas até ~3 células à frente); "lugar seco" não era regra. Os desertos quentes
+  são estreitos e o vento sopra para a costa: a tempestade não cabia para nascer e se desfazia logo.
+- **Por que o teste não pegou:** repetia o mesmo círculo do código, só olhava água, nunca tocava num
+  deserto quente e o mundo do teste ficava parado (detalhes em `docs/M2-especificacao.md`, F1).
+- **Correção:** bit da areia seca na textura de cores (`SAND_BIT`) e poeira só nessas células no
+  shader; o centro anda só sobre areia seca e para na borda; raio pelo espaço até a borda
+  (`src/world/disasters/sandstorm.ts`, `src/render/colors.ts`, `src/render/shaders.ts`). Testes em
+  `tests/world/sandstorm.test.ts` (desertos quentes e frios em N = 256) e `tests/render/colors.test.ts`.

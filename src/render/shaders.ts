@@ -1,6 +1,6 @@
 import { Biome, BIOME_COUNT, BIOME_INFO } from '../world/biomes';
 import { FACES, type Vec3 } from '../world/cubesphere';
-import { BIOME_BITS, DECOR_BIT } from './colors';
+import { BIOME_BITS, DECOR_BIT, SAND_BIT } from './colors';
 import { Resource, RESOURCE_INFO } from '../world/resources';
 import { CONTINENTAL_BIT, LINE_BIT, MAX_SHADER_PLATES, NEAR_CELLS, NEAR_REACH_CELLS, PLATE_MASK } from './plate-motion';
 
@@ -400,7 +400,7 @@ vec3 surface${sfx}(vec3 p, float cellPx, out int plOut) {
     cell = cellAt${sfx}(q);
     base = cell.rgb;
   }
-
+${sfx === '' ? '  gSand = !gap && (int(cell.r * 255.0 + 0.5) & ' + SAND_BIT + ') != 0;\n' : ''}
   // Textura sutil por bioma (floresta e montanha mais rugosas, água e gelo quase lisos); some de perto.
   float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius) * (1.0 - sq);
   if (detailAmount > 0.0) {
@@ -441,6 +441,7 @@ vec3 surface(vec3 p, float cellPx) {
     cell = cellAt(q);
     base = cell.rgb;
   }
+  gSand = (int(cell.r * 255.0 + 0.5) & ${SAND_BIT}) != 0;
   float detailAmount = smoothstep(1.5, 5.0, uCellAngle * 0.4 * uRadius) * (1.0 - sq);
   if (detailAmount > 0.0) {
     int biome = clamp(int(cell.a * 255.0 + 0.5) & ${(1 << BIOME_BITS) - 1}, 0, ${BIOME_COUNT - 1});
@@ -593,6 +594,9 @@ float cellHash(ivec3 t) {
   return float(h & 1023u) / 1023.0;
 }
 
+// A célula desenhada no pixel é areia seca (SAND_BIT): só ali a poeira aparece (E4). Fica true no
+// quadro da imagem guardada (uPass 2), que não lê célula.
+bool gSand = true;
 ${motion ? MOTION_GLSL : SIMPLE_GLSL}
 ${CLOUDS_GLSL}
 float hash(vec2 p) {
@@ -651,7 +655,7 @@ ${motion ? `  int pl = -1;
   // Nuvens (T10): somem ao aproximar a câmera (a partir de ~2 px por célula).
   float cloudShow = uClouds * (1.0 - smoothstep(1.5, 4.0, cellPx));
   if (cloudShow > 0.0 || uStormCount > 0) base = mix(base, vec3(0.96, 0.97, 1.0), clouds(p, cloudShow));
-  if (uDustCount > 0) {
+  if (uDustCount > 0 && gSand) {
     float dd = dust(p);
     // Poeira alaranjada, mais escura onde é densa.
     base = mix(base, mix(vec3(0.88, 0.72, 0.5), vec3(0.62, 0.42, 0.25), dd), clamp(dd * 0.95, 0.0, 0.9));

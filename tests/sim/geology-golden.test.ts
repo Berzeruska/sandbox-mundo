@@ -56,6 +56,6 @@ describe('motor da geologia: mesmo resultado', () => {
       engine.receive({ type: 'advance', world: 1, tick });
       for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
     }
-    expect(h.toString(16)).toBe('aee2695d');
+    expect(h.toString(16)).toBe('152f1801');
   });
 });
