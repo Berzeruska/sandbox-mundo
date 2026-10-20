@@ -1137,7 +1137,7 @@ começar a T14, não fechar o M2, não mexer nas 5 perguntas pendentes.
 - [x] **F4 — Relógio esperou 114 ms** na "deriva longa c/ colisões"; 4 travadas de ~300 ms em 1× com
   placas 100%; pior recomposição 980 ms em "desastres Muitos" (aplicar 223 ms).
 - [x] **F5 — Meteoros pequeno, médio e grande parecem do mesmo tamanho** (conferir contra a E12).
-- [ ] **F6 — Cadeia de vulcões parecendo muralha** num continente.
+- [x] **F6 — Cadeia de vulcões parecendo muralha** num continente (diagnóstico; proposta).
 
 **Propostas (sem código; o usuário decide)**
 - [ ] **P7 — Visual do meteoro** por tamanho (hoje todos parecem um "mini sol").
@@ -1293,6 +1293,30 @@ proporção das crateras suavizada (2 · 3,5 · 5 · 7 px), e a cauda pelo taman
 mínimo de 120 px); o clarão do impacto também pela bola. De perto continua ~1/3 do raio da cratera.
 Teste novo (`tests/render/meteor-fx.test.ts`, falha no código antigo): em qualquer zoom (1,5 a 40 px
 por célula) cada tamanho tem a bola pelo menos 20% maior que o anterior; de perto, 1/3 da cratera.
+
+### F6 — Muralha de vulcões num continente: diagnóstico (comportamento do desenho; proposta)
+**Reproduzido** (imagem `docs/img/m2-f6-vulcoes-continente.png`, à esquerda): semente `pangeia`, placas
+100%, 3.000 anos de jogo. Sonda no Node, mesmo mundo: dos 23 vulcões, 15 estão em continente e **todos
+são de ponto quente** (nenhum de arco); um só ponto quente deixou **9 cones grandes em fila** (900–3.500
+m), a cada ~7 células, terminando na costa onde ele está hoje. Não é arco nem defeito de código.
+
+**Por quê:** o ponto quente fica parado e a placa passa por cima; quando o vulcão se afasta, ele apaga e
+nasce outro em cima do ponto quente (T9/R7: "o ponto quente faz cadeia"). No mar isso faz as ilhas do
+Havaí, como desenhado. Debaixo de continente o desenho aprovado diz que os vulcões "tendem a grandes"
+(raio 4–5) e o ponto quente ainda ergue o terreno (25% do oceano, ~900 m por célula andada) numa faixa de
+1,3 célula: em terra, os cones não afundam nem erodem (as ilhas do mar também não; "as mais velhas viram
+baixios" não foi feito), então a fila fica para sempre e vira muralha.
+
+**Proposta (decisão do usuário):**
+- **(a) Fica como está.**
+- **(b) Ponto quente em continente esparso** (protótipo à direita na imagem): debaixo de continente, um
+  cone novo só a cada ~18 células andadas (no mar continua a cada ~3) e, em vez da faixa estreita, um
+  inchaço baixo e largo (~10% do oceano num raio de 4 células: planalto, como o desenho original dizia
+  "vira planalto, não ilha"). Fica uma trilha de poucos vulcões grandes. Custo: pequeno (constantes e um
+  teste).
+- **(c) Cones que envelhecem:** além de (b), os cones apagados perdem altura devagar (ex.: metade em
+  ~20.000 anos de jogo) e, no mar, as ilhas velhas afundam e viram baixios (o que a especificação já
+  dizia para o Havaí). Custo: médio (erosão por vulcão no relógio, gravada na placa, 2–3 testes).
 
 ## Bloco Final (depois do Bloco Desastres v2)
 

@@ -19,7 +19,8 @@ desempenho" volta ao ano 0, tamanho das placas, 8 sementes).
   raspada espalhadas refaziam o clima do planeta). "Aplicar" pior 267 → 66 ms no cenário "Muitos".
 - [x] F5 tamanhos do meteoro: de longe, mínimo único de 4 px deixava pequeno, médio e grande iguais;
   agora mínimo por tamanho e cauda pela bola (teste em qualquer zoom).
-- [ ] F6 cadeia de vulcões em muralha.
+- [x] F6 muralha de vulcões: rastro de ponto quente sob continente (9 cones grandes em fila), como o
+  desenho manda; proposta (a/b/c) com imagem `docs/img/m2-f6-vulcoes-continente.png`.
 - [ ] P7–P9 propostas; testes do Claude Code (item 10); lista para amanhã (itens 11–12).
 
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
