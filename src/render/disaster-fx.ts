@@ -18,7 +18,19 @@ interface Fx {
 /** Meteoro: quanto tempo o risco leva até bater (1 s = os 12 passos da entrada em 1×). */
 const METEOR_ENTRY_MS = 1000;
 /** Raio da bola do meteoro em relação ao raio da cratera na tela (E12). */
-const METEOR_HEAD = 0.35;
+export const METEOR_HEAD = 0.35;
+/**
+ * Bola mínima (px, × dpr) por tamanho (Pequeno, Médio, Grande, Gigante), para o tamanho continuar
+ * visível de longe (F5, teste da `58f53e7`: com o globo inteiro na tela a cratera pequena tem ~3 px e a
+ * média ~9; o mínimo único de 4 px deixava pequeno, médio e grande iguais). Na proporção das crateras
+ * (1 : 3 : 6 : 12), suavizada pela raiz para o pequeno não sumir.
+ */
+export const METEOR_MIN_HEAD = [0, 2, 3.5, 5, 7] as const;
+
+/** Raio da bola (px) do meteoro de tamanho `size` (1–4) com a cratera de `craterPx` px na tela. */
+export function meteorHead(size: number, craterPx: number, dpr: number): number {
+  return Math.max((METEOR_MIN_HEAD[size] ?? 2) * dpr, METEOR_HEAD * craterPx);
+}
 
 /** Duração das animações (ms). */
 const FX_MS: Record<number, number> = {
@@ -71,9 +83,10 @@ function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEv
   if (!c.visible || !Number.isFinite(c.x) || !Number.isFinite(c.y)) return;
   // Raio da cratera na tela (px): e.radius é o raio dela em radianos.
   const crater = (e.radius / camera.cellAngle) * camera.cellPixels();
-  const head = Math.max(4 * dpr, METEOR_HEAD * crater);
+  const head = meteorHead(e.magnitude, crater, dpr);
   const a = ((Math.imul(id, 2654435761) >>> 0) / 4294967296) * Math.PI * 2;
-  const len = Math.max(120 * dpr, head * 16);
+  // Cauda pelo tamanho da bola (antes no mínimo 120 px para todos: escondia a diferença).
+  const len = head * 18;
   if (ms < METEOR_ENTRY_MS) {
     const t = ms / METEOR_ENTRY_MS;
     // Cabeça indo do alto até o ponto; cauda atrás, da largura da bola.
@@ -104,7 +117,7 @@ function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEv
     return;
   }
   const fade = Math.max(0, 1 - (ms - METEOR_ENTRY_MS) / 500);
-  const r = Math.max(10 * dpr, crater * 1.6);
+  const r = Math.max(head * 3, crater * 1.6);
   const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
   g.addColorStop(0, `rgba(255, 255, 255, ${(0.95 * fade).toFixed(3)})`);
   g.addColorStop(0.4, `rgba(255, 216, 144, ${(0.7 * fade).toFixed(3)})`);
