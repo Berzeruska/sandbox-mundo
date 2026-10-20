@@ -15,8 +15,10 @@ desempenho" volta ao ano 0, tamanho das placas, 8 sementes).
 - [x] F3 tsunamis 9,5 seguidos: o relógio parava (costa raspada refazia o clima do planeta; plano da
   onda de uma vez). Corrigido: 0 paradas em 1× e 20×. Achado junto: tsunami e incêndios do meteoro e
   fogo da lava nunca andavam (corrigido). A confirmar: a onda começa ~1 s depois em 1×.
-- [ ] F4 relógio esperou / travadas / recomposição de 980 ms.
-- [ ] F5 tamanhos do meteoro.
+- [x] F4 relógio esperou / travadas / recomposição de 980 ms: mesma causa da F3 (volta do gelo e costa
+  raspada espalhadas refaziam o clima do planeta). "Aplicar" pior 267 → 66 ms no cenário "Muitos".
+- [x] F5 tamanhos do meteoro: de longe, mínimo único de 4 px deixava pequeno, médio e grande iguais;
+  agora mínimo por tamanho e cauda pela bola (teste em qualquer zoom).
 - [ ] F6 cadeia de vulcões em muralha.
 - [ ] P7–P9 propostas; testes do Claude Code (item 10); lista para amanhã (itens 11–12).
 

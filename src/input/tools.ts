@@ -157,7 +157,11 @@ export function applyTerrainDeltas(world: WorldState, cells: readonly number[], 
     const dot = (positions[c * 3] as number) * center[0] + (positions[c * 3 + 1] as number) * center[1] + (positions[c * 3 + 2] as number) * center[2];
     reach = Math.max(reach, Math.acos(Math.min(1, dot)));
   }
-  const region = grid.cellsInCap(center[0], center[1], center[2], reach + SHADOW_REACH + 2 * grid.cellAngle);
+  const margin = SHADOW_REACH + 2 * grid.cellAngle;
+  // Células espalhadas (longe umas das outras): a região é a soma das vizinhanças, não um círculo do
+  // tamanho da distância entre elas (duas células de gelo em lados opostos do mundo refaziam o clima do
+  // planeta inteiro, ~200 ms, F4).
+  const region = reach <= 2 * margin ? grid.cellsInCap(center[0], center[1], center[2], reach + margin) : capsAround(grid, cells, margin);
   if (crossedSea) updateWaterDistance(world, region);
   updateClimate(world, region);
   return { region, revealed: [] };
@@ -180,4 +184,21 @@ function around(grid: WorldState['grid'], cells: readonly number[], steps: numbe
     frontier = next;
   }
   return [...seen];
+}
+
+/**
+ * Todas as células a até `margin` (rad) de alguma das `cells`: círculos de raio 1,5 × `margin` em volta
+ * de centros escolhidos de modo que cada célula fique a até meia margem de um deles.
+ */
+function capsAround(grid: WorldState['grid'], cells: readonly number[], margin: number): number[] {
+  const { positions } = grid;
+  const centers: number[] = [];
+  const near = Math.cos(margin / 2);
+  for (const c of cells) {
+    const covered = centers.some((o) => (positions[c * 3] as number) * (positions[o * 3] as number) + (positions[c * 3 + 1] as number) * (positions[o * 3 + 1] as number) + (positions[c * 3 + 2] as number) * (positions[o * 3 + 2] as number) >= near);
+    if (!covered) centers.push(c);
+  }
+  const out = new Set<number>();
+  for (const o of centers) for (const c of grid.cellsInCap(positions[o * 3] as number, positions[o * 3 + 1] as number, positions[o * 3 + 2] as number, margin * 1.5)) out.add(c);
+  return [...out];
 }

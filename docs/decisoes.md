@@ -1028,3 +1028,7 @@ Formato: data — decisão — motivo — alternativa descartada.
   não a sombra de chuva a favor do vento; a próxima recomposição refaz o clima inteiro. Alternativa
   descartada: limite de tsunamis ao mesmo tempo (efeito de jogo, decisão do usuário) e calcular a onda
   num ajudante separado (mais trabalho; fica como opção se a espera da fila incomodar).
+- **Mudança de relevo espalhada (F4):** quando as células mudadas estão a mais de 2 margens (sombra de
+  chuva + 2 células) do centro delas, a região do clima é a soma de círculos em volta de centros que
+  cobrem as células (cada célula a até meia margem de um centro; círculos de 1,5 margem). Mudança só de
+  gelo (volta ao clima ou derretimento) refaz o clima a até 2 células de cada célula, como a costa raspada.

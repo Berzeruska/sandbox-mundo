@@ -302,3 +302,20 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **Correção:** os novos entram depois dos que já andavam (`src/world/disasters/index.ts`). Testes em
   `tests/world/meteor.test.ts` (falham no código antigo). O teste de incêndios naturais esperava só
   "raio" e "lava" porque o do meteoro sumia; pelo desenho (C12), o meteoro também acende.
+
+## 2026-10-19 — Meteoros pequeno, médio e grande do mesmo tamanho (notebook, `58f53e79`, F5)
+- **Como reproduzir:** globo inteiro na tela; Desastres → Meteoro Pequeno, depois Médio e Grande: as
+  bolas e as caudas parecem iguais.
+- **Causa:** mínimo único de 4 px para a bola e 120 px para a cauda; de longe a cratera pequena tem
+  ~3 px e a média ~9, e a regra de 1/3 da cratera (E12) ficava abaixo do mínimo.
+- **Correção:** mínimo por tamanho (2 · 3,5 · 5 · 7 px) e cauda pela bola (`meteorHead` em
+  `src/render/disaster-fx.ts`). Teste em `tests/render/meteor-fx.test.ts`.
+
+## 2026-10-19 — Relógio esperando o ajudante e "aplicar" de 223 ms (relatório do usuário, `58f53e79`, F4)
+- **Como reproduzir:** "Medir desempenho" depois de jogar com desastres (vulcões sob gelo, tsunamis
+  grandes); ou desastres em "Muitos" a 20× com placas 100%.
+- **Causa:** mudança de relevo ou de gelo em células espalhadas (volta do gelo em lugares distantes, costa
+  raspada) virava um círculo do tamanho da distância entre elas, quase o planeta: clima do mundo refeito
+  no relógio, no ajudante e a cada recomposição.
+- **Correção:** volta do gelo local; mudança espalhada usa a soma das vizinhanças (`applyTerrainDeltas`).
+  Teste em `tests/input/tools.test.ts`.

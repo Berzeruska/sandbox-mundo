@@ -453,7 +453,8 @@ export class SimulationCore {
     // Gelo derretido (ou voltando ao clima): muda o modo do gelo e grava na placa como o pincel de gelo.
     for (const ice of o.ice) {
       for (const c of ice.cells) world.iceMode[c] = ice.mode;
-      const done = this.terrain(ice.cells, ice.cells.map(() => 0));
+      // Só o gelo muda (relevo igual): clima refeito em volta de cada célula (F4).
+      const done = this.terrain(ice.cells, ice.cells.map(() => 0), true);
       if (done) patches.push(...done.patches);
     }
     // A aparência das células (fogo andando, onda, vegetação voltando) é repintada uma vez por laço do

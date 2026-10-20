@@ -1134,9 +1134,9 @@ começar a T14, não fechar o M2, não mexer nas 5 perguntas pendentes.
 - [x] **F2 — Buraco do terremoto some** quando o continente anda (tsunami e terremoto mudam o relevo
   para sempre: a marca anda com a placa).
 - [x] **F3 — Tsunamis 9,5 seguidos travam** o jogo (meta: nenhum quadro > 50 ms).
-- [ ] **F4 — Relógio esperou 114 ms** na "deriva longa c/ colisões"; 4 travadas de ~300 ms em 1× com
+- [x] **F4 — Relógio esperou 114 ms** na "deriva longa c/ colisões"; 4 travadas de ~300 ms em 1× com
   placas 100%; pior recomposição 980 ms em "desastres Muitos" (aplicar 223 ms).
-- [ ] **F5 — Meteoros pequeno, médio e grande parecem do mesmo tamanho** (conferir contra a E12).
+- [x] **F5 — Meteoros pequeno, médio e grande parecem do mesmo tamanho** (conferir contra a E12).
 - [ ] **F6 — Cadeia de vulcões parecendo muralha** num continente.
 
 **Propostas (sem código; o usuário decide)**
@@ -1256,6 +1256,43 @@ congelava): 1,2 s de atraso em 1×; em 20×, paradas de 400–800 ms (7 no rodap
   mesmo passo); com muitos tsunamis seguidos, cada um espera o plano do anterior (12 seguidos: o último
   começa ~12 s depois em 1×). Se preferir sem espera, a alternativa é calcular a onda num ajudante
   separado (mais trabalho).
+
+### F4 — Relógio esperou, travadas de ~300 ms e recomposição de 980 ms: diagnóstico e correção
+**Medido** no Chromium (build de produção, 1080p, GPU real), código da F3: nenhum cenário com o relógio
+esperando, pior recomposição 724 ms, "aplicar" ≤ 72 ms, 0 travadas. No Node, mesmo mundo, desastres em
+"Muitos" a 20× e placas 100% por 400 anos (antes desta correção): "aplicar" até 267 ms, mudança de
+relevo até 201 ms num passo, repetição das pinceladas (`replayBrushes`) até 244 ms.
+
+**Causa comum (a mesma da F3):** mudança de relevo ou de gelo em **células espalhadas** era tratada como
+uma pincelada só, num círculo em volta do centro delas com o raio da distância entre elas. Dois casos:
+- a costa raspada do tsunami grande (costas do mundo todo; corrigida na F3);
+- **a volta do gelo** derretido por vulcão (células em lugares distantes voltando no mesmo passo): 2
+  células → círculo de quase o planeta inteiro → clima do mundo refeito no relógio (~200 ms, "relógio
+  atrasou (núcleo ocupado)"), de novo no ajudante (atrasando a recomposição: "relógio esperou") e de novo
+  a cada recomposição enquanto a pincelada estava na lista (o "aplicar" de 223 ms).
+As 4 travadas de ~300 ms em 1× com placas 100% (21:57 e 22:00) batem com o teste dos tsunamis 9,5 do
+item 3, feito nessa hora (a costa raspada levava ~300–430 ms no relógio).
+
+**Correção:** a volta do gelo refaz o clima só em volta de cada célula (como a costa raspada); e qualquer
+mudança espalhada passa a usar a soma das vizinhanças (sombra de chuva em volta de cada célula) em vez do
+círculo gigante (`applyTerrainDeltas` em `src/input/tools.ts`). Depois (Node, mesmo cenário): "aplicar"
+pior 66 ms, mudança de relevo pior 8 ms, repetição das pinceladas pior 44 ms, pior recomposição 550 ms.
+Teste novo (`tests/input/tools.test.ts`, falha no código antigo): duas células em lados opostos do mundo
+refazem o clima só a até a sombra de chuva de cada uma.
+
+### F5 — Tamanho dos meteoros: diagnóstico e correção (defeito contra a E12)
+**Conferido contra a E12** ("bola com ~1/3 do raio da cratera"; crateras de raio 1, 3, 6 e 12 células):
+a regra só valia de perto. Com o globo inteiro na tela uma célula tem ~3 px: crateras de 3, 9, 18 e
+36 px. O desenho tinha um **mínimo único** de 4 px para a bola e de 120 px para a cauda, então a bola
+saía com 4, 4, 6 e 13 px e todas as caudas com 120 px: pequeno, médio e grande iguais. As crateras em
+si são diferentes (1, 3, 6, 12 células; teste antigo), mas de longe a pequena e a média quase não
+aparecem.
+
+**Correção (só o tamanho; o visual do "mini sol" é a proposta P7):** mínimo da bola por tamanho, na
+proporção das crateras suavizada (2 · 3,5 · 5 · 7 px), e a cauda pelo tamanho da bola (18×, sem o
+mínimo de 120 px); o clarão do impacto também pela bola. De perto continua ~1/3 do raio da cratera.
+Teste novo (`tests/render/meteor-fx.test.ts`, falha no código antigo): em qualquer zoom (1,5 a 40 px
+por célula) cada tamanho tem a bola pelo menos 20% maior que o anterior; de perto, 1/3 da cratera.
 
 ## Bloco Final (depois do Bloco Desastres v2)
 
