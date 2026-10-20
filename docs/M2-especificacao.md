@@ -1140,9 +1140,9 @@ começar a T14, não fechar o M2, não mexer nas 5 perguntas pendentes.
 - [x] **F6 — Cadeia de vulcões parecendo muralha** num continente (diagnóstico; proposta).
 
 **Propostas (sem código; o usuário decide)**
-- [ ] **P7 — Visual do meteoro** por tamanho (hoje todos parecem um "mini sol").
-- [ ] **P8 — Crateras sobrepostas** (hoje o segundo meteoro só redesenha a cratera).
-- [ ] **P9 — Temperatura no extremo transforma o planeta** ("Mad Max" no quente, era glacial total no frio).
+- [x] **P7 — Visual do meteoro** por tamanho (hoje todos parecem um "mini sol").
+- [x] **P8 — Crateras sobrepostas** (hoje o segundo meteoro só redesenha a cratera).
+- [x] **P9 — Temperatura no extremo transforma o planeta** ("Mad Max" no quente, era glacial total no frio).
 
 ### F1 — Tempestade de areia: diagnóstico e correção
 **Medido** (sonda no Node, N = 256, 150 toques do jogador por deserto, sementes `pangeia` e `terra`):
@@ -1317,6 +1317,61 @@ baixios" não foi feito), então a fila fica para sempre e vira muralha.
 - **(c) Cones que envelhecem:** além de (b), os cones apagados perdem altura devagar (ex.: metade em
   ~20.000 anos de jogo) e, no mar, as ilhas velhas afundam e viram baixios (o que a especificação já
   dizia para o Havaí). Custo: médio (erosão por vulcão no relógio, gravada na placa, 2–3 testes).
+
+### P7 — Visual do meteoro por tamanho (proposta; sem código)
+Imagem: `docs/img/m2-p7-meteoro-tamanhos.png` (desenhada sobre o globo de verdade). Hoje todos são uma
+bola branca com brilho amarelo e cauda clara: um "mini sol". O tamanho já ficou diferente na F5; a
+proposta muda a cara:
+- **Pequeno:** pedra pequena escura, risco laranja fino e curto, uma faísca no impacto.
+- **Médio:** rocha escura com a frente em brasa (laranja), rastro de fogo curto e fumaça cinza atrás.
+- **Grande:** rocha grande, frente vermelho-laranja, fumaça grossa e ondulada, sombra no chão antes de
+  bater.
+- **Gigante:** corpo escuro enorme com a frente incandescente (o ar em brasa na frente), rastro largo de
+  fogo e fumaça, sombra no chão; no impacto, clarão, anel de poeira se abrindo e pedras voando (os
+  menores: só o clarão, como hoje).
+- **Alternativas:** (a) fica o "mini sol" (só o tamanho da F5); (b) a proposta acima; (c) só a rocha
+  escura com a frente em brasa para todos, sem fumaça nem anel (mais simples).
+- **Custo:** (b) pequeno a médio, só desenho na camada de cima (canvas 2D), sem efeito na simulação nem
+  na GPU do globo; (c) pequeno. O anel de poeira do gigante dura ~1 s. Acabamento fino fica no M8.
+
+### P8 — Crateras sobrepostas (proposta; sem código)
+Imagem: `docs/img/m2-p8-crateras.png` (protótipo no jogo, semente `pangeia`). **Hoje:** em terra o
+fundo da cratera não desce abaixo de ~20 m acima do mar (decisão da C12: "cratera em terra não vira
+mar"); um segundo meteoro no mesmo lugar acha o fundo já no limite, refaz a borda e as marcas e não
+aumenta nada. No mar o fundo afunda de novo a cada um.
+- **(a) Fica como está.**
+- **(b) O estrago soma:** meteoro que cai dentro de uma cratera alarga a cratera (a área soma: raio novo
+  = √(raio antigo² + raio do meteoro²)) e aprofunda até o limite de terra (continua sem virar mar);
+  borda empurrada para fora; incêndios e onda de choque como hoje.
+- **(c) Lago de cratera:** além de (b), quando a soma passa de um Gigante o fundo pode descer abaixo do
+  mar e vira **lago** (a água fica na bacia fechada, como o lago da enchente, mas para sempre); na costa
+  pode abrir uma baía. Muda a decisão da C12 ("em terra não vira mar") só nesse caso.
+- **Custo:** (b) pequeno a médio (guardar as crateras com centro, raio e fundo, andando com a placa; 2
+  testes); (c) médio (lago permanente numa bacia fechada; 2–3 testes).
+
+### P9 — Temperatura no extremo transforma o planeta (ideia do usuário; proposta, sem código)
+Imagem: `docs/img/m2-p9-temperatura-extrema.png` (em cima, o jogo de hoje em −10, 0 e +10 °C; embaixo,
+um protótipo provisório, desfeito, com duas regras novas). **Hoje:** o controle vai de −10 a +10 °C e só
+mexe na temperatura: em +10 os desertos crescem pelo calor e o gelo some, mas a chuva não muda; em −10
+o gelo desce até as latitudes médias. Os meteoros gigantes somam invernos e já dão para congelar mais
+que isso.
+- **Proposta:** (1) **calor seca o planeta:** a chuva em terra cai com o calor global (evaporação), e em
+  +8 a +10 quase todo o continente vira deserto e estepe ("Mad Max"; no protótipo, chuva × 0,27 em
+  +10); florestas só no equador e nas costas; mais incêndios e tempestades de areia; (2) **frio se
+  reforça:** abaixo de um limite o gelo reflete a luz e esfria mais (no protótipo, o frio × 2,4): o gelo
+  desce até perto do equador, o mar baixa e congela; (3) **volta lenta:** o planeta transformado só
+  volta quando a temperatura sobe bem acima do limite que o levou (para não piscar entre os estados).
+- **Alternativas:** (a) só ampliar o controle (ex.: −20 a +20 °C) sem regras novas; (b) as regras (1)
+  e (2) sem a volta lenta; (c) a proposta inteira.
+- **Marco:** a parte física (chuva, gelo, mar, biomas pela temperatura) é do clima da **T7 (M2)**; o
+  efeito na vida (vegetação morrendo, bichos, "Mad Max" com criaturas) é do **M3 (ecologia)**.
+  Recomendação: registrar para o **M3**, junto com a "floresta grande afeta o clima" (mesma conta de
+  chuva), para não reabrir o clima antes de fechar o M2. Se o usuário quiser já no M2, entra como tarefa
+  nova do bloco de clima.
+- **Custo:** médio: a chuva passa a depender da temperatura global (hoje o recálculo rápido do clima
+  pula a chuva; com a regra (1) ele refaz também a chuva, ~+30 ms por degrau no ajudante, medir), o
+  reforço do gelo com memória (regra 3), o controle ampliado e 3–4 testes (fração de deserto e de gelo
+  nos extremos, volta com histerese). Sem custo de GPU.
 
 ## Bloco Final (depois do Bloco Desastres v2)
 

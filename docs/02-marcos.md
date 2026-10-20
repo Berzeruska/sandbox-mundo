@@ -55,6 +55,10 @@ Anotado em 2026-10-17 (usuário): **floresta grande afeta o clima** (umidade, te
 sandbox de deus visto do alto (conteúdo nosso, regra 8): ao especificar o M3, confirmar que a vista de
 perto e a escala do planeta permitem bonecos legíveis (junto com a ideia já registrada de zoom maior
 para bonecos pequenos).
+Anotado em 2026-10-19 (usuário, proposta P9 em `docs/M2-especificacao.md`): **temperatura no extremo
+transforma o planeta** ("Mad Max" no calor máximo, era glacial total no frio máximo, como já dá com os
+meteoros). A parte física é do clima (T7); a recomendação é fazer no M3, com a vida reagindo. Decisão do
+usuário pendente.
 Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a
 **escala visual** pequena dos indivíduos (`docs/00-visao.md`).
 

@@ -21,7 +21,9 @@ desempenho" volta ao ano 0, tamanho das placas, 8 sementes).
   agora mínimo por tamanho e cauda pela bola (teste em qualquer zoom).
 - [x] F6 muralha de vulcões: rastro de ponto quente sob continente (9 cones grandes em fila), como o
   desenho manda; proposta (a/b/c) com imagem `docs/img/m2-f6-vulcoes-continente.png`.
-- [ ] P7–P9 propostas; testes do Claude Code (item 10); lista para amanhã (itens 11–12).
+- [x] P7 visual do meteoro, P8 crateras sobrepostas, P9 temperatura extrema (M2/M3): propostas com
+  imagem, sem código.
+- [ ] Testes do Claude Code (item 10); lista para amanhã (itens 11–12).
 
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
