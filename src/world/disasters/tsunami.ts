@@ -82,153 +82,233 @@ export interface TsunamiPlan {
   inland: number;
 }
 
-/** Fila de prioridade mínima (heap binário) de células por tempo. */
-class Heap {
-  cells: number[] = [];
-  keys: number[] = [];
-  push(c: number, k: number): void {
-    const { cells, keys } = this;
-    let i = cells.length;
-    cells.push(c);
-    keys.push(k);
-    while (i > 0) {
-      const p = (i - 1) >> 1;
-      if ((keys[p] as number) <= k) break;
-      cells[i] = cells[p] as number;
-      keys[i] = keys[p] as number;
-      i = p;
+/**
+ * Memória de rascunho do plano, reaproveitada entre tsunamis (F3: com mapas, o plano de um M 9,5 em
+ * N = 256 levava ~200–300 ms e travava o relógio a cada toque). Cada uso ganha uma marca nova: um valor
+ * só vale se a marca da célula for a do uso atual, então nada precisa ser zerado.
+ */
+class Scratch {
+  stamp = 0;
+  readonly mark: Uint32Array;
+  readonly closed: Uint32Array;
+  readonly time: Float64Array;
+  readonly coastMark: Uint32Array;
+  readonly coastTime: Float64Array;
+  readonly seenMark: Uint32Array;
+  readonly distMark: Uint32Array;
+  readonly dist: Uint8Array;
+  readonly nearTime: Float64Array;
+  constructor(readonly size: number) {
+    this.mark = new Uint32Array(size);
+    this.closed = new Uint32Array(size);
+    this.time = new Float64Array(size);
+    this.coastMark = new Uint32Array(size);
+    this.coastTime = new Float64Array(size);
+    this.seenMark = new Uint32Array(size);
+    this.distMark = new Uint32Array(size);
+    this.dist = new Uint8Array(size);
+    this.nearTime = new Float64Array(size);
+  }
+  next(): number {
+    if (++this.stamp === 0xffffffff) {
+      for (const a of [this.mark, this.closed, this.coastMark, this.seenMark, this.distMark]) a.fill(0);
+      this.stamp = 1;
     }
-    cells[i] = c;
-    keys[i] = k;
-  }
-  pop(): number {
-    const { cells, keys } = this;
-    const top = cells[0] as number;
-    const lastC = cells.pop() as number;
-    const lastK = keys.pop() as number;
-    if (cells.length) {
-      let i = 0;
-      for (;;) {
-        const l = 2 * i + 1;
-        if (l >= cells.length) break;
-        const r = l + 1;
-        const m = r < cells.length && (keys[r] as number) < (keys[l] as number) ? r : l;
-        if ((keys[m] as number) >= lastK) break;
-        cells[i] = cells[m] as number;
-        keys[i] = keys[m] as number;
-        i = m;
-      }
-      cells[i] = lastC;
-      keys[i] = lastK;
-    }
-    return top;
-  }
-  topKey(): number {
-    return this.keys[0] as number;
-  }
-  get size(): number {
-    return this.cells.length;
+    return this.stamp;
   }
 }
+let scratch: Scratch | null = null;
 
-/** Planeja a onda a partir da célula de mar `start` (terremoto de magnitude `m`). */
-export function planTsunami(world: WorldState, start: number, m: number): TsunamiPlan {
-  const { neighbors, cellAngle } = world.grid;
-  const reach = tsunamiReach(m);
-  const time = new Map<number, number>();
-  const heap = new Heap();
-  time.set(start, 0);
-  heap.push(start, 0);
-  const sea: number[] = [];
-  const times: number[] = [];
-  const coast = new Map<number, number>();
-  while (heap.size) {
-    const t = heap.topKey();
-    const c = heap.pop();
-    if (t > (time.get(c) ?? Infinity)) continue;
-    sea.push(c);
-    times.push(t / reach);
-    const speed = Math.max(MIN_SPEED, Math.sqrt(Math.max(0, -world.heightAboveSea(c)) / DEEP));
-    for (let d = 0; d < 4; d++) {
-      const j = neighbors[c * 4 + d] as number;
-      if (!world.isWater(j)) {
-        // Costa atingida: guarda o tempo mais cedo.
-        if (!world.ice[j] && (!coast.has(j) || (coast.get(j) as number) > t / reach)) coast.set(j, t / reach);
+/**
+ * Quantas células de mar o plano percorre por passo do relógio (F3). Um M 9,5 cobre o oceano inteiro
+ * (~270 mil células em N = 256, 40–60 ms de uma vez): dividido assim, cada passo gasta ~4 ms (o tempo de
+ * um passo em 20×) e a onda começa ~12 passos (1 s em 1×) depois do terremoto; o fechamento do plano
+ * (terra alagada e faixa de espuma) vale um pedaço. Conta em células, não em tempo, para o mundo ser o
+ * mesmo em qualquer velocidade e aparelho.
+ */
+export const PLAN_CELLS_PER_TICK = 25_000;
+
+/**
+ * Plano da onda a partir da célula de mar `start` (terremoto de magnitude `m`), feito aos pedaços
+ * (`run`). Usa a memória de rascunho comum: um plano por vez (os outros esperam na fila).
+ */
+export class TsunamiPlanner {
+  private id = 0;
+  private readonly reach: number;
+  private width = 0;
+  private readonly buckets: number[][] = [];
+  private bucket = 0;
+  private pos = 0;
+  private readonly sea: number[] = [];
+  private readonly times: number[] = [];
+  private readonly coastCells: number[] = [];
+  /** Pronto (null enquanto anda pelo mar). */
+  plan: TsunamiPlan | null = null;
+
+  constructor(
+    private readonly world: WorldState,
+    private readonly start: number,
+    private readonly m: number,
+  ) {
+    this.reach = tsunamiReach(m);
+  }
+
+  /** Começa no primeiro pedaço: a memória de rascunho é de um plano por vez. */
+  private begin(): void {
+    const world = this.world;
+    if (!scratch || scratch.size !== world.cellCount) scratch = new Scratch(world.cellCount);
+    this.id = scratch.next();
+    // Dijkstra com baldes de tempo: cada balde tem a largura do menor passo possível (uma célula no mar
+    // mais fundo), então quem sai de um balde só entra nos seguintes e os tempos são os exatos.
+    let deepest = 0;
+    for (let c = 0; c < world.cellCount; c++) deepest = Math.max(deepest, -world.heightAboveSea(c));
+    this.width = world.grid.cellAngle / Math.max(MIN_SPEED, Math.sqrt(deepest / DEEP));
+    scratch.mark[this.start] = this.id;
+    scratch.time[this.start] = 0;
+    this.buckets[0] = [this.start];
+  }
+
+  /** Anda até `budget` células de mar; devolve quantas usou. Termina o plano quando o mar acaba. */
+  run(budget: number): number {
+    if (this.plan) return 0;
+    if (!this.id) this.begin();
+    const sc = scratch as Scratch;
+    const { mark, time, closed, coastMark, coastTime } = sc;
+    const { world, id, reach, width, buckets } = this;
+    const { neighbors, cellAngle } = world.grid;
+    let used = 0;
+    while (this.bucket < buckets.length && used < budget) {
+      const list = buckets[this.bucket];
+      if (!list || this.pos >= list.length) {
+        buckets[this.bucket] = [];
+        this.bucket++;
+        this.pos = 0;
         continue;
       }
-      const tj = t + cellAngle / speed;
-      if (tj > reach || tj >= (time.get(j) ?? Infinity)) continue;
-      time.set(j, tj);
-      heap.push(j, tj);
+      const c = list[this.pos++] as number;
+      if (closed[c] === id) continue;
+      closed[c] = id;
+      used++;
+      const t = time[c] as number;
+      this.sea.push(c);
+      this.times.push(t / reach);
+      const speed = Math.max(MIN_SPEED, Math.sqrt(Math.max(0, -world.heightAboveSea(c)) / DEEP));
+      for (let d = 0; d < 4; d++) {
+        const j = neighbors[c * 4 + d] as number;
+        if (!world.isWater(j)) {
+          // Costa atingida: guarda o tempo mais cedo.
+          if (!world.ice[j]) {
+            if (coastMark[j] !== id) {
+              coastMark[j] = id;
+              coastTime[j] = t / reach;
+              this.coastCells.push(j);
+            } else if ((coastTime[j] as number) > t / reach) coastTime[j] = t / reach;
+          }
+          continue;
+        }
+        const tj = t + cellAngle / speed;
+        if (tj > reach || (mark[j] === id && tj >= (time[j] as number))) continue;
+        mark[j] = id;
+        time[j] = tj;
+        const b = Math.floor(tj / width);
+        const into = buckets[b];
+        if (into) into.push(j);
+        else buckets[b] = [j];
+      }
     }
+    // O fechamento (terra alagada, faixa de espuma) vale um pedaço inteiro e fica para o passo seguinte.
+    if (this.bucket >= buckets.length && used === 0) {
+      this.plan = this.finish();
+      return budget;
+    }
+    return used;
   }
-  // Terra: a água entra a partir de cada costa (as atingidas antes primeiro) enquanto o terreno for mais
-  // baixo que a onda, que perde altura a cada célula e com a distância percorrida no mar.
-  const inland = inlandReach(m);
-  const runup = tsunamiRunup(m);
-  const land: number[] = [];
-  const landTimes: number[] = [];
-  const landSteps: number[] = [];
-  const seen = new Set<number>();
-  const coasts = [...coast.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-  for (const [c0, t] of coasts) {
-    const h = runup * (1 - 0.6 * t);
-    let frontier = [c0];
-    for (let step = 0; step < inland && frontier.length; step++) {
-      const limit = h * (1 - step / inland);
+
+  private finish(): TsunamiPlan {
+    const sc = scratch as Scratch;
+    const { time, coastTime, seenMark, distMark, dist, nearTime, mark } = sc;
+    const { world, id, reach, m, sea, times } = this;
+    const { neighbors } = world.grid;
+    // Terra: a água entra a partir de cada costa (as atingidas antes primeiro) enquanto o terreno for mais
+    // baixo que a onda, que perde altura a cada célula e com a distância percorrida no mar.
+    const inland = inlandReach(m);
+    const runup = tsunamiRunup(m);
+    const land: number[] = [];
+    const landTimes: number[] = [];
+    const landSteps: number[] = [];
+    const coasts = this.coastCells.sort((a, b) => (coastTime[a] as number) - (coastTime[b] as number) || a - b);
+    for (const c0 of coasts) {
+      const t = (coastTime[c0] as number);
+      const h = runup * (1 - 0.6 * t);
+      let frontier = [c0];
+      for (let step = 0; step < inland && frontier.length; step++) {
+        const limit = h * (1 - step / inland);
+        const next: number[] = [];
+        for (const c of frontier) {
+          if (seenMark[c] === id || world.isWater(c) || world.ice[c] || world.heightAboveSea(c) >= limit) continue;
+          seenMark[c] = id;
+          land.push(c);
+          landTimes.push(t);
+          landSteps.push(step);
+          for (let d = 0; d < 4; d++) next.push(neighbors[c * 4 + d] as number);
+        }
+        frontier = next;
+      }
+    }
+    // Mar perto das costas atingidas: distância (células) até elas, pelo mar. O mar atingido é o que tem
+    // a marca deste uso e foi fechado (todo o que entrou na fila sai dela, com o tempo final).
+    const isSea = (j: number): boolean => mark[j] === id;
+    let frontier: number[] = [];
+    const bandCells: number[] = [];
+    for (const c0 of coasts) {
+      const t = (coastTime[c0] as number);
+      for (let d = 0; d < 4; d++) {
+        const j = neighbors[c0 * 4 + d] as number;
+        if (!isSea(j) || distMark[j] === id) continue;
+        distMark[j] = id;
+        dist[j] = 1;
+        nearTime[j] = t;
+        frontier.push(j);
+        bandCells.push(j);
+      }
+    }
+    for (let step = 2; step <= BAND_CELLS && frontier.length; step++) {
       const next: number[] = [];
       for (const c of frontier) {
-        if (seen.has(c) || world.isWater(c) || world.ice[c] || world.heightAboveSea(c) >= limit) continue;
-        seen.add(c);
-        land.push(c);
-        landTimes.push(t);
-        landSteps.push(step);
-        for (let d = 0; d < 4; d++) next.push(neighbors[c * 4 + d] as number);
+        for (let d = 0; d < 4; d++) {
+          const j = neighbors[c * 4 + d] as number;
+          if (!isSea(j) || distMark[j] === id) continue;
+          distMark[j] = id;
+          dist[j] = step;
+          nearTime[j] = (nearTime[c] as number);
+          next.push(j);
+          bandCells.push(j);
+        }
       }
       frontier = next;
     }
-  }
-  // Mar perto das costas atingidas: distância (células) até elas, pelo mar.
-  const seaTime = new Map<number, number>();
-  sea.forEach((c, k) => seaTime.set(c, times[k] as number));
-  const dist = new Map<number, number>();
-  const nearCoastTime = new Map<number, number>();
-  let frontier: number[] = [];
-  for (const [c0, t] of coasts) {
-    for (let d = 0; d < 4; d++) {
-      const j = neighbors[c0 * 4 + d] as number;
-      if (!seaTime.has(j) || dist.has(j)) continue;
-      dist.set(j, 1);
-      nearCoastTime.set(j, t);
-      frontier.push(j);
-    }
-  }
-  for (let step = 2; step <= BAND_CELLS && frontier.length; step++) {
-    const next: number[] = [];
-    for (const c of frontier) {
-      for (let d = 0; d < 4; d++) {
-        const j = neighbors[c * 4 + d] as number;
-        if (!seaTime.has(j) || dist.has(j)) continue;
-        dist.set(j, step);
-        nearCoastTime.set(j, nearCoastTime.get(c) as number);
-        next.push(j);
+    const band: number[] = [];
+    const bandTimes: number[] = [];
+    const seabed: number[] = [];
+    const seabedTimes: number[] = [];
+    bandCells.sort((a, b) => a - b);
+    for (const c of bandCells) {
+      band.push(c);
+      bandTimes.push((time[c] as number) / reach);
+      if ((dist[c] as number) <= SEABED_CELLS && -world.heightAboveSea(c) < SEABED_DEPTH) {
+        seabed.push(c);
+        seabedTimes.push((nearTime[c] as number));
       }
     }
-    frontier = next;
+    return { sea, times, band, bandTimes, seabed, seabedTimes, land, landTimes, landSteps, inland };
   }
-  const band: number[] = [];
-  const bandTimes: number[] = [];
-  const seabed: number[] = [];
-  const seabedTimes: number[] = [];
-  for (const [c, d] of [...dist.entries()].sort((a, b) => a[0] - b[0])) {
-    band.push(c);
-    bandTimes.push(seaTime.get(c) as number);
-    if (d <= SEABED_CELLS && -world.heightAboveSea(c) < SEABED_DEPTH) {
-      seabed.push(c);
-      seabedTimes.push(nearCoastTime.get(c) as number);
-    }
-  }
-  return { sea, times, band, bandTimes, seabed, seabedTimes, land, landTimes, landSteps, inland };
+}
+
+/** Planeja a onda inteira de uma vez (testes e ferramentas). */
+export function planTsunami(world: WorldState, start: number, m: number): TsunamiPlan {
+  const p = new TsunamiPlanner(world, start, m);
+  while (!p.plan) p.run(Infinity);
+  return p.plan;
 }
 
 /** Passos da viagem da onda pelo mar (2–5 s em 1×, pelo alcance). */
@@ -256,7 +336,7 @@ interface Action {
 export class TsunamiProcess {
   private schedule = new Map<number, Action[]>();
   private lastTick: number;
-  private scrape: { cells: number[]; deltas: number[] };
+  private scrape: { cells: number[]; deltas: number[]; local: true };
 
   constructor(
     private ground: Ground,
@@ -286,7 +366,7 @@ export class TsunamiProcess {
     });
     // 3. A água entra em terra uma célula por passo, fica e volta (de dentro para a costa).
     const inland = plan.inland;
-    const scrape = { cells: [] as number[], deltas: [] as number[] };
+    const scrape = { cells: [] as number[], deltas: [] as number[], local: true as const };
     plan.land.forEach((c, k) => {
       const step = plan.landSteps[k] as number;
       const coastTick = at(plan.landTimes[k] as number);

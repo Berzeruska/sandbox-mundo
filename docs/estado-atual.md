@@ -12,7 +12,9 @@ desempenho" volta ao ano 0, tamanho das placas, 8 sementes).
   deserto quente, duração 6–15 s. Pergunta nova: areia fora do deserto só em terra em seca?
 - [x] F2 buraco do terremoto: o que some é a fenda, temporária pelo desenho da R5 (~50 anos; em 20×,
   2,5 s); a encosta rebaixada (permanente) anda com a placa (teste novo). Proposta (a/b/c) com imagem.
-- [ ] F3 tsunamis 9,5 seguidos travando.
+- [x] F3 tsunamis 9,5 seguidos: o relógio parava (costa raspada refazia o clima do planeta; plano da
+  onda de uma vez). Corrigido: 0 paradas em 1× e 20×. Achado junto: tsunami e incêndios do meteoro e
+  fogo da lava nunca andavam (corrigido). A confirmar: a onda começa ~1 s depois em 1×.
 - [ ] F4 relógio esperou / travadas / recomposição de 980 ms.
 - [ ] F5 tamanhos do meteoro.
 - [ ] F6 cadeia de vulcões em muralha.

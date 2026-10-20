@@ -9,7 +9,7 @@ import { cellPoint, DisasterKind, Disasters, type DisasterEvent } from '../../sr
 import { CellState, Ground, hasVegetation } from '../../src/world/disasters/ground';
 import { writeCellColor } from '../../src/render/colors';
 import { MIN_MAGNITUDE, sampleMagnitude } from '../../src/world/disasters/quakes';
-import { planTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiRunup } from '../../src/world/disasters/tsunami';
+import { PLAN_CELLS_PER_TICK, planTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiRunup } from '../../src/world/disasters/tsunami';
 import type { WorldState } from '../../src/world/state';
 
 const worldOf = (seed = 'terra', n = 64) => createWorld({ seedText: seed, seed: seedFrom(seed), n, seaLevel: 0, landFraction: 0.3 });
@@ -110,10 +110,18 @@ describe('desastres (T8): tsunamis', () => {
     const tsunamis = events.filter((e) => e.kind === DisasterKind.Tsunami);
     expect(tsunamis.length).toBeGreaterThan(0);
     const w = worldOf('terra');
+    // A onda começa quando o plano dela fica pronto (F3): alguns passos depois do terremoto ou do impacto.
+    const before = <T,>(map: Map<number, T>, tick: number, p: readonly number[]): T | undefined => {
+      for (let d = 0; d <= Math.ceil(w.cellCount / PLAN_CELLS_PER_TICK) + 1; d++) {
+        const hit = map.get(key(tick - d, p));
+        if (hit) return hit;
+      }
+      return undefined;
+    };
     for (const t of tsunamis) {
       expect(w.isWater(w.grid.pointToCell(t.point[0], t.point[1], t.point[2]))).toBe(true);
-      const q = quakes.get(key(t.tick, t.point));
-      const m = meteors.get(key(t.tick, t.point));
+      const q = before(quakes, t.tick, t.point);
+      const m = before(meteors, t.tick, t.point);
       expect(q !== undefined || m !== undefined).toBe(true);
       if (q) expect(q.magnitude).toBeGreaterThanOrEqual(TSUNAMI_MIN_MAGNITUDE);
       if (m) expect(m.magnitude).toBeGreaterThanOrEqual(2);
@@ -130,8 +138,15 @@ describe('desastres (T8): tsunamis', () => {
       expect(w.isWater(c)).toBe(false);
       expect(w.heightAboveSea(c)).toBeLessThan(tsunamiRunup(9));
     }
-    // Tempos de chegada em ordem crescente a partir do epicentro.
-    for (let k = 1; k < r.times.length; k++) expect(r.times[k]!).toBeGreaterThanOrEqual(r.times[k - 1]!);
+    // A onda se espalha a partir do epicentro: cada célula atingida (menos a do epicentro) foi alcançada
+    // por uma vizinha de mar atingida antes dela.
+    const when = new Map(r.sea.map((c, k) => [c, r.times[k]!]));
+    expect(when.get(sea)).toBe(0);
+    for (const [c, t] of when) {
+      if (c === sea) continue;
+      const earlier = [0, 1, 2, 3].some((d) => (when.get(w.grid.neighbors[c * 4 + d]!) ?? Infinity) < t);
+      expect(earlier).toBe(true);
+    }
   });
 
   it('o jogador provoca tsunami no mar com qualquer frequência: a costa vira lama sem vegetação, aparece nas cores e volta ao normal', () => {
@@ -337,7 +352,7 @@ describe('desastres (T10): clima', () => {
     }
   }, 30_000);
 
-  it('incêndio natural nasce de raio (ou de lava), em terra com vegetação (R3)', () => {
+  it('incêndio natural nasce de raio, lava ou meteoro, em terra com vegetação (R3, C12)', () => {
     const w = worldOf('mundo', 64);
     const d = new Disasters(w);
     let fires = 0;
@@ -348,9 +363,9 @@ describe('desastres (T10): clima', () => {
         if (e.kind === DisasterKind.Lightning) bolts++;
         if (e.kind !== DisasterKind.Fire) continue;
         fires++;
-        // Pelo desenho (R3, R7, C11): na natureza só raio e lava acendem fogo.
+        // Pelo desenho (R3, R7, C11, C12): na natureza só raio, lava e meteoro acendem fogo.
         expect(e.manual).toBe(false);
-        expect(['raio', 'lava']).toContain(e.cause);
+        expect(['raio', 'lava', 'meteoro']).toContain(e.cause);
         const c = w.grid.pointToCell(e.point[0], e.point[1], e.point[2]);
         expect(w.isWater(c)).toBe(false);
         expect(hasVegetation(w.biome[c]!)).toBe(true);
@@ -419,8 +434,10 @@ describe('desastres (T11): na mão do jogador', () => {
     for (const [kind, cell] of Object.entries(at)) {
       const o = d.trigger(Number(kind) as DisasterKind, cellPoint(w, cell), 12);
       const events = [...o.events];
-      // O incêndio anda passo a passo (R3): o evento dele sai quando o fogo apaga.
-      for (let tick = 13; Number(kind) === DisasterKind.Fire && tick < 5000 && !events.some((e) => e.kind === DisasterKind.Fire); tick++) {
+      // O incêndio anda passo a passo (R3): o evento dele sai quando o fogo apaga. O tsunami sai quando o
+      // plano da onda fica pronto (F3), alguns passos depois.
+      const later = Number(kind) === DisasterKind.Fire || Number(kind) === DisasterKind.Tsunami;
+      for (let tick = 13; later && tick < 5000 && !events.some((e) => e.kind === Number(kind)); tick++) {
         events.push(...(d.step(tick, 0)?.events ?? []));
       }
       expect(events.some((e) => e.kind === Number(kind) && e.manual), `tipo ${kind}`).toBe(true);

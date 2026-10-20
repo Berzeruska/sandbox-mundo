@@ -54,6 +54,23 @@ describe('meteoro (C12)', () => {
     for (const f of fires) expect(f).toBe('meteoro');
   });
 
+  // Defeito achado na F3: o que nasce no meio do passo de outro desastre (o tsunami e os incêndios do
+  // meteoro, o fogo da lava) era perdido. Pelo desenho (C12), o meteoro acende incêndios em volta.
+  it('o incêndio do meteoro anda de verdade (não some ao nascer no impacto)', () => {
+    const w = worldOf();
+    const forest = [...Array(w.cellCount).keys()].find((c) => [5, 6, 12].includes(w.biome[c]!) && w.waterDistance[c]! > 15)!;
+    const d = new Disasters(w);
+    d.frequency = 0;
+    d.trigger(DisasterKind.Meteor, cellPoint(w, forest), 0, 3);
+    let burning = 0;
+    for (let t = 1; t <= ENTRY_TICKS + 30; t++) {
+      d.step(t, 0);
+      burning = Math.max(burning, [...d.ground.active].filter((x) => d.ground.state[x] === CellState.Burning).length);
+    }
+    expect(burning).toBeGreaterThan(0);
+    expect(d.running).toBeGreaterThan(0);
+  });
+
   it('no mar, do médio para cima faz tsunami; o pequeno não', () => {
     const w = worldOf();
     const sea = [...Array(w.cellCount).keys()].find((c) => w.heightAboveSea(c) < -3000)!;
@@ -62,8 +79,14 @@ describe('meteoro (C12)', () => {
       d.frequency = 0;
       d.trigger(DisasterKind.Meteor, cellPoint(w, sea), 0, size);
       const kinds: number[] = [];
-      for (let t = 1; t <= ENTRY_TICKS + 1; t++) kinds.push(...(d.step(t, 0)?.events ?? []).map((e) => e.kind));
+      let wave = 0;
+      for (let t = 1; t <= ENTRY_TICKS + 200; t++) {
+        kinds.push(...(d.step(t, 0)?.events ?? []).map((e) => e.kind));
+        wave += [...d.ground.active].filter((x) => d.ground.state[x] === CellState.Wave).length;
+      }
       expect(kinds.includes(DisasterKind.Tsunami), `tamanho ${size}`).toBe(tsunami);
+      // A onda anda de verdade (antes o processo do tsunami do meteoro era perdido).
+      expect(wave > 0, `onda, tamanho ${size}`).toBe(tsunami);
     }
   });
 

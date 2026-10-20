@@ -1022,3 +1022,9 @@ Formato: data — decisão — motivo — alternativa descartada.
   que passou a falhar quando a mudança da tempestade de areia mudou o sorteio dos desastres: 1 byte
   diferente numa célula de canto da face. Defeito antigo, de efeito pequeno (um tom de sombra errado na
   borda da face até a próxima repintura).
+- **Tsunamis (F3):** plano da onda em pedaços de 25 mil células de mar por passo (conta em células, não
+  em tempo: o mundo é o mesmo em qualquer velocidade), um plano por vez em fila; fechamento num passo
+  próprio. Costa raspada (mudança pequena espalhada) refaz o clima só a até 2 células de cada célula e
+  não a sombra de chuva a favor do vento; a próxima recomposição refaz o clima inteiro. Alternativa
+  descartada: limite de tsunamis ao mesmo tempo (efeito de jogo, decisão do usuário) e calcular a onda
+  num ajudante separado (mais trabalho; fica como opção se a espera da fila incomodar).

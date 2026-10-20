@@ -363,10 +363,10 @@ export class SimulationCore {
   }
 
   /** Relevo mudado por um desastre, célula a célula: grava na placa como uma pincelada. */
-  private terrain(cells: readonly number[], deltas: readonly number[]): { patches: Patch[]; revealed: Uint8Array | null } | null {
+  private terrain(cells: readonly number[], deltas: readonly number[], local = false): { patches: Patch[]; revealed: Uint8Array | null } | null {
     const world = this.world;
     if (!world || !cells.length) return null;
-    const { region, revealed } = applyTerrainDeltas(world, cells, deltas);
+    const { region, revealed } = applyTerrainDeltas(world, cells, deltas, local);
     return this.commitRegion(world, region, revealed);
   }
 
@@ -445,7 +445,7 @@ export class SimulationCore {
       deposits = done.revealed ?? deposits;
     }
     for (const t of o.terrain) {
-      const done = this.terrain(t.cells, t.deltas);
+      const done = this.terrain(t.cells, t.deltas, t.local);
       if (done) patches.push(...done.patches);
     }
     // Meteoro gigante: o planeta esfria por um tempo, chegando aos poucos (o relógio acompanha, E6).

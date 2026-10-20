@@ -31,7 +31,7 @@ import { DROUGHT_YEARS, NOTABLE_DROUGHT_RADIUS, sampleDroughtRadius, startDrough
 import { DEPTH, FLOOD_CELLS, FloodProcess, floodPlan, lowestNear, NOTABLE_FLOOD_CELLS, PLAYER_FLOOD_CELLS, WET_YEARS } from './flood';
 import { canBurn, FireProcess, LIGHTNING_PER_YEAR, lightningIgnites, NOTABLE_FIRE_CELLS, pickLightningCell, PLAYER_FIRE_BOOST, PLAYER_FIRE_RADIUS } from './fire';
 import { buildFaults, type Fault, feltRadius, MAX_MAGNITUDE, NOTABLE_MAGNITUDE, sampleMagnitude, stressDrop, yearlyStress } from './quakes';
-import { planTsunami, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, TsunamiProcess } from './tsunami';
+import { PLAN_CELLS_PER_TICK, TSUNAMI_MIN_MAGNITUDE, tsunamiReach, TsunamiPlanner, TsunamiProcess } from './tsunami';
 import { areaLabel, decimal, DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent, type FireCause } from './types';
 import {
   DROUGHT_CHANCE,
@@ -76,6 +76,8 @@ export interface TerrainChange {
   cells: number[];
   /** Metros a somar em cada célula. */
   deltas: number[];
+  /** Mudança pequena e espalhada: clima refeito só em volta de cada célula (`applyTerrainDeltas`). */
+  local?: boolean;
 }
 
 /** Gelo mudado por um desastre (vulcão derretendo; volta ao clima depois), gravado na placa. */
@@ -143,6 +145,11 @@ export class Disasters {
   private initialTerrain: TerrainChange[] = [];
   /** Desastres em andamento (passo a passo). */
   private processes: DisasterProcess[] = [];
+  /**
+   * Tsunamis esperando o plano da onda (F3): o plano anda PLAN_CELLS_PER_TICK células de mar por passo,
+   * um por vez, e a onda começa quando ele fica pronto.
+   */
+  private planning: { planner: TsunamiPlanner; cell: number; m: number; manual: boolean; meteor: boolean; rng: Rng }[] = [];
   /** Contagem por tipo (para testes e o painel). */
   readonly counts = new Array<number>(10).fill(0);
   /** Velocidade das placas no último passo (com elas paradas, a geologia congela). */
@@ -246,9 +253,9 @@ export class Disasters {
     this.processes.push(p);
   }
 
-  /** Quantos desastres estão andando agora. */
+  /** Quantos desastres estão andando agora (com os tsunamis esperando o plano da onda). */
   get running(): number {
-    return this.processes.length;
+    return this.processes.length + this.planning.length;
   }
 
   /**
@@ -266,7 +273,15 @@ export class Disasters {
       if (back.length) out.ice.push({ cells: back, mode: IceMode.Auto });
     }
     this.stepOut = out;
-    if (this.processes.length) this.processes = this.processes.filter((p) => p.step(tick, out));
+    if (this.planning.length) this.planTsunamis(tick, out);
+    if (this.processes.length) {
+      // Os que começam no meio do passo (o tsunami e os incêndios do meteoro, o fogo da lava) entram
+      // depois dos que já andavam: antes eram perdidos (a lista era trocada pela filtrada).
+      const running = this.processes;
+      this.processes = [];
+      const kept = running.filter((p) => p.step(tick, out));
+      this.processes = kept.concat(this.processes);
+    }
     if (tick % TICKS_PER_YEAR === 0) this.yearly(tick, plateRate, out);
     this.stepOut = null;
     out.marked = this.ground.takeChanged();
@@ -717,11 +732,7 @@ export class Disasters {
         if (hit.terrainCells.length) o.terrain.push({ cells: hit.terrainCells, deltas: hit.terrainDeltas });
         for (const f of hit.fires) if (canBurn(world, this.ground, f)) this.startFire(f, t, manual, 'meteoro');
         const m = SEA_TSUNAMI[s] as number;
-        if (atSea && m > 0) {
-          this.start(new TsunamiProcess(this.ground, planTsunami(world, cell, m), m, t, this.rng));
-          this.count(DisasterKind.Tsunami);
-          o.events.push({ id: this.nextId++, kind: DisasterKind.Tsunami, tick: t, point: cellPoint(world, cell), magnitude: m, notable: true, manual, label: `Tsunami do meteoro`, radius: tsunamiReach(m) });
-        }
+        if (atSea && m > 0) this.planTsunami(cell, m, manual, true);
         if (s === 4) o.winters.push({ amount: GIANT_WINTER.amount, years: GIANT_WINTER.years });
       }),
     );
@@ -793,22 +804,31 @@ export class Disasters {
       radius: feltRadius(m),
     });
     if (m < TSUNAMI_MIN_MAGNITUDE || !world.isWater(cell)) return;
-    // Tsunami (R6): anda passo a passo nas células (recuo, espuma, água em terra, lama, costa raspada).
-    const plan = planTsunami(world, cell, m);
-    this.start(new TsunamiProcess(this.ground, plan, m, tick, this.rng));
-    this.count(DisasterKind.Tsunami);
-    const coast = new Set(plan.land.filter((_, k) => plan.landSteps[k] === 0)).size;
-    out.events.push({
-      id: this.nextId++,
-      kind: DisasterKind.Tsunami,
-      tick,
-      point,
-      magnitude: m,
-      notable: true,
-      manual,
-      label: coast ? `Tsunami M ${decimal(m)} · ${coast} células de costa` : `Tsunami M ${decimal(m)}`,
-      radius: tsunamiReach(m),
-    });
+    // Tsunami (R6): anda passo a passo nas células (recuo, espuma, água em terra, lama, costa raspada),
+    // depois do plano da onda (F3).
+    this.planTsunami(cell, m, manual, false);
+  }
+
+  /** Põe um tsunami na fila do plano da onda; o sorteio dele sai agora (o resto do mundo não espera). */
+  private planTsunami(cell: number, m: number, manual: boolean, meteor: boolean): void {
+    this.planning.push({ planner: new TsunamiPlanner(this.world, cell, m), cell, m, manual, meteor, rng: createRng(this.rng.int(0, 0x7fffffff)) });
+  }
+
+  /** Anda os planos da fila (um por vez, PLAN_CELLS_PER_TICK células por passo); o pronto vira tsunami. */
+  private planTsunamis(tick: number, out: DisasterOutcome): void {
+    let budget = PLAN_CELLS_PER_TICK;
+    while (this.planning.length && budget > 0) {
+      const job = this.planning[0] as (typeof this.planning)[number];
+      budget -= job.planner.run(budget);
+      const plan = job.planner.plan;
+      if (!plan) break;
+      this.planning.shift();
+      this.start(new TsunamiProcess(this.ground, plan, job.m, tick, job.rng));
+      this.count(DisasterKind.Tsunami);
+      const coast = new Set(plan.land.filter((_, k) => plan.landSteps[k] === 0)).size;
+      const label = job.meteor ? 'Tsunami do meteoro' : coast ? `Tsunami M ${decimal(job.m)} · ${coast} células de costa` : `Tsunami M ${decimal(job.m)}`;
+      out.events.push({ id: this.nextId++, kind: DisasterKind.Tsunami, tick, point: cellPoint(this.world, job.cell), magnitude: job.m, notable: true, manual: job.manual, label, radius: tsunamiReach(job.m) });
+    }
   }
 }
 

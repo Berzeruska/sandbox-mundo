@@ -282,3 +282,23 @@ Formato: data — como reproduzir — causa — correção — commit.
   shader; o centro anda só sobre areia seca e para na borda; raio pelo espaço até a borda
   (`src/world/disasters/sandstorm.ts`, `src/render/colors.ts`, `src/render/shaders.ts`). Testes em
   `tests/world/sandstorm.test.ts` (desertos quentes e frios em N = 256) e `tests/render/colors.test.ts`.
+
+## 2026-10-19 — Tsunamis 9,5 seguidos travam o jogo (notebook, `58f53e79`, F3)
+- **Como reproduzir:** Desastres → Tsunami M 9,5, tocar várias vezes seguidas no mar (em 20× fica pior).
+  A tela continua lisa, mas o mundo congela (o relógio para) e a ventoinha dispara.
+- **Causa:** (1) a costa raspada de um M 9,5 (costas do mundo todo) passava pelo pincel como uma área do
+  tamanho do planeta e refazia o clima inteiro num passo (~430 ms por tsunami); (2) o plano da onda pelo
+  oceano inteiro (~270 mil células) era feito de uma vez no toque (~200–300 ms).
+- **Correção:** clima refeito só em volta das células raspadas (`applyTerrainDeltas(..., local)` em
+  `src/input/tools.ts`); plano da onda em pedaços de 25 mil células por passo com memória contínua
+  (`TsunamiPlanner` em `src/world/disasters/tsunami.ts`), um por vez. Testes em
+  `tests/world/tsunami.test.ts`.
+
+## 2026-10-19 — Tsunami e incêndios do meteoro (e fogo da lava) nunca andavam (achado na F3)
+- **Como reproduzir:** meteoro Médio ou maior no mar: aparece o aviso "Tsunami do meteoro", mas a onda
+  não vem. Meteoro em floresta: nenhum incêndio.
+- **Causa:** o processo nascido dentro do passo de outro processo era posto na lista antiga, que em
+  seguida era trocada pela filtrada (`this.processes = this.processes.filter(...)`), sem o novo.
+- **Correção:** os novos entram depois dos que já andavam (`src/world/disasters/index.ts`). Testes em
+  `tests/world/meteor.test.ts` (falham no código antigo). O teste de incêndios naturais esperava só
+  "raio" e "lava" porque o do meteoro sumia; pelo desenho (C12), o meteoro também acende.

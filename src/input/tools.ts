@@ -116,11 +116,18 @@ export function applyBrush(world: WorldState, tool: Tool, center: Vec3, radiusCe
   return { region, revealed };
 }
 
+/** Vizinhança refeita em volta de cada célula numa mudança `local` (passos de célula). */
+export const LOCAL_TERRAIN_STEPS = 2;
+
 /**
  * Muda a altura de células soltas (desastres: deslizamento do terremoto, costa raspada pelo tsunami),
  * `deltas[k]` metros na célula `cells[k]`, e refaz o clima em volta, como o pincel.
+ * `local`: mudança pequena espalhada (a costa raspada de um tsunami grande pega costas do mundo todo):
+ * refaz o clima só a até LOCAL_TERRAIN_STEPS células de cada uma, e não a sombra de chuva a favor do
+ * vento (alguns metros não mudam a sombra; a próxima recomposição refaz o clima inteiro). Sem isso, um
+ * M 9,5 refazia o clima do planeta num passo (~430 ms, F3).
  */
-export function applyTerrainDeltas(world: WorldState, cells: readonly number[], deltas: readonly number[]): BrushResult {
+export function applyTerrainDeltas(world: WorldState, cells: readonly number[], deltas: readonly number[], local = false): BrushResult {
   const grid = world.grid;
   const { positions } = grid;
   if (!cells.length) return { region: [], revealed: [] };
@@ -137,6 +144,12 @@ export function applyTerrainDeltas(world: WorldState, cells: readonly number[], 
     y += positions[c * 3 + 1] as number;
     z += positions[c * 3 + 2] as number;
   });
+  if (local) {
+    const region = around(grid, cells, LOCAL_TERRAIN_STEPS);
+    if (crossedSea) updateWaterDistance(world, region);
+    updateClimate(world, region);
+    return { region, revealed: [] };
+  }
   const len = Math.hypot(x, y, z) || 1;
   const center: Vec3 = [x / len, y / len, z / len];
   let reach = 0;
@@ -150,3 +163,21 @@ export function applyTerrainDeltas(world: WorldState, cells: readonly number[], 
   return { region, revealed: [] };
 }
 
+/** As células e todas a até `steps` passos de alguma delas (sem repetir). */
+function around(grid: WorldState['grid'], cells: readonly number[], steps: number): number[] {
+  const seen = new Set(cells);
+  let frontier = [...seen];
+  for (let s = 0; s < steps; s++) {
+    const next: number[] = [];
+    for (const c of frontier) {
+      for (let d = 0; d < 4; d++) {
+        const j = grid.neighbors[c * 4 + d] as number;
+        if (seen.has(j)) continue;
+        seen.add(j);
+        next.push(j);
+      }
+    }
+    frontier = next;
+  }
+  return [...seen];
+}

@@ -3,7 +3,8 @@ import { createRng, seedFrom } from '../../src/core/rng';
 import { TICKS_PER_YEAR } from '../../src/core/time';
 import { createWorld } from '../../src/world/create';
 import { CellState, Ground } from '../../src/world/disasters/ground';
-import { inlandReach, planTsunami, TsunamiProcess, tsunamiRunup } from '../../src/world/disasters/tsunami';
+import { applyTerrainDeltas, LOCAL_TERRAIN_STEPS } from '../../src/input/tools';
+import { inlandReach, PLAN_CELLS_PER_TICK, planTsunami, TsunamiPlanner, TsunamiProcess, tsunamiRunup } from '../../src/world/disasters/tsunami';
 import type { DisasterOutcome } from '../../src/world/disasters';
 import type { WorldState } from '../../src/world/state';
 
@@ -99,5 +100,45 @@ describe('tsunami (R6)', () => {
     }
     // O mar recuou e a espuma passou: nada disso fica.
     for (const c of plan.band) expect([CellState.None]).toContain(g.state[c]);
+  });
+
+  // F3 (teste da `58f53e7`): vários M 9,5 seguidos travavam o jogo. Pelo desenho da correção: o plano
+  // da onda anda em pedaços de no máximo PLAN_CELLS_PER_TICK células por passo, dando o mesmo plano que
+  // de uma vez; e a costa raspada (espalhada pelo mundo) refaz o clima só em volta de cada célula.
+  it('o plano da onda anda em pedaços limitados e dá o mesmo plano que de uma vez (F3)', () => {
+    const w = worldOf('terra', 256);
+    const start = offshore(w);
+    const whole = planTsunami(w, start, 9.5);
+    const p = new TsunamiPlanner(w, start, 9.5);
+    let chunks = 0;
+    while (!p.plan) {
+      expect(p.run(PLAN_CELLS_PER_TICK)).toBeLessThanOrEqual(PLAN_CELLS_PER_TICK);
+      chunks++;
+    }
+    expect(chunks).toBeGreaterThan(1);
+    expect(p.plan).toEqual(whole);
+  });
+
+  it('a costa raspada refaz o clima só a até LOCAL_TERRAIN_STEPS células de cada célula raspada (F3)', () => {
+    const w = worldOf('terra', 128);
+    const g = new Ground(w.cellCount);
+    const scrape = runAll(w, g, offshore(w), 9.5)[0]!;
+    expect(scrape.local).toBe(true);
+    const { region } = applyTerrainDeltas(w, scrape.cells, scrape.deltas.map(() => 0), true);
+    // Distância (passos) de cada célula da região até a célula raspada mais perto.
+    const near = new Set(scrape.cells);
+    let frontier = [...near];
+    for (let s = 0; s < LOCAL_TERRAIN_STEPS; s++) {
+      const next: number[] = [];
+      for (const c of frontier) for (let d = 0; d < 4; d++) {
+        const j = w.grid.neighbors[c * 4 + d]!;
+        if (near.has(j)) continue;
+        near.add(j);
+        next.push(j);
+      }
+      frontier = next;
+    }
+    for (const c of region) expect(near.has(c)).toBe(true);
+    expect(region.length).toBe(near.size);
   });
 });

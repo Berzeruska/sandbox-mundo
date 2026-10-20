@@ -1133,7 +1133,7 @@ começar a T14, não fechar o M2, não mexer nas 5 perguntas pendentes.
 - [x] **F1 — Tempestade de areia** ainda chega ao mar e a outros biomas; no deserto quente não funciona.
 - [x] **F2 — Buraco do terremoto some** quando o continente anda (tsunami e terremoto mudam o relevo
   para sempre: a marca anda com a placa).
-- [ ] **F3 — Tsunamis 9,5 seguidos travam** o jogo (meta: nenhum quadro > 50 ms).
+- [x] **F3 — Tsunamis 9,5 seguidos travam** o jogo (meta: nenhum quadro > 50 ms).
 - [ ] **F4 — Relógio esperou 114 ms** na "deriva longa c/ colisões"; 4 travadas de ~300 ms em 1× com
   placas 100%; pior recomposição 980 ms em "desastres Muitos" (aplicar 223 ms).
 - [ ] **F5 — Meteoros pequeno, médio e grande parecem do mesmo tamanho** (conferir contra a E12).
@@ -1219,6 +1219,43 @@ jogo, com o Rebaixar ao longo da fenda).
   visível; terremotos repetidos na mesma fronteira cavam vales mais fundos (pode virar cânion ou lago
   com o tempo). Custo: pequeno, 1–2 testes (limite de profundidade).
 - Em (b) e (c) o tsunami continua só raspando a costa (5–20 m), como aprovado.
+
+### F3 — Tsunamis 9,5 seguidos: diagnóstico e correção
+**Reproduzido** no Chromium (GPU real, 1080p, semente `pangeia`): 12 tsunamis M 9,5 provocados no mar
+a cada 0,15 s. Os quadros da tela ficavam em 17 ms em 1×, mas **o relógio do jogo parava** (o mundo
+congelava): 1,2 s de atraso em 1×; em 20×, paradas de 400–800 ms (7 no rodapé, "relógio atrasou
+(núcleo ocupado)") e um quadro de 233 ms.
+
+**Causas (medidas no Node, mesmo mundo):**
+1. **Costa raspada (~430 ms por tsunami, a maior):** no fim de cada tsunami, a costa perde 5–20 m pelo
+   caminho do pincel. Um M 9,5 alcança o oceano inteiro, e as ~2.000 células raspadas ficam em costas
+   do mundo todo; o código tratava isso como uma pincelada só, do tamanho do planeta, e refazia o clima
+   do mundo inteiro num passo.
+2. **Plano da onda (~200–300 ms por toque):** o caminho da onda pelo mar (~270 mil células no M 9,5)
+   era calculado de uma vez, com mapas, no passo do toque.
+3. **Defeito achado junto:** desastre que nasce no meio do passo de outro (o tsunami e os incêndios do
+   meteoro, o fogo da lava) era perdido: a lista dos que andam era trocada pela filtrada, sem os novos.
+   O tsunami do meteoro aparecia no aviso, mas a onda nunca andava.
+
+**Correção (sem limite de desastres e sem mudar o que se vê):**
+- A costa raspada refaz o clima só a até 2 células de cada célula raspada (alguns metros não mudam a
+  sombra de chuva; a próxima recomposição refaz o clima inteiro): ~430 ms → ~14 ms.
+- O plano da onda usa memória contínua e "baldes de tempo" (mesmos tempos exatos) e anda em pedaços de
+  25 mil células por passo (~4 ms, o tempo de um passo em 20×); o fechamento do plano vale um pedaço. A
+  onda começa ~12 passos depois do terremoto (1 s em 1×; em 20×, 0,05 s); vários tsunamis entram numa
+  fila e o plano anda um por vez. O sorteio de cada tsunami sai na hora do terremoto.
+- Os desastres que nascem no meio do passo entram na lista depois dos que já andavam.
+- **Depois** (mesmo teste no Chromium): 1× e 20× sem nenhuma parada do relógio, pior quadro 17 ms; em
+  20× o relógio fica a ~236 passos/s durante a rajada.
+- Testes (`tests/world/tsunami.test.ts`, `tests/world/meteor.test.ts`, `tests/world/disasters.test.ts`):
+  o plano em pedaços ≤ 25 mil células dá o mesmo plano que de uma vez; a costa raspada refaz só a
+  vizinhança de 2 células; o incêndio e a onda do tsunami do meteoro andam de verdade (falham no código
+  antigo); incêndio natural pode vir de raio, lava ou meteoro (C12; antes o do meteoro sumia e o teste
+  não via).
+- **Efeito no jogo a confirmar:** a onda do tsunami começa ~1 s depois do terremoto em 1× (antes, no
+  mesmo passo); com muitos tsunamis seguidos, cada um espera o plano do anterior (12 seguidos: o último
+  começa ~12 s depois em 1×). Se preferir sem espera, a alternativa é calcular a onda num ajudante
+  separado (mais trabalho).
 
 ## Bloco Final (depois do Bloco Desastres v2)
 
