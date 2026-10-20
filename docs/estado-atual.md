@@ -10,7 +10,8 @@ desempenho" volta ao ano 0, tamanho das placas, 8 sementes).
 ## Rodada da noite de 2026-10-19 (andamento)
 - [x] F1 tempestade de areia: poeira só sobre areia seca (desenho recortado no shader), funciona no
   deserto quente, duração 6–15 s. Pergunta nova: areia fora do deserto só em terra em seca?
-- [ ] F2 buraco do terremoto andando com a placa.
+- [x] F2 buraco do terremoto: o que some é a fenda, temporária pelo desenho da R5 (~50 anos; em 20×,
+  2,5 s); a encosta rebaixada (permanente) anda com a placa (teste novo). Proposta (a/b/c) com imagem.
 - [ ] F3 tsunamis 9,5 seguidos travando.
 - [ ] F4 relógio esperou / travadas / recomposição de 980 ms.
 - [ ] F5 tamanhos do meteoro.

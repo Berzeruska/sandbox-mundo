@@ -91,4 +91,63 @@ describe('terremoto (R5)', () => {
     expect(w.elevation).toEqual(after);
     expect([...core.disasters!.ground.active].some((x) => core.disasters!.ground.state[x] === CellState.Crack)).toBe(false);
   });
+
+  // Teste da `58f53e7` (F2): "o buraco do terremoto some quando o continente anda". Pelo desenho (R5 e
+  // base comum 4), o que fica para sempre é a encosta mais baixa, gravada na placa como o pincel: ela
+  // tem que andar com a placa e continuar lá depois das recomposições. A fenda e as cicatrizes dos
+  // deslizamentos são marcas temporárias (fenda ~50 anos, deslizamentos 20–40 anos).
+  it('a encosta rebaixada anda com a placa e continua rebaixada depois das recomposições (F2)', () => {
+    // Dois mundos iguais com as placas andando; só um leva o terremoto. Perto da fronteira a tectônica
+    // também mexe no relevo: a comparação é com o mesmo ponto da crosta no mundo sem terremoto.
+    const make = () => {
+      const box = { recomposed: 0 };
+      const core = new SimulationCore((msg) => {
+        if (msg.type === 'recomposed') box.recomposed++;
+      }, () => 0);
+      core.handle({ type: 'newWorld', seedText: 'terra', n: 64 });
+      core.handle({ type: 'disasterFrequency', level: 0 });
+      return { core, box };
+    };
+    const a = make();
+    const b = make();
+    const w = a.core.world!;
+    const n = w.cellCount;
+    const keyOf = (core: SimulationCore, c: number) => core.world!.plate[c]! * n + (core as unknown as { cellRef: Int32Array }).cellRef[c]!;
+    const c = steepSpot(w);
+    const before = w.elevation.slice();
+    a.core.handle({ type: 'disaster', kind: DisasterKind.Quake, point: cellPoint(w, c), strength: 9.5 });
+    const lowered = new Map<number, number>();
+    for (let x = 0; x < n; x++) if (w.elevation[x]! < before[x]! - 5) lowered.set(keyOf(a.core, x), before[x]! - w.elevation[x]!);
+    expect(lowered.size).toBeGreaterThan(0);
+    const start = new Set([...Array(n).keys()].filter((x) => lowered.has(keyOf(a.core, x))));
+    for (const { core } of [a, b]) {
+      core.handle({ type: 'plateRate', rate: 1 });
+      core.handle({ type: 'speed', speed: 20 });
+    }
+    while (a.box.recomposed < 3 && a.core.clock.tick < 40000) {
+      a.core.advance(0.25);
+      b.core.advance(0.25);
+    }
+    expect(a.box.recomposed).toBe(3);
+    expect(b.core.clock.tick).toBe(a.core.clock.tick);
+    // Onde cada ponto rebaixado está agora: mais baixo que o mesmo ponto no mundo sem terremoto, por pelo
+    // menos metade do que desceu (a erosão e o alisamento das recomposições gastam um pouco), em 90% dos
+    // pontos (na fronteira a própria tectônica pode refazer o relevo).
+    const elsewhere = new Map<number, number>();
+    for (let x = 0; x < n; x++) elsewhere.set(keyOf(b.core, x), b.core.world!.elevation[x]!);
+    let found = 0;
+    let moved = 0;
+    const ratios: number[] = [];
+    for (let x = 0; x < n; x++) {
+      const drop = lowered.get(keyOf(a.core, x));
+      const ref = elsewhere.get(keyOf(a.core, x));
+      if (drop === undefined || ref === undefined) continue;
+      found++;
+      if (!start.has(x)) moved++;
+      ratios.push(+((ref - w.elevation[x]!) / drop).toFixed(2));
+    }
+    expect(found).toBeGreaterThan(lowered.size * 0.8);
+    expect(ratios.filter((r) => r >= 0.5).length).toBeGreaterThanOrEqual(found * 0.9);
+    expect(moved).toBeGreaterThan(0);
+  });
 });

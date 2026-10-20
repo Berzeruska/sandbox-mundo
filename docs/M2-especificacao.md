@@ -1131,7 +1131,7 @@ começar a T14, não fechar o M2, não mexer nas 5 perguntas pendentes.
 
 **Defeitos (diagnóstico, correção e teste com critério do desenho)**
 - [x] **F1 — Tempestade de areia** ainda chega ao mar e a outros biomas; no deserto quente não funciona.
-- [ ] **F2 — Buraco do terremoto some** quando o continente anda (tsunami e terremoto mudam o relevo
+- [x] **F2 — Buraco do terremoto some** quando o continente anda (tsunami e terremoto mudam o relevo
   para sempre: a marca anda com a placa).
 - [ ] **F3 — Tsunamis 9,5 seguidos travam** o jogo (meta: nenhum quadro > 50 ms).
 - [ ] **F4 — Relógio esperou 114 ms** na "deriva longa c/ colisões"; 4 travadas de ~300 ms em 1× com
@@ -1185,6 +1185,40 @@ aparecia.
 - **Pergunta ao usuário (consequência do pedido):** com a poeira só sobre areia seca, a "areia por cima
   da vegetação fora do deserto" (C12) só acontece em terra em seca. Fica assim, ou a poeira pode
   passar 1–2 células da borda do deserto deixando areia ali?
+
+### F2 — Buraco do terremoto: diagnóstico (sem defeito de código; proposta)
+**Reproduzido** no Chromium (semente `pangeia`, M 9,5 no meio do continente, placas 100%, 1×, foto a
+cada 5 s): a fenda escura aparece e some aos ~50 s (passo ~600 = 50 anos), sem recomposição no meio.
+Em 20× os mesmos 50 anos passam em ~2,5 s: some "assim que o continente se movimenta".
+
+**Conferido contra o desenho da R5 e a base comum 4:**
+| O que o terremoto deixa | Desenho | Hoje |
+| --- | --- | --- |
+| Fenda escura ao longo da fronteira | temporária, "some em ~50 anos" | igual; anda com a placa enquanto existe |
+| Cicatriz e entulho dos deslizamentos | temporárias (20–40 anos) | igual; andam com a placa |
+| Vegetação perdida (20–60%) | volta na velocidade do bioma | igual |
+| Encosta mais baixa (topo −10 a −60 m, pé sobe a metade) | **para sempre**, gravada na placa como o pincel | igual: anda com a placa (teste novo) |
+
+O "buraco" que some é a fenda, que pelo desenho é temporária. O que fica para sempre é pequeno demais
+para se ver: −10 a −60 m numa encosta, quando cada degrau do relevo tem 150 m.
+
+**Teste novo** (`tests/world/quake-damage.test.ts`, critério da base comum 4: "para sempre, gravado na
+placa, anda com ela"): dois mundos iguais com as placas em 100%, um com M 9,5; depois de 3
+recomposições, cada ponto da crosta rebaixado continua mais baixo que o mesmo ponto no mundo sem
+terremoto por pelo menos metade do que desceu (90% dos pontos; na fronteira a tectônica refaz parte do
+relevo) e está em outro lugar (andou). Resultado: 29 de 32 pontos mantêm 90–100% do rebaixamento. O
+teste antigo só olhava com as placas paradas.
+
+**Proposta (decisão do usuário):** imagem `docs/img/m2-f2-falha-permanente.png` (protótipo feito no
+jogo, com o Rebaixar ao longo da fenda).
+- **(a) Fica como está:** fenda some em ~50 anos; o permanente é a encosta (quase invisível).
+- **(b) Degrau de falha:** nos M ≥ 8, um lado da fenda desce ~150 m para sempre (um degrau do relevo
+  em degraus), gravado na placa; a fenda escura continua sumindo em ~50 anos. Fica uma linha discreta
+  no relevo. Custo: pequeno (usa o caminho dos deslizamentos), 1 teste.
+- **(c) Vale de falha:** nos M ≥ 8, a linha da fenda vira um vale de ~300–500 m para sempre. Bem
+  visível; terremotos repetidos na mesma fronteira cavam vales mais fundos (pode virar cânion ou lago
+  com o tempo). Custo: pequeno, 1–2 testes (limite de profundidade).
+- Em (b) e (c) o tsunami continua só raspando a costa (5–20 m), como aprovado.
 
 ## Bloco Final (depois do Bloco Desastres v2)
 
