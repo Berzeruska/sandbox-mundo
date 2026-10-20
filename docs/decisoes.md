@@ -1005,6 +1005,24 @@ Formato: data — decisão — motivo — alternativa descartada.
   por 150 s: 0 travadas. Achado à parte: com a janela coberta (sem a página ficar "escondida"), o
   navegador desenha 1 quadro por segundo e o rodapé conta travadas falsas da tela.
 
+## 2026-10-19 (noite) — Teste da `58f53e79` no notebook (decisões do usuário)
+1. **Aprovados no teste:** um efeito por vez (E9, item 5), "Ver placas" não desliga nem escurece (item
+   6), provocar não muda a velocidade (E11, item 7) e a bola do meteoro crescendo com a cratera (E12).
+2. **Ciclones de ~20–30 s:** aceitáveis.
+3. **Frio do meteoro gigante (E6):** melhor que antes; congelar o planeta somando meteoros agradou (vira a
+   ideia P9: temperatura extrema transformando o planeta).
+4. **Desempenho medido pelo usuário (Chrome):** 60 fps, nenhum quadro > 50 ms, GPU ≤ 3,7 ms, memória
+   158 MB, geração 1,0 s, primeira abertura 2,3 s (todas na meta). Fora da meta: relógio esperou 114 ms
+   ("deriva longa"), 4 travadas de ~300 ms em 1×, pior recomposição 980 ms (corrigidos: F3/F4).
+5. **Regra da rodada noturna:** decisão de design (mecanismo novo com efeito de jogo ou mudança visual)
+   não para o trabalho e não é codificada: vira proposta escrita na especificação (o que muda,
+   alternativas, custo e imagem em `docs/img/` se for visual), e o trabalho segue. Não começar a T14,
+   não fechar o M2, não mexer nas 5 perguntas pendentes (meteoro e mar, controles e visão, "Medir
+   desempenho" volta ao ano 0, tamanho das placas, 8 sementes). Critério de teste sai do desenho, nunca
+   do resultado observado.
+6. **Pedidos:** defeitos F1–F6 (diagnóstico, correção e teste), propostas P7–P9, testes do Claude Code
+   no notebook (item 10), lista de teste para o dia seguinte (item 11).
+
 ## 2026-10-19 (noite) — Correções do teste da `58f53e79` (decisões técnicas)
 - **Tempestade de areia (F1):** "areia seca" = deserto quente ou frio, calor da seca ou areia de
   tempestade, em terra sem gelo. O recorte do desenho é feito no shader por um bit da textura de cores
