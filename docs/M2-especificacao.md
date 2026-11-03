@@ -1503,6 +1503,27 @@ só um pouco"): nos M ≥ 8 a marca passa a ser visível (decisão do usuário, 
 - **Escolha do Claude Code, se precisar de uma:** a 3, porque o pedido é "visível no jogo" e é a menor
   que mostra o M 8; a 1 se o M 8 puder ser discreto.
 
+### B7 — Ponto quente debaixo de continente (F6 refeita com 6 opções; sem código)
+Imagem: `docs/img/m2-b7-vulcoes-continente.png` (protótipo no mundo de verdade, pintado com as cores do
+jogo: relevo em degraus, rocha dos vulcões, basalto e lava; interior de continente, semente `pangeia`,
+N = 256; a placa anda para a esquerda por cima do ponto quente parado, à direita). Diagnóstico na F6:
+hoje um ponto quente em continente deixa um cone grande a cada ~7 células, que nunca some (muralha).
+- **a · Fica como está.** Custo: nenhum.
+- **b · Esparso + inchaço largo:** em continente, um cone novo só a cada ~18 células andadas e, no lugar
+  da faixa estreita, um inchaço baixo e largo (raio ~4 células). Custo: pequeno (~0,3 dia, 1 teste).
+- **c · (b) + cones que envelhecem:** os cones apagados perdem altura e tamanho devagar (metade em
+  ~20.000 anos de jogo) e, no mar, as ilhas velhas afundam e viram baixios (a cadeia conta a idade).
+  Custo: médio (~1,5 dia; erosão por vulcão gravada na placa, 3 testes).
+- **d · Planalto de basalto (derrame):** em continente não há fila de cones: a lava sai por fendas e cobre
+  uma faixa larga de planície com basalto escuro, que vira planalto em degraus; só um cone pequeno ativo
+  em cima do ponto quente. Como os grandes derrames do mundo real. Custo: médio (~1,5 dia, 2 testes).
+- **e · Caldeiras de supervulcão:** em vez de cones, caldeiras (bacia funda com borda) em fila; a mais
+  nova com lava e erupção rara e enorme (cinzas em área grande); as velhas viram bacias suaves. Custo:
+  médio a grande (~2 dias, 3 testes; a erupção enorme é um efeito de jogo novo).
+- **f · Campo de cones pequenos:** muitos cones baixos (250–500 m) espalhados numa faixa, em vez de poucos
+  grandes. Custo: pequeno (~0,5 dia, 1 teste).
+- Em todas, no mar a cadeia de ilhas continua como hoje (menos na c, em que as ilhas velhas afundam).
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

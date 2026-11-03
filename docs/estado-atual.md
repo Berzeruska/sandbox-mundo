@@ -33,7 +33,9 @@ sobre "onde estamos", vale este.
 - [x] **Proposta B3, meteoro em cubos:** 6 opções com imagem (`docs/img/m2-b3-meteoro-cubos.png`).
 - [x] **Proposta B5, degrau do terremoto:** 6 opções de altura com imagem
   (`docs/img/m2-b5-degrau-terremoto.png`).
-- [ ] Propostas com 4–6 opções e imagem: B7 vulcões em continente, B8 avisos e ano.
+- [x] **Proposta B7, ponto quente em continente:** 6 opções com imagem
+  (`docs/img/m2-b7-vulcoes-continente.png`).
+- [ ] Proposta B8 (avisos e ano) com 4–6 opções e imagem.
 - [ ] Fim: resumo, propostas, lista de teste, prévia igual ao último commit.
 
 ## Onde estamos
