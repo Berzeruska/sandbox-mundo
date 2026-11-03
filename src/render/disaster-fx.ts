@@ -1,11 +1,13 @@
 import type { Vec3 } from '../world/cubesphere';
 import { DisasterKind, type DisasterEvent } from '../world/disasters/types';
+import { ENTRY_TICKS } from '../world/disasters/meteor';
 import type { Camera } from './camera';
 
 /**
  * Animações dos desastres na camada sobreposta (canvas 2D por cima do globo). Correm em tempo real,
  * independente da velocidade do jogo: a 20× um ano passa em 0,05 s e nada seria visto. Os efeitos de
- * verdade (relevo, marcas) a simulação já aplicou.
+ * verdade (relevo, marcas) a simulação já aplicou. Exceção: o meteoro só bate quando o relógio do jogo
+ * chega ao impacto (B1, teste da `d7479ae2`: pausado, a bola caía e brilhava e nada acontecia).
  */
 
 interface Fx {
@@ -13,10 +15,23 @@ interface Fx {
   /** Início (ms, relógio da página) e duração. */
   start: number;
   ms: number;
+  /** Meteoro: quando a bola chegou ao chão (ms), depois de 1 s e do relógio do jogo chegar ao impacto. */
+  landed?: number;
 }
 
 /** Meteoro: quanto tempo o risco leva até bater (1 s = os 12 passos da entrada em 1×). */
-const METEOR_ENTRY_MS = 1000;
+export const METEOR_ENTRY_MS = 1000;
+/** Meteoro: duração do clarão depois de bater (ms). */
+const METEOR_FLASH_MS = 500;
+/**
+ * Quanto da entrada do meteoro já foi desenhado (0 a 1): o menor entre o tempo real (1 s) e os passos
+ * do jogo até o impacto. Em 1× os dois andam juntos; pausado a bola fica parada no céu até o tempo
+ * andar; em 20× o jogo chega antes e vale o 1 s (senão ela nem seria vista).
+ */
+export function meteorEntry(realMs: number, ticksSince: number): number {
+  return Math.max(0, Math.min(1, realMs / METEOR_ENTRY_MS, ticksSince / ENTRY_TICKS));
+}
+
 /** Raio da bola do meteoro em relação ao raio da cratera na tela (E12). */
 export const METEOR_HEAD = 0.35;
 /**
@@ -38,7 +53,7 @@ const FX_MS: Record<number, number> = {
   // um clarão rápido.
   [DisasterKind.Lightning]: 450,
   // Meteoro: ~1 s entrando no céu e o clarão do impacto.
-  [DisasterKind.Meteor]: METEOR_ENTRY_MS + 500,
+  [DisasterKind.Meteor]: METEOR_ENTRY_MS + METEOR_FLASH_MS,
 };
 /** Raio: duração do clarão (ms) dentro da animação. */
 const FLASH_MS = 300;
@@ -63,12 +78,15 @@ export class DisasterFx {
     this.list = [];
   }
 
-  /** Desenha tudo no instante `now`; tira o que acabou. */
-  draw(ctx: CanvasRenderingContext2D, camera: Camera, now: number, dpr: number): void {
-    this.list = this.list.filter((f) => now - f.start < f.ms);
+  /** Desenha tudo no instante `now` (com o relógio do jogo em `tick`); tira o que acabou. */
+  draw(ctx: CanvasRenderingContext2D, camera: Camera, now: number, tick: number, dpr: number): void {
+    for (const f of this.list) {
+      if (f.e.kind === DisasterKind.Meteor && f.landed === undefined && meteorEntry(now - f.start, tick - f.e.tick) >= 1) f.landed = now;
+    }
+    this.list = this.list.filter((f) => (f.e.kind === DisasterKind.Meteor ? f.landed === undefined || now - f.landed < METEOR_FLASH_MS : now - f.start < f.ms));
     for (const f of this.list) {
       if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
-      else if (f.e.kind === DisasterKind.Meteor) drawMeteor(ctx, camera, f.e, now - f.start, f.e.id, dpr);
+      else if (f.e.kind === DisasterKind.Meteor) drawMeteor(ctx, camera, f.e, f.landed === undefined ? meteorEntry(now - f.start, tick - f.e.tick) : 1 + (now - f.landed) / METEOR_FLASH_MS, f.e.id, dpr);
     }
   }
 }
@@ -78,7 +96,8 @@ export class DisasterFx {
  * bater, um clarão. O tamanho acompanha a cratera (E12, teste da d644319: o meteoro era pequeno e só a
  * cratera grande): a bola tem ~1/3 do raio da cratera na tela, a cauda e o clarão crescem junto.
  */
-function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, ms: number, id: number, dpr: number): void {
+/** `phase`: 0 a 1 entrando no céu; de 1 a 2, o clarão depois de bater. */
+function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, phase: number, id: number, dpr: number): void {
   const c = camera.worldToScreen(e.point);
   if (!c.visible || !Number.isFinite(c.x) || !Number.isFinite(c.y)) return;
   // Raio da cratera na tela (px): e.radius é o raio dela em radianos.
@@ -87,8 +106,8 @@ function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEv
   const a = ((Math.imul(id, 2654435761) >>> 0) / 4294967296) * Math.PI * 2;
   // Cauda pelo tamanho da bola (antes no mínimo 120 px para todos: escondia a diferença).
   const len = head * 18;
-  if (ms < METEOR_ENTRY_MS) {
-    const t = ms / METEOR_ENTRY_MS;
+  if (phase < 1) {
+    const t = phase;
     // Cabeça indo do alto até o ponto; cauda atrás, da largura da bola.
     const hx = c.x + Math.cos(a) * len * (1 - t);
     const hy = c.y - Math.abs(Math.sin(a)) * len * (1 - t) - len * 0.3 * (1 - t);
@@ -116,7 +135,7 @@ function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEv
     ctx.fill();
     return;
   }
-  const fade = Math.max(0, 1 - (ms - METEOR_ENTRY_MS) / 500);
+  const fade = Math.max(0, 2 - phase);
   const r = Math.max(head * 3, crater * 1.6);
   const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
   g.addColorStop(0, `rgba(255, 255, 255, ${(0.95 * fade).toFixed(3)})`);

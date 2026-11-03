@@ -319,3 +319,25 @@ Formato: data — como reproduzir — causa — correção — commit.
   no relógio, no ajudante e a cada recomposição.
 - **Correção:** volta do gelo local; mudança espalhada usa a soma das vizinhanças (`applyTerrainDeltas`).
   Teste em `tests/input/tools.test.ts`.
+
+## 2026-11-03 — Meteoro "não faz cratera nem muda a temperatura" (notebook, `d7479ae2`, B1)
+- **Como o Claude Code investigou:** não reproduziu uma falha da simulação. No Chromium com a GPU de
+  verdade, pela interface (menu → Desastres → Meteoro → Gigante → toque), na prévia `d7479ae2` e no
+  código do `marco-2`: em 1× (placas 0, 25% e 100%) e de perto, a cratera aparece e o clima cai −2,8 °C
+  em 3 anos de jogo, voltando em 30 anos (linha "clima" do Dados). No simulador (N = 128), o fundo da
+  cratera fica 618 m mais baixo por 1.000 anos, com e sem placas andando.
+- **Três situações em que parece que nada aconteceu:**
+  1. **Pausado** (defeito, corrigido): a animação batia sempre 1 s depois do toque, em tempo real,
+     mas o meteoro de verdade só bate 12 passos do jogo depois. Pausado, a bola caía, brilhava e nada
+     acontecia; a cratera só vinha ao soltar a pausa.
+  2. **Em 20×:** o inverno de impacto dura 30 anos de jogo = 1,5 s; a rocha escura e o entulho, 20–300
+     anos = 1–15 s. É o desenho (C12, E6); a temperatura só aparece na linha "clima" do Dados.
+  3. **Depois que a rocha escura some:** o que fica para sempre é o buraco no relevo, que em terra baixa
+     é raso (o fundo para 20 m acima do mar, decisão "cratera em terra não vira mar") e de longe quase
+     não se vê. É o desenho; a soma das crateras (P8 b, B2) aprofunda os impactos repetidos.
+- **Por que nenhum teste pegou:** os testes olhavam só a simulação (cratera, estados, inverno), que
+  funciona. Nenhum ligava a animação da tela ao passo do impacto: a animação supunha 1×.
+- **Correção:** a bola só chega ao chão quando o relógio do jogo chega ao impacto (`meteorEntry` em
+  `src/render/disaster-fx.ts`): pausado ela fica parada no céu; em 1× nada muda; em 20× continua
+  levando 1 s. Testes em `tests/render/meteor-fx.test.ts` (o de "pausado" falha no código antigo).
+  Se o defeito que o usuário viu não foi pausado, falta saber a velocidade e o tamanho usados.

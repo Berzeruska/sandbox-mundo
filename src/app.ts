@@ -1043,7 +1043,7 @@ export class App {
     this.overlay.clear();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.fxShown = this.fx.active;
-    if (this.fx.active) this.fx.draw(this.overlay.context, this.camera, performance.now(), dpr);
+    if (this.fx.active) this.fx.draw(this.overlay.context, this.camera, performance.now(), this.clock.tick, dpr);
     if (this.mode !== 'paint' || !this.brushScreen || !this.info) return;
     const p = this.camera.pick(this.brushScreen.x, this.brushScreen.y);
     if (p) this.overlay.drawCap(this.camera, p, this.brushSize * (Math.PI / 2 / this.info.n));
