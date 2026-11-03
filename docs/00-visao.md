@@ -27,8 +27,9 @@ ordem histórica real, fazem economia e guerra sozinhas, e o jogador observa, in
 - Instalável como app (PWA). Empacotamento para loja só se um dia for desejado.
 
 ## Estética
-- 2D visto de cima, pixel art simples. Funcionalidade antes de beleza.
-- Embelezamento (sprites melhores, pseudo-3D) é um marco posterior, não agora.
+- 2D visto de cima, pixel art simples. Funcionalidade antes de beleza. **A partir do M3: diorama de
+  cubos** ("o pixel em 3D"; decisão do usuário, 2026-11-03, `docs/02-marcos.md`).
+- Embelezamento (animações, som, luz, detalhes) é o M8; o estilo em cubos vem antes, no M3.
 - **Escala visual** (ideia do usuário, 2026-10-15): pessoas e cidades **bem pequenas** no mapa, para
   o planeta parecer vasto. Vale desde os primeiros indivíduos e povoados (Marcos 3 e 4) e no
   acabamento visual (Marco 8). Sem humanos de 1 pixel: a relação entre a escala do planeta e o

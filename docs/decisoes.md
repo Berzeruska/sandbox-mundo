@@ -1050,3 +1050,67 @@ Formato: data — decisão — motivo — alternativa descartada.
   chuva + 2 células) do centro delas, a região do clima é a soma de círculos em volta de centros que
   cobrem as células (cada célula a até meia margem de um centro; círculos de 1,5 margem). Mudança só de
   gelo (volta ao clima ou derretimento) refaz o clima a até 2 células de cada célula, como a costa raspada.
+
+## 2026-11-03 — Teste da `d7479ae2` (20/10 e 29/10) e decisões do usuário
+1. **Regra nova (CLAUDE.md, regra 14):** toda decisão de design (mecanismo novo com efeito de jogo,
+   mudança visual ou de interface) vem com **4 a 6 opções variadas**, com imagem quando for visual, e o
+   custo de cada uma. O usuário escolhe; o código só vem depois.
+2. **Aprovado:** a fenda do terremoto sumindo aos poucos (R5/F2).
+3. **Desempenho:** o "Medir desempenho" de 20/10 (Firefox) não vale. O de 29/10 (Chrome, `d7479ae2`)
+   tem falhas a trazer para dentro das metas, sem otimizar além delas: quadros > 50 ms em três cenários,
+   "relógio esperou 195 ms" na deriva longa, primeira abertura 2.666 ms, geração 1.489 ms, pior
+   recomposição 976 ms, 3 travadas ao abrir a página.
+4. **Crateras sobrepostas (P8):** opção (b), o estrago soma, alargando e aprofundando sem virar mar.
+5. **Meteoro no estilo diorama de cubos** (item 13), não mais o "mini sol" (P7 sai): opções com imagem
+   antes do código.
+6. **Tempestade de areia:** é uma corrente de ar que levanta areia. Passa da borda do deserto e vai
+   perdendo força até se desfazer logo depois de sair do deserto (ou de terreno parecido), como no mundo
+   real: a areia grossa cai perto, a poeira fina vai mais longe. **Reverte a E4** ("a poeira não passa
+   por cima do mar") e responde à pergunta da F1 (areia fora do deserto). Continua sem fazer o deserto
+   avançar.
+7. **Terremoto (F2):** opção (b), degrau permanente ao longo da falha nos M ≥ 8, como no mundo real:
+   altura proporcional à magnitude, exagerada só o necessário para ser vista no jogo. A altura e a
+   imagem vêm antes do código. **Muda a decisão de 2026-10-18** ("o terremoto muda o relevo para sempre,
+   só um pouco"): nos M ≥ 8 a marca passa a ser visível.
+8. **Fila de tsunamis (F3):** fica como está (a onda começa ~1 s depois do tremor; muitos seguidos
+   esperam na fila).
+9. **Vulcões em continente (F6):** não decidido; proposta refeita com 4 a 6 opções e imagem.
+10. **Avisos:** devem aparecer abaixo da etiqueta "PRÉVIA marco-2"; tocar no ano muda a velocidade do
+    tempo, como pelo menu. Mudança de interface: 4 a 6 opções com imagem antes do código.
+11. **Relatório:** se nenhum quadro foi desenhado (aba escondida, janela sem foco), o "Medir desempenho"
+    diz "medição inválida" em vez de mostrar 0 fps e números absurdos.
+12. **As 5 perguntas pendentes:** (i) o meteoro gigante esfria o planeta sem mexer no nível do mar: sim
+    (E6 confirmada); (ii) tempo, temperatura, frequência e velocidade das placas não desligam a visão:
+    confirmado (E9); (iii) "Medir desempenho" volta o mundo ao ano 0: opção (b), perguntar antes de
+    começar; (iv) "tamanho fixo" das placas = identidade e forma fixas, placa de oceano pode sumir: sim;
+    (v) as 8 de 20 sementes fora do critério de formas aos 3 min: corrigir no M2, sem afrouxar o critério;
+    se a correção for cara ou mexer em comportamento de jogo, parar e mostrar o custo antes.
+13. **Temperatura extrema (P9):** vai para o M3 (física e vida); a parte de civilização em
+    `docs/05-civilizacao-politica.md` e `docs/06-guerra.md`. Frio máximo: era glacial total, cidades-
+    fábrica e aldeias mecanizadas para gerar calor, pesca precária, canibalismo. Calor máximo: planeta
+    deserto, vermelho, caótico e destruído, florestas só em montanhas e lugares isolados; gangues,
+    veículos, dunas, vilas especializadas (munição, combustível), monopólio de recursos, ataques
+    suicidas, num modelo social único. Um filme de estrada pós-apocalíptico é só inspiração (regra 8):
+    nomes e desenho nossos.
+14. **Doutrinas de guerra (M6):** exércitos lutam organizados por uma doutrina; inspirações: soviética
+    (batalha profunda), alemã (guerra-relâmpago), vietnamita (túneis e selva), brasileira (selva), terra
+    arrasada e japonesa (ataques suicidas). Cada uma com vantagens e desvantagens por terreno.
+15. **Direção visual (M3, antecipada do M8):** diorama de cubos, "o pixel em 3D". Importam a forma das
+    cidades, o jeito das montanhas e a distribuição do conteúdo, não o detalhe fino. Referências: as
+    imagens de países em maquete que o usuário mostrou ao orientador (relevo, cidades, costa,
+    florestas). Antecipa o "possível pseudo-3D" do M8; o M8 fica com o acabamento (animações, som, luz,
+    detalhes).
+16. **Primeira tarefa do M3, antes de qualquer outra:** (a) protótipo técnico de um pedaço do globo em
+    cubos no notebook, meta 60 fps e GPU ≤ 8 ms; se não couber, a decisão volta ao usuário; (b) guia de
+    estilo de uma página (tamanho do cubo, paleta, direção da luz, montanha, floresta, vila, cidade) com
+    4 a 6 opções em imagem. A imagem aprovada vira referência fixa; cada marco constrói as suas peças
+    nesse estilo.
+17. **Escala (responde à questão do M3, opções 2 + 3):** de longe, o globo diorama; de perto, a região
+    vira uma maquete em escala própria, com humanos, tanques e aviões visíveis.
+18. **Simulação:** de longe números, de perto indivíduos, mas sempre indivíduos para exércitos em
+    marcha, generais, aviões em missão e figuras da Crônica. O exército é uma peça permanente (posição,
+    general, rota, "5.000 soldados"): de perto os soldados aparecem um por um e lutam; quem morre sai do
+    número; ao afastar, o número continua de onde parou.
+19. **Batalha de longe:** cada soldado calculado (as mesmas ações de mover, atacar e matar, sem
+    desenho), otimizado de forma orgânica. No marco da guerra: 4 a 6 formas de otimizar, com o custo
+    medido de cada uma.

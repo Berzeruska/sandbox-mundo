@@ -60,3 +60,23 @@ do terreno e da tecnologia de cada civilização. Exemplos (há outras):
 ## Recursos estratégicos (Marco 7)
 Ferro, cobre, petróleo, carvão, nióbio etc. (gerados no Marco 2) viram matéria-prima de armas,
 veículos, eletrônica e combustível. Controle de jazidas vira objetivo de guerra.
+
+## Doutrinas organizadas (Marco 6; decisão do usuário, 2026-11-03)
+Os exércitos lutam de forma organizada, segundo uma **doutrina**. Cada doutrina tem vantagens em
+certos terrenos e desvantagens em outros. Inspirações (só a ideia; nomes e regras nossos):
+- **Soviética:** batalha profunda, massa de artilharia e blindados avançando em profundidade (planície).
+- **Alemã:** guerra-relâmpago, ruptura rápida e cerco (planície, estradas; fraca em selva e montanha).
+- **Vietnamita:** túneis e guerra de selva, ataque e sumiço (selva e solo cavável; fraca em campo aberto).
+- **Brasileira:** guerra de selva, pequenas unidades, mobilidade em floresta e rios.
+- **Terra arrasada:** recuar destruindo recursos e abrigo, vencendo pelo desgaste (território grande).
+- **Japonesa:** ataques suicidas e ofensiva a qualquer custo (moral alta; perdas enormes).
+O clima extremo também muda a guerra (gangues e veículos no calor máximo; `docs/05-civilizacao-politica.md`).
+
+## Exércitos como indivíduos (Marcos 6 e 7; decisão do usuário, 2026-11-03)
+- **Sempre indivíduos, mesmo de longe:** exércitos em marcha, generais, aviões em missão e figuras da
+  Crônica. O exército é uma peça permanente (posição, general, rota, "5.000 soldados").
+- **De perto,** os soldados aparecem um por um e lutam; quem morre sai do número; **ao afastar,** o
+  número continua de onde parou.
+- **Batalha de longe:** cada soldado é calculado (as mesmas ações de mover, atacar e matar, só que sem
+  desenho), otimizado de forma orgânica para não pesar. Ao chegar o marco da guerra: 4 a 6 formas de
+  fazer essa otimização, com o custo medido de cada uma, para o usuário escolher.

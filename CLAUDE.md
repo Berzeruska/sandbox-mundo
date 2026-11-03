@@ -64,6 +64,11 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
     com tempos sintéticos. Medições de desempenho não são testes de aprovação.
 13. **Desempenho a cada marco** (regra do usuário): ao fim de cada marco, medir de novo nas condições
     da linha de base da v1.1 (`docs/decisoes.md`) e comparar; o relatório do aparelho-alvo decide.
+14. **Decisão de design vem com opções** (regra do usuário, 2026-11-03). Toda decisão de design
+    (mecanismo novo com efeito de jogo, mudança visual ou de interface) é apresentada com **4 a 6
+    opções variadas**, com **imagem** quando for visual e o **custo** de cada uma (trabalho, desempenho,
+    o que muda no jogo). O usuário escolhe; o código só vem depois da escolha. Vale também para as
+    propostas de rodada (escritas na especificação, com as imagens em `docs/img/`).
 
 ## Git e GitHub
 - Branch `main` sempre jogável. Trabalho de cada marco em `marco-N` (ex.: `marco-1`).

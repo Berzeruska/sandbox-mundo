@@ -81,3 +81,12 @@ revoluções:
 Os depósitos gerados no Marco 2 (`03-mundo-geologia.md`) passam a ser explorados: mineração,
 comércio, riqueza de quem controla as jazidas, e disputa por elas. Uso militar e eletrônico no
 Marco 7.
+
+## Civilizações no clima extremo (Marcos 5 e 6; decisão do usuário, 2026-11-03)
+O planeta no extremo de temperatura (física e vida no M3, `docs/02-marcos.md`) muda o jeito de viver:
+- **Frio máximo (era glacial total):** cidades-fábrica e aldeias mecanizadas para gerar calor; pesca
+  precária; fome extrema com canibalismo.
+- **Calor máximo (planeta deserto, vermelho e destruído):** um **modelo social único** para esse mundo:
+  gangues, veículos e carros cruzando dunas, vilas especializadas (uma fabrica munição, outra refina
+  combustível), monopólio de recursos (água, combustível) e ataques suicidas. A inspiração é um filme
+  de estrada pós-apocalíptico, só como ideia (regra 8): nomes, desenho e regras nossos.

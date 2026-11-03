@@ -1,124 +1,26 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-10-20 (madrugada)**, branch `marco-2`. **Rodada da noite feita** (lista do usuário
-depois do teste da `58f53e79`): defeitos F1–F6, propostas P7–P9 e F2/F6, testes do Claude Code.
-**Esperando o teste do usuário na prévia** (lista abaixo) **e as decisões das propostas.** A T14 só
-depois; o M2 não fecha antes disso. As 5 perguntas pendentes continuam abertas, sem mudança: meteoro e
-mar, controles e visão, "Medir desempenho" volta ao ano 0, tamanho das placas, 8 sementes.
+Atualizado em: **2026-11-03**, branch `marco-2`. **Rodada do teste da `d7479ae2`** (mensagem do usuário
+de 2026-11-03, itens A–E). Trabalho na ordem da mensagem, com commit, push e este arquivo a cada
+tarefa. Para só no fim, com a prévia e a lista de teste. **A T14 não começa e o M2 não fecha antes do
+teste do usuário.** Regra nova (CLAUDE.md, regra 14): decisão de design vem com 4 a 6 opções, imagem e
+custo; o código só depois da escolha.
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
-## O que foi feito nesta noite (em linguagem simples)
-Detalhes, medições e testes de cada item em `docs/M2-especificacao.md`, "Correções do teste da
-`58f53e79`"; defeitos em `docs/bugs.md`; decisões técnicas em `docs/decisoes.md`.
-1. **Tempestade de areia (F1):** a poeira agora só aparece em cima de areia seca (deserto, seca ou areia
-   de outra tempestade). Quem recorta é o próprio desenho do globo, célula por célula, então nem com as
-   placas andando ela passa para o mar ou para a floresta. No deserto quente ela passou a funcionar: o
-   deserto quente é estreito e o vento sopra para a costa; agora ela nasce com menos espaço, fica do
-   tamanho do deserto e, na borda, para e sopra ali até o fim (6–15 s em 1×). O teste antigo não pegou
-   porque repetia a conta do próprio código, só olhava água, nunca tocava num deserto quente e o mundo
-   do teste ficava parado.
-2. **Buraco do terremoto (F2):** o "buraco" que some é a fenda escura, que pelo desenho da R5 dura ~50
-   anos (em 20× isso é 2,5 s). O que fica para sempre é a encosta 10–60 m mais baixa, que anda com a
-   placa (agora testado com as placas andando), mas é baixa demais para se ver. Proposta para deixar uma
-   marca permanente visível.
-3. **Tsunamis 9,5 seguidos (F3):** a tela não travava; quem parava era o relógio do jogo (o mundo
-   congelava). Dois cálculos pesados: a costa raspada de um tsunami grande (costas do mundo todo) refazia
-   o clima do planeta inteiro (~430 ms cada), e o caminho da onda pelo oceano inteiro era feito de uma
-   vez (~250 ms). Agora o clima é refeito só perto da costa raspada e a onda é planejada em pedaços pequenos
-   por passo. Achado junto: o tsunami e os incêndios do meteoro (e o fogo da lava) nunca andavam (o
-   aviso aparecia, a onda não): corrigido.
-4. **Relógio esperando e recomposição de 980 ms (F4):** mesma raiz da F3. O gelo derretido por vulcão
-   voltando em lugares distantes virava uma "pincelada" do tamanho do planeta, refeita no relógio, no
-   ajudante e a cada recomposição. Agora cada mudança espalhada refaz só a vizinhança. No cenário
-   "desastres Muitos", o "aplicar" caiu de até 267 ms para até 66 ms.
-5. **Tamanho dos meteoros (F5):** de longe, um mínimo único de 4 px deixava pequeno, médio e grande
-   iguais. Agora cada tamanho tem o seu mínimo e a cauda acompanha a bola.
-6. **Muralha de vulcões (F6):** é o rastro de um ponto quente passando por baixo do continente: o
-   desenho manda criar um vulcão grande a cada vez que o anterior se afasta, e em terra eles não somem.
-   Não é defeito de código; proposta com imagem.
-7. **Propostas P7 (visual do meteoro), P8 (crateras somando) e P9 (temperatura extrema):** escritas, com
-   imagem, sem código.
-
-## Propostas e perguntas esperando decisão (do usuário)
-Todas em `docs/M2-especificacao.md`, seção "Correções do teste da `58f53e79`".
-1. **F1, consequência:** com a poeira só sobre areia seca, a areia que cai fora do deserto só acontece em
-   terra em seca. Fica assim, ou a poeira pode passar 1–2 células da borda do deserto?
-2. **F2, marca permanente do terremoto** (`docs/img/m2-f2-falha-permanente.png`): (a) fica; (b) degrau
-   de ~150 m ao longo da falha nos M ≥ 8; (c) vale de falha de ~300–500 m nos M ≥ 8.
-3. **F3, efeito no jogo a confirmar:** a onda começa ~1 s depois do terremoto em 1× (antes, no mesmo
-   passo); muitos seguidos esperam numa fila (12 seguidos: o último ~12 s depois em 1×). Fica assim, ou
-   calcular a onda num ajudante separado (mais trabalho)?
-4. **F6, ponto quente em continente** (`docs/img/m2-f6-vulcoes-continente.png`): (a) fica; (b) cone a
-   cada ~18 células em continente e inchaço baixo e largo; (c) (b) + cones e ilhas velhas envelhecendo.
-5. **P7, visual do meteoro** (`docs/img/m2-p7-meteoro-tamanhos.png`): (a) "mini sol" com o tamanho da F5;
-   (b) rocha escura em brasa por tamanho, fumaça e, no gigante, anel de poeira; (c) só a rocha em brasa.
-6. **P8, crateras sobrepostas** (`docs/img/m2-p8-crateras.png`): (a) fica; (b) o estrago soma (alarga e
-   aprofunda sem virar mar); (c) (b) + lago de cratera passando de um Gigante.
-7. **P9, temperatura extrema** (`docs/img/m2-p9-temperatura-extrema.png`): (a) só ampliar o controle;
-   (b) calor seca o planeta e frio se reforça; (c) (b) com volta lenta. Marco recomendado: M3 (a física
-   é da T7, a vida é do M3).
-8. **As 5 perguntas pendentes de antes** (sem mudança nesta noite): meteoro e mar (inverno de impacto sem
-   mexer no mar, E6); controles não desligam a visão (E9); "Medir desempenho" gera o mundo de novo no fim
-   (opções a/b/c); "tamanho fixo" das placas; as 8 de 20 sementes fora do critério de formas aos 3 min.
-
-## Testes que o Claude Code rodou (item 10; a aprovação continua sendo o relatório do usuário)
-Rodados em 2026-10-20 ~00:00 no notebook, no Chromium com a GPU de verdade (Vulkan, Radeon 610M), 1080p,
-**na prévia publicada** (versão `66ca7041`, mesmo código do último commit com mudança no jogo), pela
-interface, com o notebook sem outra carga.
-- **5 min em 1× com placas 100%:** 18.013 quadros, nenhum > 50 ms (pior 17 ms); rodapé do Dados
-  "travadas 0 da tela · 0 da data".
-- **Medir desempenho:** 60 fps em todos os cenários, pior quadro 17 ms, nenhum > 50 ms; GPU ≤ 6,9 ms
-  (pior quadro isolado, "meio com placas andando"); memória: dados 85 MB, página 203 MB; geração 0,98 s,
-  primeira abertura 1,46 s; recomposições com média 497–565 ms e **pior 600 ms** (antes do usuário: 980
-  ms), "aplicar" 43–65 ms (antes 223); **"relógio esperou 0 ms" em todos os cenários**; 0 travadas.
-- **Tsunamis 9,5 seguidos:** 12 toques no mar a cada 0,15 s, em 1× e em 20× (a espuma chega às costas):
-  nenhum quadro > 50 ms (pior 17 ms) e nenhuma travada nova da data no rodapé (havia 1 da tela de antes,
-  ao abrir o painel). Antes da correção, no mesmo teste: o relógio parava 0,6 s em 1× e 0,4–0,8 s
-  (7 vezes) em 20×, com um quadro de 233 ms.
-
-## Lista de teste para amanhã (no notebook, com o jogo sozinho)
-Prévia: berzeruska.github.io/sandbox-mundo/previa/marco-2/ — a linha "versão" do painel Dados tem que
-mostrar o último commit do `marco-2`. **Enquanto você testa, o Claude Code não roda nada pesado no
-notebook.** Em cada item: o que fazer → o que deve aparecer → o que seria defeito. Conferida contra
-`docs/decisoes.md` (C12, E4, E6, E12, R5, R6, R7 e as decisões de 2026-10-19).
-1. **Tempestade de areia no deserto quente (F1):** Desastres → Tempestade de areia; tocar no meio de um
-   deserto quente (amarelo-claro, perto do equador) → aparece a poeira alaranjada, anda com o vento e
-   dura ~6–15 s em 1×; num deserto estreito ela é menor. Defeito: nada acontece, ou some em ~1 s.
-2. **Poeira só sobre areia seca (F1):** tocar num deserto perto da costa e num deserto frio grande, com
-   placas 100% → a poeira para na linha da costa e na borda do deserto (fica cortada ali). Tocar numa
-   floresta longe de deserto ou no mar → nada. Com desastres em "Muitos", olhar as tempestades naturais.
-   Defeito: poeira por cima do mar, de floresta ou de campo verde.
-3. **Terremoto (F2, conferir o desenho):** Desastres → Terremoto M 9,5 num continente, 1×, placas 100%
-   → fenda escura e deslizamentos; a fenda some em ~50 s (~50 anos); a encosta fica um pouco mais baixa
-   (quase não se vê). Defeito: a fenda some de uma vez numa recomposição, antes de ~50 anos. (A marca
-   permanente visível é a proposta F2.)
-4. **Tsunamis 9,5 seguidos (F3):** Desastres → Tsunami 9,5; tocar no mar ~10 vezes seguidas, em 1× e
-   depois em 20× → a data continua andando sem parar, a tela lisa, a ventoinha sem disparar; cada onda
-   recua o mar, avança e deixa lama (a onda começa ~1 s depois do tremor em 1×). Rodapé do Dados: 0
-   travadas novas. Defeito: o mundo congela, travada da data no rodapé.
-5. **Tsunami do meteoro (achado na F3):** Desastres → Meteoro Médio ou maior no mar aberto → aviso
-   "Tsunami do meteoro" e a onda chega às costas (recuo, espuma, água em terra, lama). Meteoro numa
-   floresta → incêndios em volta da cratera. Defeito: aviso sem onda; nenhum incêndio.
-6. **Tamanho dos meteoros (F5):** globo inteiro na tela; Meteoro Pequeno, Médio, Grande e Gigante, um de
-   cada vez → cada um visivelmente maior que o anterior (bola e cauda); de perto, a bola com ~1/3 do
-   raio da cratera. Defeito: dois tamanhos parecendo iguais.
-7. **Temperatura +10 (degelo, E6; não testado em 2026-10-19):** Clima → Temperatura até +10, 1× → o
-   valor sobe 1 °C por segundo; o gelo derrete aos poucos e o mar sobe alagando as terras baixas; os
-   desertos crescem com o calor; o relevo em degraus não "pula" no mundo inteiro a cada subida do mar.
-   Voltar para 0 → o gelo volta aos poucos. Defeito: o mundo mudando inteiro de uma vez; o desenho do
-   relevo pulando; travada da data no rodapé.
-8. **Jogar 1× com placas 100% por ~5 min (F4):** sem outro programa pesado → rodapé do Dados com 0
-   travadas da data. Se aparecerem, mandar as linhas do rodapé (hora, causa, contexto).
-9. **Medir desempenho (F4):** com o jogo sozinho, rodar e mandar o relatório inteiro. Metas: 60 fps,
-   nenhum quadro > 50 ms, GPU ≤ 8 ms, memória ≤ 400 MB, recomposição ≤ 1 s (esperado ≤ ~750 ms),
-   "relógio esperou 0 ms" em todos os cenários.
-10. **Da rodada anterior, sem resposta no teste de 2026-10-19:** (a) avisos com o menu aberto (E8):
-    desastres em "Muitos", abrir o menu → nenhum aviso por cima; fechar → os que valem voltam; (b) gelo
-    volta depois do vulcão (E13): vulcão sob gelo num lugar bem frio, placas 100%, 20×, ~150 anos → o
-    gelo volta onde o clima é de gelo; (c) tsunami e painel Dados (E10): abrir o Dados no meio de um
-    tsunami → ele continua. Defeitos: aviso por cima das ferramentas; buraco no gelo que nunca fecha;
-    tsunami recomeçando.
+## Rodada de 2026-11-03 (andamento)
+- [x] **Docs:** regra 14, decisões do usuário (`docs/decisoes.md`, "2026-11-03"), direção visual e
+  escala no M3, M8 só com acabamento, P9 no M3 e civilização no clima extremo no M5/M6, doutrinas e
+  exércitos como indivíduos no M6.
+- [x] **B1, meteoro sem cratera e sem frio** (`docs/bugs.md`): não reproduzido como falha da simulação
+  (cratera e −2,8 °C em todos os casos com o tempo andando). Defeito achado e corrigido: pausado, a
+  animação batia e brilhava sem nada acontecer; agora a bola espera no céu até o jogo chegar ao impacto.
+- [ ] A — desempenho (diagnóstico e correção dentro das metas).
+- [ ] B2 crateras somando · B4 tempestade de areia passando da borda · B9 "medição inválida" ·
+  B10(iii) perguntar antes do "Medir desempenho" · B10(v) 8 sementes.
+- [ ] Propostas com 4–6 opções e imagem: B3 meteoro em cubos, B5 degrau do terremoto, B7 vulcões em
+  continente, B8 avisos e ano.
+- [ ] Fim: resumo, propostas, lista de teste, prévia igual ao último commit.
 
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
