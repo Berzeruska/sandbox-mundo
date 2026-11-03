@@ -29,7 +29,10 @@ sobre "onde estamos", vale este.
 - [x] **B4, tempestade de areia** passa da borda (também sobre o mar) perdendo força e se desfaz ~14
   células depois; areia grossa cai perto (~5 células), poeira fina vai mais longe. Reverte a E4.
   Imagem `docs/img/m2-b4-tempestade-borda.png`.
-- [ ] B10(v) 8 sementes.
+- [x] **B10(v), 8 sementes: diagnosticado e parado no custo** (toda correção muda o movimento das
+  placas). Hoje 12 de 20 (e 9 de 20 em sementes novas). Duas causas: Pangeia partida em poucos pedaços, e
+  recolisão durante a dispersão. 5 opções com números medidos e imagem
+  (`docs/img/m2-b10-formas-3min.png`).
 - [x] **Proposta B3, meteoro em cubos:** 6 opções com imagem (`docs/img/m2-b3-meteoro-cubos.png`).
 - [x] **Proposta B5, degrau do terremoto:** 6 opções de altura com imagem
   (`docs/img/m2-b5-degrau-terremoto.png`).

@@ -1544,6 +1544,56 @@ embaixo da data. Tocar num aviso continua levando a câmera até lá.
 6. **Deslizar o dedo no ano:** arrastar para a direita acelera, para a esquerda desacelera; toque curto
    pausa e volta. Custo médio (~1 dia, gesto novo); escondido para quem não conhece.
 
+### B10 (v) — As 8 de 20 sementes fora do critério de formas aos 3 min (diagnóstico; parado no custo)
+Decisão do usuário (2026-11-03): corrigir no M2 sem afrouxar o critério; se a correção for cara ou mexer
+em comportamento de jogo, parar e mostrar o custo antes. **Toda correção possível muda o movimento ou o
+nascimento das placas (efeito de jogo), então nada foi aplicado.** Imagem:
+`docs/img/m2-b10-formas-3min.png` (mapas aos 3 min, hoje × opção 1).
+
+**Medido hoje** (N = 128, 3 min a 20× com placas 100%; critério: 4 a 7 continentes de ≥ 2% da terra,
+nenhum acima de 40%, terra > 24%): nas 20 de sempre (`s0`–`s14`, `terra`, `mundo`, `7`, `42`, `ilha`),
+**12 de 20** no critério, fora `s1 s3 s7 s10 s12 s14 42 ilha`. Em 20 sementes novas, que não entraram em
+nenhuma escolha (`v0`–`v19`, para não ajustar número às 20 de sempre): **9 de 20**.
+
+**Duas causas** (série a cada 15 s de jogo, por semente):
+1. **A Pangeia se parte em poucos pedaços, ou sobra um pedaço enorme** (`s1`: 85% por quase 3 min;
+   `s3`, `s12`: 3 continentes desde 30 s; `s14`: 63%; `s7`: 45–47%). A geração corta só a placa com mais de
+   35% da terra.
+2. **Recolisão durante a dispersão:** a quebra fica boa (ex.: `v5` com 7 continentes de até 23% em 1 min)
+   e, antes dos 3 min, dois continentes encostam de novo (`v5` 58% aos 2,75 min; `s10`, `ilha`, `42`). A
+   dispersão dura ~4,3 min (`DISPERSAL_TIME`), então isso acontece **dentro** dela: os pedaços andam em
+   rumos que se cruzam.
+
+**Testado sem commit (cada um nas 20 de sempre e nas 20 novas):**
+| Variante | 20 de sempre | 20 novas |
+|---|---|---|
+| hoje | 12 | 9 |
+| peça máxima 25% na geração | 13 | — |
+| peça máxima 22% | 13 | 12 |
+| peça máxima 20% | 16 | 12 |
+| vale de rifte vira mar com 2 células (hoje 3) | 12 | 10 |
+| peça 20% + vale 2 células | 16 | 13 |
+| peça 20% + vale 2 + dispersão 70° (hoje 50°) | 16 | 13 |
+| atrasar a solda (24 recomposições, hoje 8) | 10 | — |
+
+Atrasar a solda piora (os continentes se juntam por encostar, não pela solda); dispersão mais longa não
+muda nada aos 3 min (a recolisão é dentro dela).
+
+**Opções (decisão do usuário):**
+1. **Pangeia em pedaços menores na geração (peça máxima 20%) + vale de rifte com 2 células:** 16 de 20 e
+   13 de 20 novas. Custo pequeno (~0,5 dia: 2 constantes, testes e imagens de formas novas). Muda todos os
+   mundos novos (a Pangeia nasce cortada em mais placas) e a correção 1 aprovada (vale até 3 células).
+   Efeito colateral medido: a semente `7` (teste do CI) passa a ter 8 continentes aos 3 min (o critério
+   pede no máximo 7), então o teste dela falharia.
+2. **Dispersão radial:** na dispersão, cada continente foge do centro do supercontinente que se partiu
+   (rumos que não se cruzam), com um pouco de sorteio. Ataca a causa 2. Custo médio a grande (~2–3 dias;
+   mexe no G2 aprovado, medir de novo latitude, ciclo e formas aos 2, 5 e 10 min). Não medido.
+3. **1 + 2:** o mais provável de cumprir o critério nas duas listas. Custo ~3 dias. Não medido.
+4. **Recolisão desvia em vez de encostar:** na dispersão, dois continentes que vão se tocar mudam de rumo
+   (deslizam um pelo outro). Custo médio (~1,5 dia). Muda o realismo (no mundo real eles colidem).
+5. **Fica como está** (falha conhecida registrada): 12 de 20; o CI continua com `terra`, `mundo`, `7`.
+- **Não proposto:** mudar a hora da medição ou os números do critério (seria afrouxar).
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**
