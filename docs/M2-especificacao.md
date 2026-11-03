@@ -1428,6 +1428,23 @@ Chromium com a GPU de verdade (Vulkan), build de produção, sem outra carga, pe
 - **Não otimizado (dentro da meta):** geração (1,41–1,47 s na bateria, meta 1,5 s) e recomposição (pior
   924–997 ms na bateria, meta 1 s). Na tomada ficam ~1,0 s e ~600 ms. Se a meta valer na bateria, a folga
   é pequena: proposta abaixo.
+5. **Relatório diz a energia** ("na tomada" ou "NA BATERIA", pelo que o navegador informa).
+
+**Proposta A1 — As metas valem na bateria? (decisão do usuário)** Na bateria, em 1080p: fps e quadros
+na meta (60 fps, nenhum quadro > 50 ms), mas a GPU do globo passa de 8 ms (de perto 10,6, meio andando
+9,5 ms) e geração e recomposição ficam sem folga (1,47 s e 997 ms). Na tomada (outubro) tudo cabia com
+folga. Não há imagem: nada muda na tela, só a medição.
+1. **Metas valem na tomada; na bateria valem só os 60 fps e "nenhum quadro > 50 ms"** (o resto aparece no
+   relatório para informação). Custo: nenhum.
+2. **Todas as metas valem também na bateria:** desenho do globo ~25–45% mais barato e geração e
+   recomposição com folga. Custo: médio a grande (2–4 dias, sem garantia; mexe no shader e na geologia
+   sem mudar a imagem nem o mundo).
+3. **Na bateria, o globo desenhado com menos pixels** (ex.: 85%, ampliado na tela): GPU na meta, imagem
+   um pouco mais macia. Custo: pequeno (~0,5 dia). É automático, mas muda a imagem (a regra 6 diz "sem
+   opção de qualidade").
+4. **Meta de GPU mais folgada na bateria** (≤ 12 ms; o quadro de 60 fps tem 16,7 ms). Custo: nenhum.
+5. **Decidir depois do próximo relatório:** o usuário mede na tomada e na bateria (o relatório agora diz
+   qual) e escolhe com os dois na mão. Custo: nenhum agora.
 
 ### B1 — Meteoro "sem cratera e sem mudar a temperatura" (defeito, `docs/bugs.md`)
 Não reproduzido como falha da simulação; achado e corrigido o descompasso da animação com o jogo pausado

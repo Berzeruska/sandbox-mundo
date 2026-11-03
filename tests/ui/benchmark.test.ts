@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyWork, FrameRecorder, formatReport, gpuMemoryLines, gpuStats, scenarioInvalid, workDelta } from '../../src/ui/benchmark';
+import { emptyWork, FrameRecorder, formatReport, gpuMemoryLines, gpuStats, powerLabel, scenarioInvalid, workDelta } from '../../src/ui/benchmark';
 
 /** Quadros sintéticos: `gaps` são os intervalos (ms) a partir de t = 1000. */
 function record(gaps: number[], work = 2): FrameRecorder {
@@ -171,5 +171,16 @@ describe('quadros acima de 50 ms no relatório (A)', () => {
     const text = formatReport(device, [{ name: 'tempo 20×, placas paradas', frames: s, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 }], null);
     expect(text).toContain('quadro de 83 ms aos 1.1 s · tela 2 ms · recebendo 0 ms · fora do código da tela');
     expect(text).toContain('quadro de 70 ms aos 2.2 s · tela 2 ms · recebendo 60 ms · recebendo do worker');
+  });
+});
+
+// A (2026-11-03): na bateria o notebook baixa o relógio da CPU e da GPU; o relatório diz qual foi.
+describe('energia no relatório (A)', () => {
+  it('bateria, tomada ou não informado', () => {
+    expect(powerLabel({ charging: false, level: 0.57 })).toContain('NA BATERIA (57%)');
+    expect(powerLabel({ charging: true, level: 1 })).toContain('na tomada');
+    expect(powerLabel(null)).toContain('não informado');
+    const frames = record(Array(60).fill(1000 / 60)).summary();
+    expect(formatReport({ ...device, power: powerLabel({ charging: false, level: 0.5 }) }, [{ name: 'x', frames, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 }], null)).toContain('energia: NA BATERIA');
   });
 });

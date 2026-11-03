@@ -1,45 +1,112 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-03**, branch `marco-2`. **Rodada do teste da `d7479ae2`** (mensagem do usuário
-de 2026-11-03, itens A–E). Trabalho na ordem da mensagem, com commit, push e este arquivo a cada
-tarefa. Para só no fim, com a prévia e a lista de teste. **A T14 não começa e o M2 não fecha antes do
-teste do usuário.** Regra nova (CLAUDE.md, regra 14): decisão de design vem com 4 a 6 opções, imagem e
-custo; o código só depois da escolha.
+Atualizado em: **2026-11-03**, branch `marco-2`. **Rodada do teste da `d7479ae2` terminada** (mensagem
+do usuário de 2026-11-03, itens A–E). **Esperando o teste do usuário na prévia** (lista abaixo) **e as
+escolhas das propostas.** A T14 não começa e o M2 não fecha antes disso. Regra nova (CLAUDE.md, regra
+14): decisão de design vem com 4 a 6 opções, imagem e custo; o código só depois da escolha.
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
 sobre "onde estamos", vale este.
 
-## Rodada de 2026-11-03 (andamento)
-- [x] **Docs:** regra 14, decisões do usuário (`docs/decisoes.md`, "2026-11-03"), direção visual e
-  escala no M3, M8 só com acabamento, P9 no M3 e civilização no clima extremo no M5/M6, doutrinas e
-  exércitos como indivíduos no M6.
-- [x] **B1, meteoro sem cratera e sem frio** (`docs/bugs.md`): não reproduzido como falha da simulação
-  (cratera e −2,8 °C em todos os casos com o tempo andando). Defeito achado e corrigido: pausado, a
-  animação batia e brilhava sem nada acontecer; agora a bola espera no céu até o jogo chegar ao impacto.
-- [x] **A — desempenho** (`docs/M2-especificacao.md`, "Correções do teste da `d7479ae2`"): a diferença
-  de números vem da **bateria** (o processador baixa o relógio dos núcleos parados). Correções: duas
-  vagas de entrega no ajudante (o relógio não espera mais um clima refeito logo antes de uma
-  recomposição), shader compilado ao abrir a página (as travadas ao abrir), relatório com cada quadro
-  > 50 ms explicado, "medição inválida" (B9) e pergunta antes de começar (B10 iii). Medido na bateria
-  em 1080p: 60 fps, nenhum quadro > 50 ms, relógio nunca esperou, 0 travadas, geração 1,47 s, pior
-  recomposição 997 ms. **Achado: GPU do globo acima de 8 ms na bateria** (de perto 10,6, meio 9,5 ms):
-  decisão do usuário no fim.
-- [x] B9 "medição inválida" e B10(iii) pergunta antes do "Medir desempenho" (junto com a A).
-- [x] **B2, crateras somando** (P8 b): meteoro dentro de uma cratera alarga pela soma das áreas e
-  aprofunda sem virar mar; a cratera anda com a placa. Imagem `docs/img/m2-b2-crateras-somando.png`.
-- [x] **B4, tempestade de areia** passa da borda (também sobre o mar) perdendo força e se desfaz ~14
-  células depois; areia grossa cai perto (~5 células), poeira fina vai mais longe. Reverte a E4.
-  Imagem `docs/img/m2-b4-tempestade-borda.png`.
-- [x] **B10(v), 8 sementes: diagnosticado e parado no custo** (toda correção muda o movimento das
-  placas). Hoje 12 de 20 (e 9 de 20 em sementes novas). Duas causas: Pangeia partida em poucos pedaços, e
-  recolisão durante a dispersão. 5 opções com números medidos e imagem
-  (`docs/img/m2-b10-formas-3min.png`).
-- [x] **Proposta B3, meteoro em cubos:** 6 opções com imagem (`docs/img/m2-b3-meteoro-cubos.png`).
-- [x] **Proposta B5, degrau do terremoto:** 6 opções de altura com imagem
-  (`docs/img/m2-b5-degrau-terremoto.png`).
-- [x] **Proposta B7, ponto quente em continente:** 6 opções com imagem
-  (`docs/img/m2-b7-vulcoes-continente.png`).
-- [x] **Proposta B8, avisos e ano:** 6 opções com imagem (`docs/img/m2-b8-avisos-ano.png`).
-- [ ] Fim: resumo, propostas, lista de teste, prévia igual ao último commit.
+## O que foi feito nesta rodada (em linguagem simples)
+Detalhes, medições e testes em `docs/M2-especificacao.md`, "Correções do teste da `d7479ae2`";
+decisões em `docs/decisoes.md` ("2026-11-03"); defeito do meteoro em `docs/bugs.md`.
+1. **Desempenho (A):** os números piores do seu relatório vêm sobretudo da **bateria**: na bateria o
+   processador baixa a velocidade dos núcleos parados e demora a subir; o ajudante que recompõe as placas
+   fica parado entre uma recomposição e outra, então cada uma começa lenta (976 ms no seu, 924–997 ms no
+   meu na bateria, ~600 ms na tomada). Corrigido: o ajudante ganhou **duas vagas** para entregar
+   resultados (o relógio esperava quando um clima refeito caía logo antes de uma recomposição); o
+   **shader do globo é compilado ao abrir a página**, escondido, enquanto o mundo nasce (causa provável
+   das 3 travadas ao abrir); o relatório agora **explica cada quadro > 50 ms**, diz **bateria ou
+   tomada**, avisa **"medição inválida"** (B9) e **pergunta antes de começar** (B10 iii). A janela pequena
+   (854×407) deixa a GPU ~4–5× mais leve: não vale para a meta de 1080p. Os quadros > 50 ms e as travadas
+   ao abrir não se repetiram aqui; o próximo relatório diz onde foi cada um.
+2. **Meteoro (B1):** não achei falha na simulação (cratera e frio em todos os casos com o tempo andando).
+   Achei e corrigi um descompasso: pausado, a bola caía, brilhava e nada acontecia; agora ela espera no
+   céu até o tempo andar. Em 20× o frio dura só 1,5 s (30 anos) e aparece só no Dados. Se o que você viu
+   não foi pausado, preciso saber a velocidade e o tamanho.
+3. **Crateras somando (B2, P8 b):** meteoro dentro de uma cratera a alarga (as áreas somam) e aprofunda,
+   sem virar mar em terra; a cratera anda com a placa.
+4. **Tempestade de areia (B4):** passa da borda do deserto, inclusive sobre o mar, perdendo força, e se
+   desfaz ~14 células depois; a areia grossa cai perto da borda, a poeira fina vai mais longe; o deserto
+   não avança. Reverte a E4.
+5. **8 sementes (B10 v):** diagnosticado e **parado no custo**: toda correção muda o movimento das placas.
+6. **Propostas com 6 opções, imagem e custo:** B3, B5, B7, B8, B10 (v) e A1 (abaixo).
+7. **Docs (C e D):** temperatura extrema no M3 (física e vida) e no M5/M6 (civilização); doutrinas e
+   exércitos como indivíduos no M6; direção visual em cubos, primeira tarefa e escala no M3; M8 só com
+   acabamento.
+
+## Propostas esperando a sua escolha
+Todas em `docs/M2-especificacao.md`, "Correções do teste da `d7479ae2`".
+1. **B3, meteoro em cubos** (`docs/img/m2-b3-meteoro-cubos.png`): 1 rocha em brasa · 2 bola de fogo · 3
+   um cubo só · 4 rocha + sombra no chão · 5 maquete realista com fumaça · 6 rocha que se parte no ar.
+2. **B5, altura do degrau do terremoto** (`docs/img/m2-b5-degrau-terremoto.png`), M 8 · 8,5 · 9 · 9,5:
+   1 real × 37 (150 · 260 · 370 · 450 m) · 2 real × 25 · 3 real × 75 (300 · 520 · 740 · 900 m; o menor em
+   que o M 8 se vê bem) · 4 em linha · 5 fixo 150 m · 6 fórmula sem limite.
+3. **B7, ponto quente em continente** (`docs/img/m2-b7-vulcoes-continente.png`): a fica · b esparso +
+   inchaço · c b + cones que envelhecem · d planalto de basalto · e caldeiras de supervulcão · f campo de
+   cones pequenos.
+4. **B8, avisos e ano** (`docs/img/m2-b8-avisos-ano.png`): em todas, avisos embaixo da etiqueta; tocar no
+   ano: 1 fileira embaixo · 2 próxima velocidade a cada toque · 3 lista · 4 sempre à mostra · 5 abre o
+   "Tempo" do menu · 6 deslizar o dedo.
+5. **B10 (v), formas** (`docs/img/m2-b10-formas-3min.png`): 1 Pangeia em pedaços menores + vale de 2
+   células (16 de 20; 13 de 20 novas; a semente `7` do CI passa a ter 8 continentes) · 2 dispersão radial
+   · 3 as duas · 4 recolisão desvia · 5 fica.
+6. **A1, metas na bateria:** 1 metas só na tomada (na bateria, 60 fps e quadros) · 2 tudo também na
+   bateria (otimizar) · 3 menos pixels na bateria · 4 GPU ≤ 12 ms na bateria · 5 decidir depois do seu
+   relatório na tomada e na bateria.
+
+## Lista de teste (no notebook, com o jogo sozinho)
+Prévia: berzeruska.github.io/sandbox-mundo/previa/marco-2/ — a linha "versão" do Dados tem que mostrar o
+último commit do `marco-2`. **Enquanto você testa, o Claude Code não roda nada pesado no notebook.** Use
+o Chrome **maximizado** (o relatório deve dizer "desenho 1920×1080") e, para medir, **na tomada**. Em
+cada item: o que fazer → o que deve aparecer → o que é defeito. Conferida contra `docs/decisoes.md`
+(C12, E6, R5, B4, P8 b, B9, B10 iii e as decisões de 2026-11-03).
+1. **Meteoro pausado (B1):** Pausa; Desastres → Meteoro → Gigante; tocar num continente → a bola fica
+   parada no céu, sem clarão, enquanto estiver pausado. Soltar em 1× → em ~1 s ela bate: cratera escura,
+   entulho claro na borda, tela tremendo; no Dados, "clima" cai até ~−2,8 °C em ~3 s e volta ao normal em
+   ~30 s; o nível do mar não muda (E6). Defeito: clarão sem cratera; cratera antes da bola bater; clima
+   parado; mar mudando.
+2. **Meteoro em 1× e em 20× (B1):** Meteoro Grande em 1× → cratera e incêndios em volta, se houver
+   vegetação. Em 20× → a cratera aparece; o frio do Gigante dura ~1,5 s (30 anos). Defeito: nada no
+   relevo; meteoro em terra virando mar (C12).
+3. **Crateras somando (B2):** Placas 0, 1×, de perto; Meteoro Grande 3 vezes no mesmo ponto, esperando
+   cada um bater; depois 20× até a rocha escura sumir (~15 s) → a cratera fica maior a cada meteoro (como
+   `docs/img/m2-b2-crateras-somando.png`) e continua em terra. Um meteoro longe → cratera separada, a
+   primeira não muda. Defeito: o segundo igual ao primeiro; cratera em terra virando mar ou lago.
+4. **Tempestade de areia saindo do deserto (B4):** Desastres → Tempestade de areia, tocar num deserto
+   perto da borda (de preferência com o mar ou a floresta a favor do vento) → a poeira passa da borda,
+   por cima da floresta e do mar, cada vez mais fraca, e some pouco depois (~14 células, ~2–3 s em 1×);
+   areia clara no chão só na vegetação perto da borda; o deserto não muda. Defeito: a poeira parando na
+   borda; indo longe sem enfraquecer; areia caindo longe da borda; o deserto crescendo.
+5. **Tempestade no miolo de um deserto grande (B4):** tocar no meio → anda com o vento e dura ~6–15 s em
+   1× enquanto está sobre a areia. Floresta longe de deserto ou mar aberto → nada. Defeito: nada no
+   deserto; tempestade nascendo na floresta ou no mar.
+6. **Pergunta antes de medir (B10 iii):** Dados → Medir desempenho → aparece a pergunta (o jogo volta ao
+   ano 0). Cancelar → nada muda. Defeito: começar sem perguntar; cancelar e medir mesmo assim.
+7. **Medição inválida (B9):** começar o Medir desempenho e trocar de aba por ~20 s, depois voltar e
+   esperar o fim → no alto do relatório "MEDIÇÃO INVÁLIDA" e, nos cenários afetados, "medição inválida"
+   no lugar dos números. Defeito: 0 fps ou números absurdos sem aviso.
+8. **Medir desempenho de verdade (A):** Chrome maximizado, na tomada, só o jogo aberto; rodar e mandar o
+   relatório inteiro. Metas: 60 fps e nenhum quadro > 50 ms em todos os cenários (se aparecer um, as
+   linhas "quadro de X ms" embaixo do cenário dizem onde foi); GPU ≤ 8 ms; memória ≤ 400 MB (esperado
+   ~110 MB de dados); geração ≤ 1,5 s; primeira abertura ≤ 2,5 s; pior recomposição ≤ 1 s; "relógio
+   esperou 0 ms" em todos; linha "energia: na tomada". Defeito: qualquer meta fora. **Se puder, uma
+   segunda medição na bateria** (para a decisão A1).
+9. **Abrir a página (A):** fechar a aba da prévia e abrir de novo → no rodapé do Dados, 0 travadas da
+   tela logo depois de o globo aparecer. Defeito: travadas "fora do código da tela" ao abrir.
+10. **Jogar 1× com placas 100% por ~5 min:** rodapé do Dados com 0 travadas da data. Se aparecer, mandar
+    as linhas do rodapé.
+11. **Da rodada anterior, sem resposta:** (a) Tsunami 9,5, ~10 toques seguidos no mar em 1× e em 20× → a
+    data continua andando, cada onda recua o mar, avança e deixa lama (começa ~1 s depois do tremor, F3
+    aprovada como está); (b) Meteoro Pequeno, Médio, Grande e Gigante com o globo inteiro na tela → cada
+    um maior que o anterior (F5); (c) Clima → Temperatura +10 → gelo derrete aos poucos, o mar sobe,
+    nada pula de uma vez; voltar a 0 → o gelo volta aos poucos. Defeitos: o mundo congelando; dois
+    tamanhos iguais; o relevo pulando.
+
+## Rodada de 2026-11-03 (feito, com commit)
+- Docs (regra 14 e decisões) `ba77d2e` · B1 `6f0f320` · A, B9, B10 iii `6a83860` · B2 `e85a713` · B3
+  `7a3aea2` · B4 `cbb1547` · B5 `44c1e28` · B7 `e6daf1b` · B8 `33dfe8c` · B10 v `eb9f5ac` · energia no
+  relatório e A1 (este commit).
 
 ## Onde estamos
 - **Marco:** M2 — Geologia viva (`docs/M2-especificacao.md`).
@@ -200,16 +267,24 @@ sobre "onde estamos", vale este.
 ## Pendente no M2
 - [ ] Confirmar no notebook: vale de rifte sem neve (`docs/bugs.md`), fronteiras de placa.
 - [ ] **Falha conhecida:** semente `42` com 33% da terra acima de 60° em N = 256 aos 10 min.
-- [ ] **Falha conhecida:** 8 de 20 sementes fora do critério de formas aos 3 min (colisões e soldas logo
-  depois da quebra). Os testes de CI (`terra`, `mundo`, `7`) passam.
+- [ ] **B10 (v):** 8 de 20 sementes fora do critério de formas aos 3 min; parado no custo (proposta).
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] Teste do usuário das correções da noite de 2026-10-19 (F1–F5) na prévia (lista acima).
-- [ ] Decisões do usuário: F1 (areia fora do deserto), F2, F3 (espera da onda), F6, P7, P8, P9.
+- [ ] Teste do usuário da rodada de 2026-11-03 (lista acima).
+- [ ] Escolhas do usuário: B3, B5, B7, B8, B10 (v), A1.
 - [x] T13 (teste longo).
 - [ ] T14 (medição final contra a linha de base da v1.1).
 - [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
+- 2026-11-03 (Claude Code, build de produção, Chromium com GPU real, **na bateria** 57%, perfil
+  "balanced"): 854×407 → 60 fps, nenhum quadro > 50 ms, relógio esperou 0, 0 travadas, geração 1,41 s,
+  primeira abertura 1,65 s, pior recomposição 924 ms. 1920×1080 depois das correções → 60 fps, nenhum
+  quadro > 50 ms, relógio esperou 0, 0 travadas, geração 1,47 s, primeira abertura 1,62 s, pior
+  recomposição 997 ms, memória 107 MB de dados / 213 MB a página; **GPU acima de 8 ms na bateria**: longe
+  5,7, de perto 10,6 (pior 15,9), de perto andando 8,5, meio andando 9,5, meio na transição 9,1 ms.
+- `d7479ae2`, medido pelo usuário (Chrome, 29/10, desenho 854×407): quadros de 83, 67 e 83 ms em três
+  cenários; relógio esperou 195 ms na deriva longa; primeira abertura 2.666 ms; geração 1.489 ms; pior
+  recomposição 976 ms; 3 travadas de 233–767 ms ao abrir. Diagnóstico e correções na rodada de 2026-11-03.
 - 2026-10-20 (rodada da noite, prévia `66ca7041`, Chromium com GPU real, pelo Claude Code): ver "Testes
   que o Claude Code rodou" acima. Resumo: todas as metas; pior recomposição 600 ms; relógio nunca
   esperou; 0 travadas em 5 min de 1× com placas 100% e com 12 tsunamis 9,5 seguidos.
@@ -278,15 +353,10 @@ sobre "onde estamos", vale este.
   sementes passam aos 3 min).
 
 ## Decisões abertas (do usuário)
-- **Inverno de impacto sem mexer no mar (E6, técnico):** antes o mar descia 50 m de uma vez; agora só
-  a temperatura cai (o mar acompanha as geleiras, que levam milênios). Confirmar.
-- **Controles não desligam a visão (E9, técnico):** tempo, temperatura, frequência e velocidade das
-  placas não contam como "efeito"; dá para ver as placas mudando a velocidade delas. Confirmar.
-- **"Medir desempenho" gera o mundo de novo no fim** (para medir a geração): o jogo volta ao ano 0.
-  Opções: (a) fica assim, com aviso no botão; (b) pergunta antes de começar; (c) mede a geração sem
-  trocar o mundo do jogador (mais trabalho).
-- **"Tamanho fixo" das placas:** hoje ficam fixas a identidade e a forma; placas oceânicas podem
-  encolher até sumir. O G4 trata só do continente apagado. Falta confirmar se basta.
+- As propostas da lista acima (B3, B5, B7, B8, B10 v, A1).
+- As 5 perguntas de antes foram respondidas em 2026-11-03 (`docs/decisoes.md`): meteoro sem mexer no mar
+  (sim), controles não desligam a visão (confirmado), perguntar antes de medir (feito), tamanho fixo das
+  placas (sim), 8 sementes (diagnosticado, proposta).
 
 ## Ideias registradas para marcos futuros (não fazer agora)
 - 2026-10-18: M8 com lua (bolinha cinza orbitando) e sol (bola amarela ao fundo); furacão com cara de

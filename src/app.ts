@@ -34,7 +34,7 @@ import { depositLabel, isHiddenOil } from './world/resources';
 import { activeBrush, activeDisaster, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
-import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, scenarioInvalid, workDelta, type FirstLoad, type GenerationResult, type GpuSample, type ScenarioResult, type WorkCounters } from './ui/benchmark';
+import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, powerLabel, scenarioInvalid, workDelta, type FirstLoad, type GenerationResult, type GpuSample, type ScenarioResult, type WorkCounters } from './ui/benchmark';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
@@ -53,6 +53,16 @@ const FLY_MS = 800;
  * Thread principal: câmera, entrada, interface e desenho. O mundo vive no Web Worker
  * (`src/sim/`); aqui fica só uma cópia das cores para a textura, atualizada por remendos.
  */
+/** Bateria do aparelho, se o navegador informa (Chrome sim, Firefox não). */
+async function readBattery(): Promise<{ charging: boolean; level: number } | null> {
+  const nav = navigator as Navigator & { getBattery?: () => Promise<{ charging: boolean; level: number }> };
+  try {
+    return nav.getBattery ? await nav.getBattery() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** A pergunta antes do "Medir desempenho" (B10, opção b do usuário). */
 export const BENCHMARK_CONFIRM =
   'O "Medir desempenho" leva cerca de 3 minutos e, no fim, gera o mundo de novo: o jogo volta ao ano 0 e o que você fez neste mundo se perde.\n\nDeixe o jogo na frente, sem trocar de janela. Começar?';
@@ -1079,6 +1089,7 @@ export class App {
         sharedMemory: `${this.sim.sharedMemory} (recargas p/ isolar ${isolationReloads()})`,
         screen: `tela ${screen.width}×${screen.height} @${(window.devicePixelRatio || 1).toFixed(2)} · desenho ${canvas.width}×${canvas.height} · ~${this.stats.lastMinGap > 0 ? Math.round(1000 / this.stats.lastMinGap) : 0} Hz`,
         userAgent: navigator.userAgent,
+        power: powerLabel(await readBattery()),
       },
       scenarios,
       gen,

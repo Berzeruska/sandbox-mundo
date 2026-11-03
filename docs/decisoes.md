@@ -1138,3 +1138,5 @@ Formato: data — decisão — motivo — alternativa descartada.
   ajusta mais ao espaço até a borda. Sai o `SAND_BIT` das cores e o recorte da poeira no shader (F1): a
   impressão digital da geologia volta ao valor de antes da F1 (`aee2695d`). Alternativa descartada:
   manter o recorte e deixar só passar 1–2 células (a pergunta da F1), superada pela decisão do usuário.
+- **2026-11-03 — Energia no relatório (técnico):** o "Medir desempenho" diz "na tomada" ou "NA
+  BATERIA" pelo `navigator.getBattery()` (Chrome informa; Firefox não, e aparece "não informado").

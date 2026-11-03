@@ -213,6 +213,14 @@ export interface DeviceInfo {
   sharedMemory: string;
   screen: string;
   userAgent: string;
+  /** Bateria ou tomada (no notebook a bateria baixa o relógio da CPU e da GPU; A, 2026-11-03). */
+  power?: string;
+}
+
+/** Linha de energia do relatório, pelo que o navegador informa da bateria (ou "não informado"). */
+export function powerLabel(battery: { charging: boolean; level: number } | null): string {
+  if (!battery) return 'não informado pelo navegador';
+  return battery.charging ? `na tomada (bateria ${Math.round(battery.level * 100)}%)` : `NA BATERIA (${Math.round(battery.level * 100)}%): CPU e GPU mais lentas`;
 }
 
 /** Tempo da GPU desenhando o globo, num enquadramento (meta do notebook: ≤ 8 ms por quadro). */
@@ -295,6 +303,7 @@ export function formatReport(
     `GPU: ${device.gpu}`,
     `desenho: ${device.drawing} · núcleos: ${device.cores} · memória compartilhada: ${device.sharedMemory} · ${device.screen}`,
     `navegador: ${device.userAgent}`,
+    ...(device.power ? [`energia: ${device.power}`] : []),
     '',
     `${pad('cenário', 26)}${lpad('fps méd', 8)}${lpad('mín', 6)}${lpad('pior quadro', 13)}${lpad('>50ms', 7)}${lpad('tela ms', 9)}${lpad('desenhados', 13)}`,
   ];
