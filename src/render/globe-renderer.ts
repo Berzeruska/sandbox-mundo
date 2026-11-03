@@ -1,4 +1,5 @@
 import { fragmentShader, MAX_DUST, MAX_STORMS, VERTEX_SHADER } from './shaders';
+import { ClimateFade, type PatchLike } from './climate-fade';
 import type { Camera } from './camera';
 import { packRect } from './dirty';
 import { buildNoiseVolume, NOISE_SIZE } from './noise-volume';
@@ -107,6 +108,9 @@ export class GlobeRenderer {
   private snapRadius = 1;
   private snapTotal = new Float32Array(MAX_SHADER_PLATES * 2);
   private snapDelta = new Float32Array(MAX_SHADER_PLATES * 2);
+  /** Troca suave das cores do clima (B4): cópia da textura antiga na CPU e a textura na GPU. */
+  private fade: ClimateFade;
+  private oldTexture: WebGLTexture | null = null;
   /** Câmera e movimento do último quadro (a imagem da recomposição sai igual a ele). */
   private lastCamera: Camera | null = null;
   private lastMotion: PlateMotionUniforms | null = null;
@@ -115,6 +119,7 @@ export class GlobeRenderer {
     this.canvas = canvas;
     this.n = n;
     this.colors = colors;
+    this.fade = new ClimateFade(n);
     const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
     if (!gl) throw new Error('Este navegador não suporta WebGL2.');
     this.gl = gl;
@@ -141,6 +146,7 @@ export class GlobeRenderer {
   setWorld(n: number, colors: Uint8Array): void {
     this.n = n;
     this.colors = colors;
+    this.fade = new ClimateFade(n);
     if (!this.lost) {
       if (this.prevTexture) this.gl.deleteTexture(this.prevTexture);
       if (this.prevPlateTexture) this.gl.deleteTexture(this.prevPlateTexture);
@@ -151,6 +157,7 @@ export class GlobeRenderer {
       this.createTexture();
       this.createPlateTexture();
       this.createDepositTexture();
+      this.createOldTexture();
     }
   }
 
@@ -169,7 +176,7 @@ export class GlobeRenderer {
     }
     // Se até o simplificado falhar, o erro sobe e aparece na tela (App).
     this.program ??= linkProgram(gl, VERTEX_SHADER, fragmentShader(false));
-    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev', 'uDeposits', 'uDepositsPrev', 'uResLayer', 'uRiftColor', 'uClouds', 'uCloudTime', 'uStormCount', 'uStorms', 'uStormPower', 'uDustCount', 'uDust', 'uDustPower', 'uPass', 'uSnap', 'uSnapOn', 'uSnapRot', 'uSnapCenter', 'uSnapRadius', 'uSnapSize', 'uSnapDelta']) {
+    for (const name of ['uCells', 'uNoise', 'uN', 'uCenter', 'uRadius', 'uRot', 'uLight', 'uCellAngle', 'uPlates', 'uMoving', 'uPlateAxis', 'uPlateCenter', 'uPlateTotal', 'uPlateBase', 'uMaxDelta', 'uRidgeColor', 'uCellsPrev', 'uPlatesPrev', 'uPlateBasePrev', 'uFade', 'uMaxDeltaPrev', 'uDeposits', 'uDepositsPrev', 'uResLayer', 'uRiftColor', 'uClouds', 'uCloudTime', 'uStormCount', 'uStorms', 'uStormPower', 'uDustCount', 'uDust', 'uDustPower', 'uPass', 'uSnap', 'uSnapOn', 'uSnapRot', 'uSnapCenter', 'uSnapRadius', 'uSnapSize', 'uSnapDelta', 'uCellsOld', 'uClimateOn', 'uClimateNow']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.vao = gl.createVertexArray();
@@ -177,6 +184,49 @@ export class GlobeRenderer {
     this.createTexture();
     this.createPlateTexture();
     this.createDepositTexture();
+    this.createOldTexture();
+  }
+
+  /** Textura da cor antiga (troca suave do clima, B4), começando sem troca nenhuma. */
+  private createOldTexture(): void {
+    const gl = this.gl;
+    if (this.oldTexture) gl.deleteTexture(this.oldTexture);
+    this.fade.reset();
+    this.oldTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.oldTexture);
+    gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGBA8, this.n, this.n, 6);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    this.fillOldTexture();
+  }
+
+  private fillOldTexture(): void {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.oldTexture);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, 0, this.n, this.n, 6, gl.RGBA, gl.UNSIGNED_BYTE, this.fade.old);
+  }
+
+  /** Reenvia pedaços da textura da cor antiga. */
+  private uploadOld(rects: readonly DirtyRect[]): void {
+    if (this.lost || !rects.length || !this.oldTexture) return;
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.oldTexture);
+    for (const r of rects) {
+      const size = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1) * 4;
+      if (this.packBuffer.length < size) this.packBuffer = new Uint8Array(size);
+      const data = packRect(this.fade.old, this.n, r, this.packBuffer);
+      gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, r.x0, r.y0, r.face, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    }
+  }
+
+  /**
+   * Cores novas do clima chegando (ainda não aplicadas em `colors`): as células que mudam passam da cor
+   * antiga para a nova aos poucos (B4). Chamar antes de aplicar os remendos e de `upload`.
+   */
+  fadeFrom(patches: readonly PatchLike[]): void {
+    if (this.lost) return;
+    this.uploadOld(this.fade.begin(this.colors, patches, performance.now()));
   }
 
   /** Jazidas do mundo todo (mundo novo, ou petróleo revelado por uma pincelada). */
@@ -233,6 +283,11 @@ export class GlobeRenderer {
     else this.createTexture();
     if (this.plateTexture) this.fillPlateTexture();
     else this.createPlateTexture();
+    // O mundo todo foi trocado (com a transição da recomposição): as trocas do clima param aqui.
+    if (this.fade.active()) {
+      this.fade.reset();
+      this.fillOldTexture();
+    }
   }
 
   /** Placa de cada célula (bits 0–3) e crosta continental (bit 4), para o movimento suave. */
@@ -431,6 +486,7 @@ export class GlobeRenderer {
   }
 
   draw(camera: Camera, motion?: PlateMotionUniforms): void {
+    if (!this.lost && this.fade.active()) this.uploadOld(this.fade.complete(performance.now()));
     this.lastCamera = camera;
     this.lastMotion = motion ?? null;
     const fading = !!motion && motion.moving && motion.fade < 1;
@@ -469,6 +525,8 @@ export class GlobeRenderer {
     const snapOn = pass === 0 && fading && this.snapValid && !!snap && snap.w === this.canvas.width && snap.h === this.canvas.height;
     gl.activeTexture(gl.TEXTURE7);
     gl.bindTexture(gl.TEXTURE_2D, pass !== 1 && snap ? snap.tex : null);
+    gl.activeTexture(gl.TEXTURE8);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.oldTexture);
     gl.activeTexture(gl.TEXTURE0);
     const u = this.uniforms;
     gl.uniform1i(u.uCells ?? null, 0);
@@ -479,6 +537,9 @@ export class GlobeRenderer {
     gl.uniform1i(u.uDeposits ?? null, 5);
     gl.uniform1i(u.uDepositsPrev ?? null, 6);
     gl.uniform1i(u.uSnap ?? null, 7);
+    gl.uniform1i(u.uCellsOld ?? null, 8);
+    gl.uniform1i(u.uClimateOn ?? null, this.fade.active() ? 1 : 0);
+    gl.uniform1f(u.uClimateNow ?? null, ClimateFade.stamp(performance.now()));
     gl.uniform1i(u.uPass ?? null, pass);
     gl.uniform1i(u.uSnapOn ?? null, snapOn ? 1 : 0);
     if (snapOn && snap && motion) {

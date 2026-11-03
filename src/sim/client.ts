@@ -11,7 +11,7 @@ export interface SimEvents {
   onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[], plates: PlateMotionInfo[], deposits: Uint8Array): void;
   onProgress(stage: string, fraction: number): void;
   /** `deposits`: todas as jazidas, só quando a pincelada revelou petróleo. */
-  onPatch(patches: Patch[], brushMs: number, deposits?: Uint8Array): void;
+  onPatch(patches: Patch[], brushMs: number, deposits?: Uint8Array, fade?: boolean): void;
   /** Erro no worker, no protocolo ou versão diferente (`versionMismatch`). */
   onError(message: string, versionMismatch?: boolean): void;
   /** Qualquer mensagem do worker (para o vigia de "sem resposta"). */
@@ -170,7 +170,7 @@ export class SimClient {
         this.events.onProgress(msg.stage, msg.fraction);
         break;
       case 'patch':
-        this.events.onPatch(msg.patches, msg.brushMs, msg.deposits);
+        this.events.onPatch(msg.patches, msg.brushMs, msg.deposits, msg.fade);
         // Só a resposta de uma pincelada libera a próxima (repintura de camada tem brushMs < 0).
         if (msg.brushMs < 0) break;
         this.brushInFlight = false;

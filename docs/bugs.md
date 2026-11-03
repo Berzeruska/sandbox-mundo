@@ -341,3 +341,20 @@ Formato: data — como reproduzir — causa — correção — commit.
   `src/render/disaster-fx.ts`): pausado ela fica parada no céu; em 1× nada muda; em 20× continua
   levando 1 s. Testes em `tests/render/meteor-fx.test.ts` (o de "pausado" falha no código antigo).
   Se o defeito que o usuário viu não foi pausado, falta saber a velocidade e o tamanho usados.
+
+## 2026-11-03 — Travada de 7,7 s "ao jogar meteoro" (notebook, `adf001ea`, B1)
+- **Como reproduzir:** Dados → Medir desempenho → a pergunta aparece; esperar uns segundos antes de
+  responder. O rodapé do Dados registrava uma travada "tela e data juntas, núcleo ocupado" com o tempo da
+  pergunta aberta.
+- **Causa:** `window.confirm` para a página inteira; o registro de travadas contava o tempo.
+- **Correção:** o registro recomeça depois da pergunta (`runBenchmark` em `src/app.ts`).
+- **Junto:** data esperando 0,3–1,1 s em 20× com meteoro gigante (clima refeito e planeta repintado a
+  cada meio grau do inverno, várias vezes por volta do relógio). Corrigido: repinta só o que muda e
+  refaz o frio no máximo a cada 4 passos e uma vez por volta. Testes em `tests/world/meteor.test.ts`.
+
+## 2026-11-03 — Clima pulando em degraus; controle de temperatura parado com o jogo pausado (B4)
+- **Como reproduzir:** Clima → Temperatura −6 em 1×: a cada meio segundo uma faixa de células trocava
+  de cor de uma vez. Pausado, nada mudava até soltar o tempo.
+- **Causa:** degraus de meio grau aplicados de uma vez; o laço do relógio só rodava com o tempo andando.
+- **Correção:** troca suave das cores na tela (0,6 s por célula, `src/render/climate-fade.ts`, testes em
+  `tests/render/climate-fade.test.ts`); o laço roda enquanto a temperatura desliza.

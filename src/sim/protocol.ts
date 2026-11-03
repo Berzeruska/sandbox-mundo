@@ -102,7 +102,8 @@ export type FromWorker =
   | { type: 'recomposed'; patches: Patch[]; plateCells: Uint8Array; angles: number[]; plates: PlateMotionInfo[]; deposits: Uint8Array }
   | { type: 'progress'; stage: string; fraction: number }
   /** `deposits`: todas as jazidas, só quando uma pincelada revelou petróleo (T6). */
-  | { type: 'patch'; patches: Patch[]; brushMs: number; deposits?: Uint8Array }
+  /** `fade`: cores mudadas pelo clima, que a tela troca aos poucos (B4). */
+  | { type: 'patch'; patches: Patch[]; brushMs: number; deposits?: Uint8Array; fade?: boolean }
   | {
       type: 'clock';
       tick: number;

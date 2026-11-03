@@ -1197,3 +1197,15 @@ O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e reve
 18. **Temperatura extrema (docs):** frio máximo = o planeta todo congelado, bem extremo; calor máximo,
     "Mad Max" (só inspiração, regra 8): água e floresta raras, que viram objetos de poder numa sociedade
     apocalíptica. Física no M3; social no M5/M6, com o que já estava registrado.
+- **2026-11-03 — B1, inverno de impacto mais leve (técnico):** a prévia do clima repinta só as células
+  marcadas por `shiftClimate` (bioma ou gelo mudou: ela, o anel 3×3 e as 4 vizinhas; mar congelado: só
+  ela), também quando um resultado do ajudante chega e o frio vai por cima. O frio é refeito no máximo a
+  cada `IMPACT_PREVIEW_TICKS` = 4 passos e uma vez por volta do relógio. Consequência: em 20× (ou numa
+  volta que alcança o tempo) o passo exato de cada degrau de meio grau pode variar com a velocidade
+  (só a temperatura lida por furacões e incêndios naqueles passos). Alternativa descartada: refazer
+  em pedaços por passo (mesmo custo por quadro em 20×) e só a cada ano (degraus de até 6 °C em 1×).
+- **2026-11-03 — B4, troca suave das cores do clima (técnico, pedido do usuário):** textura extra RGBA8
+  (1,5 MB) com a cor antiga e a hora da troca (alfa, unidades de 1/32 s, volta em 255; 255 = sem troca);
+  0,6 s por célula; o shader só lê a textura enquanto há troca; recomposição cancela as trocas (ela tem
+  a transição dela). Alternativas descartadas: degraus menores (5× mais clima refeito no relógio) e
+  misturar na CPU a cada quadro (custo na tela).

@@ -336,7 +336,7 @@ export class App {
         this.lastGenerationSignal = performance.now();
         this.showProgress(stage, fraction);
       },
-      onPatch: (patches, brushMs, deposits) => this.onPatch(patches, brushMs, deposits),
+      onPatch: (patches, brushMs, deposits, fade) => this.onPatch(patches, brushMs, deposits, fade),
       onDisasters: (events) => this.onDisasters(events),
       onStorms: (storms) => this.onStorms(storms),
       onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
@@ -678,8 +678,10 @@ export class App {
     return true;
   }
 
-  private onPatch(patches: Patch[], brushMs: number, deposits?: Uint8Array): void {
+  private onPatch(patches: Patch[], brushMs: number, deposits?: Uint8Array, fade?: boolean): void {
     if (!this.info || !this.renderer) return;
+    // Cores mudadas pelo clima: a tela troca aos poucos, partindo do que mostra agora (B4).
+    if (fade) this.renderer.fadeFrom(patches);
     for (const p of patches) applyPatch(this.colors, this.info.n, p);
     this.renderer.upload(patches);
     if (deposits) this.renderer.setDeposits(deposits);
@@ -914,7 +916,11 @@ export class App {
     if (this.bench || !this.info || !this.renderer) return;
     // No fim a medição gera o mundo de novo (mede a geração) e o jogo volta ao ano 0: pergunta antes
     // (decisão do usuário, 2026-11-03, opção b).
-    if (!window.confirm(BENCHMARK_CONFIRM)) return;
+    // A caixa do navegador para a página inteira enquanto está aberta: o tempo lendo a pergunta não é
+    // travada do jogo (a de 7,7 s do relatório da adf001ea veio daqui).
+    const answer = window.confirm(BENCHMARK_CONFIRM);
+    this.stalls.restart();
+    if (!answer) return;
     const seedText = this.info.seedText;
     const before = { speed: this.clock.speed, plateRate: this.plateRate, spin: this.stressSpin };
     const bench: NonNullable<App['bench']> = { recorder: null, receive: [], onWorld: null, panelOpen: false };

@@ -463,11 +463,25 @@ function temperatureOf(world: WorldState, t: LatitudeTables, i: number, height: 
  * refeitos; chuva, vento e distância até a água não mudam (bem mais barato que `updateClimate`). Dá
  * exatamente o mesmo resultado que o recálculo total (mesma conta).
  */
-export function shiftClimate(world: WorldState, offset: number): void {
+export function shiftClimate(world: WorldState, offset: number, changed?: Uint8Array): void {
   world.climateOffset = offset;
   const tables = latitudeTables(world.grid);
   for (let i = 0; i < world.cellCount; i++) world.temperature[i] = temperatureOf(world, tables, i, world.heightAboveSea(i));
-  for (let i = 0; i < world.cellCount; i++) computeIceAndBiome(world, i);
+  if (!changed) {
+    for (let i = 0; i < world.cellCount; i++) computeIceAndBiome(world, i);
+    return;
+  }
+  // Quem chama quer saber que células podem ter mudado de cor (B1, teste da adf001ea): repintar o mundo
+  // todo a cada meio grau do inverno de impacto custava ~60 ms. A cor depende do clima só pelo bioma e
+  // pelo gelo (2: a célula e as vizinhas, que leem os cantos e a borda do gelo) e, no mar congelado,
+  // pela temperatura (1: só a célula, espessura do gelo).
+  for (let i = 0; i < world.cellCount; i++) {
+    const biome = world.biome[i];
+    const ice = world.ice[i];
+    computeIceAndBiome(world, i);
+    if (world.biome[i] !== biome || world.ice[i] !== ice) changed[i] = 2;
+    else if (ice && world.heightAboveSea(i) <= 0) changed[i] = 1;
+  }
 }
 
 /**
@@ -476,10 +490,10 @@ export function shiftClimate(world: WorldState, offset: number): void {
  * tudo é refeito (distância até a água, chuva). O mar segue só `offset`. Retorna true se o nível do
  * mar mudou.
  */
-export function applyClimateOffset(world: WorldState, offset: number, cooling = 0): boolean {
+export function applyClimateOffset(world: WorldState, offset: number, cooling = 0, changed?: Uint8Array): boolean {
   const sea = seaLevelFor(world.params.seaLevel, offset);
   if (sea === world.seaLevel) {
-    shiftClimate(world, offset - cooling);
+    shiftClimate(world, offset - cooling, changed);
     return false;
   }
   world.seaLevel = sea;

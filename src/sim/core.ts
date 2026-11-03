@@ -143,6 +143,7 @@ export class SimulationCore {
   readonly work: WorkCounters = emptyWork();
   private grid: CubeSphere | null = null;
   private lastPostedTick = -1;
+  private lastPostedOffset = 0;
   private lastPostedAt = -Infinity;
   private ticksWindow = { since: 0, ticks: 0, rate: 0 };
   readonly geology: GeologyPort;
@@ -170,6 +171,9 @@ export class SimulationCore {
   private impacts: ImpactWinter[] = [];
   /** Frio de impacto que o mundo do relógio mostra agora (°C). */
   private shownCooling = 0;
+  /** Passo do último clima refeito pelo inverno de impacto. */
+  private impactPreviewTick = -Infinity;
+  private impactPreviewedThisLoop = false;
   /** Quantos furacões a tela está mostrando, e de que passo. */
   private stormsShown = 0;
   private stormsTick = -1;
@@ -271,6 +275,7 @@ export class SimulationCore {
     this.pending = [];
     this.pendingPaint.clear();
     this.impacts = [];
+    this.impactPreviewTick = -Infinity;
     this.shownCooling = 0;
     this.brushLog = [];
     this.engineTick = 0;
@@ -541,11 +546,15 @@ export class SimulationCore {
     const cooling = impactCooling(this.clock.tick, this.impacts);
     // O motor não tem o frio de impacto: durante o inverno, ele vai por cima aqui.
     const reapply = r.control !== this.climateControl || cooling > 0;
-    if (reapply) applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl), cooling);
+    // As cores do motor batem com o clima dele: reaplicando por cima, só as células que mudaram de bioma
+    // ou gelo (e o anel) são repintadas, como na prévia (B1, teste da adf001ea; antes o mundo todo, ~60 ms).
+    const marks = reapply ? new Uint8Array(world.cellCount) : null;
+    const seaMoved = marks ? applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl), cooling, marks) : false;
     this.shownCooling = cooling;
     // Do mesmo jeito, as cores foram pintadas com as visões que valiam lá atrás: se o jogador ligou ou
     // desligou uma visão no meio, repinta com as de agora (senão a visão "desligava sozinha", E9/E5).
-    if (reapply || !sameLayers(r.layers, this.layers)) buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);
+    if (seaMoved || !sameLayers(r.layers, this.layers)) buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);
+    else if (marks) buildColors(world, this.colors, expandMarks(world.grid, marks), this.layers, this.disasters?.ground);
     if (before) {
       // Só o clima mudou: a tela recebe só os pedaços com cor nova (gelo e biomas que andaram).
       this.geology.send({ type: 'consumed', world: this.worldId, index: r.index });
@@ -557,7 +566,7 @@ export class SimulationCore {
         const o = c * 4;
         if (before[o] !== this.colors[o] || before[o + 1] !== this.colors[o + 1] || before[o + 2] !== this.colors[o + 2] || before[o + 3] !== this.colors[o + 3]) changed.push(c);
       }
-      if (changed.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, changed)), brushMs: -1 });
+      if (changed.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, changed)), brushMs: -1, fade: true });
       this.work.climateUpdates++;
       this.work.climateUpdateMs += r.climateMs + r.colorsMs;
       return;
@@ -649,9 +658,20 @@ export class SimulationCore {
   private followImpacts(tick: number): void {
     if (!this.impacts.length) return;
     const cooling = impactCooling(tick, this.impacts);
-    if (Math.abs(cooling - this.shownCooling) >= CONTROL_APPLY_STEP || (cooling === 0 && this.shownCooling !== 0)) this.previewClimate();
-    // Inverno que acabou sai da lista.
+    // No máximo uma vez a cada IMPACT_PREVIEW_TICKS passos e uma por volta do relógio (B1, teste da
+    // adf001ea): com vários gigantes juntos o frio anda meio grau por passo; em 20× (ou numa volta que
+    // corre muitos passos para alcançar o tempo) eram vários climas refeitos de uma vez, ~50 ms cada, e a
+    // data travava ~1 s. A tela mostra um resultado por volta, então o resto ficava sem ser visto.
+    const due = tick - this.impactPreviewTick >= IMPACT_PREVIEW_TICKS && !this.impactPreviewedThisLoop;
+    if ((due && Math.abs(cooling - this.shownCooling) >= CONTROL_APPLY_STEP) || (cooling === 0 && this.shownCooling !== 0)) {
+      this.impactPreviewTick = tick;
+      this.impactPreviewedThisLoop = true;
+      this.previewClimate();
+    }
+    // Inverno que acabou sai da lista. Acabou o último: o resto de frio (centésimos de grau da rampa de
+    // volta) sai também, senão ficava para sempre (B2, teste da adf001ea).
     this.impacts = this.impacts.filter((i) => tick - i.tick < i.years * TICKS_PER_YEAR);
+    if (!this.impacts.length && this.shownCooling !== 0) this.previewClimate();
   }
 
   /** Clima do passo atual (controle + frio de impacto) feito aqui, só as cores novas vão para a tela. */
@@ -659,17 +679,32 @@ export class SimulationCore {
     const world = this.world;
     if (!world) return;
     this.shownCooling = impactCooling(this.clock.tick, this.impacts);
-    applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl), this.shownCooling);
+    // Com o mesmo nível do mar, só as células que mudaram de bioma ou gelo (e o anel em volta) e o mar
+    // congelado são repintados; mudando o mar, o mundo todo (B1, teste da adf001ea).
+    const marks = new Uint8Array(world.cellCount);
+    const seaMoved = applyClimateOffset(world, climateOffsetAt(this.clock.tick, this.climateControl), this.shownCooling, marks);
+    const cells = seaMoved ? null : expandMarks(world.grid, marks);
     // Só os pedaços com cor nova vão para a tela (a cada meio grau, quase todo o mundo fica igual).
-    const before = this.colors.slice();
-    buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);
-    if (this.layers.stress && !this.layers.resources) this.tintStressCells();
     const changed: number[] = [];
-    for (let c = 0; c < world.cellCount; c++) {
-      const o = c * 4;
-      if (before[o] !== this.colors[o] || before[o + 1] !== this.colors[o + 1] || before[o + 2] !== this.colors[o + 2] || before[o + 3] !== this.colors[o + 3]) changed.push(c);
+    if (cells) {
+      const before = new Uint8Array(cells.length * 4);
+      cells.forEach((c, k) => before.set(this.colors.subarray(c * 4, c * 4 + 4), k * 4));
+      this.paint(cells);
+      cells.forEach((c, k) => {
+        const o = c * 4;
+        const q = k * 4;
+        if (before[q] !== this.colors[o] || before[q + 1] !== this.colors[o + 1] || before[q + 2] !== this.colors[o + 2] || before[q + 3] !== this.colors[o + 3]) changed.push(c);
+      });
+    } else {
+      const before = this.colors.slice();
+      buildColors(world, this.colors, undefined, this.layers, this.disasters?.ground);
+      if (this.layers.stress && !this.layers.resources) this.tintStressCells();
+      for (let c = 0; c < world.cellCount; c++) {
+        const o = c * 4;
+        if (before[o] !== this.colors[o] || before[o + 1] !== this.colors[o + 1] || before[o + 2] !== this.colors[o + 2] || before[o + 3] !== this.colors[o + 3]) changed.push(c);
+      }
     }
-    if (changed.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, changed)), brushMs: -1 });
+    if (changed.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, changed)), brushMs: -1, fade: true });
   }
 
   /** Liga/desliga camadas: repinta o mundo todo e manda as 6 faces como remendos. */
@@ -708,6 +743,7 @@ export class SimulationCore {
 
   /** Avança o relógio pelo tempo real `dt` (segundos). Chamado pelo laço do worker. */
   advance(dt: number): void {
+    this.impactPreviewedThisLoop = false;
     this.glideClimate(dt);
     const start = this.now();
     let blocked = false;
@@ -774,8 +810,12 @@ export class SimulationCore {
    * O laço do relógio precisa rodar? Só com mundo e tempo correndo; parado, o worker dorme até a
    * próxima mensagem (não acorda 60 vezes por segundo à toa num núcleo que a tela quer usar).
    */
+  /**
+   * O laço do relógio tem o que fazer: tempo correndo, ou o controle de temperatura deslizando (anda em
+   * tempo real também pausado; antes o worker dormia pausado e o clima pulava todo ao soltar, B4).
+   */
   get running(): boolean {
-    return this.world !== null && this.clock.speed !== 0;
+    return this.world !== null && (this.clock.speed !== 0 || this.climateGlide !== this.climateTarget);
   }
 
   /**
@@ -783,11 +823,14 @@ export class SimulationCore {
    * mudou a velocidade ou nasceu um mundo).
    */
   private postClock(force: boolean): void {
-    if (!force && this.clock.tick === this.lastPostedTick) return;
+    // Pausado com a temperatura deslizando, o calendário não muda mas o clima sim (linha "clima" do Dados).
+    const offset = this.world?.climateOffset ?? 0;
+    if (!force && this.clock.tick === this.lastPostedTick && offset === this.lastPostedOffset) return;
     const t = this.now();
     if (!force && t - this.lastPostedAt < CLOCK_POST_MS) return;
     this.lastPostedAt = t;
     this.lastPostedTick = this.clock.tick;
+    this.lastPostedOffset = offset;
     this.work.clockMessages++;
     const s = this.stats;
     if (s) {
@@ -853,4 +896,42 @@ export function landCenter(world: WorldState): Vec3 {
   }
   const len = Math.hypot(x, y, z);
   return len > 1e-9 ? [x / len, y / len, z / len] : [0, 0, 1];
+}
+
+/** Passos mínimos entre dois climas refeitos pelo inverno de impacto (em 20×, um por quadro). */
+export const IMPACT_PREVIEW_TICKS = 4;
+
+/**
+ * Células marcadas por `shiftClimate` para repintar: 1 = só ela; 2 = ela, o anel 3×3 na face e as 4
+ * vizinhas da grade (os cantos do bioma e a borda do gelo das vizinhas dependem dela). Sem `Set`: no
+ * inverno de impacto são dezenas de milhares de células por degrau.
+ */
+export function expandMarks(grid: CubeSphere, marks: Uint8Array): number[] {
+  const n = grid.n;
+  const nb = grid.neighbors;
+  const out = new Uint8Array(marks.length);
+  let c = 0;
+  for (let face = 0; face < 6; face++) {
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++, c++) {
+        const m = marks[c];
+        if (!m) continue;
+        out[c] = 1;
+        if (m < 2) continue;
+        const x0 = x > 0 ? -1 : 0;
+        const x1 = x < n - 1 ? 1 : 0;
+        if (y > 0) for (let dx = x0; dx <= x1; dx++) out[c - n + dx] = 1;
+        for (let dx = x0; dx <= x1; dx++) out[c + dx] = 1;
+        if (y < n - 1) for (let dx = x0; dx <= x1; dx++) out[c + n + dx] = 1;
+        const o = c * 4;
+        out[nb[o] as number] = 1;
+        out[nb[o + 1] as number] = 1;
+        out[nb[o + 2] as number] = 1;
+        out[nb[o + 3] as number] = 1;
+      }
+    }
+  }
+  const cells: number[] = [];
+  for (let k = 0; k < out.length; k++) if (out[k]) cells.push(k);
+  return cells;
 }

@@ -1,6 +1,7 @@
 import { Biome, BIOME_COUNT, BIOME_INFO } from '../world/biomes';
 import { FACES, type Vec3 } from '../world/cubesphere';
 import { BIOME_BITS, DECOR_BIT } from './colors';
+import { FADE_MS, NO_FADE, STAMP_MS, STAMP_WRAP } from './climate-fade';
 import { Resource, RESOURCE_INFO } from '../world/resources';
 import { CONTINENTAL_BIT, LINE_BIT, MAX_SHADER_PLATES, NEAR_CELLS, NEAR_REACH_CELLS, PLATE_MASK } from './plate-motion';
 
@@ -145,7 +146,7 @@ ${ks.map((k) => `    if (ok${k} && b${k} != b && d${k} < second) { second = d${k
     m = second < 1e9 ? min(1.0, (sqrt(second) - sqrt(near)) / uCellAngle) : 1.0;
   }
   cell = pickT == t0c ? col0 : texelFetch(${cells}, pickT, 0);
-  bool water = b <= 1;
+${sfx === '' ? '  cell = climateMix(cell, pickT);\n' : ''}  bool water = b <= 1;
   // Cor mais viva e uma variação leve por célula (cada célula se distingue, sem borrão).
   vec3 col = cell.rgb;
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
@@ -242,7 +243,7 @@ function setFunctions(sfx: string, cells: string, plates: string, base: string, 
 // Célula que contém o ponto p da esfera: cor (rgb) e código do bioma (a).
 vec4 cellAt${sfx}(vec3 p) {
   ivec3 t = texelOf(p);
-  return texelFetch(${cells}, t, 0);
+  return ${sfx === '' ? `climateMix(texelFetch(${cells}, t, 0), t)` : `texelFetch(${cells}, t, 0)`};
 }
 
 // Canal R: placa, crosta continental, encosta em outra placa. Canal G: outras placas por perto.
@@ -420,7 +421,8 @@ vec3 surface${sfx}(vec3 p, float cellPx, out int plOut) {
 /** Variante simplificada: só a cor da célula, com bordas orgânicas e textura (sem placas). */
 const SIMPLE_GLSL = `
 vec4 cellAt(vec3 p) {
-  return texelFetch(uCells, texelOf(p), 0);
+  ivec3 t = texelOf(p);
+  return climateMix(texelFetch(uCells, t, 0), t);
 }
 ${tileGlsl('', 'uCells', 'uDeposits')}
 
@@ -580,6 +582,25 @@ ivec3 texelOf(vec3 p) {
   vec2 ab = atanQuarter(vec2(dot(p, u), dot(p, v)) / dn);
   ivec2 texel = clamp(ivec2(floor((ab + 1.0) * 0.5 * float(uN))), ivec2(0), ivec2(uN - 1));
   return ivec3(texel, face);
+}
+
+// Troca suave das cores que o clima muda (B4, \`src/render/climate-fade.ts\`): a cor antiga (rgb) e a
+// hora da troca (alfa) numa textura à parte; só lida enquanto alguma troca está andando.
+uniform sampler2DArray uCellsOld;
+uniform int uClimateOn;
+uniform float uClimateNow; // hora atual nas unidades do alfa (${STAMP_MS.toFixed(4)} ms, volta em ${STAMP_WRAP})
+vec4 climateMix(vec4 c, ivec3 t) {
+  if (uClimateOn == 0) return c;
+  vec4 o = texelFetch(uCellsOld, t, 0);
+  float stamp = floor(o.a * 255.0 + 0.5);
+  if (stamp == ${NO_FADE.toFixed(1)}) return c;
+  float age = mod(uClimateNow - stamp + ${STAMP_WRAP.toFixed(1)}, ${STAMP_WRAP.toFixed(1)});
+  float f = clamp(age * ${(STAMP_MS / FADE_MS).toFixed(6)}, 0.0, 1.0);
+  vec3 m = mix(o.rgb, c.rgb, f);
+  // O bit baixo do azul (jazida na célula) fica o da cor nova.
+  float lsb = mod(floor(c.b * 255.0 + 0.5), 2.0);
+  m.b = (floor(m.b * 127.5) * 2.0 + lsb) / 255.0;
+  return vec4(m, c.a);
 }
 
 ${DECORATE_GLSL}

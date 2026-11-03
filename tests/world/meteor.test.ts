@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, seedFrom } from '../../src/core/rng';
 import { TICKS_PER_YEAR } from '../../src/core/time';
-import { IMPACT_RAMP_YEARS } from '../../src/world/climate';
+import { glacialOffset, IMPACT_RAMP_YEARS } from '../../src/world/climate';
+import { buildColors } from '../../src/render/colors';
 import { SimulationCore } from '../../src/sim/core';
 import { createWorld } from '../../src/world/create';
 import { cellDistance, cellPoint, DisasterKind, Disasters } from '../../src/world/disasters';
@@ -114,6 +115,93 @@ describe('meteoro (C12)', () => {
     // Volta ao normal no fim do inverno (sem esperar o motor).
     yearsAfterHit(GIANT_WINTER.years + 1);
     expect(Math.abs(w.climateOffset - before)).toBeLessThan(0.3);
+  }, 60_000);
+
+  it('vários gigantes empilhados, dois jogados pausados: o mundo volta célula a célula ao que era (B2)', () => {
+    // B2 (teste da adf001ea): "depois de uma era do gelo feita com meteoros, a temperatura sobe ao
+    // máximo". O teste antigo via só o número do Dados com um gigante; este olha o que o jogador vê:
+    // temperatura, gelo e bioma de cada célula e as cores da tela.
+    const core = new SimulationCore(() => undefined, () => 0);
+    core.handle({ type: 'newWorld', seedText: 'terra', n: 32 });
+    core.handle({ type: 'disasterFrequency', level: 0 });
+    core.handle({ type: 'plateRate', rate: 0 });
+    const w = core.world!;
+    const temp0 = w.temperature.slice();
+    const biome0 = w.biome.slice();
+    const ice0 = w.ice.slice();
+    const cells = [inland(w), 3, 1500, 4000, 5100].map((c) => cellPoint(w, c));
+    core.handle({ type: 'speed', speed: 0 });
+    core.handle({ type: 'disaster', kind: DisasterKind.Meteor, point: cells[0]!, strength: 4 });
+    core.handle({ type: 'disaster', kind: DisasterKind.Meteor, point: cells[1]!, strength: 4 });
+    core.advance(1);
+    core.handle({ type: 'speed', speed: 1 });
+    let coldest = 0;
+    const colors = (core as unknown as { colors: Uint8Array }).colors;
+    const full = new Uint8Array(colors.length);
+    for (let k = 0; k < 3; k++) {
+      core.handle({ type: 'disaster', kind: DisasterKind.Meteor, point: cells[2 + k]!, strength: 4 });
+      for (let f = 0; f < 60; f++) {
+        core.advance(1 / 20);
+        coldest = Math.min(coldest, w.climateOffset);
+      }
+    }
+    // As cores da tela (repintura só onde mudou) são as mesmas de uma repintura completa.
+    buildColors(w, full, undefined, undefined, core.disasters!.ground);
+    expect(colors).toEqual(full);
+    expect(coldest).toBeLessThan(-3 * GIANT_WINTER.amount);
+    core.handle({ type: 'speed', speed: 20 });
+    while (core.clock.tick < (GIANT_WINTER.years + 10) * TICKS_PER_YEAR) core.advance(0.05);
+    // Só o ciclo glacial natural (milésimos de grau neste começo), sem resto de frio do impacto.
+    expect(Math.abs(w.climateOffset - glacialOffset(core.clock.tick))).toBeLessThan(0.01);
+    // Fora das crateras (o relevo mudou ali para sempre), cada célula volta à temperatura, ao gelo e ao
+    // bioma de antes.
+    const crater = new Set<number>();
+    for (const p of cells) for (const c of w.grid.cellsInCap(p[0], p[1], p[2], 40 * w.grid.cellAngle)) crater.add(c);
+    let differ = 0;
+    for (let c = 0; c < w.cellCount; c++) {
+      if (crater.has(c)) continue;
+      expect(Math.abs(w.temperature[c]! - temp0[c]!)).toBeLessThan(0.01);
+      if (w.biome[c] !== biome0[c] || w.ice[c] !== ice0[c]) differ++;
+    }
+    expect(differ).toBe(0);
+    buildColors(w, full, undefined, undefined, core.disasters!.ground);
+    expect(colors).toEqual(full);
+  }, 60_000);
+
+  it('recomposição das placas no meio do inverno: o frio vai por cima e a tela fica certa (B1, B2)', () => {
+    let now = 0;
+    const core = new SimulationCore(() => undefined, () => now);
+    core.handle({ type: 'newWorld', seedText: 'terra', n: 32 });
+    core.handle({ type: 'disasterFrequency', level: 0 });
+    core.handle({ type: 'plateRate', rate: 1 });
+    core.handle({ type: 'speed', speed: 20 });
+    const w = core.world!;
+    const recompositions = () => (core as unknown as { work: { recompositions: number } }).work.recompositions;
+    const colors = (core as unknown as { colors: Uint8Array }).colors;
+    const full = new Uint8Array(colors.length);
+    let seen = recompositions();
+    let last = 0;
+    // Gigantes a cada 10 anos até uma recomposição chegar no meio do frio.
+    for (let k = 0; ; k++) {
+      if (k % 2 === 0) {
+        core.handle({ type: 'disaster', kind: DisasterKind.Meteor, point: cellPoint(w, (k * 977) % w.cellCount), strength: 4 });
+        last = core.clock.tick;
+      }
+      now += 250;
+      core.advance(0.25);
+      if (recompositions() > seen && w.climateOffset < -GIANT_WINTER.amount * 0.5) break;
+      seen = recompositions();
+      expect(k).toBeLessThan(600);
+    }
+    buildColors(w, full, undefined, undefined, core.disasters!.ground);
+    expect(colors).toEqual(full);
+    while (core.clock.tick < last + (GIANT_WINTER.years + 10) * TICKS_PER_YEAR) {
+      now += 250;
+      core.advance(0.25);
+    }
+    expect(Math.abs(w.climateOffset - glacialOffset(core.clock.tick))).toBeLessThan(0.01);
+    buildColors(w, full, undefined, undefined, core.disasters!.ground);
+    expect(colors).toEqual(full);
   }, 60_000);
 
   it('naturais: pequenos os mais comuns, depois médios, grandes e gigante raríssimo', () => {

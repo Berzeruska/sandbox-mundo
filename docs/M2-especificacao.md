@@ -1611,6 +1611,57 @@ muda nada aos 3 min (a recolisão é dentro dela).
 5. **Fica como está** (falha conhecida registrada): 12 de 20; o CI continua com `terra`, `mundo`, `7`.
 - **Não proposto:** mudar a hora da medição ou os números do critério (seria afrouxar).
 
+## Correções do teste da `adf001ea` (2026-11-03, segunda rodada; antes da T14)
+Mensagem do usuário de 2026-11-03 (segunda), itens A–G; decisões em `docs/decisoes.md`.
+
+### B1 — Travadas ao jogar meteoro (feito)
+- **A de 7,7 s do relatório não era do meteoro:** era a pergunta "Medir desempenho?" (B10 iii). Ela usa a
+  caixa do navegador (`window.confirm`), que para a página inteira enquanto está aberta; o registro de
+  travadas contava esse tempo como "tela e data juntas, núcleo ocupado". Os 7,7 s são o tempo lendo a
+  pergunta (e os 1,2 s, provavelmente um cancelar rápido). Corrigido: o registro recomeça depois da
+  pergunta.
+- **Medido no Chromium com a GPU de verdade (1080p):** os 4 tamanhos, em terra e no mar, pausado, 1×, 5×
+  e 20×: nenhum quadro da tela > 50 ms e nenhuma tarefa longa na tela, antes e depois. O que travava era
+  a **data em 20×** com meteoro gigante: 0,3–0,55 s com um, ~1,1 s com seis seguidos.
+- **Causa:** o inverno do gigante refazia o clima e repintava o planeta inteiro a cada meio grau de frio
+  (~90–140 ms no relógio, N = 256). Em 20× vários degraus caem no mesmo quadro, e uma volta lenta do
+  relógio roda mais passos na seguinte para alcançar o tempo, refazendo o clima de novo (círculo vicioso).
+- **Correção (técnica, a imagem não muda):** (1) só as células que mudaram de bioma ou de gelo (com o
+  anel em volta) e o mar congelado são repintadas, também quando uma recomposição do ajudante chega no
+  meio do inverno; (2) o frio é refeito no máximo a cada 4 passos e uma vez por volta do relógio.
+  Pior volta do relógio com o gigante: ~100 → ~50–60 ms. Com 10 gigantes seguidos em 20×: nenhuma
+  espera da data > 300 ms (antes, seis de 0,4–0,7 s).
+- **Varredura do resto** (os 10 desastres, nas forças do cartão, 3 vezes seguidas, em 1× e 20×):
+  nenhum quadro da tela > 50 ms; a data esperou 282 ms uma vez (3 gigantes em 20×), abaixo do limite de
+  travada (300 ms).
+- **Não reproduzido:** o quadro de 67 ms em "pausado, girando" ("fora do código da tela"). Em 1080p aqui
+  ele não aparece; o relatório em tela cheia vai dizer se volta.
+
+### B2 — Temperatura "subindo ao máximo" depois de uma era do gelo de meteoros (investigado)
+- **Não reproduzido.** Em 1× e 20×, com o jogo andando e pausado, com 1, 4, 6 e 10 gigantes empilhados
+  (até −30 °C): a linha "clima" volta a 0 (só o ciclo glacial natural, milésimos de grau) ~35 anos depois
+  do último, e cada célula volta à temperatura, ao gelo e ao bioma de antes (temperatura média do
+  planeta 12,83 °C antes e 12,85 °C depois, só as crateras mudam o relevo). O desvio do clima nem pode
+  ficar acima do controle de temperatura: o frio do impacto só soma frio.
+- **Por que nenhum teste pegaria:** o teste antigo via só o número da linha "clima" com um gigante, em 20×.
+  Ganhou dois testes que olham o que o jogador vê: vários gigantes empilhados, dois jogados pausados
+  (temperatura, gelo e bioma de cada célula voltam ao que eram; a tela igual a uma repintura completa) e
+  recomposição das placas no meio do inverno (a tela certa, o frio volta).
+- **Falta saber do usuário:** onde a temperatura apareceu "no máximo" (linha "clima" do Dados, o controle
+  de temperatura do menu, o toque numa célula, ou a cor do mundo), a velocidade e quantos meteoros.
+
+### B4 — Tranco nas mudanças de bioma e de temperatura (feito)
+- **Diagnóstico (medido quadro a quadro na tela):** o clima anda em degraus de meio grau; a cada degrau
+  (~0,5 s com o controle de temperatura ou no inverno do meteoro) uma faixa inteira de células troca de
+  bioma ou de gelo de uma vez: 1–2% do globo visível mudando no mesmo quadro, a cada meio segundo. E
+  **pausado o controle de temperatura não andava** (o worker dormia) e o clima pulava todo ao soltar.
+- **Correção:** (1) **troca suave na tela:** cada célula que o clima muda passa da cor antiga para a nova
+  em 0,6 s, partindo do que está na tela (`src/render/climate-fade.ts`; a cor antiga numa textura à
+  parte, lida só enquanto há troca). Medido: nenhum quadro com mais de 20 dos 36 mil pixels pulando
+  (antes 400–700 a cada degrau). GPU em 1080p, no pior caso (o mundo todo trocando): longe 2,26 → 2,33
+  ms, perto 4,31 → 4,52 ms. (2) O controle de temperatura anda também pausado, e a linha "clima" do Dados
+  acompanha.
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**
