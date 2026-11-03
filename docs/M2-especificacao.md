@@ -1753,6 +1753,34 @@ derrames no começo e de caldeiras depois).
   desempenho perceptível (as mudanças de relevo são locais e raras, como as de hoje). Com a erupção enorme
   das caldeiras, +1 dia.
 
+### B10 — Tipo de mundo na criação: "continentes menores" e "arquipélago" (proposta; esperando a escolha)
+Decisão do usuário (2026-11-03, segunda): a opção 1 da B10 (v) (Pangeia em pedaços menores + vale de rifte
+de 2 células) **vira uma escolha na criação do mundo**, não o padrão; e um tipo novo, **"arquipélago"**: só
+ilhas, sem continente fechado. O padrão continua como hoje (e o critério de formas do CI vale para ele).
+Imagens: `docs/img/m2-b10i-tipo-de-mundo.png` (6 opções de interface na janela "Novo mundo" de verdade) e
+`docs/img/m2-b10-arquipelago-prototipo.png` (protótipo da cara do arquipélago: a Pangeia da semente `s12`
+partida em ilhas por ruído; 148 ilhas, a maior com 17% da terra, terra 12%; só aparência, não é a geração).
+| Opção | Como se escolhe | Custo |
+|---|---|---|
+| 1. Fileira de botões | três botões embaixo da semente e uma linha dizendo o que é | ~0,3 dia |
+| 2. Cartões com miniatura | três cartões com o mapa pequeno de cada tipo (miniatura fixa, desenhada uma vez) | ~0,5 dia |
+| 3. Lista suspensa | "Tipo de mundo: Padrão ▾" | ~0,2 dia; esconde as opções |
+| 4. Carrossel | um mapa grande e setas trocando o tipo | ~0,6 dia; mais toques para ver todos |
+| 5. Dois passos | primeiro o tipo (cartões grandes), depois a semente | ~0,6 dia; um toque a mais para criar |
+| 6. Deslizador "tamanho das terras" | grandes · menores · só ilhas, com espaço para tipos no meio no futuro | ~0,5 dia; tipos no meio custariam mais |
+- **O tipo fica guardado com o mundo** (a mesma semente com outro tipo dá outro mundo) e aparece na linha
+  "mundo" do Dados. "Aleatória" sorteia só a semente; o tipo fica o escolhido.
+- **Continentes menores:** a geração da B10 (v) opção 1 (peça máxima 20% na geração + vale de 2 células),
+  já medida: 16 de 20 sementes no critério aos 3 min. Custo ~0,5 dia (o código existe da medição).
+- **Arquipélago, como gerar:** menos terra (~12–18%), em muitas ilhas, nenhuma com mais de ~2% da terra
+  na criação; a Pangeia nasce já partida em placas pequenas. Custo ~2 dias e 3 testes (nenhuma ilha acima
+  do limite ao nascer, terra na faixa, mesma semente dá o mesmo mundo).
+- **Pergunta (efeito de jogo):** com as placas andando, as ilhas vão se juntar e formar continentes com o
+  tempo (o ciclo de Wilson junta tudo num supercontinente). O arquipélago **(a)** só nasce assim e o mundo
+  segue livre; **(b)** fica de ilhas para sempre (ilhas que se tocam não se soldam e a terra que cresce
+  afunda devagar; +~2 dias, muda a tectônica nesse tipo); ou **(c)** fica de ilhas mais tempo (placas mais
+  lentas e solda mais difícil nesse tipo; +~1 dia)?
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

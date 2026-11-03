@@ -19,10 +19,10 @@ sobre "onde estamos", vale este.
 - B3 crateras: proposta com 6 opções e imagem (`docs/img/m2-b3c-limite-crateras.png`).
 - B5 e B8: mesclas propostas com imagem (`m2-b5m-degrau-mescla.png`, `m2-b8m-avisos-ano-mescla.png`).
 - B7: regra proposta com imagem (`m2-b7r-regra-pontos-quentes.png`) e uma pergunta (erupção enorme das caldeiras).
+- B10: 6 opções de interface para o tipo de mundo + protótipo do arquipélago, e uma pergunta (ilhas para sempre?).
 - B3 meteoro: feito (rocha em brasa + sombra suave + fumacinha), imagem `docs/img/m2-b3-meteoro-feito.png`.
 
 ## Falta nesta rodada
-B10 (escolha na criação do mundo + arquipélago, proposta),
 tsunami (alcance, proposta), lista de teste.
 
 ## Onde estamos
