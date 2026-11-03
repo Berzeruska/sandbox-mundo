@@ -1662,6 +1662,15 @@ Mensagem do usuário de 2026-11-03 (segunda), itens A–G; decisões em `docs/de
   ms, perto 4,31 → 4,52 ms. (2) O controle de temperatura anda também pausado, e a linha "clima" do Dados
   acompanha.
 
+### B3 — Meteoro em cubos (feito; escolha do usuário: opção 4 + a fumacinha da opção 5)
+Imagem: `docs/img/m2-b3-meteoro-feito.png` (Grande, de perto, quadros em instantes exatos sobre o jogo).
+Caindo: rocha de cubos escuros com a frente em brasa (laranja e amarelo), rastro de fumaça cinza em cubos
+e uma sombra suave (gradiente, sem borda) no ponto de impacto, crescendo e escurecendo até a batida.
+Batendo: clarão curto (0,22 s), entulho e brasas em cubos saltando e caindo (0,8 s) e a fumacinha:
+cubos cinza subindo devagar, abrindo para os lados e se desfazendo (até 1,8 s). O tamanho segue a
+cratera (E12, F5) e a bola só bate quando o jogo chega ao impacto (B1). Só desenho, na camada de cima
+(`src/render/disaster-fx.ts`); o estrago no mundo não mudou.
+
 ### B3 (crateras) — Proposta: limite em que a cratera para de crescer (esperando a escolha)
 Imagem: `docs/img/m2-b3c-limite-crateras.png` (5 gigantes no mesmo ponto, 1 grande meio dentro da borda
 e 1 médio dentro; relevo final, depois que a rocha escura some).

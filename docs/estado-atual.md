@@ -16,9 +16,11 @@ sobre "onde estamos", vale este.
 - B2: não reproduzido (o clima volta ao normal célula a célula); dois testes novos; falta o usuário dizer
   onde viu a temperatura no máximo.
 - B4: troca suave das cores do clima (0,6 s por célula); controle de temperatura anda também pausado.
+- B3 crateras: proposta com 6 opções e imagem (`docs/img/m2-b3c-limite-crateras.png`).
+- B3 meteoro: feito (rocha em brasa + sombra suave + fumacinha), imagem `docs/img/m2-b3-meteoro-feito.png`.
 
 ## Falta nesta rodada
-B3 (limite das crateras, proposta), meteoro B3 (rocha em brasa + sombra + fumacinha, código), B5 + B8
+B5 + B8
 (mescla, proposta), B7 (regra, proposta), B10 (escolha na criação do mundo + arquipélago, proposta),
 tsunami (alcance, proposta), lista de teste.
 

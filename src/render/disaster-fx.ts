@@ -21,8 +21,13 @@ interface Fx {
 
 /** Meteoro: quanto tempo o risco leva até bater (1 s = os 12 passos da entrada em 1×). */
 export const METEOR_ENTRY_MS = 1000;
-/** Meteoro: duração do clarão depois de bater (ms). */
-const METEOR_FLASH_MS = 500;
+/**
+ * Meteoro: quanto a animação dura depois de bater (ms): clarão curto, entulho em cubos e a fumacinha que
+ * sobe e se desfaz em cubos (B3, escolha do usuário: opção 4 + a fumaça da opção 5).
+ */
+export const METEOR_AFTER_MS = 1800;
+/** Clarão da batida (ms), dentro de METEOR_AFTER_MS. */
+const METEOR_FLASH_MS = 220;
 /**
  * Quanto da entrada do meteoro já foi desenhado (0 a 1): o menor entre o tempo real (1 s) e os passos
  * do jogo até o impacto. Em 1× os dois andam juntos; pausado a bola fica parada no céu até o tempo
@@ -53,7 +58,7 @@ const FX_MS: Record<number, number> = {
   // um clarão rápido.
   [DisasterKind.Lightning]: 450,
   // Meteoro: ~1 s entrando no céu e o clarão do impacto.
-  [DisasterKind.Meteor]: METEOR_ENTRY_MS + METEOR_FLASH_MS,
+  [DisasterKind.Meteor]: METEOR_ENTRY_MS + METEOR_AFTER_MS,
 };
 /** Raio: duração do clarão (ms) dentro da animação. */
 const FLASH_MS = 300;
@@ -83,66 +88,161 @@ export class DisasterFx {
     for (const f of this.list) {
       if (f.e.kind === DisasterKind.Meteor && f.landed === undefined && meteorEntry(now - f.start, tick - f.e.tick) >= 1) f.landed = now;
     }
-    this.list = this.list.filter((f) => (f.e.kind === DisasterKind.Meteor ? f.landed === undefined || now - f.landed < METEOR_FLASH_MS : now - f.start < f.ms));
+    this.list = this.list.filter((f) => (f.e.kind === DisasterKind.Meteor ? f.landed === undefined || now - f.landed < METEOR_AFTER_MS : now - f.start < f.ms));
     for (const f of this.list) {
       if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
-      else if (f.e.kind === DisasterKind.Meteor) drawMeteor(ctx, camera, f.e, f.landed === undefined ? meteorEntry(now - f.start, tick - f.e.tick) : 1 + (now - f.landed) / METEOR_FLASH_MS, f.e.id, dpr);
+      else if (f.e.kind === DisasterKind.Meteor) drawMeteor(ctx, camera, f.e, f.landed === undefined ? meteorEntry(now - f.start, tick - f.e.tick) : 1 + (now - f.landed) / METEOR_AFTER_MS, f.e.id, dpr);
     }
   }
 }
 
+/** Número fixo de 0 a 1 para o meteoro `id` e o índice `k` (o desenho não muda de um quadro para outro). */
+function rand(id: number, k: number): number {
+  let h = Math.imul(id ^ Math.imul(k + 1, 0x9e3779b1), 0x85ebca6b) >>> 0;
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 /**
- * Meteoro (C12): risco brilhante descendo na diagonal até o ponto (direção sorteada pelo id) e, ao
- * bater, um clarão. O tamanho acompanha a cratera (E12, teste da d644319: o meteoro era pequeno e só a
- * cratera grande): a bola tem ~1/3 do raio da cratera na tela, a cauda e o clarão crescem junto.
+ * Um cubo visto de cima e de lado (estilo diorama): topo claro, lado esquerdo médio, lado direito escuro.
+ * `x, y`: centro; `s`: aresta (px); `rgb`: cor do topo.
  */
-/** `phase`: 0 a 1 entrando no céu; de 1 a 2, o clarão depois de bater. */
+function cube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, rgb: readonly [number, number, number], alpha: number): void {
+  if (alpha <= 0.01 || s < 0.4) return;
+  const w = s * 0.87;
+  const h = s * 0.5;
+  const shade = (k: number) => `rgba(${Math.round(rgb[0] * k)}, ${Math.round(rgb[1] * k)}, ${Math.round(rgb[2] * k)}, ${alpha.toFixed(3)})`;
+  ctx.fillStyle = shade(1);
+  ctx.beginPath();
+  ctx.moveTo(x, y - s);
+  ctx.lineTo(x + w, y - h);
+  ctx.lineTo(x, y);
+  ctx.lineTo(x - w, y - h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = shade(0.72);
+  ctx.beginPath();
+  ctx.moveTo(x - w, y - h);
+  ctx.lineTo(x, y);
+  ctx.lineTo(x, y + s);
+  ctx.lineTo(x - w, y + h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = shade(0.5);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + w, y - h);
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x, y + s);
+  ctx.closePath();
+  ctx.fill();
+}
+
+const ROCK: readonly [number, number, number] = [92, 88, 86];
+const ROCK_DARK: readonly [number, number, number] = [58, 54, 54];
+const EMBER: readonly [number, number, number] = [255, 132, 40];
+const EMBER_HOT: readonly [number, number, number] = [255, 214, 92];
+const SMOKE: readonly [number, number, number] = [168, 166, 164];
+
+/**
+ * Meteoro em cubos (B3, escolha do usuário em 2026-11-03: a rocha em brasa da opção 4, com sombra
+ * suave, mais a fumacinha final da opção 5; imagem `docs/img/m2-b3-meteoro-cubos.png`). Caindo: rocha
+ * de cubos escuros com a frente em brasa, rastro de fumaça cinza em cubos e, no chão, uma sombra suave
+ * que cresce até a batida (mostra onde vai cair, também de longe e em 20×). Batendo: clarão curto,
+ * entulho e brasas em cubos saltando e a fumacinha subindo e se desfazendo em cubos. O tamanho acompanha
+ * a cratera (E12, F5): a rocha tem ~1/3 do raio da cratera na tela.
+ */
+/** `phase`: 0 a 1 entrando no céu; de 1 a 2, depois de bater. */
 function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEvent, phase: number, id: number, dpr: number): void {
   const c = camera.worldToScreen(e.point);
   if (!c.visible || !Number.isFinite(c.x) || !Number.isFinite(c.y)) return;
   // Raio da cratera na tela (px): e.radius é o raio dela em radianos.
   const crater = (e.radius / camera.cellAngle) * camera.cellPixels();
   const head = meteorHead(e.magnitude, crater, dpr);
-  const a = ((Math.imul(id, 2654435761) >>> 0) / 4294967296) * Math.PI * 2;
-  // Cauda pelo tamanho da bola (antes no mínimo 120 px para todos: escondia a diferença).
-  const len = head * 18;
+  // Vem do alto, de um lado sorteado (nunca de baixo para cima).
+  const side = rand(id, 0) < 0.5 ? -1 : 1;
+  const dx = side * (0.55 + 0.35 * rand(id, 1));
+  const dy = -1;
+  const len = head * 16;
+  const cubeSize = Math.max(1.2 * dpr, head * 0.55);
   if (phase < 1) {
     const t = phase;
-    // Cabeça indo do alto até o ponto; cauda atrás, da largura da bola.
-    const hx = c.x + Math.cos(a) * len * (1 - t);
-    const hy = c.y - Math.abs(Math.sin(a)) * len * (1 - t) - len * 0.3 * (1 - t);
-    const tx = hx + Math.cos(a) * len * 0.45;
-    const ty = hy - Math.abs(Math.sin(a)) * len * 0.45 - len * 0.13;
-    const g = ctx.createLinearGradient(tx, ty, hx, hy);
-    g.addColorStop(0, 'rgba(255, 200, 120, 0)');
-    g.addColorStop(1, 'rgba(255, 245, 210, 0.95)');
-    ctx.strokeStyle = g;
-    ctx.lineWidth = head * 1.6;
-    ctx.lineCap = 'round';
+    // Sombra suave no ponto de impacto, crescendo e escurecendo até a batida.
+    const sr = Math.max(head * 1.2, crater * (0.35 + 0.55 * t));
+    const sg = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, sr);
+    sg.addColorStop(0, `rgba(10, 8, 6, ${(0.5 * t).toFixed(3)})`);
+    sg.addColorStop(0.55, `rgba(10, 8, 6, ${(0.28 * t).toFixed(3)})`);
+    sg.addColorStop(1, 'rgba(10, 8, 6, 0)');
+    ctx.fillStyle = sg;
     ctx.beginPath();
-    ctx.moveTo(tx, ty);
-    ctx.lineTo(hx, hy);
-    ctx.stroke();
-    // Brilho em volta da bola e a bola (rocha incandescente).
-    const glow = ctx.createRadialGradient(hx, hy, 0, hx, hy, head * 2.2);
-    glow.addColorStop(0, 'rgba(255, 230, 170, 0.9)');
-    glow.addColorStop(1, 'rgba(255, 140, 60, 0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(hx - head * 2.2, hy - head * 2.2, head * 4.4, head * 4.4);
-    ctx.fillStyle = 'rgba(255, 250, 230, 1)';
-    ctx.beginPath();
-    ctx.arc(hx, hy, head, 0, Math.PI * 2);
+    ctx.ellipse(c.x, c.y, sr, sr * 0.62, 0, 0, Math.PI * 2);
     ctx.fill();
+    const hx = c.x + dx * len * (1 - t);
+    const hy = c.y + dy * len * (1 - t);
+    // Rastro de fumaça: cubos cinza ficando para trás, menores e mais claros quanto mais longe.
+    const trail = 14;
+    for (let k = 1; k <= trail; k++) {
+      const back = (k / trail) * len * 0.9 * Math.min(1, t * 3 + 0.25);
+      const jitter = (rand(id, 10 + k) - 0.5) * cubeSize * (0.6 + k * 0.08);
+      cube(ctx, hx + dx * back + jitter, hy + dy * back + jitter * 0.5, cubeSize * (0.95 - 0.5 * (k / trail)), SMOKE, 0.9 * (1 - k / (trail + 2)));
+    }
+    // A rocha: um bloco de cubos escuros, a frente (para o lado da queda) em brasa.
+    const parts: [number, number, number][] = [
+      [0, 0, 1],
+      [-0.55, 0.3, 0.8],
+      [0.55, 0.3, 0.85],
+      [0, -0.6, 0.75],
+      [-0.3, 0.75, 0.7],
+      [0.35, 0.8, 0.7],
+    ];
+    for (let k = 0; k < parts.length; k++) {
+      const [ox, oy, sz] = parts[k] as [number, number, number];
+      // Frente em brasa: as partes do lado de baixo e do lado para onde vai.
+      const front = oy > 0.5 || ox * -side > 0.4;
+      const color = front ? (k % 2 ? EMBER : EMBER_HOT) : k % 2 ? ROCK_DARK : ROCK;
+      cube(ctx, hx + ox * cubeSize * 1.1, hy + oy * cubeSize * 1.1, cubeSize * sz, color, 1);
+    }
     return;
   }
-  const fade = Math.max(0, 2 - phase);
-  const r = Math.max(head * 3, crater * 1.6);
-  const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
-  g.addColorStop(0, `rgba(255, 255, 255, ${(0.95 * fade).toFixed(3)})`);
-  g.addColorStop(0.4, `rgba(255, 216, 144, ${(0.7 * fade).toFixed(3)})`);
-  g.addColorStop(1, 'rgba(255, 128, 48, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+  const u = phase - 1; // 0 a 1 depois da batida (METEOR_AFTER_MS)
+  const ms = u * METEOR_AFTER_MS;
+  const r = Math.max(head * 3, crater * 1.3);
+  // Clarão curto.
+  if (ms < METEOR_FLASH_MS) {
+    const f = 1 - ms / METEOR_FLASH_MS;
+    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
+    g.addColorStop(0, `rgba(255, 250, 225, ${(0.9 * f).toFixed(3)})`);
+    g.addColorStop(0.45, `rgba(255, 190, 110, ${(0.55 * f).toFixed(3)})`);
+    g.addColorStop(1, 'rgba(255, 128, 48, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+  }
+  // Entulho e brasas em cubos saltando para fora e caindo (0–0,8 s).
+  const debris = 10 + e.magnitude * 4;
+  const d = Math.min(1, ms / 800);
+  if (d < 1) {
+    for (let k = 0; k < debris; k++) {
+      const a = rand(id, 100 + k) * Math.PI * 2;
+      const dist = r * (0.35 + 0.65 * rand(id, 200 + k)) * (0.2 + 0.8 * Math.sqrt(d));
+      const up = Math.sin(Math.PI * d) * r * 0.35 * rand(id, 300 + k);
+      const hot = rand(id, 400 + k) < 0.3;
+      cube(ctx, c.x + Math.cos(a) * dist, c.y + Math.sin(a) * dist * 0.62 - up, cubeSize * (0.45 + 0.4 * rand(id, 500 + k)), hot ? EMBER : rand(id, 600 + k) < 0.5 ? ROCK : ROCK_DARK, 1 - d * d);
+    }
+  }
+  // Fumacinha final: cubos cinza subindo do ponto e se desfazendo (espalham, diminuem e somem).
+  const puffs = 10 + e.magnitude * 4;
+  for (let k = 0; k < puffs; k++) {
+    const start = 0.05 + rand(id, 700 + k) * 0.3;
+    const v = (u - start) / (1 - start);
+    if (v <= 0 || v >= 1) continue;
+    // Coluna que sobe devagar no fim (ease-out) e abre para os lados enquanto se desfaz.
+    const rise = (1 - (1 - v) * (1 - v)) * (r * 1.3 + head * 5) * (0.55 + 0.45 * rand(id, 800 + k));
+    const spread = (rand(id, 900 + k) - 0.5) * r * (0.3 + 1.1 * v);
+    const size = cubeSize * (1.1 + 0.9 * rand(id, 1000 + k)) * (1 - 0.55 * v);
+    const tone = 0.85 + 0.25 * rand(id, 1100 + k);
+    cube(ctx, c.x + spread, c.y - rise, size, [SMOKE[0] * tone, SMOKE[1] * tone, SMOKE[2] * tone], 0.85 * (1 - v) * Math.min(1, v * 5));
+  }
 }
 
 /**

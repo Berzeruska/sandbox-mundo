@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Camera } from '../../src/render/camera';
-import { DisasterFx, meteorEntry, METEOR_ENTRY_MS, meteorHead, METEOR_HEAD } from '../../src/render/disaster-fx';
+import { DisasterFx, METEOR_AFTER_MS, meteorEntry, METEOR_ENTRY_MS, meteorHead, METEOR_HEAD } from '../../src/render/disaster-fx';
 import { CRATER_RADIUS, ENTRY_TICKS } from '../../src/world/disasters/meteor';
 import { DisasterKind, type DisasterEvent } from '../../src/world/disasters/types';
 
@@ -56,7 +56,9 @@ describe('a bola do meteoro bate junto com o impacto do jogo (B1)', () => {
     expect(fx.active).toBe(true);
     // O tempo volta: bate, brilha e acaba.
     fx.draw(ctx, camera, 10_500, 112, 1);
-    fx.draw(ctx, camera, 11_100, 112, 1);
+    fx.draw(ctx, camera, 10_500 + METEOR_AFTER_MS / 2, 112, 1);
+    expect(fx.active).toBe(true);
+    fx.draw(ctx, camera, 10_500 + METEOR_AFTER_MS + 100, 112, 1);
     expect(fx.active).toBe(false);
   });
 });
