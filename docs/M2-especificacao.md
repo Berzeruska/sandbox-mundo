@@ -1524,6 +1524,26 @@ hoje um ponto quente em continente deixa um cone grande a cada ~7 células, que 
   grandes. Custo: pequeno (~0,5 dia, 1 teste).
 - Em todas, no mar a cadeia de ilhas continua como hoje (menos na c, em que as ilhas velhas afundam).
 
+### B8 — Avisos embaixo da etiqueta e o ano mudando a velocidade (proposta de interface; sem código)
+Imagem: `docs/img/m2-b8-avisos-ano.png` (tela real do jogo em 1080p, canto de cima à esquerda; as
+velocidades são as do menu: Pausa, 1×, 2×, 5×, 20×, Máx). Pedido do usuário (2026-11-03): os avisos
+aparecem abaixo da etiqueta "PRÉVIA marco-2" e tocar no ano muda a velocidade, como pelo menu. Em todas
+as opções os avisos (hoje embaixo à esquerda) passam para embaixo da etiqueta, empilhados para baixo, o
+mais novo em cima; com o menu aberto continuam escondidos (E8); na versão oficial (sem etiqueta), ficam
+embaixo da data. Tocar num aviso continua levando a câmera até lá.
+1. **Fileira embaixo do ano:** tocar no ano abre a fileira de velocidades; escolher fecha. Os avisos
+   descem enquanto ela está aberta. Custo pequeno (~0,5 dia).
+2. **Cada toque, a próxima velocidade:** 1× → 2× → 5× → 20× → Máx → 1× (pausa só no botão de pausa).
+   Custo o menor (~0,2 dia); voltar de Máx a 1× exige vários toques.
+3. **Lista que desce do ano:** lista vertical com as 6 velocidades. Custo pequeno (~0,5 dia); ocupa mais
+   altura.
+4. **Velocidades sempre ao lado do ano:** os botões ficam à mostra, sem tocar no ano. Custo pequeno
+   (~0,4 dia); ocupa a faixa de cima.
+5. **Tocar no ano abre o "Tempo" do menu:** o mesmo cartão de hoje, embaixo à direita. Custo o menor
+   (~0,2 dia); longe do dedo.
+6. **Deslizar o dedo no ano:** arrastar para a direita acelera, para a esquerda desacelera; toque curto
+   pausa e volta. Custo médio (~1 dia, gesto novo); escondido para quem não conhece.
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

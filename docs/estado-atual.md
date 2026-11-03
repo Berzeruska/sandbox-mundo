@@ -35,7 +35,7 @@ sobre "onde estamos", vale este.
   (`docs/img/m2-b5-degrau-terremoto.png`).
 - [x] **Proposta B7, ponto quente em continente:** 6 opções com imagem
   (`docs/img/m2-b7-vulcoes-continente.png`).
-- [ ] Proposta B8 (avisos e ano) com 4–6 opções e imagem.
+- [x] **Proposta B8, avisos e ano:** 6 opções com imagem (`docs/img/m2-b8-avisos-ano.png`).
 - [ ] Fim: resumo, propostas, lista de teste, prévia igual ao último commit.
 
 ## Onde estamos
