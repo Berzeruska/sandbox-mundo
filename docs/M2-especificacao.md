@@ -1662,6 +1662,32 @@ Mensagem do usuário de 2026-11-03 (segunda), itens A–G; decisões em `docs/de
   ms, perto 4,31 → 4,52 ms. (2) O controle de temperatura anda também pausado, e a linha "clima" do Dados
   acompanha.
 
+### B3 (crateras) — Proposta: limite em que a cratera para de crescer (esperando a escolha)
+Imagem: `docs/img/m2-b3c-limite-crateras.png` (5 gigantes no mesmo ponto, 1 grande meio dentro da borda
+e 1 médio dentro; relevo final, depois que a rocha escura some).
+- **Hoje:** a área soma sem teto (raio² + raio²) e, pior, **cada impacto cava de novo** a partir da altura
+  que já está lá: mesmo uma cratera que não cresce afunda mais a cada meteoro (em terra até 20 m acima do
+  mar, a regra "cratera em terra não vira mar"). Com 5 gigantes o estrago chegou a 27 células de raio.
+- **Mundo real:** as maiores crateras confirmadas da Terra têm ~160–300 km de diâmetro (Vredefort, África
+  do Sul, ~250–300 km na origem; Chicxulub, México, ~180 km; Sudbury, Canadá, ~130–250 km). As crateras
+  grandes ficam rasas: alguns km da borda ao fundo, que depois se enche. Bacias maiores só existem onde
+  nada as apaga (Hellas, Marte, ~2.300 km; Polo Sul–Aitken, Lua, ~2.500 km), com vários anéis
+  (Orientale, na Lua). Cratera nova sobre uma velha corta a borda dela (crateras sobrepostas, comuns na Lua).
+- **Escala do jogo:** uma célula tem ~39 km; o gigante já abre 12 células de raio (~940 km de diâmetro,
+  ~3× Vredefort), exagero necessário para se ver de longe.
+- **Base técnica de todas as opções (1–6):** a cratera passa a ter um **perfil-alvo** (fundo a uma
+  profundidade do terreno em volta, borda erguida um quarto disso): um impacto só cava até o alvo, nunca
+  além. Assim, repetir meteoros no mesmo lugar **não afunda sem fim**.
+
+| Opção | O que acontece | Custo |
+|---|---|---|
+| 1. Teto no gigante | soma a área até o raio do gigante (12 células, ~940 km) e o fundo até 1.500 m; depois disso, meteoro dentro só renova a rocha escura | pouco código; sem custo de desempenho |
+| 2. Teto de bacia | soma até 24 células (~1.900 km, como as bacias da Lua e de Marte), fundo até 2.500 m | igual à 1; a cratera pode cobrir um continente pequeno |
+| 3. Soma que cansa | cada meteoro dentro cresce menos que o anterior, chegando perto de 18 células sem passar | igual à 1; o teto não tem um "ponto" visível |
+| 4. Anéis depois do teto | até 12 células soma; cada meteoro a mais abre um anel erguido em volta (bacia de vários anéis) | um pouco mais de código; os anéis aparecem como uma faixa acidentada larga |
+| 5. Nova por cima, sem soma | cada cratera é dela; a nova corta a borda da antiga, que fica onde não foi coberta | o mais simples; desfaz a P8 b ("o estrago soma") |
+| 6. Mista (1 + 5) | dentro da cratera soma até o teto da 1; caindo meio fora, abre uma cratera nova que corta a borda da antiga | pouco código; é a que trata junto os meteoros se sobrepondo |
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**
