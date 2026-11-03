@@ -1697,6 +1697,40 @@ e 1 médio dentro; relevo final, depois que a rocha escura some).
 | 5. Nova por cima, sem soma | cada cratera é dela; a nova corta a borda da antiga, que fica onde não foi coberta | o mais simples; desfaz a P8 b ("o estrago soma") |
 | 6. Mista (1 + 5) | dentro da cratera soma até o teto da 1; caindo meio fora, abre uma cratera nova que corta a borda da antiga | pouco código; é a que trata junto os meteoros se sobrepondo |
 
+### B5 — Mescla das 6 opções do degrau do terremoto (proposta; esperando aprovação)
+Imagem: `docs/img/m2-b5m-degrau-mescla.png` (no mundo de verdade, cores do jogo, semente `pangeia`; falha
+norte-sul no meio, M 8 · 8,5 · 9 · 9,5).
+| Vem da opção | O que entra na mescla |
+|---|---|
+| 3 (real × 75) | a altura de base: o M 8 já se vê bem de média distância (300 m) |
+| 1 (real, satura) | a curva fica achatada no alto, como no mundo real (a altura cresce cada vez menos) |
+| 4 (em linha) | toda altura é um múltiplo de 150 m: o degrau cai certinho num degrau do relevo (RL) |
+| 5 (fixa 150 m) | o mínimo: nenhum degrau de M ≥ 8 é menor que 150 m |
+| 6 (sem limite) | continua crescendo até M 9,5, mas com teto (900 m), sem virar paredão |
+| 2 (real × 25) | o lado de lá da falha **desce** ~⅓ disso (150 · 150 · 300 · 300 m), como num bloco que afunda |
+**Alturas da mescla:** sobe 300 · 450 · 750 · 900 m e desce 150 · 150 · 300 · 300 m em M 8 · 8,5 · 9 ·
+9,5. **O que não combina:** a 5 (fixa) e a 6 (sem limite) são contrárias às outras como regra, então entram
+só como o piso e como "cresce até o M 9,5"; o resto da curva é a 3 achatada pela 1. **Atenção:** no lado
+que desce, terra baixa perto do mar pode ficar abaixo do nível do mar e virar lago ou baía (na imagem, no
+M 9), como nas costas que afundam em grandes terremotos. **Custo:** ~1 dia e 3 testes (alturas pela tabela,
+só M ≥ 8, anda com a placa, não passa de MAX_ELEVATION); sem custo de desempenho perceptível.
+
+### B8 — Mescla das 6 opções de avisos e ano (proposta; esperando aprovação)
+Imagem: `docs/img/m2-b8m-avisos-ano-mescla.png` (tela real em 1080p; sem o sinal de "toque", pedido do
+usuário; as linhas amarelas da imagem são só explicação).
+| Vem da opção | O que entra |
+|---|---|
+| todas | avisos embaixo da etiqueta "PRÉVIA", o mais novo em cima; tocar num aviso leva a câmera até lá |
+| 4 | os botões das velocidades (Pausa, 1×, 2×, 5×, 20×, Máx) sempre à mostra, ao lado do ano |
+| 2 | tocar no selo azul da velocidade passa para a próxima (1× → 2× → 5× → 20× → Máx → 1×) |
+| 6 | tocar no ano pausa e volta; arrastar o dedo no ano para a direita acelera e para a esquerda desacelera (um degrau a cada ~40 px, com um balão mostrando a velocidade; soltar aplica) |
+| 5 | toque longo no ano abre o cartão "Tempo" do menu (o de sempre) |
+**O que não combina:** a **1** (fileira que abre embaixo do ano) e a **3** (lista que desce do ano) fazem a
+mesma coisa que a 4 já mostra o tempo todo: juntas, os mesmos botões apareceriam duas vezes, e os avisos
+ficariam pulando para baixo quando a fileira abrisse. Se a faixa de cima ficar cheia demais, a troca é
+usar a 1 no lugar da 4 (as velocidades só aparecem ao tocar no selo azul), perdendo a 2. **Custo:** ~1,5
+dia (botões e avisos ~0,5; gestos de toque, toque longo e arrastar com testes ~1).
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**
