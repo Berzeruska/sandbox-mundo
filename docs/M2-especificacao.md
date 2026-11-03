@@ -1443,6 +1443,26 @@ o fundo continua 20 m acima do mar (não vira mar); a borda é empurrada para fo
 tsunami como antes. Testes em `tests/world/meteor.test.ts` (alarga pela soma das áreas, fora nasce outra,
 anda com a placa).
 
+### B3 — Meteoro em cubos, estilo diorama (proposta; sem código)
+Imagem: `docs/img/m2-b3-meteoro-cubos.png` (montagem por cima do jogo de perto, semente `pangeia`; cada
+opção mostra o meteoro caindo e batendo, no tamanho Grande). Substitui o "mini sol" (decisão do usuário,
+2026-11-03). Em todas: o tamanho cresce de Pequeno a Gigante (largura 2 · 3 · 4 · 6 cubos), a bola só
+bate quando o jogo chega ao impacto (B1) e o estrago no mundo não muda. Desenho na camada de cima (a
+mesma do "mini sol"), sem custo de GPU no globo. No M3, com o globo em cubos de verdade, o meteoro é
+refeito em 3D no mesmo estilo.
+1. **Rocha de cubos em brasa:** rocha escura com a frente em brasa e fumaça cinza em cubos; ao bater,
+   entulho e poeira em cubos. Custo pequeno (~0,5 dia).
+2. **Bola de fogo de cubos:** cubos amarelos e laranja com rastro de brasas que somem; o mais parecido
+   com o de hoje, lê bem de longe. Custo pequeno (~0,5 dia).
+3. **Um cubo só, girando:** um bloco de rocha com a aresta em brasa e faíscas. O mais simples; de longe
+   vira um pixel. Custo o menor (~0,2 dia).
+4. **Rocha + sombra no chão:** como a 1, com uma sombra no ponto de impacto que cresce até a batida (ajuda
+   a ver onde cai, de longe e em 20×). Só desenho. Custo pequeno (~0,7 dia).
+5. **Maquete realista:** sem brilho; coluna de fumaça que sobe e se desfaz em cubos; no Gigante, cogumelo
+   e anel de poeira. O mais "diorama". Custo médio (~1,5 dia; ~40 cubos por meteoro na tela).
+6. **Rocha que se parte no ar:** quebra em 3–4 pedaços de cubos antes de bater; continua uma cratera só.
+   Custo pequeno a médio (~1 dia).
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

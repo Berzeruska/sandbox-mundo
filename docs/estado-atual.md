@@ -27,8 +27,9 @@ sobre "onde estamos", vale este.
 - [x] **B2, crateras somando** (P8 b): meteoro dentro de uma cratera alarga pela soma das áreas e
   aprofunda sem virar mar; a cratera anda com a placa. Imagem `docs/img/m2-b2-crateras-somando.png`.
 - [ ] B4 tempestade de areia passando da borda · B10(v) 8 sementes.
-- [ ] Propostas com 4–6 opções e imagem: B3 meteoro em cubos, B5 degrau do terremoto, B7 vulcões em
-  continente, B8 avisos e ano.
+- [x] **Proposta B3, meteoro em cubos:** 6 opções com imagem (`docs/img/m2-b3-meteoro-cubos.png`).
+- [ ] Propostas com 4–6 opções e imagem: B5 degrau do terremoto, B7 vulcões em continente, B8 avisos e
+  ano.
 - [ ] Fim: resumo, propostas, lista de teste, prévia igual ao último commit.
 
 ## Onde estamos
