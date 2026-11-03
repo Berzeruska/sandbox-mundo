@@ -1429,6 +1429,20 @@ Chromium com a GPU de verdade (Vulkan), build de produção, sem outra carga, pe
   924–997 ms na bateria, meta 1 s). Na tomada ficam ~1,0 s e ~600 ms. Se a meta valer na bateria, a folga
   é pequena: proposta abaixo.
 
+### B1 — Meteoro "sem cratera e sem mudar a temperatura" (defeito, `docs/bugs.md`)
+Não reproduzido como falha da simulação; achado e corrigido o descompasso da animação com o jogo pausado
+(a bola só bate quando o relógio do jogo chega ao impacto). Em 20× o inverno de impacto dura 1,5 s (30
+anos) e a temperatura só aparece na linha "clima" do Dados; o buraco permanente em terra baixa é raso.
+
+### B2 — Crateras sobrepostas somam (P8 opção b, feito)
+Imagem: `docs/img/m2-b2-crateras-somando.png` (1, 2 e 3 meteoros Grandes no mesmo lugar, semente
+`pangeia`, depois que a rocha escura e o entulho somem). O jogo guarda as crateras (centro, raio e fundo;
+até 256), e o centro anda com a placa. Meteoro que cai dentro de uma cratera soma com ela: raio novo =
+√(raio antigo² + raio do meteoro²), em volta do centro antigo; fundo = o mais fundo dos dois; em terra
+o fundo continua 20 m acima do mar (não vira mar); a borda é empurrada para fora; marcas, incêndios e
+tsunami como antes. Testes em `tests/world/meteor.test.ts` (alarga pela soma das áreas, fora nasce outra,
+anda com a placa).
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

@@ -5,7 +5,7 @@ import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
 import { canStartSandstorm, type DustView, MAX_SANDSTORMS, NOTABLE_SAND_RADIUS, pickSandstormCell, PLAYER_SAND_RADIUS, PLAYER_SAND_SEARCH, SAND_RADIUS, SANDSTORM_CHANCE, SandstormProcess } from './sandstorm';
-import { CRATER_RADIUS, GIANT_WINTER, impact, METEOR_NAMES, MeteorProcess, sampleNaturalMeteor, SEA_TSUNAMI } from './meteor';
+import { type Crater, CRATER_RADIUS, GIANT_WINTER, impact, MAX_CRATERS, mergeCrater, METEOR_NAMES, MeteorProcess, sampleNaturalMeteor, SEA_TSUNAMI } from './meteor';
 import { IceReturnProcess, MELT_CELLS_PER_ICE, MELT_MAX_CELLS, MELT_MIN_ICE, MeltwaterProcess, NOTABLE_MELT_CELLS } from './meltwater';
 import { IceMode } from '../state';
 import { HurricaneProcess, MAX_PER_QUADRANT, MAX_STORMS_WORLD, quadrantOf, stormName, type StormView } from './hurricane';
@@ -140,6 +140,8 @@ export class Disasters {
   private storms: HurricaneProcess[] = [];
   /** Vulcões no mapa (R7), na ordem em que nasceram. */
   volcanoes: Volcano[] = [];
+  /** Crateras de meteoro guardadas (P8 b: o estrago soma quando outro cai dentro). */
+  craters: Crater[] = [];
   private nextVolcanoId = 1;
   /** Relevo dos vulcões do começo, para o relógio aplicar antes de o mundo aparecer. */
   private initialTerrain: TerrainChange[] = [];
@@ -231,11 +233,18 @@ export class Disasters {
    * identidade (placa, ponto de referência) de cada célula antes e depois.
    */
   remap(oldKey: (c: number) => number, newKey: (c: number) => number): void {
-    const moved = this.ground.remap(oldKey, newKey, this.world.cellCount);
+    const moved = this.ground.remap(oldKey, newKey, this.world.cellCount, this.craters.map((k) => k.cell));
     this.volcanoes = this.volcanoes.filter((v) => {
       const to = moved.get(v.cell);
       if (to === undefined) return false;
       v.cell = to;
+      return true;
+    });
+    // A crosta da cratera sumiu (subducção): a cratera sai junto.
+    this.craters = this.craters.filter((k) => {
+      const to = moved.get(k.cell);
+      if (to === undefined) return false;
+      k.cell = to;
       return true;
     });
     for (const p of this.processes) p.remap?.(moved);
@@ -728,7 +737,26 @@ export class Disasters {
         const o = this.stepOut;
         if (!o) return;
         const atSea = world.isWater(cell);
-        const hit = impact(world, this.ground, cell, s, t, this.rng);
+        // Caiu dentro de uma cratera guardada: o estrago soma (P8 b), em volta do centro dela.
+        let old: Crater | null = null;
+        let oldD = Infinity;
+        for (const k of this.craters) {
+          const d = cellDistance(world, k.cell, cell);
+          if (d <= k.radius && d < oldD) {
+            old = k;
+            oldD = d;
+          }
+        }
+        const shape = mergeCrater(old, oldD, s);
+        const at = old ? old.cell : cell;
+        const hit = impact(world, this.ground, at, s, t, this.rng, shape);
+        if (old) {
+          old.radius = shape.radius;
+          old.depth = shape.depth;
+        } else {
+          this.craters.push({ cell, radius: shape.radius, depth: shape.depth });
+          if (this.craters.length > MAX_CRATERS) this.craters.shift();
+        }
         if (hit.terrainCells.length) o.terrain.push({ cells: hit.terrainCells, deltas: hit.terrainDeltas });
         for (const f of hit.fires) if (canBurn(world, this.ground, f)) this.startFire(f, t, manual, 'meteoro');
         const m = SEA_TSUNAMI[s] as number;

@@ -24,7 +24,9 @@ sobre "onde estamos", vale este.
   recomposição 997 ms. **Achado: GPU do globo acima de 8 ms na bateria** (de perto 10,6, meio 9,5 ms):
   decisão do usuário no fim.
 - [x] B9 "medição inválida" e B10(iii) pergunta antes do "Medir desempenho" (junto com a A).
-- [ ] B2 crateras somando · B4 tempestade de areia passando da borda · B10(v) 8 sementes.
+- [x] **B2, crateras somando** (P8 b): meteoro dentro de uma cratera alarga pela soma das áreas e
+  aprofunda sem virar mar; a cratera anda com a placa. Imagem `docs/img/m2-b2-crateras-somando.png`.
+- [ ] B4 tempestade de areia passando da borda · B10(v) 8 sementes.
 - [ ] Propostas com 4–6 opções e imagem: B3 meteoro em cubos, B5 degrau do terremoto, B7 vulcões em
   continente, B8 avisos e ano.
 - [ ] Fim: resumo, propostas, lista de teste, prévia igual ao último commit.

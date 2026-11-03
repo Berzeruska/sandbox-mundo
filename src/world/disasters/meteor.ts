@@ -40,6 +40,31 @@ export function sampleNaturalMeteor(rng: Rng, factor: number): number {
   return 0;
 }
 
+/**
+ * Cratera guardada (P8 opção b, decisão do usuário de 2026-11-03): um meteoro que cai dentro dela soma o
+ * estrago. Anda com a placa (o centro é acompanhado na recomposição).
+ */
+export interface Crater {
+  cell: number;
+  /** Raio (células) e profundidade do fundo (m) da cratera somada. */
+  radius: number;
+  depth: number;
+}
+
+/** Crateras guardadas, no máximo (as mais velhas saem). */
+export const MAX_CRATERS = 256;
+
+/**
+ * O meteoro de tamanho `size` caindo a `distance` células do centro de `old`: soma com ela? Soma
+ * quando cai dentro da cratera. A área soma (raio² + raio²) e o fundo fica o mais fundo dos dois.
+ */
+export function mergeCrater(old: Crater | null, distance: number, size: number): { radius: number; depth: number } {
+  const r = CRATER_RADIUS[size] as number;
+  const depth = CRATER_DEPTH[size] as number;
+  if (!old || distance > old.radius) return { radius: r, depth };
+  return { radius: Math.sqrt(old.radius * old.radius + r * r), depth: Math.max(old.depth, depth) };
+}
+
 export interface Impact {
   /** Mudança do relevo (para sempre). */
   terrainCells: number[];
@@ -52,13 +77,14 @@ export interface Impact {
  * O impacto em `center`: cratera no relevo (perfil de tigela, borda erguida a ~1,2 raio), rocha escura
  * no fundo, entulho claro na borda (20–50 anos), vegetação derrubada até BLAST_FACTOR raios.
  */
-export function impact(world: WorldState, ground: Ground, center: number, size: number, tick: number, rng: Rng): Impact {
+export function impact(world: WorldState, ground: Ground, center: number, size: number, tick: number, rng: Rng, shape?: { radius: number; depth: number }): Impact {
   const p = world.grid.positions;
   const cx = p[center * 3] as number;
   const cy = p[center * 3 + 1] as number;
   const cz = p[center * 3 + 2] as number;
-  const r = CRATER_RADIUS[size] as number;
-  const depth = CRATER_DEPTH[size] as number;
+  // `shape`: cratera somada com uma antiga (P8 b); sem ela, a do tamanho do meteoro.
+  const r = shape?.radius ?? (CRATER_RADIUS[size] as number);
+  const depth = shape?.depth ?? (CRATER_DEPTH[size] as number);
   const ang = world.grid.cellAngle;
   const reach = Math.max(r * BLAST_FACTOR, r + 2);
   const terrainCells: number[] = [];

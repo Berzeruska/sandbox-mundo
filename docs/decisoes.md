@@ -1128,3 +1128,7 @@ Formato: data — decisão — motivo — alternativa descartada.
   quadros por segundo (B9); `window.confirm` antes de começar (B10 iii, opção b do usuário).
 - **Ruído mais rápido descartado:** idêntico bit a bit, mas sem ganho no jogo (o motor já otimizava).
 - **Bateria:** as medições do Claude Code passam a dizer se o notebook estava na bateria ou na tomada.
+- **2026-11-03 — B2, crateras somando (técnico):** lista de até 256 crateras (centro, raio, fundo) nos
+  desastres; o centro é acompanhado na recomposição pelo `Ground.remap` (parâmetro `track`, sem estado de
+  chão). Cratera cuja crosta some na recomposição sai da lista. O meteoro soma com a cratera mais perto
+  que o contém, em volta do centro dela.

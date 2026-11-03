@@ -4,9 +4,9 @@ import { TICKS_PER_YEAR } from '../../src/core/time';
 import { IMPACT_RAMP_YEARS } from '../../src/world/climate';
 import { SimulationCore } from '../../src/sim/core';
 import { createWorld } from '../../src/world/create';
-import { cellPoint, DisasterKind, Disasters } from '../../src/world/disasters';
+import { cellDistance, cellPoint, DisasterKind, Disasters } from '../../src/world/disasters';
 import { CellState, Ground } from '../../src/world/disasters/ground';
-import { CRATER_DEPTH, ENTRY_TICKS, GIANT_WINTER, impact, NATURAL_PER_YEAR, sampleNaturalMeteor } from '../../src/world/disasters/meteor';
+import { CRATER_DEPTH, CRATER_RADIUS, ENTRY_TICKS, GIANT_WINTER, impact, NATURAL_PER_YEAR, sampleNaturalMeteor } from '../../src/world/disasters/meteor';
 import type { WorldState } from '../../src/world/state';
 
 const worldOf = (seed = 'terra', n = 128) => createWorld({ seedText: seed, seed: seedFrom(seed), n, seaLevel: 0, landFraction: 0.3 });
@@ -133,5 +133,72 @@ it('em terra a cratera não vira mar: o fundo fica acima do nível do mar', () =
   const hit = impact(w, new Ground(w.cellCount), c, 3, 0, createRng(1));
   hit.terrainCells.forEach((x, k) => {
     if (!w.isWater(x)) expect(w.heightAboveSea(x) + hit.terrainDeltas[k]!).toBeGreaterThan(0);
+  });
+});
+
+// P8 opção (b) (decisão do usuário, 2026-11-03): crateras no mesmo lugar somam o estrago, alargando e
+// aprofundando, sem virar mar em terra. A área soma: raio novo = √(raio antigo² + raio do meteoro²).
+describe('crateras sobrepostas somam (P8 b)', () => {
+  const hitAt = (d: Disasters, w: WorldState, c: number, size: number, from: number) => {
+    d.trigger(DisasterKind.Meteor, cellPoint(w, c), from, size);
+    for (let t = from + 1; t <= from + ENTRY_TICKS + 2; t++) {
+      const o = d.step(t, 0);
+      // Aplica no relevo o que o desastre mudou (como o relógio faz).
+      for (const ch of o?.terrain ?? []) ch.cells.forEach((x, k) => (w.elevation[x] = (w.elevation[x] as number) + (ch.deltas[k] as number)));
+    }
+  };
+  const ring = (w: WorldState, c: number, from: number, to: number) => [...Array(w.cellCount).keys()].filter((x) => {
+    const d = cellDistance(w, c, x);
+    return d >= from && d <= to;
+  });
+
+  it('o segundo meteoro dentro da cratera alarga pela soma das áreas; em terra o fundo fica acima do mar', () => {
+    const w = worldOf();
+    const d = new Disasters(w);
+    d.frequency = 0;
+    const c = inland(w);
+    hitAt(d, w, c, 3, 0);
+    expect(d.craters).toHaveLength(1);
+    const r0 = CRATER_RADIUS[3]!;
+    expect(d.craters[0]!.radius).toBe(r0);
+    // A faixa que era a borda da primeira (r0 a 1,25·r0) antes do segundo:
+    const band = ring(w, c, r0 * 1.05, Math.sqrt(r0 * r0 + r0 * r0) * 0.85);
+    const before = band.map((x) => w.heightAboveSea(x));
+    // Cai um pouco fora do centro, mas dentro da cratera.
+    const inside = ring(w, c, 2, 3)[0]!;
+    hitAt(d, w, inside, 3, 100);
+    expect(d.craters).toHaveLength(1);
+    expect(d.craters[0]!.radius).toBeCloseTo(Math.sqrt(2) * r0, 6);
+    expect(d.craters[0]!.cell).toBe(c);
+    // A cratera alargou: a antiga borda afundou.
+    const after = band.map((x) => w.heightAboveSea(x));
+    const lower = after.filter((h, k) => h < before[k]! - 50).length;
+    expect(lower).toBeGreaterThan(band.length * 0.6);
+    // Em terra continua terra.
+    for (const x of ring(w, c, 0, d.craters[0]!.radius * 1.5)) if (!w.isWater(x)) expect(w.heightAboveSea(x)).toBeGreaterThan(0);
+  });
+
+  it('fora da cratera nasce outra; a antiga não muda', () => {
+    const w = worldOf();
+    const d = new Disasters(w);
+    d.frequency = 0;
+    const c = inland(w);
+    hitAt(d, w, c, 2, 0);
+    const far = ring(w, c, 30, 31).find((x) => !w.isWater(x))!;
+    hitAt(d, w, far, 2, 100);
+    expect(d.craters).toHaveLength(2);
+    expect(d.craters[0]!.radius).toBe(CRATER_RADIUS[2]);
+  });
+
+  it('a cratera anda com a placa (o centro acompanha a recomposição)', () => {
+    const w = worldOf();
+    const d = new Disasters(w);
+    d.frequency = 0;
+    const c = inland(w);
+    hitAt(d, w, c, 2, 0);
+    // Recomposição sintética: cada célula vai para a vizinha de índice + 7.
+    const n = w.cellCount;
+    d.remap((x) => x, (x) => (x - 7 + n) % n);
+    expect(d.craters[0]!.cell).toBe((c + 7) % n);
   });
 });

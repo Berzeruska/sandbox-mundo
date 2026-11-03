@@ -318,9 +318,12 @@ export class Ground {
    * `oldKey(c)` é a identidade (placa e ponto de referência) da célula antes; `newKey(c)`, depois. Chão
    * em crosta que sumiu (subducção) some; fenda nova nasce sem nada. Devolve célula antiga → nova.
    */
-  remap(oldKey: (c: number) => number, newKey: (c: number) => number, cellCount: number): Map<number, number> {
+  remap(oldKey: (c: number) => number, newKey: (c: number) => number, cellCount: number, track: Iterable<number> = []): Map<number, number> {
     const moving = new Set<number>([...this.active, ...this.rockCells]);
     const byKey = new Map<number, number>();
+    // Células acompanhadas sem chão próprio (ex.: o centro de uma cratera antiga, P8): só a posição.
+    const tracked = new Map<number, number>();
+    for (const c of track) if (!moving.has(c)) tracked.set(oldKey(c), c);
     const snap = new Map<number, { cover: number; state: number; start: number; until: number; level: number; rock: number }>();
     for (const c of moving) {
       byKey.set(oldKey(c), c);
@@ -341,9 +344,14 @@ export class Ground {
     this.active.clear();
     this.rockCells.clear();
     const moved = new Map<number, number>();
-    if (!byKey.size) return moved;
+    if (!byKey.size && !tracked.size) return moved;
     for (let c = 0; c < cellCount; c++) {
-      const from = byKey.get(newKey(c));
+      const key = newKey(c);
+      if (tracked.size) {
+        const t = tracked.get(key);
+        if (t !== undefined && !moved.has(t)) moved.set(t, c);
+      }
+      const from = byKey.get(key);
       if (from === undefined || moved.has(from)) continue;
       const v = snap.get(from) as { cover: number; state: number; start: number; until: number; level: number; rock: number };
       moved.set(from, c);
