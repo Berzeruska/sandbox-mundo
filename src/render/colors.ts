@@ -33,12 +33,6 @@ export const NO_LAYERS: Layers = { plates: false, biomes: false, resources: fals
  * jazidas nessas células (~1% da terra). Mudar o azul em 1/255 não aparece.
  */
 export const DECOR_BIT = 1;
-/**
- * Bit mais baixo do vermelho: areia seca (deserto, seca ou areia de tempestade, em terra sem gelo). O
- * shader só desenha a poeira das tempestades de areia nessas células (E4, teste da `58f53e7`: nem mar
- * nem outro bioma), lendo a mesma célula que já desenha, com as placas andando.
- */
-export const SAND_BIT = 1;
 /** Quanto a cor do minério puxa o solo, de longe (visão normal). */
 const SOIL_TINT = 0.22;
 /** Petróleo revelado: mancha escura (em terra e no mar). */
@@ -339,9 +333,7 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   // Prende em 0–255: a textura é Uint8Array, que dá a volta (260 vira 4) em vez de prender. Era isso
   // que pintava pontos rosa e azul-forte no gelo claro (teste da 50f0dca).
   const o = i * 4;
-  const state = ground ? (ground.state[i] as number) : 0;
-  const sand = h > 0 && !world.ice[i] && (biome === Biome.HotDesert || biome === Biome.ColdDesert || state === CellState.Heat || state === CellState.Sand);
-  out[o] = (clampByte(r) & ~SAND_BIT) | (sand ? SAND_BIT : 0);
+  out[o] = clampByte(r);
   out[o + 1] = clampByte(g);
   out[o + 2] = (clampByte(b) & ~DECOR_BIT) | (decor ? DECOR_BIT : 0);
   out[o + 3] = (world.biome[i] as number) | (sameCorners(world, i) << BIOME_BITS);
@@ -713,8 +705,7 @@ export function tintStress(out: Uint8Array, i: number, v: number): void {
   const f = t - Math.floor(t);
   const o = i * 4;
   const decor = (out[o + 2] as number) & DECOR_BIT;
-  const sand = (out[o] as number) & SAND_BIT;
-  out[o] = (clampByte(a[0] + (b[0] - a[0]) * f) & ~SAND_BIT) | sand;
+  out[o] = clampByte(a[0] + (b[0] - a[0]) * f);
   out[o + 1] = clampByte(a[1] + (b[1] - a[1]) * f);
   out[o + 2] = (clampByte(a[2] + (b[2] - a[2]) * f) & ~DECOR_BIT) | decor;
 }

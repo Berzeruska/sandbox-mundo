@@ -1463,6 +1463,19 @@ refeito em 3D no mesmo estilo.
 6. **Rocha que se parte no ar:** quebra em 3–4 pedaços de cubos antes de bater; continua uma cratera só.
    Custo pequeno a médio (~1 dia).
 
+### B4 — Tempestade de areia passa da borda (decisão do usuário, feito; reverte a E4)
+Imagem: `docs/img/m2-b4-tempestade-borda.png` (deserto na costa, semente `pangeia`, 1×: a poeira passa por
+cima do mar mais fraca e some ~3 s depois de sair da areia). A tempestade é uma corrente de ar que
+levanta areia: anda com o vento sem parar na borda. Sobre areia seca a força se recarrega (+0,2 por
+passo); fora dela cai e^−1 a cada 6 células andadas e, abaixo de 0,1, a tempestade se desfez (~14 células
+depois da borda, em 1× ~2,3 s). A vida de 6–15 s conta só sobre a areia. **Areia grossa cai perto:** só
+deixa areia no chão (vegetação fora do deserto) enquanto a força passa de 0,45 (~5 células depois da
+borda), mais forte quanto mais força; **a poeira fina vai mais longe:** o desenho continua, cada vez mais
+fraco (força × entrada/saída), até o fim. O deserto não avança (a areia no chão some em 3–10 anos). O
+recorte da poeira no shader (bit da areia seca nas cores, F1) saiu. Testes em
+`tests/world/sandstorm.test.ts` (passa da borda e se desfaz no limite do desenho, força caindo fora;
+areia grossa perto e poeira fina mais longe; nasce só em areia seca; deserto não avança).
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

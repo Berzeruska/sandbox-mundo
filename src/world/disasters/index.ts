@@ -370,7 +370,7 @@ export class Disasters {
       const start = nearest(world, cell, 6, (c) => canBurn(world, this.ground, c));
       if (start >= 0) this.startFire(start, tick, true, 'jogador');
     } else if (kind === DisasterKind.Sandstorm) {
-      // Só em areia seca (E4): no deserto ou seca mais perto do toque onde ela cabe.
+      // Nasce em areia seca: no deserto ou seca mais perto do toque onde ela cabe (depois passa da borda, B4).
       const start = nearest(world, cell, PLAYER_SAND_SEARCH, (c) => canStartSandstorm(world, this.ground, c));
       if (start >= 0) this.sandstorm(start, tick, true, out);
     } else if (kind === DisasterKind.Meteor) {
@@ -773,7 +773,6 @@ export class Disasters {
     const [lo, hi] = manual ? PLAYER_SAND_RADIUS : SAND_RADIUS;
     const radius = lo + Math.floor((hi - lo + 1) * (manual ? this.rng.next() : this.rng.next() ** 2));
     const p = new SandstormProcess(this.world, this.ground, cell, radius, this.rng, tick, this.dust.filter((x) => x.startTick === tick).length);
-    // Perto do mar ela nasce menor (a poeira fica em terra, E4).
     const r = p.radiusCells;
     if (r <= 0) return;
     this.dust.push(p);

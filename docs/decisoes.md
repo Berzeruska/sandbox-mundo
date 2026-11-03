@@ -1132,3 +1132,9 @@ Formato: data — decisão — motivo — alternativa descartada.
   desastres; o centro é acompanhado na recomposição pelo `Ground.remap` (parâmetro `track`, sem estado de
   chão). Cratera cuja crosta some na recomposição sai da lista. O meteoro soma com a cratera mais perto
   que o contém, em volta do centro dela.
+- **2026-11-03 — B4, tempestade de areia (técnico):** força por ponto do caminho (recarga 0,2 por passo
+  sobre areia seca; fora, × e^(−0,5/6) por passo; fim abaixo de 0,1); areia no chão só com força > 0,45,
+  na proporção do que passa disso; a vida sorteada (72–180 passos) conta só sobre a areia; o raio não se
+  ajusta mais ao espaço até a borda. Sai o `SAND_BIT` das cores e o recorte da poeira no shader (F1): a
+  impressão digital da geologia volta ao valor de antes da F1 (`aee2695d`). Alternativa descartada:
+  manter o recorte e deixar só passar 1–2 células (a pergunta da F1), superada pela decisão do usuário.

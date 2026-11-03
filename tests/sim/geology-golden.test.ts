@@ -30,6 +30,8 @@ const bytesOf = (a: ArrayBufferView): Uint8Array => new Uint8Array(a.buffer, a.b
  * Valor novo no teste da d644319 (E6, 2026-10-19): em terra, a altura e os degraus das cores contam do
  * nível de base do mar (antes, do nível do mar atual, que o ciclo glacial move); sem essa mudança das
  * cores, o valor é o mesmo de antes (b0dbcd8f).
+ * Valor da F1 (2026-10-19, 152f1801) desfeito na B4 (2026-11-03): sem o bit da areia seca nas cores (a
+ * poeira passa da borda do deserto), o valor volta ao de antes da F1 (aee2695d).
  */
 describe('motor da geologia: mesmo resultado', () => {
   it('impressão digital depois de 40 recomposições (terra, N = 64)', () => {
@@ -56,7 +58,7 @@ describe('motor da geologia: mesmo resultado', () => {
       engine.receive({ type: 'advance', world: 1, tick });
       for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
     }
-    expect(h.toString(16)).toBe('152f1801');
+    expect(h.toString(16)).toBe('aee2695d');
   });
 });
 
