@@ -34,7 +34,7 @@ import { depositLabel, isHiddenOil } from './world/resources';
 import { activeBrush, activeDisaster, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
-import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, workDelta, type FirstLoad, type GenerationResult, type GpuSample, type ScenarioResult, type WorkCounters } from './ui/benchmark';
+import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, scenarioInvalid, workDelta, type FirstLoad, type GenerationResult, type GpuSample, type ScenarioResult, type WorkCounters } from './ui/benchmark';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
@@ -53,6 +53,10 @@ const FLY_MS = 800;
  * Thread principal: câmera, entrada, interface e desenho. O mundo vive no Web Worker
  * (`src/sim/`); aqui fica só uma cópia das cores para a textura, atualizada por remendos.
  */
+/** A pergunta antes do "Medir desempenho" (B10, opção b do usuário). */
+export const BENCHMARK_CONFIRM =
+  'O "Medir desempenho" leva cerca de 3 minutos e, no fim, gera o mundo de novo: o jogo volta ao ano 0 e o que você fez neste mundo se perde.\n\nDeixe o jogo na frente, sem trocar de janela. Começar?';
+
 export class App {
   readonly camera = new Camera();
   readonly overlay: Overlay;
@@ -145,6 +149,8 @@ export class App {
   private worldTotalMs = 0;
   private needsDraw = true;
   private lastTime = 0;
+  /** `sim.receiveMs` no quadro anterior (o que chegou do worker entre dois quadros). */
+  private lastReceiveMs = 0;
   /** Duração do último quadro (s), para o relógio do desenho. */
   private frameDt = 0;
   /** Posição do pincel na tela (mouse por cima ou dedo pintando), ou null. */
@@ -347,6 +353,29 @@ export class App {
     // Página escondida (outro app por cima): o intervalo até voltar não é travada.
     document.addEventListener('visibilitychange', () => this.stalls.restart());
     this.newWorld(seedText);
+    this.warmRenderer();
+  }
+
+  /**
+   * Compila o shader do globo e faz um desenho escondido (atrás da tela de carregamento) enquanto o
+   * primeiro mundo nasce nos workers. Antes o shader só nascia com o mundo e o navegador terminava de
+   * compilar no primeiro desenho, já com o globo na tela: 3 travadas de 233–767 ms "fora do código da
+   * tela" ao abrir a página (A, relatório da `d7479ae2`). Se falhar aqui, tenta de novo com o mundo
+   * (e o erro aparece na tela por lá).
+   */
+  private warmRenderer(): void {
+    try {
+      const n = DEFAULT_N;
+      const renderer = new GlobeRenderer(this.canvas, n, new Uint8Array(n * n * 6 * 4));
+      renderer.clouds = this.cloudsOn ? 1 : 0;
+      renderer.resize(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
+      this.camera.setViewport(renderer.canvas.width, renderer.canvas.height);
+      renderer.draw(this.camera);
+      renderer.flush();
+      this.renderer = renderer;
+    } catch (err) {
+      console.warn('Shader do globo não compilou antes do mundo; tenta de novo com ele.', err);
+    }
   }
 
   /** Pede ao worker outro planeta. O globo atual continua na tela (e girável) enquanto ele nasce. */
@@ -748,7 +777,9 @@ export class App {
       this.fail(`O simulador não deu notícia da geração por ${GENERATION_WATCHDOG_MS / 1000} s (última etapa: "${this.loadingText.textContent}").`);
     }
     const renderer = this.renderer;
-    if (!renderer) return;
+    // Antes do primeiro mundo, o globo (sem cores ainda) não é desenhado: só o desenho escondido de
+    // aquecimento do shader (`warmRenderer`).
+    if (!renderer || !this.info) return;
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
     if (renderer.resize(ratio)) {
       this.camera.setViewport(renderer.canvas.width, renderer.canvas.height);
@@ -793,7 +824,9 @@ export class App {
     }
     const workMs = performance.now() - workStart;
     this.stalls.frameWork(workMs);
-    this.bench?.recorder?.frame(time, workMs, drew);
+    const received = this.sim.receiveMs;
+    this.bench?.recorder?.frame(time, workMs, drew, received - this.lastReceiveMs);
+    this.lastReceiveMs = received;
     this.measure(time, workMs);
   }
 
@@ -869,6 +902,9 @@ export class App {
    */
   async runBenchmark(): Promise<void> {
     if (this.bench || !this.info || !this.renderer) return;
+    // No fim a medição gera o mundo de novo (mede a geração) e o jogo volta ao ano 0: pergunta antes
+    // (decisão do usuário, 2026-11-03, opção b).
+    if (!window.confirm(BENCHMARK_CONFIRM)) return;
     const seedText = this.info.seedText;
     const before = { speed: this.clock.speed, plateRate: this.plateRate, spin: this.stressSpin };
     const bench: NonNullable<App['bench']> = { recorder: null, receive: [], onWorld: null, panelOpen: false };
@@ -922,14 +958,30 @@ export class App {
       bench.receive = [];
       this.sim.resetWorst();
       const work0 = { ...this.work };
+      // Página escondida no meio do cenário (B9): o tempo escondido invalida a medição.
+      let hiddenMs = 0;
+      let hiddenSince = document.hidden ? performance.now() : -1;
+      const onVisibility = () => {
+        if (document.hidden) hiddenSince = performance.now();
+        else if (hiddenSince >= 0) {
+          hiddenMs += performance.now() - hiddenSince;
+          hiddenSince = -1;
+        }
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+      const wallStart = performance.now();
       const timer = setInterval(() => status(step, name, panel), 1000);
       await wait(ms);
       clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (hiddenSince >= 0) hiddenMs += performance.now() - hiddenSince;
       const frames = recorder.summary();
+      const invalid = scenarioInvalid(frames.frames, performance.now() - wallStart, hiddenMs);
       bench.recorder = null;
       const r = bench.receive;
       scenarios.push({
         name,
+        invalid,
         frames,
         work: workDelta(work0, this.work),
         receiveAvgMs: r.length ? r.reduce((a, b) => a + b, 0) / r.length : 0,

@@ -1373,6 +1373,62 @@ que isso.
   reforço do gelo com memória (regra 3), o controle ampliado e 3–4 testes (fração de deserto e de gelo
   nos extremos, volta com histerese). Sem custo de GPU.
 
+## Correções do teste da `d7479ae2` (2026-11-03; antes da T14)
+Mensagem do usuário de 2026-11-03 (itens A–E). Decisões em `docs/decisoes.md`, "2026-11-03".
+
+### A — Desempenho (relatório do usuário de 29/10, Chrome, `d7479ae2`)
+**Medido pelo Claude Code em 2026-11-03**, no notebook **na bateria** (perfil "balanced", 57%), no
+Chromium com a GPU de verdade (Vulkan), build de produção, sem outra carga, pelo menu.
+- **Por que os números do usuário saíram piores que os do Claude Code (recomposição 976 × 600 ms):** a
+  bateria. Na bateria o processador baixa o relógio dos núcleos parados e demora para subir quando chega
+  trabalho. O ajudante 2 fica parado entre uma recomposição e outra, então cada recomposição começa num
+  núcleo lento: "placas" 350–540 ms no jogo contra 150–270 ms da mesma conta no Node com o núcleo
+  acelerado. Prova: com 3 programas ocupando o processador ao fundo, a recomposição ficou **mais
+  rápida** (média 493 contra 881 ms), porque o processador subiu o relógio. As medições de 2026-10-20
+  do Claude Code devem ter sido na tomada (não foi registrado; a partir de agora o relatório diz).
+- **Bateria, 854×407 (como o usuário):** 60 fps, nenhum quadro > 50 ms, relógio nunca esperou, 0
+  travadas; geração 1.414 ms, primeira abertura 1.651 ms, pior recomposição 924 ms.
+- **Bateria, 1920×1080, depois das correções abaixo:** 60 fps, nenhum quadro > 50 ms, relógio nunca
+  esperou, 0 travadas; geração 1.466 ms, primeira abertura 1.618 ms, pior recomposição 997 ms; memória
+  107 MB de dados, 213 MB a página. **GPU do globo fora da meta na bateria:** longe 5,7, de perto 10,6
+  (pior 15,9), de perto andando 8,5, meio andando 9,5 (pior 12,1), meio na transição 9,1 ms. Na tomada
+  (R9/RG, outubro) eram 4,3 / 5,0 / 7,1 ms. Decisão do usuário: a meta vale na bateria? (proposta no fim
+  desta seção).
+- **Desenho 854×407 afeta a comparação?** Sim, para a GPU: 854×407 tem 17% dos pixels de 1080p, e o
+  globo custa por pixel. Com a janela pequena, a GPU do relatório sai ~4–5× mais leve e não vale para a
+  meta de 1080p. Para fps, quadros, relógio, recomposição e geração (trabalho de CPU) a janela quase não
+  muda nada. A janela pequena também indica outra janela ao lado (dividindo CPU e GPU).
+- **Quadros > 50 ms (83, 67, 83 ms) e as 3 travadas ao abrir (233–767 ms, "fora do código da tela"):**
+  não reproduzidos aqui (nem na bateria, nem com carga de fundo, nem em 854×407). "Fora do código da
+  tela" quer dizer que o tempo não foi do jogo na thread principal: navegador, GPU, outra janela ou o
+  sistema. Um deles aparece em "tempo 20×, placas paradas", sem recomposição nenhuma. Causa provável das
+  travadas ao abrir: o shader do globo era compilado só com o mundo pronto e o navegador terminava a
+  compilação no primeiro desenho, já com o globo na tela.
+- **Relógio esperou 195 ms ("deriva longa"):** o ajudante 2 tinha uma vaga só para entregar resultados.
+  Um clima refeito pelo ciclo glacial logo antes de uma recomposição prendia o ajudante até o relógio
+  aplicar o clima (480 passos depois); com a recomposição lenta da bateria, ela passava do prazo e o
+  relógio esperava.
+- **Primeira abertura 2.666 ms:** é medida da última carga da página até o mundo chegar; quase toda é a
+  geração. Sem o relatório inteiro não dá para separar: a linha "primeira abertura" traz "pedido ao
+  globo" e "worker"; a diferença é o carregamento da página (rede, service worker; numa versão nova
+  publicada, o navegador recarrega a página uma vez para ligar a memória compartilhada).
+
+**Correções (técnicas, sem efeito no jogo):**
+1. **Duas vagas de entrega no ajudante 2** (`RESULT_SLOTS` em `src/sim/geology.ts`): ele copia cada
+   resultado para uma vaga e segue; só para com as duas ocupadas. O mundo sai igual (impressão digital
+   da geologia sem mudança); +22 MB de memória (dados do jogo 85 → 107 MB). Teste em
+   `tests/sim/geology-golden.test.ts`.
+2. **Shader do globo compilado ao abrir a página** (`warmRenderer` em `src/app.ts`), com um desenho
+   escondido atrás da tela de carregamento enquanto o mundo nasce nos workers.
+3. **Relatório:** cada quadro > 50 ms aparece embaixo do cenário com a hora, o trabalho da tela e o tempo
+   recebendo do worker (para o próximo relatório dizer a causa); "medição inválida" (B9); pergunta antes
+   de começar (B10 iii).
+4. **Tentado e desfeito:** ruído da geração ~15% mais rápido num teste isolado (resultado idêntico bit a
+   bit); no jogo não ganhou nada (o motor do JavaScript já fazia isso), então voltou ao código antigo.
+- **Não otimizado (dentro da meta):** geração (1,41–1,47 s na bateria, meta 1,5 s) e recomposição (pior
+  924–997 ms na bateria, meta 1 s). Na tomada ficam ~1,0 s e ~600 ms. Se a meta valer na bateria, a folga
+  é pequena: proposta abaixo.
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

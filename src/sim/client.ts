@@ -45,17 +45,21 @@ export class SimClient {
   private nextQuery = 1;
   private sharedBuffer: SharedArrayBuffer | null = null;
   private sharedProbe: boolean | null = null;
+  /** Tempo tratando mensagens do worker (ms, acumulado): o "Medir desempenho" desconta por quadro. */
+  receiveMs = 0;
 
   constructor(private events: SimEvents) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<FromWorker>) => {
       this.events.onAlive?.();
+      const start = performance.now();
       try {
         this.receive(e.data);
       } catch (err) {
         // Erro na tela ao tratar uma mensagem (ex.: a GPU recusou o desenho): aparece, não trava.
         this.events.onError(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
       }
+      this.receiveMs += performance.now() - start;
     };
     this.worker.onerror = (e) => {
       e.preventDefault();

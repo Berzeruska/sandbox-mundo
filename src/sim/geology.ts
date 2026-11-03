@@ -108,6 +108,8 @@ export interface GeologyResult {
   layers: Layers;
   /** Passo do relógio em que a recomposição aconteceu (aparece em tick + APPLY_DELAY_TICKS). */
   tick: number;
+  /** Vaga dos buffers com este resultado. */
+  slot: number;
   /** Ângulos das placas e deriva na recomposição; eixo, velocidade e centro de cada placa. */
   angles: number[];
   drift: number;
@@ -158,12 +160,25 @@ export type GeologyEvent =
   | { type: 'result'; result: GeologyResult }
   | { type: 'error'; message: string; stack?: string };
 
-/** Buffers do motor que o relógio lê ao aplicar uma recomposição (compartilhados no ajudante). */
-export interface GeologyBuffers {
-  world: number;
+/**
+ * Vagas de entrega: o motor copia cada resultado para uma vaga e já pode seguir para o próximo. Com uma
+ * vaga só (até 2026-11-03), um clima refeito logo antes de uma recomposição prendia o motor até o relógio
+ * aplicar o clima, e a recomposição atrasada fazia o relógio esperar (A, relatório da `d7479ae2`, na
+ * bateria: "relógio esperou 195 ms").
+ */
+export const RESULT_SLOTS = 2;
+
+/** Uma vaga: o mundo, as cores e as referências de uma entrega. */
+export interface GeologySlot {
   arrays: Pick<WorldArrays, (typeof COMPOSED_FIELDS)[number]>;
   colors: Uint8Array;
   cellRef: Int32Array;
+}
+
+/** Buffers do motor que o relógio lê ao aplicar uma recomposição (compartilhados no ajudante). */
+export interface GeologyBuffers {
+  world: number;
+  slots: GeologySlot[];
 }
 
 /** Copia os arrays de um mundo (para mandar ao motor). */
@@ -199,8 +214,10 @@ export class GeologyEngine {
   private climateControl: number;
   private queue: GeologyCommand[] = [];
   private nextIndex = 0;
-  /** Índice da recomposição entregue e ainda não aplicada pelo relógio (-1: nenhuma). */
-  private unconsumed = -1;
+  /** Índices entregues e ainda não aplicados pelo relógio, do mais antigo ao mais novo. */
+  private unconsumed: number[] = [];
+  /** Vagas de entrega (RESULT_SLOTS). */
+  private readonly slots: GeologySlot[];
   private lastProgress = -1;
 
   constructor(
@@ -218,32 +235,34 @@ export class GeologyEngine {
     this.layers = init.layers;
     this.climateControl = init.climateControl;
     this.formation = new DepositFormation(init.params.seed);
-    this.colors = newArray(Uint8Array, world.cellCount * 4);
-    this.cellRef = newArray(Int32Array, world.cellCount);
+    this.colors = new Uint8Array(world.cellCount * 4);
+    this.cellRef = new Int32Array(world.cellCount);
     for (let c = 0; c < world.cellCount; c++) this.cellRef[c] = c;
+    this.slots = Array.from({ length: RESULT_SLOTS }, () => {
+      const arrays = {} as GeologySlot['arrays'];
+      for (const k of COMPOSED_FIELDS) (arrays as Record<string, unknown>)[k] = newArray(world[k].constructor as Uint8ArrayConstructor, world[k].length);
+      return { arrays, colors: newArray(Uint8Array, world.cellCount * 4), cellRef: newArray(Int32Array, world.cellCount) };
+    });
   }
 
-  /** Buffers que o relógio lê ao aplicar uma recomposição. */
+  /** Há vaga para mais uma entrega? */
+  private get slotFree(): boolean {
+    return this.unconsumed.length < RESULT_SLOTS;
+  }
+
+  /** Buffers que o relógio lê ao aplicar uma recomposição (as vagas de entrega). */
   get buffers(): GeologyBuffers {
-    const arrays = {} as GeologyBuffers['arrays'];
-    const w = this.world;
-    arrays.elevation = w.elevation;
-    arrays.temperature = w.temperature;
-    arrays.precipitation = w.precipitation;
-    arrays.biome = w.biome;
-    arrays.ice = w.ice;
-    arrays.plate = w.plate;
-    arrays.crust = w.crust;
-    arrays.boundary = w.boundary;
-    arrays.waterDistance = w.waterDistance;
-    arrays.deposit = w.deposit;
-    return { world: this.worldId, arrays, colors: this.colors, cellRef: this.cellRef };
+    return { world: this.worldId, slots: this.slots };
   }
 
   /** Bytes próprios do motor (mundo de trabalho, cores, referências e tectônica). */
   get bytes(): number {
     let total = this.colors.byteLength + this.cellRef.byteLength + (this.tectonics?.bytes ?? 0);
     for (const k of WORLD_FIELDS) total += this.world[k].byteLength;
+    for (const slot of this.slots) {
+      total += slot.colors.byteLength + slot.cellRef.byteLength;
+      for (const k of COMPOSED_FIELDS) total += slot.arrays[k].byteLength;
+    }
     return total;
   }
 
@@ -257,7 +276,7 @@ export class GeologyEngine {
         this.layers = cmd.layers;
         return;
       case 'consumed':
-        if (cmd.index === this.unconsumed) this.unconsumed = -1;
+        this.unconsumed = this.unconsumed.filter((i) => i > cmd.index);
         break;
       default:
         this.queue.push(cmd);
@@ -277,7 +296,7 @@ export class GeologyEngine {
       if (!cmd) break;
       // A ruptura do passo T ainda vai entregar uma recomposição do passo T: até lá, o relógio só pode
       // contar com T − 1 (senão ele passa de T + APPLY_DELAY_TICKS sem ela; achado com os desastres).
-      if (cmd.type === 'rupture' && this.unconsumed >= 0) return this.progress(this.tick - 1);
+      if (cmd.type === 'rupture' && !this.slotFree) return this.progress(this.tick - 1);
       this.queue.shift();
       this.apply(cmd);
     }
@@ -305,14 +324,14 @@ export class GeologyEngine {
   private stepOnce(): boolean {
     const climate = this.climateDue(this.tick + 1);
     if (this.rate <= 0) {
-      if (climate && this.unconsumed >= 0) return false;
+      if (climate && !this.slotFree) return false;
       this.tick++;
       if (climate) this.refreshClimate();
       return true;
     }
     // A tectônica nasce no primeiro passo com placas ligadas (como antes da correção 2).
     this.tectonics ??= new Tectonics(this.world);
-    if (this.unconsumed >= 0 && (climate || this.tectonics.willRecompose(this.rate))) return false;
+    if (!this.slotFree && (climate || this.tectonics.willRecompose(this.rate))) return false;
     this.tick++;
     const t0 = this.now();
     if (this.tectonics.step(this.rate)) this.finish(t0);
@@ -410,9 +429,16 @@ export class GeologyEngine {
     const world = this.world;
     const tectonics = this.tectonics;
     const cycle = tectonics?.cycle;
+    const index = this.nextIndex++;
+    const slot = index % RESULT_SLOTS;
+    const into = this.slots[slot] as GeologySlot;
+    for (const k of COMPOSED_FIELDS) into.arrays[k].set(world[k] as never);
+    into.colors.set(this.colors);
+    into.cellRef.set(this.cellRef);
     const result: GeologyResult = {
       world: this.worldId,
-      index: this.nextIndex++,
+      index,
+      slot,
       kind,
       climateOffset: world.climateOffset,
       seaLevel: world.seaLevel,
@@ -438,7 +464,7 @@ export class GeologyEngine {
         engineBytes: this.bytes,
       },
     };
-    this.unconsumed = result.index;
+    this.unconsumed.push(index);
     this.emit({ type: 'result', result }, plateCells.byteLength ? [plateCells.buffer as ArrayBuffer] : []);
   }
 }

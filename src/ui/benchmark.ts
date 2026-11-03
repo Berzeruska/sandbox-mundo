@@ -84,6 +84,31 @@ export interface FrameSummary {
   workMaxMs: number;
   /** Quadros em que o globo foi desenhado de fato (parado, nada muda e nada é desenhado). */
   drawn: number;
+  /** Os quadros acima de 50 ms (até SLOW_KEEP), para o relatório dizer o que houve em cada um. */
+  slow: SlowFrame[];
+}
+
+/** Um quadro acima de 50 ms: quando (ms desde o começo do cenário), quanto durou e o que a tela fez. */
+export interface SlowFrame {
+  atMs: number;
+  gapMs: number;
+  /** Trabalho da tela no quadro (ms) e tempo recebendo mensagens do worker desde o quadro anterior. */
+  workMs: number;
+  receiveMs: number;
+}
+
+/** Quadros acima de 50 ms guardados por cenário. */
+export const SLOW_KEEP = 4;
+
+/**
+ * Medição inválida (B9, pedido do usuário): sem quadros desenhados (aba escondida, janela minimizada
+ * ou coberta) o cenário mostraria 0 fps e números absurdos. Inválido quando a página ficou escondida
+ * em algum momento ou quando chegaram menos de MIN_VALID_FPS quadros por segundo.
+ */
+export const MIN_VALID_FPS = 10;
+
+export function scenarioInvalid(frames: number, wallMs: number, hiddenMs: number): boolean {
+  return hiddenMs > 0 || wallMs <= 0 || (frames * 1000) / wallMs < MIN_VALID_FPS;
 }
 
 /** Junta os quadros de um cenário. `frame` recebe o horário do quadro e o trabalho dele (ms). */
@@ -91,11 +116,14 @@ export class FrameRecorder {
   private times: number[] = [];
   private work: number[] = [];
   private drew: boolean[] = [];
+  private received: number[] = [];
 
-  frame(time: number, workMs: number, drew = true): void {
+  /** `receiveMs`: tempo recebendo mensagens do worker desde o quadro anterior. */
+  frame(time: number, workMs: number, drew = true, receiveMs = 0): void {
     this.times.push(time);
     this.work.push(workMs);
     this.drew.push(drew);
+    this.received.push(receiveMs);
   }
 
   summary(): FrameSummary {
@@ -104,10 +132,15 @@ export class FrameRecorder {
     const durationMs = frames > 0 ? (t[t.length - 1] as number) - (t[0] as number) : 0;
     let worst = 0;
     let slow = 0;
+    const slowList: SlowFrame[] = [];
     for (let i = 1; i < t.length; i++) {
       const gap = (t[i] as number) - (t[i - 1] as number);
       worst = Math.max(worst, gap);
-      if (gap > 50) slow++;
+      if (gap > 50) {
+        slow++;
+        // O trabalho que atrasou este quadro é o do quadro anterior (e o que chegou entre os dois).
+        if (slowList.length < SLOW_KEEP) slowList.push({ atMs: (t[i] as number) - (t[0] as number), gapMs: gap, workMs: this.work[i - 1] as number, receiveMs: this.received[i] as number });
+      }
     }
     // Pior janela de 1 s, deslizando quadro a quadro: quadros que começam dentro dela.
     let fpsMin = durationMs >= 1000 ? Infinity : frames > 0 ? (frames * 1000) / durationMs : 0;
@@ -134,6 +167,7 @@ export class FrameRecorder {
       workAvgMs: work.length ? work.reduce((a, b) => a + b, 0) / work.length : 0,
       workMaxMs: work.length ? Math.max(...work) : 0,
       drawn: this.drew.slice(1).filter(Boolean).length,
+      slow: slowList,
     };
   }
 }
@@ -141,6 +175,8 @@ export class FrameRecorder {
 export interface ScenarioResult {
   name: string;
   frames: FrameSummary;
+  /** Sem quadros suficientes (página escondida ou sem desenhar): os números não valem (B9). */
+  invalid?: boolean;
   work: WorkCounters;
   /** Tempo da tela ao receber cada recomposição (aplicar cores e enviar à GPU), ms. */
   receiveAvgMs: number;
@@ -262,11 +298,28 @@ export function formatReport(
     '',
     `${pad('cenário', 26)}${lpad('fps méd', 8)}${lpad('mín', 6)}${lpad('pior quadro', 13)}${lpad('>50ms', 7)}${lpad('tela ms', 9)}${lpad('desenhados', 13)}`,
   ];
+  const invalid = scenarios.filter((s) => s.invalid);
+  if (invalid.length) {
+    lines.splice(
+      1,
+      0,
+      `MEDIÇÃO INVÁLIDA: em ${invalid.length} cenário(s) a tela não desenhou (aba escondida, janela minimizada ou coberta).`,
+      'Os números desses cenários não valem. Rode de novo com o jogo na frente, sem trocar de janela.',
+    );
+  }
   for (const s of scenarios) {
     const fr = s.frames;
+    if (s.invalid) {
+      lines.push(`${pad(s.name, 26)}  medição inválida (sem quadros desenhados)`);
+      continue;
+    }
     lines.push(
       `${pad(s.name, 26)}${lpad(f0(fr.fpsAvg), 8)}${lpad(f0(fr.fpsMin), 6)}${lpad(`${f0(fr.worstFrameMs)} ms`, 13)}${lpad(String(fr.slowFrames), 7)}${lpad(`${f1(fr.workAvgMs)}/${f0(fr.workMaxMs)}`, 9)}${lpad(`${fr.drawn} de ${fr.frames}`, 13)}`,
     );
+    for (const q of fr.slow) {
+      const where = q.receiveMs >= 0.5 * q.gapMs ? 'recebendo do worker' : q.workMs >= 0.5 * q.gapMs ? 'trabalho da tela' : 'fora do código da tela';
+      lines.push(`    quadro de ${f0(q.gapMs)} ms aos ${f1(q.atMs / 1000)} s · tela ${f0(q.workMs)} ms · recebendo ${f0(q.receiveMs)} ms · ${where}`);
+    }
   }
   lines.push(
     '',
@@ -277,7 +330,7 @@ export function formatReport(
   const extra = gpuMemoryLines(gpu, memory);
   if (extra.length) lines.push('', ...extra);
   lines.push('');
-  for (const s of scenarios) lines.push(`${s.name}: ${workLine(s)}`);
+  for (const s of scenarios) lines.push(`${s.name}: ${s.invalid ? 'medição inválida' : workLine(s)}`);
   if (gen) {
     const stages = Object.entries(gen.stagesMs)
       .map(([k, v]) => `${k} ${f0(v)}`)

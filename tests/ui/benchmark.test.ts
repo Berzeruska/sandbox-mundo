@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyWork, FrameRecorder, formatReport, gpuMemoryLines, gpuStats, workDelta } from '../../src/ui/benchmark';
+import { emptyWork, FrameRecorder, formatReport, gpuMemoryLines, gpuStats, scenarioInvalid, workDelta } from '../../src/ui/benchmark';
 
 /** Quadros sintéticos: `gaps` são os intervalos (ms) a partir de t = 1000. */
 function record(gaps: number[], work = 2): FrameRecorder {
@@ -118,5 +118,58 @@ describe('GPU e memória no relatório (metas do notebook)', () => {
     expect(lines[0]).toBe('GPU do globo (meta ≤ 8 ms por quadro): longe 2.0 ms (pior 2.5) · de perto 3.0 ms (pior 3.0) — consulta de tempo da GPU');
     expect(lines[1]).toBe('memória (meta ≤ 400 MB): dados do jogo ~71 MB · página inteira: este navegador não informa');
     expect(gpuMemoryLines([], { dataMb: 70, pageMb: 212, pageHow: 'medida do navegador, com os workers' })[0]).toContain('página inteira 212 MB');
+  });
+});
+
+const device = { version: 'abc123', date: 'hoje', gpu: 'GPU', drawing: 'completo', cores: 8, sharedMemory: 'sim', screen: 'tela', userAgent: 'UA' };
+
+// B9 (pedido do usuário, teste da `d7479ae2`): sem quadros desenhados (aba escondida, janela sem foco),
+// o relatório diz "medição inválida" em vez de 0 fps e números absurdos.
+describe('medição inválida (B9)', () => {
+  it('página escondida ou quase nenhum quadro: inválido; ritmo normal: vale', () => {
+    expect(scenarioInvalid(0, 8000, 0)).toBe(true);
+    expect(scenarioInvalid(479, 8000, 1200)).toBe(true);
+    expect(scenarioInvalid(479, 8000, 0)).toBe(false);
+    // Um aparelho lento (25 fps) ainda é medição de verdade.
+    expect(scenarioInvalid(200, 8000, 0)).toBe(false);
+  });
+
+  it('o relatório avisa no alto e não mostra números do cenário inválido', () => {
+    const good = record(Array(120).fill(1000 / 60)).summary();
+    const empty = new FrameRecorder().summary();
+    const text = formatReport(device, [
+      { name: 'pausado, girando', frames: good, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 },
+      { name: 'tempo 20×, placas 100%', invalid: true, frames: empty, work: { ...emptyWork(), ticks: 10, recompositions: 1 }, receiveAvgMs: 0, receiveMaxMs: 0 },
+    ], null);
+    const lines = text.split('\n');
+    expect(lines[1]).toContain('MEDIÇÃO INVÁLIDA');
+    const row = lines.find((l) => l.startsWith('tempo 20×, placas 100%'))!;
+    expect(row).toContain('medição inválida');
+    expect(row).not.toMatch(/\b0 ms\b/);
+    expect(text).not.toContain('recomposições (');
+  });
+
+  it('medição boa não tem aviso', () => {
+    const good = record(Array(120).fill(1000 / 60)).summary();
+    expect(formatReport(device, [{ name: 'pausado, girando', frames: good, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 }], null)).not.toContain('INVÁLIDA');
+  });
+});
+
+// A (relatório da `d7479ae2`): quadros > 50 ms que os testes do Claude Code não viam. Cada um aparece
+// no relatório com a hora no cenário e onde foi o tempo (tela, recebendo do worker ou fora do código).
+describe('quadros acima de 50 ms no relatório (A)', () => {
+  it('cada quadro lento com o que a tela fez', () => {
+    const r = new FrameRecorder();
+    let t = 0;
+    r.frame(t, 2);
+    for (let k = 0; k < 60; k++) r.frame((t += 16.7), 2);
+    r.frame((t += 83), 1, true, 0);
+    for (let k = 0; k < 60; k++) r.frame((t += 16.7), 2);
+    r.frame(t + 70, 2, true, 60);
+    const s = r.summary();
+    expect(s.slow.map((q) => Math.round(q.gapMs))).toEqual([83, 70]);
+    const text = formatReport(device, [{ name: 'tempo 20×, placas paradas', frames: s, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 }], null);
+    expect(text).toContain('quadro de 83 ms aos 1.1 s · tela 2 ms · recebendo 0 ms · fora do código da tela');
+    expect(text).toContain('quadro de 70 ms aos 2.2 s · tela 2 ms · recebendo 60 ms · recebendo do worker');
   });
 });

@@ -425,6 +425,11 @@ export class GlobeRenderer {
     this.snapFresh = true;
   }
 
+  /** Manda à GPU o que já foi pedido (sem esperar), ex.: a compilação do shader no desenho escondido. */
+  flush(): void {
+    if (!this.lost) this.gl.flush();
+  }
+
   draw(camera: Camera, motion?: PlateMotionUniforms): void {
     this.lastCamera = camera;
     this.lastMotion = motion ?? null;

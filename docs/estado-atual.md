@@ -15,9 +15,16 @@ sobre "onde estamos", vale este.
 - [x] **B1, meteoro sem cratera e sem frio** (`docs/bugs.md`): não reproduzido como falha da simulação
   (cratera e −2,8 °C em todos os casos com o tempo andando). Defeito achado e corrigido: pausado, a
   animação batia e brilhava sem nada acontecer; agora a bola espera no céu até o jogo chegar ao impacto.
-- [ ] A — desempenho (diagnóstico e correção dentro das metas).
-- [ ] B2 crateras somando · B4 tempestade de areia passando da borda · B9 "medição inválida" ·
-  B10(iii) perguntar antes do "Medir desempenho" · B10(v) 8 sementes.
+- [x] **A — desempenho** (`docs/M2-especificacao.md`, "Correções do teste da `d7479ae2`"): a diferença
+  de números vem da **bateria** (o processador baixa o relógio dos núcleos parados). Correções: duas
+  vagas de entrega no ajudante (o relógio não espera mais um clima refeito logo antes de uma
+  recomposição), shader compilado ao abrir a página (as travadas ao abrir), relatório com cada quadro
+  > 50 ms explicado, "medição inválida" (B9) e pergunta antes de começar (B10 iii). Medido na bateria
+  em 1080p: 60 fps, nenhum quadro > 50 ms, relógio nunca esperou, 0 travadas, geração 1,47 s, pior
+  recomposição 997 ms. **Achado: GPU do globo acima de 8 ms na bateria** (de perto 10,6, meio 9,5 ms):
+  decisão do usuário no fim.
+- [x] B9 "medição inválida" e B10(iii) pergunta antes do "Medir desempenho" (junto com a A).
+- [ ] B2 crateras somando · B4 tempestade de areia passando da borda · B10(v) 8 sementes.
 - [ ] Propostas com 4–6 opções e imagem: B3 meteoro em cubos, B5 degrau do terremoto, B7 vulcões em
   continente, B8 avisos e ano.
 - [ ] Fim: resumo, propostas, lista de teste, prévia igual ao último commit.

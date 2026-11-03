@@ -527,10 +527,12 @@ export class SimulationCore {
     const moveGround = !before && !!ground && (ground.active.size > 0 || ground.rockCells.size > 0);
     const oldPlate = moveGround ? world.plate.slice() : null;
     const oldRef = moveGround ? this.cellRef.slice() : null;
-    for (const k of COMPOSED_FIELDS) world[k].set(buffers.arrays[k]);
+    const slot = buffers.slots[r.slot];
+    if (!slot) return;
+    for (const k of COMPOSED_FIELDS) world[k].set(slot.arrays[k] as never);
     forgetResourceHalo(world);
-    this.colors.set(buffers.colors);
-    this.cellRef.set(buffers.cellRef);
+    this.colors.set(slot.colors);
+    this.cellRef.set(slot.cellRef);
     world.climateOffset = r.climateOffset;
     world.seaLevel = r.seaLevel;
     // O motor fez este clima com o controle de temperatura que valia lá atrás (o resultado aparece

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { seedFrom } from '../../src/core/rng';
 import { BIOME_BITS, NO_LAYERS } from '../../src/render/colors';
-import { GeologyEngine, worldArrays, type GeologyEvent } from '../../src/sim/geology';
+import { GeologyEngine, RESULT_SLOTS, worldArrays, type GeologyEvent } from '../../src/sim/geology';
 import { CubeSphere } from '../../src/world/cubesphere';
 import { createWorld } from '../../src/world/create';
 
@@ -41,7 +41,7 @@ describe('motor da geologia: mesmo resultado', () => {
     const emit = (e: GeologyEvent) => {
       if (e.type !== 'result') return;
       results++;
-      const arrays = engine.buffers.arrays as Record<string, ArrayBufferView>;
+      const arrays = engine.buffers.slots[e.result.slot]!.arrays as Record<string, ArrayBufferView>;
       for (const k of Object.keys(arrays).sort()) h = fnv(h, bytesOf(arrays[k] as ArrayBufferView));
       // Só o bioma do canal alfa: os bits dos cantos (2026-10-17) são do desenho e têm teste próprio.
       h = fnv(h, engine.colors.map((x, i) => (i % 4 === 3 ? x & ((1 << BIOME_BITS) - 1) : x)));
@@ -57,5 +57,34 @@ describe('motor da geologia: mesmo resultado', () => {
       for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
     }
     expect(h.toString(16)).toBe('152f1801');
+  });
+});
+
+// A (relatório da `d7479ae2`, na bateria): "relógio esperou 195 ms". Com uma vaga só, um clima refeito
+// logo antes de uma recomposição prendia o motor até o relógio aplicar o clima. Pelo desenho (duas
+// vagas, RESULT_SLOTS), o motor entrega um segundo resultado sem esperar o primeiro ser aplicado, e só
+// para quando as duas vagas estão ocupadas; cada entrega fica intacta na sua vaga até ser aplicada.
+describe('vagas de entrega do ajudante (A)', () => {
+  it('dois resultados sem o relógio aplicar; o terceiro espera', () => {
+    const grid = new CubeSphere(32);
+    const world = createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: 32, seaLevel: 0, landFraction: 0.3 }, grid);
+    const got: { index: number; slot: number; tick: number; elevation: ArrayBufferView }[] = [];
+    const engine: GeologyEngine = new GeologyEngine(
+      { world: 1, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: 1, layers: NO_LAYERS, climateControl: 0 },
+      grid,
+      (e) => {
+        if (e.type === 'result') got.push({ index: e.result.index, slot: e.result.slot, tick: e.result.tick, elevation: engine.buffers.slots[e.result.slot]!.arrays.elevation.slice() });
+      },
+      () => 0,
+    );
+    for (let tick = 20; tick <= 20_000; tick += 20) engine.receive({ type: 'advance', world: 1, tick });
+    expect(got.length).toBe(RESULT_SLOTS);
+    expect(new Set(got.map((g) => g.slot)).size).toBe(RESULT_SLOTS);
+    // A primeira entrega continua intacta na vaga dela depois da segunda.
+    expect(bytesOf(engine.buffers.slots[got[0]!.slot]!.arrays.elevation)).toEqual(bytesOf(got[0]!.elevation));
+    // Aplicada a primeira, a terceira vem (na vaga da primeira).
+    engine.receive({ type: 'consumed', world: 1, index: got[0]!.index });
+    expect(got.length).toBe(RESULT_SLOTS + 1);
+    expect(got[RESULT_SLOTS]!.slot).toBe(got[0]!.slot);
   });
 });

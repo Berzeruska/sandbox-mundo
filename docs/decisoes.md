@@ -1114,3 +1114,17 @@ Formato: data — decisão — motivo — alternativa descartada.
 19. **Batalha de longe:** cada soldado calculado (as mesmas ações de mover, atacar e matar, sem
     desenho), otimizado de forma orgânica. No marco da guerra: 4 a 6 formas de otimizar, com o custo
     medido de cada uma.
+
+## 2026-11-03 — A: desempenho do relatório da `d7479ae2` (decisões técnicas)
+- **Duas vagas de entrega no ajudante 2 (`RESULT_SLOTS = 2`).** O motor copia o resultado (mundo,
+  cores, referências: ~11 MB por vaga) para a vaga `índice % 2` e segue; para só com as duas ocupadas.
+  Custo: +22 MB de memória e ~5 ms de cópia por entrega. Mundo igual (impressão digital sem mudança).
+  Alternativas descartadas: entregar mais tarde (APPLY_DELAY_TICKS maior: as placas deslizariam além
+  do alcance do shader, 3,5 células) e recomposição mais barata (não garante nada na bateria).
+- **Shader compilado ao abrir a página**, com um desenho escondido atrás da tela de carregamento, em vez
+  de nascer com o mundo. O laço da tela não desenha o globo antes do primeiro mundo.
+- **Relatório:** quadros > 50 ms listados por cenário (até 4) com hora, trabalho da tela e tempo
+  recebendo do worker; "medição inválida" quando a página ficou escondida ou chegaram menos de 10
+  quadros por segundo (B9); `window.confirm` antes de começar (B10 iii, opção b do usuário).
+- **Ruído mais rápido descartado:** idêntico bit a bit, mas sem ganho no jogo (o motor já otimizava).
+- **Bateria:** as medições do Claude Code passam a dizer se o notebook estava na bateria ou na tomada.
