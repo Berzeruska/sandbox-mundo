@@ -27,9 +27,13 @@ ordem histórica real, fazem economia e guerra sozinhas, e o jogador observa, in
 - Instalável como app (PWA). Empacotamento para loja só se um dia for desejado.
 
 ## Estética
-- 2D visto de cima, pixel art simples. Funcionalidade antes de beleza. **A partir do M3: diorama de
-  cubos** ("o pixel em 3D"; decisão do usuário, 2026-11-03, `docs/02-marcos.md`).
-- Embelezamento (animações, som, luz, detalhes) é o M8; o estilo em cubos vem antes, no M3.
+- 2D visto de cima, pixel art simples. Funcionalidade antes de beleza. **A partir do M3** (decisão do
+  usuário, 2026-11-03, `docs/02-marcos.md`): **de longe, o globo em pixel 2D** (rios, fronteiras,
+  árvores desenhadas uma a uma, cidades em quarteirões, sprites); **de perto, um diorama vivo** (maquete
+  low-poly com relevo em degraus, luz suave e cores vivas, onde os indivíduos andam, atacam e morrem).
+- Embelezamento (animações, som, luz, detalhes) é o M8; a direção visual vem antes, no M3.
+- **A qualidade não se negocia** (CLAUDE.md, regra 16): para ficar leve, técnica; nunca menos qualidade
+  sem decisão do usuário.
 - **Escala visual** (ideia do usuário, 2026-10-15): pessoas e cidades **bem pequenas** no mapa, para
   o planeta parecer vasto. Vale desde os primeiros indivíduos e povoados (Marcos 3 e 4) e no
   acabamento visual (Marco 8). Sem humanos de 1 pixel: a relação entre a escala do planeta e o

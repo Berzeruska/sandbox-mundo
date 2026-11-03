@@ -84,9 +84,11 @@ Marco 7.
 
 ## Civilizações no clima extremo (Marcos 5 e 6; decisão do usuário, 2026-11-03)
 O planeta no extremo de temperatura (física e vida no M3, `docs/02-marcos.md`) muda o jeito de viver:
-- **Frio máximo (era glacial total):** cidades-fábrica e aldeias mecanizadas para gerar calor; pesca
+- **Frio máximo (era glacial total, o planeta todo congelado, bem extremo):** cidades-fábrica e aldeias mecanizadas para gerar calor; pesca
   precária; fome extrema com canibalismo.
 - **Calor máximo (planeta deserto, vermelho e destruído):** um **modelo social único** para esse mundo:
   gangues, veículos e carros cruzando dunas, vilas especializadas (uma fabrica munição, outra refina
-  combustível), monopólio de recursos (água, combustível) e ataques suicidas. A inspiração é um filme
+  combustível), monopólio de recursos (água, combustível) e ataques suicidas. **Água e floresta ficam
+  raras e viram objetos de poder** numa sociedade apocalíptica (quem controla o poço ou o bosque manda;
+  decisão do usuário, 2026-11-03, segunda mensagem). A inspiração é um filme
   de estrada pós-apocalíptico, só como ideia (regra 8): nomes, desenho e regras nossos.

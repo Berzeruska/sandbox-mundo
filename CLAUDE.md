@@ -69,6 +69,14 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
     opções variadas**, com **imagem** quando for visual e o **custo** de cada uma (trabalho, desempenho,
     o que muda no jogo). O usuário escolhe; o código só vem depois da escolha. Vale também para as
     propostas de rodada (escritas na especificação, com as imagens em `docs/img/`).
+15. **Link da prévia sempre à mão** (regra do usuário, 2026-11-03). Sempre que publicar uma prévia nova,
+    atualize no GitHub o link da prévia mais recente: no **topo do `README.md`** e no campo **"Website"**
+    do repositório (`gh repo edit --homepage <link>`). O usuário tem que achar o jogo sem procurar.
+16. **A qualidade não se negocia** (regra do usuário, 2026-11-03). A qualidade visual e de função não
+    baixa para caber no desempenho. Vale qualquer técnica que mantenha a qualidade e deixe o jogo mais
+    leve (pré-renderizar, enganar a luz, desenhar em lote, trocar detalhe pela distância), sem tirar nada
+    do que se vê ou do que funciona. Quando uma meta de desempenho não fechar, **esgote as técnicas antes**
+    de propor baixar a qualidade; a decisão de baixar é do usuário.
 
 ## Git e GitHub
 - Branch `main` sempre jogável. Trabalho de cada marco em `marco-N` (ex.: `marco-1`).

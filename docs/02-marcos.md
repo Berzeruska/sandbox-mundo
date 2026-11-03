@@ -61,23 +61,35 @@ florestas só em montanhas e lugares isolados. A física é do clima (T7); o M3 
 reagirem. O comportamento das civilizações nesses extremos vai para o M5/M6
 (`docs/05-civilizacao-politica.md`, `docs/06-guerra.md`).
 
-**Direção visual e escala (decisões do usuário, 2026-11-03; detalhes em `docs/decisoes.md`):**
-- **Estilo: diorama de cubos** ("o pixel em 3D"). Importam a forma das cidades, o jeito das montanhas
-  e a distribuição do conteúdo, não o detalhe fino. Referência: as imagens de países em maquete que o
-  usuário mostrou ao orientador. Antecipa o pseudo-3D que estava no M8.
-- **Primeira tarefa do M3, antes de qualquer outra:** (a) protótipo técnico de um pedaço do globo em
-  cubos no notebook (60 fps, GPU ≤ 8 ms; se não couber, a decisão volta ao usuário); (b) guia de estilo
-  de uma página (tamanho do cubo, paleta, direção da luz, montanha, floresta, vila, cidade) com 4 a 6
-  opções em imagem. A imagem aprovada vira referência fixa: cada marco constrói as suas peças nesse
-  estilo.
-- **Escala (resolve a questão abaixo com as opções 2 + 3):** de longe, o globo diorama; de perto, a
-  região vira uma maquete em escala própria, com humanos, tanques e aviões visíveis.
+**Direção visual e escala (decisões do usuário, 2026-11-03, segunda mensagem; substitui o "diorama de
+cubos" da primeira; detalhes em `docs/decisoes.md`):**
+- **De perto: diorama** (referência em `docs/img/referencias/`): maquete de uma região com relevo em
+  degraus e penhasco na borda, árvores, casas e prédios em quarteirões, rio com pontes, tanques, mísseis
+  com fumaça e explosões; modelos 3D simples (low-poly), luz suave, cores vivas. **A maquete é viva:** é
+  o desenho da simulação daquele lugar; ali os indivíduos andam, atacam e morrem.
+- **De longe: o globo em pixel 2D**, no estilo de jogo de guerra que o usuário mostrou ao orientador
+  (rios, fronteiras, florestas de árvores desenhadas uma a uma, cidades em quarteirões, mísseis e fumaça
+  em sprites). A textura dos biomas de hoje muda nesse estilo, pelo guia de estilo do M3 (não no M2).
+- As duas vistas são só referência de estilo (regra 8): desenho nosso, nada copiado.
+- **Plano B**, se o 3D de perto não couber no notebook: modelos 3D salvos como sprites pré-renderizados
+  (cara de 3D, custo de 2D), com quadros de animação. Esgotar as técnicas antes de propor voltar atrás
+  no estilo (CLAUDE.md, regra 16).
+- **Escala: vai mudar** para o jogo dar certo: os humanos precisam ocupar o mundo, e com o planeta do
+  tamanho atual isso não funciona (responde à questão de escala abaixo).
+- **Primeira tarefa do M3, o portão (nada do M3 se constrói antes da aprovação do usuário):**
+  (a) protótipo de uma região em diorama (~64×64 células, com árvores, casas, relevo, luz e alguns
+  bonecos andando), medido no notebook com a meta de 60 fps e GPU ≤ 8 ms, comparando o motor atual
+  (WebGL2) e o Three.js por cima da simulação atual; (b) a passagem de longe (2D) para perto (diorama)
+  ao aproximar; (c) guia de estilo de uma página (paleta, luz, montanha, floresta, vila, cidade, biomas
+  no 2D de longe) com 4 a 6 opções em imagem; (d) 4 a 6 opções de escala (tamanho do planeta, da célula,
+  zoom), com o custo de cada uma.
 - **Simulação:** de longe números, de perto indivíduos; exércitos em marcha, generais, aviões em missão
   e figuras da Crônica são sempre indivíduos (detalhe em `docs/06-guerra.md`).
 Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a
 **escala visual** pequena dos indivíduos (`docs/00-visao.md`).
 
-**Questão de escala (registrada em 2026-10-15; resolvida em 2026-11-03 com as opções 2 + 3, acima):**
+**Questão de escala (registrada em 2026-10-15; em 2026-11-03 o usuário decidiu que a escala muda; as
+opções concretas vêm na tarefa (d) do portão do M3, acima):**
 escala do planeta versus tamanho dos humanos e das cidades. O usuário **não quer humanos de 1 pixel**.
 Hoje, com um planeta do tamanho da Terra, cada célula tem ~33–39 km. Opções a avaliar:
 1. **Planeta menor que a Terra** (células menores em km, mesma quantidade de células);
@@ -135,7 +147,7 @@ plantação, lítio e terras raras para eletrônica.
 ## Marco 8 — Embelezamento
 Inclui o acabamento visual do menu de ferramentas (decidido no M2) e a escala visual pequena de
 pessoas e cidades.
-Animações, som, luz e detalhes. O estilo em cubos (o antigo "possível pseudo-3D") foi antecipado para
+Animações, som, luz e detalhes. A direção visual (diorama de perto, pixel 2D de longe) foi antecipada para
 o M3 (decisão do usuário, 2026-11-03): o M8 fica só com o acabamento.
 Pedidos do usuário (2026-10-18): uma lua (bolinha cinza orbitando o planeta) e um sol (bola amarela ao
 fundo), simples, só para dizer que tem; o visual do furacão lembrando mais um mapa de meteorologia.

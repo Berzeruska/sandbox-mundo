@@ -1140,3 +1140,60 @@ Formato: data — decisão — motivo — alternativa descartada.
   manter o recorte e deixar só passar 1–2 células (a pergunta da F1), superada pela decisão do usuário.
 - **2026-11-03 — Energia no relatório (técnico):** o "Medir desempenho" diz "na tomada" ou "NA
   BATERIA" pelo `navigator.getBattery()` (Chrome informa; Firefox não, e aparece "não informado").
+
+## 2026-11-03 (segunda mensagem) — Teste da `adf001ea` e decisões do usuário
+O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e revertia o diorama); vale esta.
+1. **Regra nova (CLAUDE.md, regra 15):** a cada prévia nova, o link da prévia mais recente vai para o topo
+   do `README.md` e para o campo "Website" do repositório no GitHub.
+2. **Regra de qualidade (CLAUDE.md, regra 16):** a qualidade visual e de função não se negocia. Vale
+   qualquer técnica que mantenha a qualidade e deixe o jogo mais leve (pré-renderizar, enganar a luz,
+   desenhar em lote, trocar detalhe pela distância). Se uma meta de desempenho não fechar, esgotar as
+   técnicas antes de propor baixar a qualidade; a decisão de baixar é do usuário.
+3. **Relatório da `adf001ea` (Chrome, tomada, janela 854×843):** passou GPU ≤ 2,7 ms, memória 231 MB,
+   abertura 2,4 s, geração 1,1 s, pior recomposição 616 ms, relógio esperou 0 ms. Falhou: quadro de 67 ms
+   em "pausado, girando" ("fora do código da tela"); travada de 7,7 s (tela e data, "núcleo ocupado",
+   pausado/1×, placas 25%) e uma de 1,2 s. No jogo, pouco liso. O usuário repete em tela cheia.
+4. **Defeitos a corrigir (M2):** travada ao jogar meteoro (todos os tamanhos e velocidades; nenhum quadro
+   > 50 ms; verificar o resto do que pode travar); temperatura subindo ao máximo depois de uma era do
+   gelo feita com meteoros (e por que nenhum teste pegou); crateras com limite de crescimento, proposto
+   pelo mundo real (as maiores crateras da Terra) adaptado à escala do jogo, junto com meteoros se
+   sobrepondo; mudanças de bioma e de temperatura sem tranco, aos poucos.
+5. **Tempestade de areia (B4):** aprovada.
+6. **B3, meteoro:** rocha em brasa da opção 4, com sombra suave, mais a fumacinha final da opção 5.
+7. **B5 (degrau do terremoto) e B8 (avisos e ano):** uma mescla de todas as opções; mostrar a mescla com
+   imagem antes do código, dizendo o que vem de cada opção e qual não combina e por quê. No B8 sai o
+   sinal de "toque".
+8. **B7, ponto quente em continente:** todas as opções, cada uma no lugar certo como no mundo real
+   (planalto de basalto no nascimento, caldeiras sob continente espesso, cadeia de ilhas no mar, campo de
+   cones em crosta fina, cones velhos envelhecendo); regra de quando aparece cada uma, com imagem, antes
+   do código.
+9. **B10, formas:** a opção 1 (Pangeia em pedaços menores + vale de 2 células) vira uma **escolha na
+   criação do mundo**, não o padrão; e um tipo de mundo novo, **"arquipélago"** (só ilhas, sem continente
+   fechado). A interface da escolha (4 a 6 opções) antes do código.
+10. **Tsunami:** tem que avançar mais (o efeito tem que se ver; Tōhoku 2011 entrou ~4,5 km, a célula tem
+    ~35 km, mas a proporção serve ao jogo). Muda a R6 (3 a 28 células): 4 a 6 opções de alcance com imagem.
+11. **A1 (metas na bateria):** continua aberta até o usuário medir na bateria.
+12. **Direção visual (substitui o "diorama de cubos" do item 15 de 2026-11-03, acima):** de perto,
+    **diorama** como a imagem de referência em `docs/img/referencias/` (maquete de uma região com relevo
+    em degraus e penhasco na borda, árvores, casas e prédios em quarteirões, rio com pontes, tanques,
+    mísseis com fumaça e explosões; modelos 3D simples, low-poly, luz suave, cores vivas). A maquete é
+    viva: é o desenho da simulação daquele lugar, e ali os indivíduos andam, atacam e morrem.
+13. **De longe:** o globo em **pixel 2D** no estilo do jogo de guerra que o usuário mostrou ao orientador
+    (rios, fronteiras, florestas de árvores desenhadas uma a uma, cidades em quarteirões, mísseis e fumaça
+    em sprites). A textura dos biomas de hoje é feia: muda nesse estilo, no guia de estilo do M3, não agora.
+14. As duas vistas são só **referência de estilo** (regra 8): desenho nosso, nada copiado.
+15. **Plano B:** se o 3D de perto não couber no notebook, modelos 3D salvos como sprites pré-renderizados
+    (cara de 3D, custo de 2D), com quadros de animação. Esgotar as possibilidades antes de propor voltar
+    atrás no estilo.
+16. **Escala:** vai mudar para o jogo dar certo (os humanos precisam ocupar o mundo; com o planeta do
+    tamanho atual não funciona). Responde à questão de escala do M3; **substitui o item 17** de 2026-11-03
+    (opções 2 + 3) e o item 16 (primeira tarefa).
+17. **Primeira tarefa do M3, o portão:** (a) protótipo de uma região em diorama (~64×64 células, árvores,
+    casas, relevo, luz e alguns bonecos andando), medido no notebook (60 fps, GPU ≤ 8 ms), comparando o
+    motor atual (WebGL2) e o Three.js por cima da simulação atual; (b) a passagem de longe (2D) para perto
+    (diorama) ao aproximar; (c) guia de estilo de uma página (paleta, luz, montanha, floresta, vila,
+    cidade, biomas no 2D de longe) com 4 a 6 opções em imagem; (d) 4 a 6 opções de escala (planeta,
+    célula, zoom) com o custo de cada uma. Nada do M3 se constrói antes da aprovação.
+18. **Temperatura extrema (docs):** frio máximo = o planeta todo congelado, bem extremo; calor máximo,
+    "Mad Max" (só inspiração, regra 8): água e floresta raras, que viram objetos de poder numa sociedade
+    apocalíptica. Física no M3; social no M5/M6, com o que já estava registrado.
