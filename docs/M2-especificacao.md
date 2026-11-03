@@ -1781,6 +1781,26 @@ partida em ilhas por ruído; 148 ilhas, a maior com 17% da terra, terra 12%; só
   afunda devagar; +~2 dias, muda a tectônica nesse tipo); ou **(c)** fica de ilhas mais tempo (placas mais
   lentas e solda mais difícil nesse tipo; +~1 dia)?
 
+### Tsunami — Alcance em terra maior (proposta; muda a R6, esperando a escolha)
+Pedido do usuário: o tsunami tem que avançar mais sobre as células, para o efeito se ver (Tōhoku 2011 entrou
+~4,5 km e uma célula tem ~35 km, mas a proporção serve ao jogo). Imagem: `docs/img/m2-tsunami-alcance.png`
+(M 9 numa planície costeira real, semente `terra`, a mesma conta do jogo; células alagadas contadas).
+- **Por que hoje entra pouco:** a água para em dois limites: o número de células (M 7,5 · 8 · 8,5 · 9 · 9,5
+  = 3 · 6 · 10 · 17 · 28) e a altura que a onda vence (20 · 40 · 60 · 90 · 140 m), que **cai a cada célula**
+  andada. Em costa que sobe um pouco, ela para em poucas células, bem antes do limite.
+| Opção | Regra (M 9) | Alagadas na imagem | Custo |
+|---|---|---|---|
+| hoje | 17 células, 90 m, perdendo altura | 252 | — |
+| 1. Altura ×2 | 17 células, 180 m (todas as magnitudes ×2) | 424 (+68%) | só a tabela |
+| 2. Células e altura ×2 | 34 células, 180 m | 521 (+107%) | só a tabela; a água fica mais tempo em terra |
+| 3. Não perde altura entrando | 26 células, 90 m constantes até o terreno mais alto | 405 (+61%) | uma linha da conta |
+| 4. Segue o terreno baixo | até 60 células, 90 m, sem perder altura: entra fundo em planícies e vales, para nas encostas | 593 (+135%) | uma linha + tabela |
+| 5. Tudo ×3 | 51 células, 270 m | 766 (+204%) | só a tabela; M 9,5 alagaria ~84 células de planície |
+| 6. ×1,5 com piso | 26 células, 135 m, e nunca para abaixo de 25 m (costa baixa sempre alaga) | 367 (+46%) | uma linha + tabela |
+- **Em todas:** a água recua depois e deixa lama como hoje; a costa raspada (5–20 m) não muda; desempenho:
+  mais células de água por tsunami (até ~3× na 5), ainda dentro do plano em pedaços (F3). O teste da R6
+  muda para a tabela nova.
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**
