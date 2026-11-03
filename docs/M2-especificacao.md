@@ -1731,6 +1731,28 @@ ficariam pulando para baixo quando a fileira abrisse. Se a faixa de cima ficar c
 usar a 1 no lugar da 4 (as velocidades só aparecem ao tocar no selo azul), perdendo a 2. **Custo:** ~1,5
 dia (botões e avisos ~0,5; gestos de toque, toque longo e arrastar com testes ~1).
 
+### B7 — Regra: cada forma do ponto quente no lugar certo (proposta; esperando aprovação)
+Pedido do usuário: todas as opções (a–f), cada uma onde ela acontece no mundo real. Imagem:
+`docs/img/m2-b7r-regra-pontos-quentes.png` (protótipo no mundo de verdade, cores do jogo, semente `pangeia`;
+o ponto quente fica parado à direita e a placa anda para a esquerda, então o mais velho fica à esquerda).
+O tipo é decidido **pelo chão que está em cima do ponto quente naquela hora**; como a placa anda, a mesma
+cadeia muda de tipo ao cruzar uma costa ou um rifte (no mundo real a cadeia de Yellowstone vem de
+derrames no começo e de caldeiras depois).
+| Quando | Forma | Do mundo real | Opção |
+|---|---|---|---|
+| Ponto quente **nascendo** (os primeiros ~2.000 anos dele, em terra) | planalto de basalto: derrame largo (raio 8–14 células) erguido 150–450 m em degraus, com um cone pequeno ativo | Decã (Índia), Sibéria, Paraná (Brasil) | d |
+| Debaixo de **continente espesso** (crosta continental, ≥ 8 células da costa e de fronteira de placa, terreno ≥ 600 m acima da base) | caldeiras em fila a cada ~14 células (raio 3–5, 400–600 m de fundo); a nova com lava, as velhas viram bacias suaves | Yellowstone (EUA) | e |
+| Debaixo de **continente comum** (o resto da crosta continental) | um cone a cada ~18 células, num inchaço baixo e largo (raio ~4, ~300 m) | Hoggar e Tibesti (Saara) | b |
+| Debaixo de **crosta fina** (continental a ≤ 4 células de fronteira divergente ou rifte, ou plataforma continental) | campo de muitos cones pequenos (250–500 m) espalhados numa faixa | Eifel (Alemanha), Auvergne (França) | f |
+| No **mar** | a cadeia de ilhas de hoje | Havaí | a |
+| **Em todos** | os cones e as caldeiras apagados envelhecem: metade da altura em ~20.000 anos; no mar as ilhas velhas afundam e viram baixios | Havaí–Imperador | c |
+- **O que não combina:** nada brigou; a "a" fica só no mar (o que ela é hoje) e a "c" vale para todos.
+- **Pergunta junto:** as caldeiras (e) do mundo real têm, muito raramente, uma erupção enorme (cinzas numa
+  área grande e frio, como um inverno de meteoro menor). É um efeito de jogo novo: entra ou fica de fora?
+- **Custo:** ~3–4 dias e 6 testes (um por forma, mais a mudança de tipo ao cruzar a costa); sem custo de
+  desempenho perceptível (as mudanças de relevo são locais e raras, como as de hoje). Com a erupção enorme
+  das caldeiras, +1 dia.
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**
