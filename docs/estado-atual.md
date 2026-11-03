@@ -31,8 +31,9 @@ sobre "onde estamos", vale este.
   Imagem `docs/img/m2-b4-tempestade-borda.png`.
 - [ ] B10(v) 8 sementes.
 - [x] **Proposta B3, meteoro em cubos:** 6 opções com imagem (`docs/img/m2-b3-meteoro-cubos.png`).
-- [ ] Propostas com 4–6 opções e imagem: B5 degrau do terremoto, B7 vulcões em continente, B8 avisos e
-  ano.
+- [x] **Proposta B5, degrau do terremoto:** 6 opções de altura com imagem
+  (`docs/img/m2-b5-degrau-terremoto.png`).
+- [ ] Propostas com 4–6 opções e imagem: B7 vulcões em continente, B8 avisos e ano.
 - [ ] Fim: resumo, propostas, lista de teste, prévia igual ao último commit.
 
 ## Onde estamos

@@ -1476,6 +1476,33 @@ recorte da poeira no shader (bit da areia seca nas cores, F1) saiu. Testes em
 `tests/world/sandstorm.test.ts` (passa da borda e se desfaz no limite do desenho, força caindo fora;
 areia grossa perto e poeira fina mais longe; nasce só em areia seca; deserto não avança).
 
+### B5 — Degrau permanente do terremoto nos M ≥ 8 (F2 opção b; proposta de altura, sem código)
+Imagem: `docs/img/m2-b5-degrau-terremoto.png` (o degrau montado no mundo de verdade e pintado com as cores
+do jogo, com o relevo em degraus de 150 m; falha transformante em continente, semente `pangeia`, N = 256;
+em cada opção, M 8 à esquerda e M 9 à direita). Muda a decisão de 2026-10-18 ("o terremoto muda o relevo
+só um pouco"): nos M ≥ 8 a marca passa a ser visível (decisão do usuário, 2026-11-03).
+- **Mundo real:** o deslocamento médio de uma ruptura na superfície é ~4 m em M 8 (Wells e Coppersmith,
+  1994: log D = −4,80 + 0,69 M). Acima disso a fórmula exagera: nos grandes terremotos medidos o degrau
+  vertical em terra fica em ~5–12 m (Chile 1960 M 9,5: ~6 m; Alasca 1964 M 9,2: até 11,5 m; Japão 2011
+  M 9,0: 5–10 m no fundo do mar). Real arredondado: 4 · 7 · 10 · 12 m em M 8 · 8,5 · 9 · 9,5.
+- **Por que exagerar:** uma célula tem ~35 km e o relevo do jogo aparece em degraus de 150 m. Abaixo de
+  150 m o degrau não aparece; um degrau de 150 m é um traço fino, visível só de perto; a partir de ~300 m
+  ele se vê bem de média distância (conferido na imagem).
+- **Como fica (igual em todas):** ao longo da fenda do terremoto, o bloco de um lado sobe (até ~8 células
+  da falha, caindo até 10), para sempre, andando com a placa. Se o bloco chega na costa, o fundo raso
+  pode virar terra (como no mundo real, a costa sobe). A fenda temporária continua como hoje.
+1. **Mundo real × 37 (deslocamento médio que satura):** 150 · 260 · 370 · 450 m. M 8 é um traço fino.
+2. **Mundo real × 25:** 100 · 175 · 250 · 300 m. M 8 quase invisível.
+3. **Mundo real × 75:** 300 · 520 · 740 · 900 m. O menor exagero em que o M 8 já se vê bem.
+4. **Em linha com a magnitude:** 150 · 300 · 450 · 600 m (cada meio grau, um degrau). Não segue o real.
+5. **Fixa, 150 m** (a opção b antiga): não cresce com a magnitude.
+6. **Fórmula sem limite × 37:** 150 · 330 · 720 · 1.600 m. M 9,5 vira um paredão irreal.
+- **Custo (igual em todas):** ~1 dia e 3 testes (o bloco sobe pela magnitude da tabela, só M ≥ 8, anda com
+  a placa, não passa de MAX_ELEVATION); muda só a tabela de alturas. Sem custo de desempenho perceptível
+  (é uma mudança de relevo local, como o deslizamento de hoje).
+- **Escolha do Claude Code, se precisar de uma:** a 3, porque o pedido é "visível no jogo" e é a menor
+  que mostra o M 8; a 1 se o M 8 puder ser discreto.
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**
