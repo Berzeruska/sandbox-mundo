@@ -34,7 +34,7 @@ import { depositLabel, isHiddenOil } from './world/resources';
 import { activeBrush, activeDisaster, inputModeOf } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
-import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, powerLabel, scenarioInvalid, workDelta, type FirstLoad, type GenerationResult, type GpuSample, type ScenarioResult, type WorkCounters } from './ui/benchmark';
+import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, meteorSpots, powerLabel, scenarioInvalid, workDelta, type FirstLoad, type GenerationResult, type GpuSample, type ScenarioResult, type WorkCounters } from './ui/benchmark';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
@@ -781,7 +781,7 @@ export class App {
     const workStart = performance.now();
     const dt = this.lastTime ? Math.min(0.1, (time - this.lastTime) / 1000) : 0;
     this.lastTime = time;
-    if (!document.hidden && this.loadingEl.hidden && !this.gpuMeasuring) this.stalls.frame(time, Date.now(), this.stallContext());
+    if (!document.hidden && this.loadingEl.hidden && !this.gpuMeasuring) this.stalls.frame(time, Date.now(), this.stallContext(), document.hasFocus());
     else this.stalls.restart();
     this.frameDt = dt;
     // Vigia: geração sem nenhuma notícia há muito tempo vira erro na tela, nunca espera infinita.
@@ -930,7 +930,7 @@ export class App {
     this.bench = bench;
     this.hud.closeMenu();
     const startedAt = performance.now();
-    const steps = 14;
+    const steps = 16;
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
       this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
@@ -966,7 +966,7 @@ export class App {
     };
     // Um cenário: prepara, espera assentar, mede `ms` e guarda quadros + trabalho do worker.
     // `panel`: painel Dados escondido (só a linha de andamento) ou aberto, com ou sem o desfoque antigo.
-    const scenario = async (step: number, name: string, ms: number, setup: () => void, panel: PanelMode = 'hidden'): Promise<void> => {
+    const scenario = async (step: number, name: string, ms: number, setup: () => void, panel: PanelMode = 'hidden', during?: () => () => void): Promise<void> => {
       bench.panelOpen = panel !== 'hidden';
       status(step, name, panel);
       setup();
@@ -989,8 +989,11 @@ export class App {
       };
       document.addEventListener('visibilitychange', onVisibility);
       const wallStart = performance.now();
+      const dateStalls0 = this.stalls.counts.data;
       const timer = setInterval(() => status(step, name, panel), 1000);
+      const stopDuring = during?.();
       await wait(ms);
+      stopDuring?.();
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
       if (hiddenSince >= 0) hiddenMs += performance.now() - hiddenSince;
@@ -1002,6 +1005,7 @@ export class App {
         name,
         invalid,
         frames,
+        ...(during ? { dateStalls: this.stalls.counts.data - dateStalls0 } : {}),
         work: workDelta(work0, this.work),
         receiveAvgMs: r.length ? r.reduce((a, b) => a + b, 0) / r.length : 0,
         receiveMaxMs: r.length ? Math.max(...r) : 0,
@@ -1066,9 +1070,25 @@ export class App {
       this.camera.zoom = 1;
       await measureGpu('longe com desastres "Muitos"');
       this.sim.setDisasterFrequency(this.disasterFrequency);
+      // O que o jogador faz (teste da `9b5ba0d4`): meteoros gigantes seguidos em 1×, placas 25%, no mesmo
+      // lugar e em lugares diferentes, com o globo à vista.
+      const center = this.info.landCenter;
+      const meteors = (point: (k: number) => Vec3) => () => {
+        let k = 0;
+        const timer = setInterval(() => this.sim.triggerDisaster(DisasterKind.Meteor, point(k++), 4), METEOR_BENCH_EVERY_MS);
+        return () => clearInterval(timer);
+      };
+      const atOneX = () => {
+        this.camera.lookAt(center);
+        this.setPlateRate(0.25);
+        this.setSpeed(1);
+      };
+      await scenario(14, 'meteoros, mesmo lugar', METEOR_BENCH_MS, atOneX, 'hidden', meteors(() => center));
+      const spots = meteorSpots(center, METEOR_BENCH_MS / METEOR_BENCH_EVERY_MS, METEOR_BENCH_SPREAD);
+      await scenario(15, 'meteoros, lugares variados', METEOR_BENCH_MS, atOneX, 'hidden', meteors((k) => spots[k % spots.length] as Vec3));
       bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(14, 'geração de mundo');
+      status(16, 'geração de mundo');
       this.setSpeed(0);
       this.setPlateRate(before.plateRate);
       await wait(500);
@@ -1129,6 +1149,11 @@ export class App {
     requestAnimationFrame(loop);
   }
 }
+
+/** "Medir desempenho": meteoros seguidos, de quanto em quanto tempo, por quanto tempo e em que área (rad). */
+const METEOR_BENCH_EVERY_MS = 500;
+const METEOR_BENCH_MS = 20_000;
+const METEOR_BENCH_SPREAD = 0.8;
 
 /** Tentar de novo: limpa o cache do jogo (pode ter versão velha misturada) e recarrega a página. */
 async function retry(): Promise<void> {

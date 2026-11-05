@@ -82,3 +82,20 @@ describe('registro de travadas', () => {
     expect(lines).toHaveLength(4);
   });
 });
+
+describe('quadro longo com a janela sem foco', () => {
+  it('a causa diz que foi a janela, não o jogo', () => {
+    const log = new StallLog();
+    log.frame(0, 0, 'pausado', true);
+    log.frame(16, 0, 'pausado', false);
+    log.frame(1816, 0, 'pausado', true);
+    expect(log.entries[0]?.cause).toContain('janela sem foco');
+  });
+
+  it('com foco, a causa continua a de sempre', () => {
+    const log = new StallLog();
+    log.frame(0, 0, '1×', true);
+    log.frame(500, 0, '1×', true);
+    expect(log.entries[0]?.cause).not.toContain('janela sem foco');
+  });
+});

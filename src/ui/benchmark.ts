@@ -172,9 +172,42 @@ export class FrameRecorder {
   }
 }
 
+/**
+ * Pontos do cenário de meteoros "em lugares diferentes": `count` pontos espalhados em volta de `center`,
+ * sempre os mesmos (para comparar uma medição com a outra), todos a menos de `spread` rad dele (o lado
+ * que está na tela). Espiral de ângulo áureo: não repete lugar.
+ */
+export function meteorSpots(center: readonly [number, number, number], count: number, spread: number): [number, number, number][] {
+  const [cx, cy, cz] = center;
+  // Base tangente ao centro.
+  const ax0 = Math.abs(cy) < 0.9 ? 0 : 1;
+  const ay0 = Math.abs(cy) < 0.9 ? 1 : 0;
+  let ux = cy * 0 - cz * ay0;
+  let uy = cz * ax0 - cx * 0;
+  let uz = cx * ay0 - cy * ax0;
+  const ul = Math.hypot(ux, uy, uz) || 1;
+  ux /= ul;
+  uy /= ul;
+  uz /= ul;
+  const vx = cy * uz - cz * uy;
+  const vy = cz * ux - cx * uz;
+  const vz = cx * uy - cy * ux;
+  const out: [number, number, number][] = [];
+  for (let k = 0; k < count; k++) {
+    const d = spread * Math.sqrt((k + 0.5) / count);
+    const a = k * 2.399963;
+    const s = Math.sin(d);
+    const c = Math.cos(d);
+    out.push([cx * c + (ux * Math.cos(a) + vx * Math.sin(a)) * s, cy * c + (uy * Math.cos(a) + vy * Math.sin(a)) * s, cz * c + (uz * Math.cos(a) + vz * Math.sin(a)) * s]);
+  }
+  return out;
+}
+
 export interface ScenarioResult {
   name: string;
   frames: FrameSummary;
+  /** Travadas da data durante o cenário (a data parada > 300 ms); só nos cenários que contam. */
+  dateStalls?: number;
   /** Sem quadros suficientes (página escondida ou sem desenhar): os números não valem (B9). */
   invalid?: boolean;
   work: WorkCounters;
@@ -325,6 +358,7 @@ export function formatReport(
     lines.push(
       `${pad(s.name, 26)}${lpad(f0(fr.fpsAvg), 8)}${lpad(f0(fr.fpsMin), 6)}${lpad(`${f0(fr.worstFrameMs)} ms`, 13)}${lpad(String(fr.slowFrames), 7)}${lpad(`${f1(fr.workAvgMs)}/${f0(fr.workMaxMs)}`, 9)}${lpad(`${fr.drawn} de ${fr.frames}`, 13)}`,
     );
+    if (s.dateStalls !== undefined) lines.push(`    travadas da data no cenário: ${s.dateStalls}`);
     for (const q of fr.slow) {
       const where = q.receiveMs >= 0.5 * q.gapMs ? 'recebendo do worker' : q.workMs >= 0.5 * q.gapMs ? 'trabalho da tela' : 'fora do código da tela';
       lines.push(`    quadro de ${f0(q.gapMs)} ms aos ${f1(q.atMs / 1000)} s · tela ${f0(q.workMs)} ms · recebendo ${f0(q.receiveMs)} ms · ${where}`);

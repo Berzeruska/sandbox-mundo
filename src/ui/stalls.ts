@@ -30,6 +30,7 @@ export class StallLog {
   readonly entries: StallEntry[] = [];
   readonly counts: Record<StallKind, number> = { tela: 0, data: 0 };
   private lastFrame = -1;
+  private wasFocused = true;
   private lastWork = 0;
   private lastClock = -1;
   private lastWait = 0;
@@ -53,14 +54,20 @@ export class StallLog {
     this.lastRecompositionAt = now;
   }
 
-  /** Começo de um quadro. */
-  frame(now: number, wall: number, context: string): void {
+  /**
+   * Começo de um quadro. `focused`: a janela está em foco. O navegador pode parar de desenhar uma janela
+   * que perdeu o foco ou ficou coberta sem a página ficar "escondida"; isso aparece como quadro longo, mas
+   * não é o jogo travando, e a causa diz.
+   */
+  frame(now: number, wall: number, context: string, focused = true): void {
     const gap = this.lastFrame < 0 ? 0 : now - this.lastFrame;
     if (gap > FRAME_STALL_MS) {
       this.lastScreenStall = [now, this.lastFrame];
-      this.add({ kind: 'tela', wall, ms: gap, cause: this.screenCause(now, gap), context, sinceRecomposition: this.since(now) });
+      const cause = focused && this.wasFocused ? this.screenCause(now, gap) : 'janela sem foco (outro programa na frente): o navegador parou de desenhar';
+      this.add({ kind: 'tela', wall, ms: gap, cause, context, sinceRecomposition: this.since(now) });
     }
     this.lastFrame = now;
+    this.wasFocused = focused;
   }
 
   /** Fim de um quadro: quanto a tela trabalhou nele (ms). */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyWork, FrameRecorder, formatReport, gpuMemoryLines, gpuStats, powerLabel, scenarioInvalid, workDelta } from '../../src/ui/benchmark';
+import { emptyWork, FrameRecorder, formatReport, gpuMemoryLines, gpuStats, powerLabel, scenarioInvalid, workDelta, meteorSpots } from '../../src/ui/benchmark';
 
 /** Quadros sintéticos: `gaps` são os intervalos (ms) a partir de t = 1000. */
 function record(gaps: number[], work = 2): FrameRecorder {
@@ -182,5 +182,20 @@ describe('energia no relatório (A)', () => {
     expect(powerLabel(null)).toContain('não informado');
     const frames = record(Array(60).fill(1000 / 60)).summary();
     expect(formatReport({ ...device, power: powerLabel({ charging: false, level: 0.5 }) }, [{ name: 'x', frames, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 }], null)).toContain('energia: NA BATERIA');
+  });
+});
+
+describe('pontos do cenário de meteoros em lugares diferentes', () => {
+  const center: [number, number, number] = [0, 0.6, 0.8];
+  const spots = meteorSpots(center, 40, 0.8);
+
+  it('todos na esfera, dentro da área pedida e sem repetir lugar', () => {
+    for (const p of spots) {
+      expect(Math.hypot(...p)).toBeCloseTo(1, 6);
+      expect(Math.acos(p[0] * center[0] + p[1] * center[1] + p[2] * center[2])).toBeLessThanOrEqual(0.8 + 1e-9);
+    }
+    for (let a = 0; a < spots.length; a++) {
+      for (let b = a + 1; b < spots.length; b++) expect(Math.hypot(spots[a]![0] - spots[b]![0], spots[a]![1] - spots[b]![1], spots[a]![2] - spots[b]![2])).toBeGreaterThan(0.01);
+    }
   });
 });
