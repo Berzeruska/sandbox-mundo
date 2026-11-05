@@ -2,7 +2,7 @@
 
 Atualizado em: **2026-11-05**, branch `marco-2`. **Teste da `3238cd7b` aprovado; duas correções feitas e conferidas (abaixo).** Com CI e
 prévia ok: merge no `main`, tag, link do README e portão do M3.
-Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/marco-2/** (também no README e no "Website").
+Jogo no `main`: **https://berzeruska.github.io/sandbox-mundo/** (também no README e no "Website").
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
 estamos", vale este.
 
