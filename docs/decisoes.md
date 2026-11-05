@@ -1273,4 +1273,11 @@ O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e reve
 - **2026-11-05 — Cartões na primeira abertura (item 3):** decidido o detalhe técnico: o primeiro mundo só nasce depois da
   escolha (gerar um Padrão atrás da tela seria 1 s de trabalho jogado fora a cada outra escolha). Vale para todo link sem semente
   nem tipo, não só para a primeira vez da vida do navegador; a semente entra na URL ao criar, então recarregar não pergunta de novo.
+- **2026-11-05 — Tsunami até ~1/5 do continente (decisão do usuário, item 4; substitui os 3 a 28 células da R6 e tira o alcance
+  do ajuste fino):** a água entra a partir de todas as costas ao mesmo tempo, pelo terreno baixo. Decidido por medição (3 sementes,
+  antes e depois de a Pangeia se partir): **largura** = 2 × a maior distância até o mar dentro do continente (o lado curto; 94–160
+  células depois da quebra, 190–314 na Pangeia; a área superestimaria continente comprido). **Terreno baixo** = até 400 m no M 9,5, o
+  quarto mais baixo da terra; a altura não cai mais a cada célula, só com a distância percorrida no mar. **Magnitudes menores**, lendo
+  "até" como teto: parte da largura 1/20 · 1/12 · 1/8 · 1/6 · 1/5 e terreno 60 · 120 · 200 · 300 · 400 m para M 7,5 · 8 · 8,5 · 9 · 9,5.
+  Ilha pequena segue a mesma regra (1/5 de pouco é pouco). Alternativa descartada: frentes uma costa por vez (uma cortava o caminho da outra).
 

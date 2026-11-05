@@ -8,9 +8,9 @@ import { CellState, type Ground } from './ground';
  * Tsunami (Bloco Desastres v2, R6; imagem `docs/img/m2-dv-tsunami.png`). A onda sai do epicentro e anda
  * pelo mar com velocidade √profundidade (mais rápida no oceano fundo, freia na plataforma). Tudo
  * acontece nas células, passo a passo: perto das costas que ela vai atingir o mar raso recua (fundo
- * exposto), a faixa clara de espuma chega, a água avança terra adentro até o alcance da magnitude
- * (parando onde o terreno é mais alto que a onda), volta para o mar e deixa lama; as 1–2 primeiras
- * células da costa perdem altura para sempre.
+ * exposto), a faixa clara de espuma chega, a água avança terra adentro pelo terreno baixo, até cerca de
+ * 1/5 da largura do continente atingido num tsunami máximo (decisão do usuário, 2026-11-05), volta para o
+ * mar e deixa lama; as 1–2 primeiras células da costa perdem altura para sempre.
  */
 
 /** Magnitude mínima de um terremoto no mar para gerar tsunami. */
@@ -24,16 +24,20 @@ const DEEP = 4000;
 const MIN_SPEED = 0.4;
 
 /**
- * Tabela aprovada pelo usuário (2026-10-18): magnitude → células que a água entra em terra, altura que
- * ela vence (m) e alcance pelo mar (rad de oceano fundo; calibrado em N = 256 para a onda tocar ~20,
- * ~50, ~100, ~200 células de costa e o oceano todo; medido: mediana 26, 62, ~120, ~250, 1.500–1.800).
+ * Magnitude → parte da largura do continente que a água percorre, terreno que ela vence (m) e alcance pelo
+ * mar (rad de oceano fundo; calibrado em N = 256 para a onda tocar ~20, ~50, ~100, ~200 células de costa e o
+ * oceano todo). O alto da tabela vem do pedido do usuário (2026-11-05): "até cerca de 1/5 da largura do
+ * continente, seguindo o terreno baixo". Até 400 m é o quarto mais baixo da terra (medido: 1/4 da terra
+ * fica abaixo de ~450 m, em 3 sementes, antes e depois de a Pangeia se partir); os menores ficam
+ * proporcionais. Antes eram 3 a 28 células, com altura de 20 a 140 m caindo a cada célula, e a água parava
+ * na primeira subida.
  */
 const TABLE: readonly (readonly [number, number, number, number])[] = [
-  [7.5, 3, 20, 0.22],
-  [8, 6, 40, 0.42],
-  [8.5, 10, 60, 0.65],
-  [9, 17, 90, 1],
-  [9.5, 28, 140, 6],
+  [7.5, 0.05, 60, 0.22],
+  [8, 0.08, 120, 0.42],
+  [8.5, 0.12, 200, 0.65],
+  [9, 0.16, 300, 1],
+  [9.5, 0.2, 400, 6],
 ];
 
 function lerp(m: number, col: number): number {
@@ -45,11 +49,15 @@ function lerp(m: number, col: number): number {
   return at(TABLE.length - 1, col);
 }
 
-/** Quantas células a água entra em terra. */
-export function inlandReach(m: number): number {
-  return Math.round(lerp(m, 1));
+/** Que parte da largura do continente a água percorre, pela magnitude. */
+export function inlandFraction(m: number): number {
+  return lerp(m, 1);
 }
-/** Altura que a onda vence na costa mais perto (m). */
+/** Quantas células a água entra num continente com esta largura (células): pelo menos 1, a costa. */
+export function inlandReach(m: number, width: number): number {
+  return Math.max(1, Math.round(inlandFraction(m) * width));
+}
+/** Terreno que a onda vence na costa mais perto (m): para onde ele for mais alto. */
 export function tsunamiRunup(m: number): number {
   return lerp(m, 2);
 }
@@ -74,12 +82,11 @@ export interface TsunamiPlan {
   /** Mar raso que fica exposto antes da onda, e quando a onda chega na costa dele. */
   seabed: number[];
   seabedTimes: number[];
-  /** Terra coberta pela água: quando a onda chega na costa e quantas células para dentro está. */
+  /** Terra coberta pela água: quando a onda chega na costa, quantas células para dentro está e o alcance ali. */
   land: number[];
   landTimes: number[];
   landSteps: number[];
-  /** Quantas células a água entra (alcance da magnitude). */
-  inland: number;
+  landReach: number[];
 }
 
 /**
@@ -98,6 +105,9 @@ class Scratch {
   readonly distMark: Uint32Array;
   readonly dist: Uint8Array;
   readonly nearTime: Float64Array;
+  /** Continente de cada célula de terra (marca própria): o valor é o alcance da água nele. */
+  readonly massMark: Uint32Array;
+  readonly massReach: Int32Array;
   constructor(readonly size: number) {
     this.mark = new Uint32Array(size);
     this.closed = new Uint32Array(size);
@@ -108,10 +118,12 @@ class Scratch {
     this.distMark = new Uint32Array(size);
     this.dist = new Uint8Array(size);
     this.nearTime = new Float64Array(size);
+    this.massMark = new Uint32Array(size);
+    this.massReach = new Int32Array(size);
   }
   next(): number {
     if (++this.stamp === 0xffffffff) {
-      for (const a of [this.mark, this.closed, this.coastMark, this.seenMark, this.distMark]) a.fill(0);
+      for (const a of [this.mark, this.closed, this.coastMark, this.seenMark, this.distMark, this.massMark]) a.fill(0);
       this.stamp = 1;
     }
     return this.stamp;
@@ -224,36 +236,70 @@ export class TsunamiPlanner {
     return used;
   }
 
+  /**
+   * Alcance da água no continente da célula `c0`, com a largura medida uma vez por continente. Largura = o
+   * dobro da maior distância até o mar dentro dele: o lado curto, o que se chama de largura de um continente
+   * (a área enganaria num continente comprido, que é estreito).
+   */
+  private reachOf(c0: number): number {
+    const { massMark, massReach } = scratch as Scratch;
+    const { world, id, m } = this;
+    if (massMark[c0] === id) return massReach[c0] as number;
+    const { neighbors } = world.grid;
+    const members = [c0];
+    massMark[c0] = id;
+    let deepest = 0;
+    for (let head = 0; head < members.length; head++) {
+      const c = members[head] as number;
+      deepest = Math.max(deepest, world.waterDistance[c] as number);
+      for (let d = 0; d < 4; d++) {
+        const j = neighbors[c * 4 + d] as number;
+        if (massMark[j] === id || world.isWater(j)) continue;
+        massMark[j] = id;
+        members.push(j);
+      }
+    }
+    const reach = inlandReach(m, deepest * 2);
+    for (const c of members) massReach[c] = reach;
+    return reach;
+  }
+
   private finish(): TsunamiPlan {
     const sc = scratch as Scratch;
     const { time, coastTime, seenMark, distMark, dist, nearTime, mark } = sc;
     const { world, id, reach, m, sea, times } = this;
     const { neighbors } = world.grid;
-    // Terra: a água entra a partir de cada costa (as atingidas antes primeiro) enquanto o terreno for mais
-    // baixo que a onda, que perde altura a cada célula e com a distância percorrida no mar.
-    const inland = inlandReach(m);
-    const runup = tsunamiRunup(m);
+    // Terra: a água entra a partir de todas as costas ao mesmo tempo, uma célula por rodada, enquanto o
+    // terreno for mais baixo que a onda (que perde altura com a distância percorrida no mar, não em terra) e
+    // até o alcance do continente. Juntas, uma costa não corta o caminho da vizinha.
     const land: number[] = [];
     const landTimes: number[] = [];
     const landSteps: number[] = [];
+    const landReach: number[] = [];
     const coasts = this.coastCells.sort((a, b) => (coastTime[a] as number) - (coastTime[b] as number) || a - b);
-    for (const c0 of coasts) {
-      const t = (coastTime[c0] as number);
-      const h = runup * (1 - 0.6 * t);
-      let frontier = [c0];
-      for (let step = 0; step < inland && frontier.length; step++) {
-        const limit = h * (1 - step / inland);
-        const next: number[] = [];
-        for (const c of frontier) {
-          if (seenMark[c] === id || world.isWater(c) || world.ice[c] || world.heightAboveSea(c) >= limit) continue;
-          seenMark[c] = id;
-          land.push(c);
-          landTimes.push(t);
-          landSteps.push(step);
-          for (let d = 0; d < 4; d++) next.push(neighbors[c * 4 + d] as number);
+    let cells = coasts.slice();
+    let from = coasts.map((c) => coastTime[c] as number);
+    for (let step = 0; cells.length; step++) {
+      const nextCells: number[] = [];
+      const nextFrom: number[] = [];
+      for (let k = 0; k < cells.length; k++) {
+        const c = cells[k] as number;
+        const t = from[k] as number;
+        if (seenMark[c] === id || world.isWater(c) || world.ice[c]) continue;
+        const reach = this.reachOf(c);
+        if (step >= reach || world.heightAboveSea(c) >= tsunamiRunup(m) * (1 - 0.6 * t)) continue;
+        seenMark[c] = id;
+        land.push(c);
+        landTimes.push(t);
+        landSteps.push(step);
+        landReach.push(reach);
+        for (let d = 0; d < 4; d++) {
+          nextCells.push(neighbors[c * 4 + d] as number);
+          nextFrom.push(t);
         }
-        frontier = next;
       }
+      cells = nextCells;
+      from = nextFrom;
     }
     // Mar perto das costas atingidas: distância (células) até elas, pelo mar. O mar atingido é o que tem
     // a marca deste uso e foi fechado (todo o que entrou na fila sai dela, com o tempo final).
@@ -300,7 +346,7 @@ export class TsunamiPlanner {
         seabedTimes.push((nearTime[c] as number));
       }
     }
-    return { sea, times, band, bandTimes, seabed, seabedTimes, land, landTimes, landSteps, inland };
+    return { sea, times, band, bandTimes, seabed, seabedTimes, land, landTimes, landSteps, landReach };
   }
 }
 
@@ -365,10 +411,10 @@ export class TsunamiProcess {
       last = Math.max(last, tick + 3);
     });
     // 3. A água entra em terra uma célula por passo, fica e volta (de dentro para a costa).
-    const inland = plan.inland;
     const scrape = { cells: [] as number[], deltas: [] as number[], local: true as const };
     plan.land.forEach((c, k) => {
       const step = plan.landSteps[k] as number;
+      const inland = plan.landReach[k] as number;
       const coastTick = at(plan.landTimes[k] as number);
       const arrive = coastTick + step * INLAND_TICKS;
       const until = coastTick + (inland + (inland - step)) * INLAND_TICKS + HOLD_TICKS;

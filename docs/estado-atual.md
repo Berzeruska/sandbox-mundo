@@ -22,7 +22,9 @@ tranco. O fogo em volta da cratera fica. Quadros "janela sem foco" não contam.
 - [x] 3. **Cartões na primeira abertura:** link sem semente abre em "Escolha o seu mundo" e o mundo só nasce depois de
   Criar (sem cancelar). Link com semente ou tipo, ou recarregar depois de criar, vai direto para o mundo. A medida "primeira
   abertura" desconta o tempo do jogador escolhendo. Conferido no Chromium, por toque.
-- [ ] 4. Tsunami até ~1/5 da largura do continente.
+- [x] 4. **Tsunami:** M 9,5 entra até ~1/5 da largura do continente atingido, pelo terreno baixo (imagem
+  `docs/img/m2-tsunami-quinto.png`). Magnitudes menores: 1/20 · 1/12 · 1/8 · 1/6 da largura. Medido: 12 M 9,5 seguidos, 60 fps, pior
+  quadro 23 ms, relógio esperou 0, 0 travadas. Isso muda a R6 e tira o alcance do tsunami do ajuste fino.
 - [ ] 5. Causa da travada de 3,5 s pausado.
 - [ ] 6–10. Registros em `docs/02-marcos.md`.
 - [ ] 11. Três testes do usuário e merge.
@@ -198,7 +200,7 @@ meteoro `97f1211` · B5/B8 `ce37dc9` · B7 `135a67c` · B10 `13e1323` · tsunami
 - [ ] **Falha conhecida:** semente `42` com 33% da terra acima de 60° em N = 256 aos 10 min.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
 - [x] T13 e T14. B10 (v) virou o tipo "Continentes menores" (o padrão fica como está: 12 de 20 sementes no critério).
-- Depois do M3: ajuste fino dos desastres (B5, B7, B8, alcance do tsunami; `docs/02-marcos.md`).
+- Depois do M3: ajuste fino dos desastres (B5, B7, B8; `docs/02-marcos.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
 - 2026-11-04, T14 (`0c6dce7b`, Claude Code, build de produção, Chromium com GPU real, 1080p, na tomada): 60 fps nos 15

@@ -52,8 +52,9 @@ balanceamento dos desastres, **depois do M3**; não aprovados, o jogo fica como 
 `docs/M2-especificacao.md`, "Correções do teste da `adf001ea`":
 - **B5:** degrau permanente do terremoto;
 - **B7:** formas dos pontos quentes conforme o chão;
-- **B8:** avisos embaixo da etiqueta e ano mudando a velocidade;
-- **Alcance do tsunami** em terra.
+- **B8:** avisos embaixo da etiqueta e ano mudando a velocidade.
+
+(O alcance do tsunami saiu daqui: decidido em 2026-11-05, até ~1/5 da largura do continente.)
 
 ## Marco 3 — Ecologia
 Plantas e animais em nível agregado e individual, cadeia alimentar, migração, dragão como predador

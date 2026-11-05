@@ -56,26 +56,68 @@ function runAll(world: WorldState, ground: Ground, start: number, m: number): Di
 }
 
 describe('tsunami (R6)', () => {
-  it('alcance em terra pela magnitude (tabela aprovada) e mais costa atingida quanto maior', () => {
-    expect([7.5, 8, 8.5, 9, 9.5].map(inlandReach)).toEqual([3, 6, 10, 17, 28]);
-    expect([7.5, 8, 8.5, 9, 9.5].map(tsunamiRunup)).toEqual([20, 40, 60, 90, 140]);
+  /** Continente de `c0` e a largura dele: o dobro da maior distância até o mar. */
+  function continentOf(w: WorldState, c0: number): { cells: Set<number>; width: number } {
+    const cells = new Set([c0]);
+    let deepest = 0;
+    for (const c of cells) {
+      deepest = Math.max(deepest, w.waterDistance[c]!);
+      for (let d = 0; d < 4; d++) {
+        const j = w.grid.neighbors[c * 4 + d]!;
+        if (!w.isWater(j)) cells.add(j);
+      }
+    }
+    return { cells, width: deepest * 2 };
+  }
+
+  // Pedido do usuário (2026-11-05): "até cerca de 1/5 da largura do continente atingido, seguindo o terreno baixo".
+  it('o maior tsunami avança até cerca de 1/5 da largura do continente atingido', () => {
+    for (const seed of ['pangeia', 'terra']) {
+      const w = worldOf(seed, 256);
+      const plan = planTsunami(w, offshore(w), 9.5);
+      const reached = new Map<number, number>();
+      plan.land.forEach((c, k) => reached.set(c, plan.landSteps[k]!));
+      let biggest = continentOf(w, plan.land[0]!);
+      for (const c of plan.land) {
+        if (biggest.cells.has(c)) continue;
+        const other = continentOf(w, c);
+        const reach = Math.max(...[...other.cells].map((x) => reached.get(x) ?? 0));
+        // Ilha ou continente menor: também nunca passa de 1/5 da largura dele.
+        expect(reach).toBeLessThanOrEqual(Math.max(1, Math.round(other.width / 5)));
+        if (other.cells.size > biggest.cells.size) biggest = other;
+      }
+      const farthest = Math.max(...[...biggest.cells].map((x) => reached.get(x) ?? 0));
+      const target = biggest.width / 5;
+      expect(farthest).toBeGreaterThanOrEqual(target * 0.8);
+      expect(farthest).toBeLessThanOrEqual(target + 1);
+    }
+  }, 60_000);
+
+  it('quanto maior a magnitude, mais longe e mais terra; a regra de cada magnitude vale em todo continente', () => {
+    expect(inlandReach(9.5, 100)).toBe(20);
+    expect(inlandReach(7.5, 100)).toBeLessThan(inlandReach(8.5, 100));
+    expect(inlandReach(8.5, 100)).toBeLessThan(inlandReach(9, 100));
+    expect(inlandReach(9.5, 2)).toBe(1);
     const w = worldOf();
     const s = offshore(w);
     const land = [7.5, 8.5, 9.5].map((m) => planTsunami(w, s, m));
-    for (const [k, m] of [7.5, 8.5, 9.5].entries()) {
-      for (const step of land[k]!.landSteps) expect(step).toBeLessThan(inlandReach(m));
-    }
     expect(land[1]!.land.length).toBeGreaterThan(land[0]!.land.length);
     expect(land[2]!.land.length).toBeGreaterThan(land[1]!.land.length);
     expect(Math.max(...land[2]!.landSteps)).toBeGreaterThan(Math.max(...land[0]!.landSteps));
+    for (const p of land) p.landSteps.forEach((step, k) => expect(step).toBeLessThan(p.landReach[k]!));
   });
 
-  it('para em terreno alto: nenhuma célula coberta é mais alta que a onda ali', () => {
+  it('segue o terreno baixo: nenhuma célula coberta é mais alta que a onda, e ela nasce em costa ligada pelo baixo', () => {
     const w = worldOf();
     const plan = planTsunami(w, offshore(w), 9.5);
+    const steps = new Map(plan.land.map((c, k) => [c, plan.landSteps[k]!]));
     plan.land.forEach((c, k) => {
-      const limit = tsunamiRunup(9.5) * (1 - 0.6 * plan.landTimes[k]!) * (1 - plan.landSteps[k]! / plan.inland);
-      expect(w.heightAboveSea(c)).toBeLessThan(limit);
+      expect(w.heightAboveSea(c)).toBeLessThan(tsunamiRunup(9.5) * (1 - 0.6 * plan.landTimes[k]!));
+      // Toda célula alagada longe da costa tem vizinha alagada um passo antes: a água anda pelo chão.
+      if (plan.landSteps[k]! > 0) {
+        const near = [0, 1, 2, 3].map((d) => steps.get(w.grid.neighbors[c * 4 + d]!));
+        expect(near).toContain(plan.landSteps[k]! - 1);
+      }
     });
   });
 

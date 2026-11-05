@@ -869,7 +869,7 @@ teste do bloco. Mar e gelo não ganham degraus.
   tremendo só na câmera: 0,5–2 s, até ~14 px × a escala da tela pela magnitude, menos com a distância do
   epicentro ao centro da tela (zero além do raio sentido), 30% se o epicentro está fora da vista. Os
   anéis por cima saíram. Testes: `tests/world/quake-damage.test.ts`.
-- [x] **R6 — Tsunami** (recuo, onda, avanço, dano, costa raspada, magnitude). Testes: alcance pela
+- [x] **R6 — Tsunami** (recuo, onda, avanço, dano, costa raspada, magnitude; alcance mudado em 2026-11-05, ver a última rodada no fim deste arquivo). Testes: alcance pela
   magnitude; para em terreno alto; toda célula alcançada perde a vegetação.
   **Feito (2026-10-18):** `src/world/disasters/tsunami.ts` (plano + processo). A onda anda pelo mar como
   antes (√profundidade); alcance pelo mar calibrado em N = 256 para tocar ~20/~60/~110/~200 células de
@@ -2712,4 +2712,5 @@ muda" ficam para quando houver cidades, no M4), crônica permanente (M5), som, s
 
 ## Última rodada: teste da `2d9a2156` (2026-11-05)
 1. **Modo de tempo geológico** (`src/core/geologic-time.ts`): regras e ritmo do Máx em `docs/decisoes.md`.
+4. **Tsunami, muda a R6:** alcance em terra pela largura do continente atingido (até ~1/5 no M 9,5) e pelo terreno baixo; regras em `docs/decisoes.md`.
 
