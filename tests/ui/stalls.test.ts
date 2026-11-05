@@ -1,0 +1,117 @@
+import { describe, expect, it } from 'vitest';
+import { DATE_STALL_MS, FRAME_STALL_MS, STALL_KEEP, StallLog } from '../../src/ui/stalls';
+
+const ctx = '20× · placas 100%';
+const time = (wall: number) => String(wall);
+
+/** Quadros a cada 11 ms (90 Hz) de `from` até `to`. */
+function frames(log: StallLog, from: number, to: number, work = 2): void {
+  for (let t = from; t <= to; t += 11) {
+    log.frame(t, t, ctx);
+    log.frameWork(work);
+  }
+}
+
+describe('registro de travadas', () => {
+  it('quadros normais e data andando 10×/s: nenhuma travada', () => {
+    const log = new StallLog();
+    frames(log, 0, 3000);
+    for (let t = 0; t <= 3000; t += 100) log.clock(t, t, true, 0, 0, ctx);
+    expect(log.counts).toEqual({ tela: 0, data: 0 });
+  });
+
+  it('quadro longo com a thread da tela ocupada: separa da espera, e pega a tarefa que o navegador ainda não entregou', () => {
+    const log = new StallLog();
+    frames(log, 0, 100);
+    log.flushBusy = () => log.noteBusy(110, 3400);
+    log.frame(3637, 3637, ctx);
+    expect(log.entries[0]?.cause).toContain('tela ocupada fora do quadro (3400 ms');
+  });
+
+  it('tarefa longa de outra hora não explica a travada', () => {
+    const log = new StallLog();
+    log.noteBusy(0, 90);
+    frames(log, 200, 300);
+    log.frame(800, 800, ctx);
+    expect(log.entries[0]?.cause).toContain('tela livre');
+  });
+
+  it('quadro longo enquanto a tela aplica uma recomposição: travada da tela com a causa', () => {
+    const log = new StallLog();
+    frames(log, 0, 100);
+    log.noteRecomposition(220, 150);
+    log.frame(250, 250, ctx);
+    expect(log.counts.tela).toBe(1);
+    expect(log.entries[0]?.ms).toBeGreaterThan(FRAME_STALL_MS);
+    expect(log.entries[0]?.cause).toContain('recomposição');
+  });
+
+  it('quadro longo com a tela livre: esperando o quadro, com o tempo desde a recomposição', () => {
+    const log = new StallLog();
+    frames(log, 0, 100);
+    log.frame(400, 400, ctx);
+    expect(log.entries[0]?.cause).toContain('tela livre esperando o quadro');
+    expect(log.entries[0]?.sinceRecomposition).toBe(-1);
+    log.noteRecomposition(450, 2);
+    frames(log, 410, 600);
+    log.frame(850, 850, ctx);
+    expect(log.entries[1]?.sinceRecomposition).toBe(400);
+    expect(log.lines(1, time)[1]).toContain('recomposição há 0,4 s');
+  });
+
+  it('desenho lento: a causa é o desenho', () => {
+    const log = new StallLog();
+    frames(log, 0, 100);
+    log.frameWork(130);
+    log.frame(250, 250, ctx);
+    expect(log.entries[0]?.cause).toContain('desenho');
+  });
+
+  it('data parada esperando o ajudante, e a data parada quando a tela travou junto', () => {
+    const log = new StallLog();
+    log.clock(0, 0, true, 0, 0, ctx);
+    log.clock(100, 100, true, 0, 0, ctx);
+    log.clock(100 + DATE_STALL_MS + 200, 600, true, 450, 0, ctx);
+    expect(log.entries[0]).toMatchObject({ kind: 'data', cause: 'relógio esperou o ajudante 450 ms' });
+    // A tela inteira parou 800 ms: a data também.
+    frames(log, 700, 800);
+    log.frame(1600, 1600, ctx);
+    log.clock(1610, 1610, true, 450, 0, ctx);
+    expect(log.entries.at(-1)).toMatchObject({ kind: 'data', cause: 'a tela travou junto (ver "tela")' });
+  });
+
+  it('pausado não conta como data parada, e o registro guarda só as últimas', () => {
+    const log = new StallLog();
+    log.clock(0, 0, true, 0, 0, ctx);
+    log.clock(5000, 5000, false, 0, 0, ctx);
+    log.clock(9000, 9000, true, 0, 0, ctx);
+    expect(log.counts.data).toBe(0);
+    for (let k = 0; k < STALL_KEEP + 5; k++) {
+      log.restart();
+      log.frame(k * 1000, k * 1000, ctx);
+      log.frame(k * 1000 + 300, k * 1000 + 300, ctx);
+    }
+    expect(log.counts.tela).toBe(STALL_KEEP + 5);
+    expect(log.entries).toHaveLength(STALL_KEEP);
+    const lines = log.lines(3, time);
+    expect(lines[0]).toBe(`travadas ${STALL_KEEP + 5} da tela · 0 da data`);
+    expect(lines).toHaveLength(4);
+  });
+});
+
+describe('quadro longo com a janela sem foco', () => {
+  it('a causa diz que foi a janela, não o jogo', () => {
+    const log = new StallLog();
+    log.frame(0, 0, 'pausado', true);
+    log.frame(16, 0, 'pausado', false);
+    log.frame(1816, 0, 'pausado', true);
+    expect(log.entries[0]?.cause).toContain('janela sem foco');
+  });
+
+  it('com foco, a causa continua a de sempre', () => {
+    const log = new StallLog();
+    log.frame(0, 0, '1×', true);
+    log.frame(500, 0, '1×', true);
+    expect(log.entries[0]?.cause).not.toContain('janela sem foco');
+  });
+});

@@ -11,9 +11,11 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 - Dionatan é o designer e o testador. Ele joga, relata e decide o design.
 - Ele está aprendendo programação com o projeto. Ao terminar cada tarefa, explique em 3–5 linhas
   o que foi feito e por que, sem jargão desnecessário.
-- Ele testa no celular e no notebook. Toda mudança precisa funcionar nos dois.
+- Ele testa e joga no **notebook** (Vivobook Go, Ubuntu), pela tela de toque. O celular saiu do
+  projeto (decisão do usuário, 2026-10-17): sem meta nem teste nele.
 
 ## Ordem de leitura antes de qualquer trabalho
+0. `docs/estado-atual.md` — onde paramos, o que está pendente.
 1. `docs/02-marcos.md` — em qual marco estamos e o que falta.
 2. A especificação do marco atual (ex.: `docs/M1-especificacao.md`).
 3. `docs/01-arquitetura.md` — regras técnicas.
@@ -34,8 +36,14 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
    Mesma semente = mesmo mundo. Nunca use `Math.random()` na simulação.
 5. **Simulação separada da renderização.** A simulação nunca toca no DOM, no canvas ou no WebGL.
    A renderização só lê o estado.
-6. **Orçamento de celular.** Meta: 60 fps no notebook e no mínimo 30 fps num celular intermediário.
-   Se uma mudança derrubar isso, conserte antes de seguir.
+6. **Orçamento do notebook** (decisão do usuário, 2026-10-17; antes era o celular Infinix Hot 50i,
+   que saiu sem meta nenhuma). Aparelho-alvo: **ASUS Vivobook Go E1504FA** (Ryzen 5 7520U, 4 núcleos
+   / 8 threads, GPU integrada Radeon 610M, 16 GB, tela 1920×1080 a 60 Hz com toque), Ubuntu. Não há
+   opção de qualidade. **Metas aprovadas pelo usuário (2026-10-17):** todos os cenários com 60 fps de
+   média, mínimo ≥ 50 e nenhum quadro > 50 ms; geração ≤ 1,5 s (primeira abertura ≤ 2,5 s);
+   recomposição ≤ 1 s sem o relógio esperar; globo ≤ 8 ms de GPU por quadro em 1080p; memória do jogo
+   ≤ 400 MB. O relatório "Medir desempenho" rodado no notebook é a verdade e tem que mostrar também o
+   tempo de GPU e a memória. Se uma mudança derrubar a meta, conserte antes de seguir.
 7. **Sem dependência nova sem justificativa.** Antes de instalar um pacote, diga qual, por que e o
    tamanho aproximado. Registre em `docs/decisoes.md`.
 8. **Nada do WorldBox.** Não copie, descompile nem reproduza código, sprites, sons ou nomes de
@@ -43,6 +51,32 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
 9. **Dúvida de design é do usuário.** Se a especificação não decide algo que muda a experiência de
    jogo, pergunte em uma frase com opções. Se for detalhe técnico, decida, registre e siga.
 10. **Nunca diga que está pronto sem ter rodado.** "Deve funcionar" não é relato.
+11. **Teste por bloco, não por tarefa** (regra do usuário, 2026-10-16; substitui a de 2026-10-15).
+    - Siga direto de tarefa em tarefa (commit, push e `docs/estado-atual.md` a cada uma) e só pare
+      no **fim de cada bloco** do marco. Os blocos estão na especificação do marco.
+    - No fim do bloco: publique a prévia do branch (`/previa/<branch>/`), passe o link e uma **lista
+      completa e numerada do que testar no notebook, tarefa por tarefa**: o que fazer, o que deve
+      aparecer e o que seria defeito. Inclua o "Medir desempenho".
+    - **Paradas obrigatórias, mesmo no meio do bloco:** decisão de design (regra 9); teste de
+      portão, que muda o caminho conforme o resultado (ex.: um recurso do navegador funcionar no
+      notebook); meta de desempenho quebrada na medição no notebook.
+12. **Nenhum teste depende do relógio real** (regra do usuário): lógica com tempo vira função pura
+    com tempos sintéticos. Medições de desempenho não são testes de aprovação.
+13. **Desempenho a cada marco** (regra do usuário): ao fim de cada marco, medir de novo nas condições
+    da linha de base da v1.1 (`docs/decisoes.md`) e comparar; o relatório do aparelho-alvo decide.
+14. **Decisão de design vem com opções** (regra do usuário, 2026-11-03). Toda decisão de design
+    (mecanismo novo com efeito de jogo, mudança visual ou de interface) é apresentada com **4 a 6
+    opções variadas**, com **imagem** quando for visual e o **custo** de cada uma (trabalho, desempenho,
+    o que muda no jogo). O usuário escolhe; o código só vem depois da escolha. Vale também para as
+    propostas de rodada (escritas na especificação, com as imagens em `docs/img/`).
+15. **Link da prévia sempre à mão** (regra do usuário, 2026-11-03). Sempre que publicar uma prévia nova,
+    atualize no GitHub o link da prévia mais recente: no **topo do `README.md`** e no campo **"Website"**
+    do repositório (`gh repo edit --homepage <link>`). O usuário tem que achar o jogo sem procurar.
+16. **A qualidade não se negocia** (regra do usuário, 2026-11-03). A qualidade visual e de função não
+    baixa para caber no desempenho. Vale qualquer técnica que mantenha a qualidade e deixe o jogo mais
+    leve (pré-renderizar, enganar a luz, desenhar em lote, trocar detalhe pela distância), sem tirar nada
+    do que se vê ou do que funciona. Quando uma meta de desempenho não fechar, **esgote as técnicas antes**
+    de propor baixar a qualidade; a decisão de baixar é do usuário.
 
 ## Git e GitHub
 - Branch `main` sempre jogável. Trabalho de cada marco em `marco-N` (ex.: `marco-1`).
@@ -53,14 +87,25 @@ Ele governa COMO trabalhar. O QUE construir está em `docs/`.
   criar a tag `vN.0` (ex.: `v1.0`).
 - O GitHub Actions roda `npm run check` em todo push e publica `main` no GitHub Pages.
 - Nunca use `git push --force` em `main`. Nunca apague histórico.
+- **Trava de commit** (pedido do usuário, 2026-10-18, depois de dois commits com teste falhando):
+  `.githooks/pre-commit` roda `npm run check` e recusa o commit se falhar (só `docs/` e `*.md` dispensam).
+  Ative num clone novo com `git config core.hooksPath .githooks`. Nunca use `--no-verify`.
+- **Critério de teste vem do desenho, não do resultado observado** (regra do usuário, 2026-10-18): ao
+  mudar uma regra, o teste verifica o que a especificação diz (ex.: "todo incêndio natural vem de raio
+  ou de lava", com a origem registrada), não um número tirado do que o código deu.
 
 ## Documentação viva
+- **Ao fim de cada tarefa: commit e push no branch do marco**, com `docs/estado-atual.md` reescrito
+  no mesmo commit (marco e tarefa atuais, feito, pendente, últimas medições do notebook, decisões
+  abertas, ideias para marcos futuros). O Project de orientação do usuário (claude.ai) lê os docs
+  direto do GitHub, no branch mais recente do marco atual: o que não está no git não existe para ele.
+  Nada de conhecimento só local no notebook (scratchpad, pastas fora do repositório, memória da sessão).
 - Mudou comportamento? Atualize o documento de sistema correspondente no mesmo commit.
 - Decisão técnica relevante? Nova entrada em `docs/decisoes.md` (data, decisão, motivo, alternativa descartada).
 - Bug encontrado pelo usuário? Registre em `docs/bugs.md` com: como reproduzir, causa, correção.
 
 ## Comandos
-- `npm run dev` — servidor local (acessível pelo celular na mesma rede: use `--host`).
+- `npm run dev` — servidor local.
 - `npm run check` — tipos + lint + testes. Obrigatório antes de commit.
 - `npm run build` — build de produção.
 - `npm test` — só os testes.

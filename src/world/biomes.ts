@@ -32,16 +32,16 @@ export const BIOME_INFO: readonly BiomeInfo[] = [
   { name: 'Oceano profundo', color: [22, 52, 110], detail: 0.03 },
   { name: 'Oceano raso', color: [44, 98, 160], detail: 0.04 },
   { name: 'Praia', color: [226, 210, 150], detail: 0.05 },
-  { name: 'Gelo', color: [236, 244, 250], detail: 0.03 },
+  { name: 'Gelo', color: [236, 244, 250], detail: 0.08 },
   { name: 'Tundra', color: [150, 158, 128], detail: 0.07 },
   { name: 'Taiga', color: [56, 96, 70], detail: 0.12 },
-  { name: 'Floresta temperada', color: [62, 128, 58], detail: 0.12 },
-  { name: 'Campo', color: [128, 176, 84], detail: 0.06 },
-  { name: 'Estepe', color: [176, 178, 110], detail: 0.06 },
-  { name: 'Deserto quente', color: [222, 190, 120], detail: 0.06 },
-  { name: 'Deserto frio', color: [176, 164, 140], detail: 0.06 },
-  { name: 'Savana', color: [190, 176, 82], detail: 0.07 },
-  { name: 'Floresta tropical', color: [28, 110, 44], detail: 0.12 },
+  { name: 'Floresta temperada', color: [46, 118, 48], detail: 0.12 },
+  { name: 'Campo', color: [138, 186, 80], detail: 0.06 },
+  { name: 'Estepe', color: [184, 178, 112], detail: 0.06 },
+  { name: 'Deserto quente', color: [232, 200, 128], detail: 0.06 },
+  { name: 'Deserto frio', color: [172, 154, 132], detail: 0.06 },
+  { name: 'Savana', color: [204, 178, 74], detail: 0.07 },
+  { name: 'Floresta tropical', color: [18, 98, 40], detail: 0.12 },
   { name: 'Pântano', color: [76, 104, 72], detail: 0.1 },
   { name: 'Montanha', color: [124, 112, 100], detail: 0.12 },
   { name: 'Pico nevado', color: [222, 226, 232], detail: 0.05 },
@@ -55,6 +55,11 @@ export const SHALLOW_DEPTH = 200;
 export const MOUNTAIN_HEIGHT = 2000;
 /** Altura (m) a partir da qual montanha fria vira pico nevado. */
 export const PEAK_HEIGHT = 3200;
+/**
+ * Chuva mínima (mm/ano) para haver neve e geleira na montanha (T7, pedido do usuário: neve depende da
+ * altura, da latitude e da chuva). Montanha alta e seca fica rocha.
+ */
+export const SNOW_MIN_PRECIP = 250;
 /** Até esta altura (m), terra encostada na água pode ser praia. */
 export const BEACH_HEIGHT = 25;
 /** Pântano só em terra baixa (m). */
@@ -98,7 +103,7 @@ export interface CellClimate {
 export function classifyCell(c: CellClimate): Biome {
   if (c.ice) return Biome.Ice;
   if (c.height <= 0) return -c.height > SHALLOW_DEPTH ? Biome.DeepOcean : Biome.ShallowOcean;
-  if (c.height >= PEAK_HEIGHT && c.temp < 0) return Biome.SnowyPeak;
+  if (c.height >= PEAK_HEIGHT && c.temp < 0 && c.precip >= SNOW_MIN_PRECIP) return Biome.SnowyPeak;
   if (c.height >= MOUNTAIN_HEIGHT) return Biome.Mountain;
   if (c.nearWater && c.height <= BEACH_HEIGHT && c.temp > 0) return Biome.Beach;
   if (c.height <= WETLAND_MAX_HEIGHT && c.precip >= WETLAND_MIN_PRECIP && c.temp >= WETLAND_MIN_TEMP) {

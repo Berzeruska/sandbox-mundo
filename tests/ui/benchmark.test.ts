@@ -1,0 +1,201 @@
+import { describe, expect, it } from 'vitest';
+import { emptyWork, FrameRecorder, formatReport, gpuMemoryLines, gpuStats, powerLabel, scenarioInvalid, workDelta, meteorSpots } from '../../src/ui/benchmark';
+
+/** Quadros sintéticos: `gaps` são os intervalos (ms) a partir de t = 1000. */
+function record(gaps: number[], work = 2): FrameRecorder {
+  const r = new FrameRecorder();
+  let t = 1000;
+  r.frame(t, work);
+  for (const g of gaps) {
+    t += g;
+    r.frame(t, work);
+  }
+  return r;
+}
+
+describe('medir desempenho: estatística dos quadros', () => {
+  it('ritmo constante de 60 Hz: média e mínimo 60, pior quadro 16,7 ms', () => {
+    const s = record(Array(600).fill(1000 / 60)).summary();
+    expect(s.frames).toBe(600);
+    expect(s.durationMs).toBeCloseTo(10_000, 6);
+    expect(s.fpsAvg).toBeCloseTo(60, 6);
+    expect(s.fpsMin).toBeCloseTo(60, 3);
+    expect(s.worstFrameMs).toBeCloseTo(16.67, 1);
+    expect(s.slowFrames).toBe(0);
+  });
+
+  it('um engasgo de 200 ms aparece no pior quadro e derruba o mínimo, quase não mexe na média', () => {
+    const gaps = [...Array(300).fill(10), 200, ...Array(300).fill(10)];
+    const s = record(gaps).summary();
+    expect(s.worstFrameMs).toBe(200);
+    expect(s.slowFrames).toBe(1);
+    expect(s.fpsAvg).toBeGreaterThan(95);
+    // A pior janela de 1 s contém o engasgo: 80 quadros de 10 ms + o de 200 ms.
+    expect(s.fpsMin).toBeLessThan(83);
+    expect(s.fpsMin).toBeGreaterThan(79);
+  });
+
+  it('trecho mais lento no meio: o mínimo é o ritmo do trecho lento', () => {
+    const gaps = [...Array(200).fill(10), ...Array(100).fill(40), ...Array(200).fill(10)];
+    const s = record(gaps).summary();
+    expect(s.fpsMin).toBeCloseTo(25, 0);
+  });
+
+  it('trabalho por quadro: média e pior', () => {
+    const r = new FrameRecorder();
+    [3, 5, 1, 9].forEach((w, i) => r.frame(i * 16, w));
+    const s = r.summary();
+    // O primeiro quadro é só a referência de tempo.
+    expect(s.workAvgMs).toBeCloseTo(5, 9);
+    expect(s.workMaxMs).toBe(9);
+  });
+
+  it('conta os quadros em que o globo foi desenhado (parado, nenhum)', () => {
+    const r = new FrameRecorder();
+    [true, false, false, true, true].forEach((drew, i) => r.frame(i * 11, 1, drew));
+    // O primeiro quadro é só a referência de tempo.
+    expect(r.summary()).toMatchObject({ frames: 4, drawn: 2 });
+  });
+
+  it('sem quadros suficientes não quebra', () => {
+    expect(new FrameRecorder().summary().fpsAvg).toBe(0);
+    expect(record([]).summary().frames).toBe(0);
+  });
+});
+
+describe('medir desempenho: worker e relatório', () => {
+  it('diferença de contadores mostra só o trecho medido', () => {
+    const a = { ...emptyWork(), ms: 100, ticks: 1000, recompositions: 2, plates: 50, worstGeology: 80 };
+    const b = { ...a, ms: 400, ticks: 3400, recompositions: 5, plates: 140, worstGeology: 120 };
+    const d = workDelta(a, b);
+    expect(d).toMatchObject({ ms: 300, ticks: 2400, recompositions: 3, plates: 90, worstGeology: 120, waitMs: 0 });
+  });
+
+  it('relatório traz cenários, worker, geração e a GPU', () => {
+    const frames = record(Array(120).fill(1000 / 60)).summary();
+    const text = formatReport(
+      { version: 'abc123', date: 'hoje', gpu: 'Mali-G52 MC2 (ARM)', drawing: 'completo', cores: 8, sharedMemory: 'sim', screen: 'tela 720×1600', userAgent: 'UA' },
+      [
+        { name: 'pausado, parado', frames, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 },
+        {
+          name: 'tempo 20×, placas 100%',
+          frames,
+          work: { ...emptyWork(), ms: 500, ticks: 480, recompositions: 2, plates: 100, climate: 60, colors: 30, send: 10, worstGeology: 120, clockMessages: 120, welds: 1, fragments: 3, ruptures: 1 },
+          receiveAvgMs: 4,
+          receiveMaxMs: 6,
+        },
+      ],
+      { totalMs: 4000, workerMs: 3500, stagesMs: { grade: 300, terreno: 2000 }, helperShare: 0.48, receiveMs: 120 },
+    );
+    expect(text).toContain('Mali-G52');
+    expect(text).toContain('memória compartilhada: sim');
+    expect(text).toContain('pausado, parado');
+    expect(text).toContain('worker parado');
+    expect(text).toContain('2 recomposições (1 soldas · 1 rupturas · 3 pedaços absorvidos): média 100 ms (placas 50 · clima 30 · cores 15 · aplicar 5) · pior 120 ms · relógio esperou 0 ms');
+    expect(text).toContain('240 passos/s');
+    expect(text).toContain('geração: 4000 ms');
+    expect(text).toContain('terreno 2000');
+    expect(text).toContain('ajudante fez 48% do terreno');
+    expect(text).toContain('120 de 120');
+    expect(text).toContain('A meta de "pausado" vale para "pausado, girando"');
+  });
+});
+
+describe('GPU e memória no relatório (metas do notebook)', () => {
+  it('média e pior sem o primeiro desenho (aquecimento)', () => {
+    expect(gpuStats([20, 2, 4, 3])).toEqual({ avg: 3, max: 4 });
+    expect(gpuStats([])).toEqual({ avg: 0, max: 0 });
+  });
+
+  it('mostra os enquadramentos, o método e a memória; diz quando o navegador não informa', () => {
+    const lines = gpuMemoryLines(
+      [
+        { label: 'longe', ms: [9, 1.5, 2.5], method: 'consulta de tempo da GPU' },
+        { label: 'de perto', ms: [9, 3, 3], method: 'consulta de tempo da GPU' },
+      ],
+      { dataMb: 71.4, pageMb: null, pageHow: 'este navegador não informa' },
+    );
+    expect(lines[0]).toBe('GPU do globo (meta ≤ 8 ms por quadro): longe 2.0 ms (pior 2.5) · de perto 3.0 ms (pior 3.0) — consulta de tempo da GPU');
+    expect(lines[1]).toBe('memória (meta ≤ 400 MB): dados do jogo ~71 MB · página inteira: este navegador não informa');
+    expect(gpuMemoryLines([], { dataMb: 70, pageMb: 212, pageHow: 'medida do navegador, com os workers' })[0]).toContain('página inteira 212 MB');
+  });
+});
+
+const device = { version: 'abc123', date: 'hoje', gpu: 'GPU', drawing: 'completo', cores: 8, sharedMemory: 'sim', screen: 'tela', userAgent: 'UA' };
+
+// B9 (pedido do usuário, teste da `d7479ae2`): sem quadros desenhados (aba escondida, janela sem foco),
+// o relatório diz "medição inválida" em vez de 0 fps e números absurdos.
+describe('medição inválida (B9)', () => {
+  it('página escondida ou quase nenhum quadro: inválido; ritmo normal: vale', () => {
+    expect(scenarioInvalid(0, 8000, 0)).toBe(true);
+    expect(scenarioInvalid(479, 8000, 1200)).toBe(true);
+    expect(scenarioInvalid(479, 8000, 0)).toBe(false);
+    // Um aparelho lento (25 fps) ainda é medição de verdade.
+    expect(scenarioInvalid(200, 8000, 0)).toBe(false);
+  });
+
+  it('o relatório avisa no alto e não mostra números do cenário inválido', () => {
+    const good = record(Array(120).fill(1000 / 60)).summary();
+    const empty = new FrameRecorder().summary();
+    const text = formatReport(device, [
+      { name: 'pausado, girando', frames: good, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 },
+      { name: 'tempo 20×, placas 100%', invalid: true, frames: empty, work: { ...emptyWork(), ticks: 10, recompositions: 1 }, receiveAvgMs: 0, receiveMaxMs: 0 },
+    ], null);
+    const lines = text.split('\n');
+    expect(lines[1]).toContain('MEDIÇÃO INVÁLIDA');
+    const row = lines.find((l) => l.startsWith('tempo 20×, placas 100%'))!;
+    expect(row).toContain('medição inválida');
+    expect(row).not.toMatch(/\b0 ms\b/);
+    expect(text).not.toContain('recomposições (');
+  });
+
+  it('medição boa não tem aviso', () => {
+    const good = record(Array(120).fill(1000 / 60)).summary();
+    expect(formatReport(device, [{ name: 'pausado, girando', frames: good, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 }], null)).not.toContain('INVÁLIDA');
+  });
+});
+
+// A (relatório da `d7479ae2`): quadros > 50 ms que os testes do Claude Code não viam. Cada um aparece
+// no relatório com a hora no cenário e onde foi o tempo (tela, recebendo do worker ou fora do código).
+describe('quadros acima de 50 ms no relatório (A)', () => {
+  it('cada quadro lento com o que a tela fez', () => {
+    const r = new FrameRecorder();
+    let t = 0;
+    r.frame(t, 2);
+    for (let k = 0; k < 60; k++) r.frame((t += 16.7), 2);
+    r.frame((t += 83), 1, true, 0);
+    for (let k = 0; k < 60; k++) r.frame((t += 16.7), 2);
+    r.frame(t + 70, 2, true, 60);
+    const s = r.summary();
+    expect(s.slow.map((q) => Math.round(q.gapMs))).toEqual([83, 70]);
+    const text = formatReport(device, [{ name: 'tempo 20×, placas paradas', frames: s, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 }], null);
+    expect(text).toContain('quadro de 83 ms aos 1.1 s · tela 2 ms · recebendo 0 ms · fora do código da tela');
+    expect(text).toContain('quadro de 70 ms aos 2.2 s · tela 2 ms · recebendo 60 ms · recebendo do worker');
+  });
+});
+
+// A (2026-11-03): na bateria o notebook baixa o relógio da CPU e da GPU; o relatório diz qual foi.
+describe('energia no relatório (A)', () => {
+  it('bateria, tomada ou não informado', () => {
+    expect(powerLabel({ charging: false, level: 0.57 })).toContain('NA BATERIA (57%)');
+    expect(powerLabel({ charging: true, level: 1 })).toContain('na tomada');
+    expect(powerLabel(null)).toContain('não informado');
+    const frames = record(Array(60).fill(1000 / 60)).summary();
+    expect(formatReport({ ...device, power: powerLabel({ charging: false, level: 0.5 }) }, [{ name: 'x', frames, work: emptyWork(), receiveAvgMs: 0, receiveMaxMs: 0 }], null)).toContain('energia: NA BATERIA');
+  });
+});
+
+describe('pontos do cenário de meteoros em lugares diferentes', () => {
+  const center: [number, number, number] = [0, 0.6, 0.8];
+  const spots = meteorSpots(center, 40, 0.8);
+
+  it('todos na esfera, dentro da área pedida e sem repetir lugar', () => {
+    for (const p of spots) {
+      expect(Math.hypot(...p)).toBeCloseTo(1, 6);
+      expect(Math.acos(p[0] * center[0] + p[1] * center[1] + p[2] * center[2])).toBeLessThanOrEqual(0.8 + 1e-9);
+    }
+    for (let a = 0; a < spots.length; a++) {
+      for (let b = a + 1; b < spots.length; b++) expect(Math.hypot(spots[a]![0] - spots[b]![0], spots[a]![1] - spots[b]![1], spots[a]![2] - spots[b]![2])).toBeGreaterThan(0.01);
+    }
+  });
+});

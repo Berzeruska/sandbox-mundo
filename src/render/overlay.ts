@@ -20,6 +20,10 @@ export class Overlay {
     }
   }
 
+  get context(): CanvasRenderingContext2D {
+    return this.ctx;
+  }
+
   clear(): void {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }

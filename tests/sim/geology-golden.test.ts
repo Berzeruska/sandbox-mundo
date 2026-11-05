@@ -1,0 +1,92 @@
+import { describe, expect, it } from 'vitest';
+import { seedFrom } from '../../src/core/rng';
+import { BIOME_BITS, NO_LAYERS } from '../../src/render/colors';
+import { GeologyEngine, RESULT_SLOTS, worldArrays, type GeologyEvent } from '../../src/sim/geology';
+import { CubeSphere } from '../../src/world/cubesphere';
+import { createWorld } from '../../src/world/create';
+
+/** FNV-1a de 32 bits sobre os bytes (impressão digital simples, sem dependência). */
+function fnv(h: number, bytes: Uint8Array): number {
+  for (let i = 0; i < bytes.length; i++) h = Math.imul(h ^ (bytes[i] as number), 0x01000193);
+  return h >>> 0;
+}
+
+const bytesOf = (a: ArrayBufferView): Uint8Array => new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+
+/**
+ * Guarda o resultado exato do motor da geologia (recomposição, clima, cores, textura das placas).
+ * Otimização de desempenho não pode mudar o mundo: se este teste falhar sem uma mudança de regra
+ * de propósito, a otimização mudou o resultado. Valores conferidos contra o código de antes da
+ * limpeza de lixo de memória (2026-10-16), com 300 recomposições em N = 64 e 14 em N = 128. Valor
+ * novo na T6 (2026-10-17): entraram as jazidas e o tom delas nas cores; sem jazidas e sem cores, o
+ * valor do código de antes e do novo é o mesmo (c4bd0869). Valor novo na T7: a erosão passa a depender
+ * da chuva e o clima mudou (gelo, umidade, ciclo glacial), de propósito. Valor novo no teste da 50f0dca:
+ * plataforma continental larga, jazidas maiores, formação pelo relógio do jogo e cor do gelo presa
+ * em 0–255. Valor novo na R1 (2026-10-18): polos novos (borda do gelo do mar em lobos e placas soltas,
+ * cor pela espessura), de propósito. Valor novo na RL (2026-10-18): relevo em degraus nas cores, de
+ * propósito (a R2, logo antes, não mudou o valor: o chão dos desastres não entra nas cores do motor).
+ * Valor novo na RG (2026-10-18): só a textura de placas do desenho mudou (candidatas a 8 passos e a
+ * distância até a outra placa); sem ela, o valor antes e depois é o mesmo (8636d30e).
+ * Valor novo no teste da d644319 (E6, 2026-10-19): em terra, a altura e os degraus das cores contam do
+ * nível de base do mar (antes, do nível do mar atual, que o ciclo glacial move); sem essa mudança das
+ * cores, o valor é o mesmo de antes (b0dbcd8f).
+ * Valor da F1 (2026-10-19, 152f1801) desfeito na B4 (2026-11-03): sem o bit da areia seca nas cores (a
+ * poeira passa da borda do deserto), o valor volta ao de antes da F1 (aee2695d).
+ */
+describe('motor da geologia: mesmo resultado', () => {
+  it('impressão digital depois de 40 recomposições (terra, N = 64)', () => {
+    const grid = new CubeSphere(64);
+    const world = createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: 64, seaLevel: 0, landFraction: 0.3 }, grid);
+    let h = 0x811c9dc5;
+    let results = 0;
+    const consumed: number[] = [];
+    const emit = (e: GeologyEvent) => {
+      if (e.type !== 'result') return;
+      results++;
+      const arrays = engine.buffers.slots[e.result.slot]!.arrays as Record<string, ArrayBufferView>;
+      for (const k of Object.keys(arrays).sort()) h = fnv(h, bytesOf(arrays[k] as ArrayBufferView));
+      // Só o bioma do canal alfa: os bits dos cantos (2026-10-17) são do desenho e têm teste próprio.
+      h = fnv(h, engine.colors.map((x, i) => (i % 4 === 3 ? x & ((1 << BIOME_BITS) - 1) : x)));
+      h = fnv(h, bytesOf(engine.cellRef));
+      h = fnv(h, e.result.plateCells);
+      consumed.push(e.result.index);
+    };
+    const engine: GeologyEngine = new GeologyEngine({ world: 1, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: 1, layers: NO_LAYERS, climateControl: 0 }, grid, emit, () => 0);
+    let tick = 0;
+    while (results < 40) {
+      tick += 20;
+      engine.receive({ type: 'advance', world: 1, tick });
+      for (const index of consumed.splice(0)) engine.receive({ type: 'consumed', world: 1, index });
+    }
+    expect(h.toString(16)).toBe('aee2695d');
+  });
+});
+
+// A (relatório da `d7479ae2`, na bateria): "relógio esperou 195 ms". Com uma vaga só, um clima refeito
+// logo antes de uma recomposição prendia o motor até o relógio aplicar o clima. Pelo desenho (duas
+// vagas, RESULT_SLOTS), o motor entrega um segundo resultado sem esperar o primeiro ser aplicado, e só
+// para quando as duas vagas estão ocupadas; cada entrega fica intacta na sua vaga até ser aplicada.
+describe('vagas de entrega do ajudante (A)', () => {
+  it('dois resultados sem o relógio aplicar; o terceiro espera', () => {
+    const grid = new CubeSphere(32);
+    const world = createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: 32, seaLevel: 0, landFraction: 0.3 }, grid);
+    const got: { index: number; slot: number; tick: number; elevation: ArrayBufferView }[] = [];
+    const engine: GeologyEngine = new GeologyEngine(
+      { world: 1, params: world.params, plates: world.plates, arrays: worldArrays(world), rate: 1, layers: NO_LAYERS, climateControl: 0 },
+      grid,
+      (e) => {
+        if (e.type === 'result') got.push({ index: e.result.index, slot: e.result.slot, tick: e.result.tick, elevation: engine.buffers.slots[e.result.slot]!.arrays.elevation.slice() });
+      },
+      () => 0,
+    );
+    for (let tick = 20; tick <= 20_000; tick += 20) engine.receive({ type: 'advance', world: 1, tick });
+    expect(got.length).toBe(RESULT_SLOTS);
+    expect(new Set(got.map((g) => g.slot)).size).toBe(RESULT_SLOTS);
+    // A primeira entrega continua intacta na vaga dela depois da segunda.
+    expect(bytesOf(engine.buffers.slots[got[0]!.slot]!.arrays.elevation)).toEqual(bytesOf(got[0]!.elevation));
+    // Aplicada a primeira, a terceira vem (na vaga da primeira).
+    engine.receive({ type: 'consumed', world: 1, index: got[0]!.index });
+    expect(got.length).toBe(RESULT_SLOTS + 1);
+    expect(got[RESULT_SLOTS]!.slot).toBe(got[0]!.slot);
+  });
+});

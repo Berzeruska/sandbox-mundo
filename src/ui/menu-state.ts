@@ -1,0 +1,254 @@
+import type { WorldKind } from '../world/state';
+import type { InputMode } from '../input/pointer';
+import { Tool } from '../input/tools';
+import type { Speed } from '../core/time';
+import { DisasterKind } from '../world/disasters/types';
+
+/**
+ * Estado do menu de ferramentas por categorias (lógica pura, sem DOM).
+ * Na tela fica só a ferramenta ativa; o menu abre por categoria para escolher outra.
+ */
+
+export type CategoryId = 'tempo' | 'relevo' | 'desastres' | 'geologia' | 'clima' | 'mundo';
+
+export const CATEGORIES: readonly { id: CategoryId; label: string; icon: string }[] = [
+  { id: 'tempo', label: 'Tempo', icon: '⏱️' },
+  { id: 'relevo', label: 'Relevo', icon: '⛰️' },
+  { id: 'desastres', label: 'Desastres', icon: '🌋' },
+  { id: 'geologia', label: 'Geologia', icon: '🌍' },
+  { id: 'clima', label: 'Clima', icon: '🌡️' },
+  { id: 'mundo', label: 'Mundo', icon: '🪐' },
+];
+
+/**
+ * O que um item do menu faz:
+ * - `speed`: muda a velocidade e deixa o seletor de velocidade na tela;
+ * - `tool`: vira a ferramenta ativa (fica na tela);
+ * - `action`: faz algo uma vez (novo mundo, painel de dados) sem trocar a ferramenta ativa;
+ * - `toggle`: liga/desliga algo. As visões (VIEWS) são "um efeito por vez" junto com as ferramentas;
+ *   as nuvens são um padrão do mundo e ficam independentes.
+ */
+export type ItemKind = 'speed' | 'tool' | 'action' | 'toggle';
+
+export interface MenuItem {
+  id: string;
+  category: CategoryId;
+  label: string;
+  icon: string;
+  kind: ItemKind;
+  /** Falso = aparece apagado com "em breve" (chega numa tarefa futura do M2). */
+  available: boolean;
+  /** Para `speed`: a velocidade. */
+  speed?: Speed;
+  /** Para ferramentas de relevo que pintam: o pincel. */
+  brush?: Tool;
+  /** Para as ferramentas de desastre (T11): tocar no globo provoca este desastre ali. */
+  disaster?: DisasterKind;
+}
+
+export const ITEMS: readonly MenuItem[] = [
+  { id: 'pause', category: 'tempo', label: 'Pausa', icon: '⏸', kind: 'speed', available: true, speed: 0 },
+  { id: 'speed1', category: 'tempo', label: '1×', icon: '▶', kind: 'speed', available: true, speed: 1 },
+  { id: 'speed2', category: 'tempo', label: '2×', icon: '⏩', kind: 'speed', available: true, speed: 2 },
+  { id: 'speed5', category: 'tempo', label: '5×', icon: '⏩', kind: 'speed', available: true, speed: 5 },
+  { id: 'speed20', category: 'tempo', label: '20×', icon: '⏭', kind: 'speed', available: true, speed: 20 },
+  { id: 'speedMax', category: 'tempo', label: 'Máx', icon: '🚀', kind: 'speed', available: true, speed: 'max' },
+
+  { id: 'move', category: 'relevo', label: 'Mover', icon: '✋', kind: 'tool', available: true },
+  { id: 'raise', category: 'relevo', label: 'Elevar', icon: '⛰️', kind: 'tool', available: true, brush: Tool.Raise },
+  { id: 'lower', category: 'relevo', label: 'Rebaixar', icon: '⛏️', kind: 'tool', available: true, brush: Tool.Lower },
+  { id: 'water', category: 'relevo', label: 'Água', icon: '💧', kind: 'tool', available: true, brush: Tool.Water },
+  { id: 'ice', category: 'relevo', label: 'Gelo', icon: '❄️', kind: 'tool', available: true, brush: Tool.Ice },
+  { id: 'melt', category: 'relevo', label: 'Derreter', icon: '🔥', kind: 'tool', available: true, brush: Tool.EraseIce },
+
+  { id: 'quake', category: 'desastres', label: 'Terremoto', icon: '💥', kind: 'tool', available: true, disaster: DisasterKind.Quake },
+  { id: 'volcano', category: 'desastres', label: 'Vulcão', icon: '🌋', kind: 'tool', available: true, disaster: DisasterKind.Volcano },
+  { id: 'tsunami', category: 'desastres', label: 'Tsunami', icon: '🌊', kind: 'tool', available: true, disaster: DisasterKind.Tsunami },
+  { id: 'drought', category: 'desastres', label: 'Seca', icon: '🏜️', kind: 'tool', available: true, disaster: DisasterKind.Drought },
+  { id: 'flood', category: 'desastres', label: 'Enchente', icon: '🌧️', kind: 'tool', available: true, disaster: DisasterKind.Flood },
+  { id: 'hurricane', category: 'desastres', label: 'Furacão', icon: '🌀', kind: 'tool', available: true, disaster: DisasterKind.Hurricane },
+  { id: 'fire', category: 'desastres', label: 'Incêndio', icon: '🔥', kind: 'tool', available: true, disaster: DisasterKind.Fire },
+  { id: 'lightning', category: 'desastres', label: 'Raio', icon: '⚡', kind: 'tool', available: true, disaster: DisasterKind.Lightning },
+  { id: 'meteor', category: 'desastres', label: 'Meteoro', icon: '☄️', kind: 'tool', available: true, disaster: DisasterKind.Meteor },
+  { id: 'sandstorm', category: 'desastres', label: 'Tempestade de areia', icon: '🌪️', kind: 'tool', available: true, disaster: DisasterKind.Sandstorm },
+  { id: 'disasterFreq', category: 'desastres', label: 'Frequência', icon: '🎲', kind: 'tool', available: true },
+  { id: 'stressLayer', category: 'desastres', label: 'Ver tensão', icon: '📈', kind: 'toggle', available: true },
+
+  { id: 'platesLayer', category: 'geologia', label: 'Ver placas', icon: '🧩', kind: 'toggle', available: true },
+  { id: 'resourcesLayer', category: 'geologia', label: 'Ver recursos', icon: '💎', kind: 'toggle', available: true },
+  { id: 'plateSpeed', category: 'geologia', label: 'Velocidade', icon: '⏩', kind: 'tool', available: true },
+
+  { id: 'temperature', category: 'clima', label: 'Temperatura', icon: '🌡️', kind: 'tool', available: true },
+  { id: 'biomesLayer', category: 'clima', label: 'Ver biomas', icon: '🗺️', kind: 'toggle', available: true },
+  { id: 'cloudsLayer', category: 'clima', label: 'Nuvens', icon: '☁️', kind: 'toggle', available: true },
+
+  { id: 'newWorld', category: 'mundo', label: 'Novo mundo', icon: '🌍', kind: 'action', available: true },
+  { id: 'debug', category: 'mundo', label: 'Dados', icon: '🐞', kind: 'action', available: true },
+];
+
+/**
+ * Escolha de força ao provocar (R2, imagem `docs/img/m2-dv-seletores.png`): magnitude no terremoto e no
+ * tsunami, categoria no furacão (1–2 ciclone, 3–5 furacão). `value` vai para a simulação.
+ */
+export interface StrengthChoice {
+  value: number;
+  label: string;
+  /** Segunda linha do botão (ex.: o número da categoria). */
+  sub?: string;
+}
+
+export const STRENGTHS: Readonly<Partial<Record<DisasterKind, readonly StrengthChoice[]>>> = {
+  [DisasterKind.Quake]: [6, 7, 8, 9, 9.5].map((m) => ({ value: m, label: `M ${String(m).replace('.', ',')}` })),
+  [DisasterKind.Tsunami]: [7.5, 8, 8.5, 9, 9.5].map((m) => ({ value: m, label: `M ${String(m).replace('.', ',')}` })),
+  [DisasterKind.Hurricane]: [
+    { value: 1, label: 'Ciclone', sub: '1' },
+    { value: 2, label: 'Ciclone', sub: '2' },
+    { value: 3, label: 'Furacão', sub: '3' },
+    { value: 4, label: '4' },
+    { value: 5, label: '5' },
+  ],
+  [DisasterKind.Meteor]: [
+    { value: 1, label: 'Pequeno' },
+    { value: 2, label: 'Médio' },
+    { value: 3, label: 'Grande' },
+    { value: 4, label: 'Gigante' },
+  ],
+};
+
+/** Força já escolhida ao abrir o jogo (o último escolhido fica). */
+export const DEFAULT_STRENGTH: Readonly<Partial<Record<DisasterKind, number>>> = {
+  [DisasterKind.Quake]: 8,
+  [DisasterKind.Tsunami]: 9,
+  [DisasterKind.Hurricane]: 3,
+  [DisasterKind.Meteor]: 2,
+};
+
+/** Item que fica na tela quando o jogador escolhe uma velocidade (o seletor de tempo). */
+export const SPEED_CARD = 'speed';
+
+export function itemById(id: string): MenuItem | undefined {
+  return ITEMS.find((i) => i.id === id);
+}
+
+export function itemsOf(category: CategoryId): MenuItem[] {
+  return ITEMS.filter((i) => i.category === category);
+}
+
+/**
+ * Visões do mundo: entram no "um efeito por vez" (decisão do usuário, 2026-10-19) com as ferramentas de
+ * pincel e os desastres. Só um poder selecionado; escolher outro substitui o anterior; tocar no
+ * selecionado desliga.
+ */
+export const VIEWS: ReadonlySet<string> = new Set(['platesLayer', 'resourcesLayer', 'stressLayer', 'biomesLayer']);
+
+export interface MenuState {
+  open: boolean;
+  /** Categoria mostrada no menu. */
+  category: CategoryId;
+  /** O que está na tela: o id de uma ferramenta, ou SPEED_CARD (seletor de velocidade). */
+  active: string;
+  /** Visão ligada (uma de VIEWS), ou null. */
+  view: string | null;
+  /** Interruptores dos padrões do mundo ligados (hoje só as nuvens). */
+  toggles: readonly string[];
+}
+
+export type MenuEffect =
+  | { type: 'none' }
+  | { type: 'speed'; speed: Speed }
+  | { type: 'action'; action: string }
+  | { type: 'toggle'; id: string; on: boolean }
+  /** A visão ligada agora (null: nenhuma). */
+  | { type: 'view'; id: string | null };
+
+/** Nuvens começam ligadas (T10). */
+export const INITIAL_MENU: MenuState = { open: false, category: 'relevo', active: 'move', view: null, toggles: ['cloudsLayer'] };
+
+/** Poder = pincel ou desastre: entra no "um efeito por vez" com as visões. */
+function isPower(item: MenuItem | undefined): boolean {
+  return item !== undefined && (item.brush !== undefined || item.disaster !== undefined);
+}
+
+/** Categoria do que está ativo na tela (para abrir o menu "no lugar certo"). */
+export function categoryOfActive(state: MenuState): CategoryId {
+  if (state.active === SPEED_CARD) return 'tempo';
+  return itemById(state.active)?.category ?? 'relevo';
+}
+
+/** Abre o menu; sem categoria, abre na categoria da ferramenta ativa. */
+export function openMenu(state: MenuState, category?: CategoryId): MenuState {
+  return { ...state, open: true, category: category ?? categoryOfActive(state) };
+}
+
+export function closeMenu(state: MenuState): MenuState {
+  return { ...state, open: false };
+}
+
+export function toggleMenu(state: MenuState): MenuState {
+  return state.open ? closeMenu(state) : openMenu(state);
+}
+
+export function selectCategory(state: MenuState, category: CategoryId): MenuState {
+  return { ...state, category };
+}
+
+/** Toque num item do menu: muda o estado e diz o que o jogo deve fazer. */
+export function selectItem(state: MenuState, id: string): { state: MenuState; effect: MenuEffect } {
+  const item = itemById(id);
+  if (!item || !item.available) return { state, effect: { type: 'none' } };
+  if (item.kind === 'speed') {
+    return { state: { ...state, open: false, active: SPEED_CARD }, effect: { type: 'speed', speed: item.speed ?? 1 } };
+  }
+  if (item.kind === 'action') {
+    return { state: { ...state, open: false }, effect: { type: 'action', action: item.id } };
+  }
+  if (item.kind === 'toggle' && VIEWS.has(item.id)) {
+    // Uma visão por vez; ligar uma visão desliga o pincel ou desastre em uso (volta para Mover).
+    const view = state.view === item.id ? null : item.id;
+    const active = view && isPower(itemById(state.active)) ? 'move' : state.active;
+    return { state: { ...state, open: false, view, active }, effect: { type: 'view', id: view } };
+  }
+  if (item.kind === 'toggle') {
+    const on = !state.toggles.includes(item.id);
+    const toggles = on ? [...state.toggles, item.id] : state.toggles.filter((t) => t !== item.id);
+    return { state: { ...state, open: false, toggles }, effect: { type: 'toggle', id: item.id, on } };
+  }
+  // Tocar de novo na ferramenta em uso desliga ela (volta para Mover).
+  const active = item.id === state.active && item.id !== 'move' ? 'move' : item.id;
+  // Escolher um pincel ou desastre desliga a visão ligada (um efeito por vez).
+  if (isPower(item) && active === item.id && state.view !== null) {
+    return { state: { ...state, open: false, active, view: null }, effect: { type: 'view', id: null } };
+  }
+  return { state: { ...state, open: false, active }, effect: { type: 'none' } };
+}
+
+export function isOn(state: MenuState, id: string): boolean {
+  return state.view === id || state.toggles.includes(id);
+}
+
+/** Desastre da ferramenta ativa (tocar no globo provoca), ou null. */
+export function activeDisaster(state: MenuState): DisasterKind | null {
+  return itemById(state.active)?.disaster ?? null;
+}
+
+/** Pincel da ferramenta ativa, ou null (mover, seletor de tempo...). */
+export function activeBrush(state: MenuState): Tool | null {
+  return itemById(state.active)?.brush ?? null;
+}
+
+/** Ferramenta de pintura ativa = um dedo pinta; senão, um dedo gira o globo. */
+export function inputModeOf(state: MenuState): InputMode {
+  return activeBrush(state) === null ? 'move' : 'paint';
+}
+
+/** Os tipos de mundo na janela "Novo mundo" (decisão do usuário, 2026-11-04). */
+export const WORLD_KINDS: readonly { kind: WorldKind; label: string; about: string }[] = [
+  { kind: 'standard', label: 'Padrão', about: 'A Pangeia se parte em continentes grandes.' },
+  { kind: 'smaller', label: 'Continentes menores', about: 'A Pangeia se parte em mais pedaços, menores.' },
+  { kind: 'archipelago', label: 'Arquipélago', about: 'A Pangeia vai se partindo até virar ilhas; aí as placas desligam sozinhas, e ligar de novo é com você.' },
+];
+
+/** A página abre na escolha do mundo? Sim, se o link não pede um mundo certo (semente ou tipo). */
+export function opensOnWorldChoice(search: URLSearchParams): boolean {
+  return !search.get('seed')?.trim() && !search.has('tipo');
+}

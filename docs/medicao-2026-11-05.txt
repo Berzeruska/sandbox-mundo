@@ -1,0 +1,75 @@
+Sandbox Mundo — medição de desempenho
+versão mw3pgnbr · 05/11/2026, 12:38:16
+GPU: ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv) (Google Inc. (AMD))
+desenho: completo · núcleos: 8 · memória compartilhada: sim (recargas p/ isolar 0) · tela 1920×1080 @1.00 · desenho 1920×1080 · ~60 Hz
+navegador: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36
+energia: na tomada (bateria 100%)
+
+cenário                    fps méd   mín  pior quadro  >50ms  tela ms   desenhados
+pausado, parado                 60    60        17 ms      0    0.1/0     0 de 299
+pausado, girando                60    60        17 ms      0    0.2/1   359 de 359
+de perto, girando               60    60        17 ms      0    0.2/0   359 de 359
+tempo 20×, placas paradas       60    60        17 ms      0    0.3/6   479 de 479
+  idem, painel c/ desfoque      60    60        17 ms      0    0.3/1   479 de 479
+tempo 20×, placas 100%          60    60        17 ms      0    0.3/1   719 de 719
+  idem, painel c/ desfoque      60    60        17 ms      0    0.2/1   599 de 599
+  idem, painel s/ desfoque      60    60        17 ms      0    0.3/8   599 de 599
+tempo 5×, placas 100%, de perto      60    60        17 ms      0    0.3/1 1199 de 1199
+deriva longa c/ colisões        60    60        17 ms      0    0.2/5 3599 de 3599
+ruptura forçada                 60    60        17 ms      0    0.3/1   599 de 599
+desastres "Muitos", 20×         60    60        17 ms      0    0.7/4 1199 de 1199
+tempo Máx, placas 100%          60    60        17 ms      0    0.3/3 1799 de 1799
+    travadas da data no cenário: 0
+meteoros, mesmo lugar           60    60        17 ms      0    1.4/4 1199 de 1199
+    travadas da data no cenário: 0
+meteoros, lugares variados      60    60        17 ms      0    1.6/3 1199 de 1199
+    travadas da data no cenário: 0
+
+("tela ms" = trabalho da thread principal por quadro: média/pior; "desenhados" = quadros em que o globo
+ foi desenhado. Parado, nada é desenhado e o fps é o ritmo que o aparelho dá a uma página parada.
+ A meta de "pausado" vale para "pausado, girando". "De perto" = zoom máximo, células quadradas.)
+
+GPU do globo (meta ≤ 8 ms por quadro): longe 2.2 ms (pior 2.4) · de perto 3.9 ms (pior 6.9) · de perto com placas andando 4.1 ms (pior 5.5) · de perto na transição 5.1 ms (pior 5.4) · meio com placas andando 5.6 ms (pior 6.7) · meio na transição 6.2 ms (pior 6.5) · longe com desastres "Muitos" 2.8 ms (pior 12.9) — consulta de tempo da GPU
+memória (meta ≤ 400 MB): dados do jogo ~54 MB · página inteira 202 MB (medida do navegador, com os workers)
+
+pausado, parado: worker parado
+pausado, girando: worker parado
+de perto, girando: worker parado
+tempo 20×, placas paradas: worker 238 passos/s · 0.058 ms/passo · ocupado 1% · 9 msg/s
+  idem, painel c/ desfoque: worker 241 passos/s · 0.074 ms/passo · ocupado 2% · 9 msg/s
+tempo 20×, placas 100%: worker 239 passos/s · 0.277 ms/passo · ocupado 7% · 9 msg/s
+    3 recomposições (0 soldas · 0 rupturas · 8 pedaços absorvidos): média 714 ms (placas 466 · clima 91 · cores 76 · aplicar 80) · pior 780 ms · relógio esperou 0 ms
+    tela ao receber: média 3.2 · pior 6.5 ms
+  idem, painel c/ desfoque: worker 240 passos/s · 0.208 ms/passo · ocupado 5% · 9 msg/s
+    3 recomposições (0 soldas · 0 rupturas · 7 pedaços absorvidos): média 554 ms (placas 318 · clima 104 · cores 74 · aplicar 57) · pior 572 ms · relógio esperou 0 ms
+    tela ao receber: média 2.2 · pior 3.4 ms
+  idem, painel s/ desfoque: worker 240 passos/s · 0.244 ms/passo · ocupado 6% · 9 msg/s · clima 1× (média 169 ms no ajudante)
+    3 recomposições (1 soldas · 0 rupturas · 8 pedaços absorvidos): média 554 ms (placas 314 · clima 115 · cores 69 · aplicar 56) · pior 584 ms · relógio esperou 0 ms
+    tela ao receber: média 2.0 · pior 2.3 ms
+tempo 5×, placas 100%, de perto: worker 60 passos/s · 0.280 ms/passo · ocupado 2% · 9 msg/s
+    2 recomposições (0 soldas · 0 rupturas · 1 pedaços absorvidos): média 535 ms (placas 310 · clima 101 · cores 70 · aplicar 54) · pior 549 ms · relógio esperou 0 ms
+    tela ao receber: média 2.2 · pior 2.7 ms
+deriva longa c/ colisões: worker 240 passos/s · 0.186 ms/passo · ocupado 4% · 9 msg/s · clima 2× (média 134 ms no ajudante)
+    18 recomposições (2 soldas · 0 rupturas · 39 pedaços absorvidos): média 553 ms (placas 332 · clima 108 · cores 64 · aplicar 49) · pior 608 ms · relógio esperou 0 ms
+    tela ao receber: média 2.1 · pior 5.3 ms
+ruptura forçada: worker 242 passos/s · 0.141 ms/passo · ocupado 3% · 9 msg/s
+    2 recomposições (0 soldas · 1 rupturas · 13 pedaços absorvidos): média 617 ms (placas 426 · clima 87 · cores 54 · aplicar 51) · pior 644 ms · relógio esperou 0 ms
+    tela ao receber: média 2.6 · pior 3.6 ms
+desastres "Muitos", 20×: worker 240 passos/s · 0.736 ms/passo · ocupado 18% · 9 msg/s · clima 1× (média 97 ms no ajudante)
+    4 recomposições (0 soldas · 0 rupturas · 47 pedaços absorvidos): média 500 ms (placas 317 · clima 68 · cores 52 · aplicar 62) · pior 539 ms · relógio esperou 0 ms
+    tela ao receber: média 1.9 · pior 2.8 ms
+tempo Máx, placas 100%: worker 1562 passos/s · 0.084 ms/passo · ocupado 13% · 9 msg/s · clima 8× (média 100 ms no ajudante)
+    37 recomposições (4 soldas · 1 rupturas · 95 pedaços absorvidos): média 391 ms (placas 241 · clima 67 · cores 53 · aplicar 30) · pior 547 ms · relógio esperou 0 ms
+    tela ao receber: média 1.8 · pior 5.2 ms
+meteoros, mesmo lugar: worker 12 passos/s · 23.103 ms/passo · ocupado 28% · 9 msg/s
+    1 recomposições (0 soldas · 0 rupturas · 42 pedaços absorvidos): média 541 ms (placas 283 · clima 67 · cores 53 · aplicar 137) · pior 541 ms · relógio esperou 0 ms
+    tela ao receber: média 2.7 · pior 2.7 ms
+meteoros, lugares variados: worker 12 passos/s · 13.020 ms/passo · ocupado 16% · 9 msg/s
+
+geração: 958 ms do pedido ao globo (worker 927 · tela ao receber 8)
+  etapas: grade 1 · terreno 325 · placas 392 · água 9 · clima 100 · recursos 19 · cores 81 · ajudante fez 48% do terreno
+primeira abertura: 1482 ms da página ao globo (pedido ao globo 1414 · worker 1266)
+  etapas: grade 92 · terreno 413 · placas 397 · água 12 · clima 218 · recursos 30 · cores 104
+
+desde que a página abriu (inclui a medição):
+travadas 0 da tela · 0 da data

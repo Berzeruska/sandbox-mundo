@@ -3,7 +3,8 @@
 Cada marco termina jogável e testável no celular. Só se começa o próximo com o anterior aceito
 pelo usuário.
 
-Marco atual: **Marco 2** — especificação em `docs/M2-especificacao.md`, aguardando aprovação do usuário.
+Marco atual: **Marco 2** — especificação aprovada em 2026-10-15 (`docs/M2-especificacao.md`).
+Onde paramos e o que vem depois: seção "Estado" da especificação do M2.
 Marco 0 aceito em 2026-10-14. Marco 1 aceito em 2026-10-15 (`v1.0`).
 
 ---
@@ -35,8 +36,8 @@ Pedidos do usuário após testar a v1.0 no celular.
 - [x] **T14 — Pincéis com queda suave:** Elevar/Rebaixar fortes no centro e zero na borda, sem platô
 
 **Aceite:** sem visual de "prisma" perto dos cantos do cubo; morro pintado tem forma de morro.
-Fecha com PR para `main` e tag `v1.1`. **Publicado em 2026-10-15 (`v1.1`)**; validação no celular
-pendente com o usuário.
+Fecha com PR para `main` e tag `v1.1`. **Publicado em 2026-10-15 (`v1.1`)** e validado pelo usuário no
+celular (os números viraram a linha de base de desempenho, em `docs/decisoes.md`).
 
 ## Marco 2 — Geologia viva
 Placas tectônicas, deriva continental com velocidade controlada pelo jogador (inclusive zero),
@@ -46,29 +47,138 @@ furacão). Simulação passa para Web Worker. Ver `docs/03-mundo-geologia.md`.
 **Aceite:** a Pangeia se parte em continentes ao longo do tempo acelerado sem travar a tela;
 desastres surgem onde a geologia e o clima indicam.
 
+**Pendência de ajuste fino (decisão do usuário, 2026-11-04):** fica para a rodada de ajuste fino e
+balanceamento dos desastres, **depois do M3**; não aprovados, o jogo fica como está hoje. Propostas em
+`docs/M2-especificacao.md`, "Correções do teste da `adf001ea`":
+- **B5:** degrau permanente do terremoto;
+- **B7:** formas dos pontos quentes conforme o chão;
+- **B8:** avisos embaixo da etiqueta e ano mudando a velocidade.
+
+(O alcance do tsunami saiu daqui: decidido em 2026-11-05, até ~1/5 da largura do continente.)
+
+Entram na mesma rodada de ajuste fino, depois do M3 (usuário, 2026-11-05; não fazer antes):
+- **Ilhas do arquipélago com mais formato**, estilo Europa antiga (como o mar Egeu);
+- **Formato dos continentes** mais parecido com o da Terra (hoje estão feios);
+- **Modo econômico:** menos fps com o jogo parado ou pausado (o notebook faz barulho com o jogo aberto);
+- **B8** (tocar no ano muda a velocidade), **B5** e **B7**, que continuam na lista acima.
+- **Tsunami M 9,5 atinge o planeta inteiro:** rever o alcance (usuário, teste da `3238cd7b`; o alcance em terra, ~1/5 do continente, fica);
+- **Travadas fora da medição, se voltarem, investigar:** 1.852 ms às 14:13:33 (pausado, "tela ocupada fora do quadro") e 717 ms às 13:59:30 ("tela livre esperando o quadro"). Mais em `docs/bugs.md`.
+
 ## Marco 3 — Ecologia
 Plantas e animais em nível agregado e individual, cadeia alimentar, migração, dragão como predador
 de topo, avisos de espécie em risco e de último indivíduo. Ver `docs/04-ecologia.md`.
+Anotado em 2026-10-17 (usuário): **floresta grande afeta o clima** (umidade, temperatura); a camada
+"Ver biomas" (feita na T7) é a base para ver isso. **Criaturas vistas de cima**, no estilo de um
+sandbox de deus visto do alto (conteúdo nosso, regra 8): ao especificar o M3, confirmar que a vista de
+perto e a escala do planeta permitem bonecos legíveis (junto com a ideia já registrada de zoom maior
+para bonecos pequenos).
+**Decidido em 2026-11-03 (usuário): temperatura no extremo transforma o planeta (P9), no M3.** Frio
+máximo: era glacial total. Calor máximo: o planeta vira deserto vermelho, caótico e destruído, com
+florestas só em montanhas e lugares isolados. A física é do clima (T7); o M3 faz o planeta e a vida
+reagirem. O comportamento das civilizações nesses extremos vai para o M5/M6
+(`docs/05-civilizacao-politica.md`, `docs/06-guerra.md`).
+
+**Direção visual e escala (decisões do usuário, 2026-11-03, segunda mensagem; substitui o "diorama de
+cubos" da primeira; detalhes em `docs/decisoes.md`):**
+- **De perto: diorama** (referência em `docs/img/referencias/`): maquete de uma região com relevo em
+  degraus e penhasco na borda, árvores, casas e prédios em quarteirões, rio com pontes, tanques, mísseis
+  com fumaça e explosões; modelos 3D simples (low-poly), luz suave, cores vivas. **A maquete é viva:** é
+  o desenho da simulação daquele lugar; ali os indivíduos andam, atacam e morrem.
+- **De longe: o globo em pixel 2D**, no estilo de jogo de guerra que o usuário mostrou ao orientador
+  (rios, fronteiras, florestas de árvores desenhadas uma a uma, cidades em quarteirões, mísseis e fumaça
+  em sprites). A textura dos biomas de hoje muda nesse estilo, pelo guia de estilo do M3 (não no M2).
+- As duas vistas são só referência de estilo (regra 8): desenho nosso, nada copiado.
+- **Plano B**, se o 3D de perto não couber no notebook: modelos 3D salvos como sprites pré-renderizados
+  (cara de 3D, custo de 2D), com quadros de animação. Esgotar as técnicas antes de propor voltar atrás
+  no estilo (CLAUDE.md, regra 16).
+- **Escala: vai mudar** para o jogo dar certo: os humanos precisam ocupar o mundo, e com o planeta do
+  tamanho atual isso não funciona (responde à questão de escala abaixo).
+- **Primeira tarefa do M3, o portão (nada do M3 se constrói antes da aprovação do usuário):**
+  (a) protótipo de uma região em diorama (~64×64 células, com árvores, casas, relevo, luz e alguns
+  bonecos andando), medido no notebook com a meta de 60 fps e GPU ≤ 8 ms, comparando o motor atual
+  (WebGL2) e o Three.js por cima da simulação atual; (b) a passagem de longe (2D) para perto (diorama)
+  ao aproximar; (c) guia de estilo de uma página (paleta, luz, montanha, floresta, vila, cidade, biomas
+  no 2D de longe) com 4 a 6 opções em imagem; (d) 4 a 6 opções de escala (tamanho do planeta, da célula,
+  zoom), com o custo de cada uma; texturas dos biomas e plano B com sprites pré-renderizados, como
+  registrado; **(e) (acrescentado pelo usuário em 2026-11-04) comparar o globo atual com um mapa plano,
+  com e sem as bordas se ligando**, com imagem e custo de cada um, e o que cada um muda no diorama, nas
+  cidades e nas placas; **(f) (acrescentado pelo usuário em 2026-11-05) as camadas estranhas sobrepostas
+  em alguns pontos do globo**: entram junto com o novo desenho do mundo. **A decisão é do usuário.** O M3 só
+  começa depois do merge do M2.
+- **Simulação:** de longe números, de perto indivíduos; exércitos em marcha, generais, aviões em missão
+  e figuras da Crônica são sempre indivíduos (detalhe em `docs/06-guerra.md`).
+Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a
+**escala visual** pequena dos indivíduos (`docs/00-visao.md`).
+
+**Questão de escala (registrada em 2026-10-15; em 2026-11-03 o usuário decidiu que a escala muda; as
+opções concretas vêm na tarefa (d) do portão do M3, acima):**
+escala do planeta versus tamanho dos humanos e das cidades. O usuário **não quer humanos de 1 pixel**.
+Hoje, com um planeta do tamanho da Terra, cada célula tem ~33–39 km. Opções a avaliar:
+1. **Planeta menor que a Terra** (células menores em km, mesma quantidade de células);
+2. **Camada de detalhe local ao aproximar** (ao chegar perto, uma grade fina gerada a partir da
+   célula grande, só na região visível);
+3. **Humanos desenhados em escala própria** (indivíduos e cidades com tamanho visual fixo,
+   independente da escala física do terreno).
+Avaliar desempenho no celular, coerência com a simulação agregada × individual e com a escala
+visual pequena pedida (`docs/00-visao.md`).
+Ideia do usuário (2026-10-17), para M3, M4 e M8: **zoom maior que o de hoje**, para caberem bonecos
+pequenos de humanos (uma montanha de 50 pixels com um homem de 5 fica estranho). Entra junto desta
+questão de escala.
 
 **Aceite:** 1.000 anos acelerados sem extinção em massa e sem estagnação (teste automático +
 observação do usuário).
 
 ## Marco 4 — Humanos e economia básica
 Aldeias, agricultura, caça, fome, doença, domesticação, crescimento de povoados, comércio simples.
-Ver `docs/05-civilizacao-politica.md`.
+**Uso econômico dos recursos minerais** gerados no M2; desmatamento com consequências ambientais;
+povoados bem pequenos no mapa. Ver `docs/05-civilizacao-politica.md` e `docs/04-ecologia.md`.
+Pedido do usuário (2026-10-16): os humanos **começam nômades**, com técnicas de caça, antes da
+agricultura.
+Ideia do usuário (2026-10-17): os nômades comem carcaças e frutas e **passam a caçar quando "dominam
+o fogo"**, pegando um graveto de um incêndio, inclusive de um incêndio começado por raio (o raio
+entra no M2). Na crônica, esse evento é a "Piromania" (`docs/07-cronica-nomes.md`).
+Ideia do usuário (2026-10-17): zoom maior para caberem humanos pequenos (ver a questão de escala do
+M3).
+Anotado na T6 (2026-10-17): **água potável** (rios, lagos, chuva, água subterrânea, calculada do
+clima e do relevo, a partir do M3/M4); humanos **escavando também revelam petróleo** escondido (o
+estado "revelado" das jazidas nasce na T6); quem tem urânio no território não sabe usá-lo antes do M7.
 
 ## Marco 5 — Política e mente
 Evolução de regimes, botão divino de concessão, ideologias, sistemas econômicos, líderes com
 traços, legitimidade, golpes e revoluções, crônica do mundo, nomes de cidades.
+**Quatro classes sociais** (elite cultural, política, militar com chefe do exército, operários).
 Ver `docs/05-civilizacao-politica.md` e `docs/07-cronica-nomes.md`.
 
 ## Marco 6 — Guerra
 Frentes fluidas, conquista contínua, trincheiras, logística, moral de tropa, combate visível de perto.
-Ver `docs/06-guerra.md`.
+**Doutrinas ligadas a cultura, terreno e tecnologia** (ex.: guerra de túneis). Ver `docs/06-guerra.md`.
+Anotado em 2026-10-17 (usuário): **floresta grande muda a doutrina de guerra** (cobertura, mobilidade,
+emboscada).
 
 ## Marco 7 — Tecnologia militar
 Árvore tecnológica militar; tanques, aviões, bombardeio, operados pela IA dos humanos.
-Dissuasão e reconstrução para o mundo não se autodestruir.
+Dissuasão e reconstrução para o mundo não se autodestruir. **Recursos estratégicos** (petróleo,
+nióbio...), doutrina de **batalha profunda**, e consequências ambientais da guerra (incêndio,
+contaminação, inverno nuclear) e do combustível fóssil (aquecimento).
+Anotado na T6 (2026-10-17): **fontes de energia para usinas** (M4/M7). Petróleo, carvão e urânio já
+são jazidas (T6); represa, calor da terra, vento e sol saem do mapa (rio com desnível, rifte ou
+vulcão, faixas de vento, sol por latitude) quando as usinas existirem. Usos pedidos pelo usuário:
+enxofre e nitratos para explosivos, manganês e cromo para armamento resistente, potássio para a
+plantação, lítio e terras raras para eletrônica.
 
 ## Marco 8 — Embelezamento
-Sprites melhores, animações, possível pseudo-3D, som.
+Inclui o acabamento visual do menu de ferramentas (decidido no M2) e a escala visual pequena de
+pessoas e cidades.
+Animações, som, luz e detalhes. A direção visual (diorama de perto, pixel 2D de longe) foi antecipada para
+o M3 (decisão do usuário, 2026-11-03): o M8 fica só com o acabamento.
+Pedidos do usuário (2026-10-18): uma lua (bolinha cinza orbitando o planeta) e um sol (bola amarela ao
+fundo), simples, só para dizer que tem; o visual do furacão lembrando mais um mapa de meteorologia.
+Pedido do usuário (2026-10-16): formações de erosão vistas de perto (pilares de arenito como os da
+China, grandes "braços" de pedra); a erosão pelo clima em si é da T7 do M2.
+Ideia do usuário (2026-10-17): zoom maior que o de hoje, para humanos pequenos ficarem
+proporcionais ao relevo (ver a questão de escala do M3).
+
+Ideia do usuário (2026-10-18), para o M8 ou depois: **câmera em primeira pessoa de um indivíduo**
+(ver o mundo pelos olhos de uma criatura ou pessoa). Depende das criaturas (M3/M4) e do relevo em 3D
+(o pseudo-3D do M8). Referência do usuário: o vídeo do Andrezitos com o WorldBox em visão 3D,
+controlando uma criatura (só como referência de ideia; regra 8: nada copiado).

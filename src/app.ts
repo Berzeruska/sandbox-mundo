@@ -1,81 +1,228 @@
-import { seedFrom } from './core/rng';
+import { isolationReloads } from './ui/isolation';
+import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
+import { formatJumpYear, geologicJump, jumpYear, RollingYear } from './core/geologic-time';
 import { Clock, formatDate, type Speed } from './core/time';
+import { STALL_KEEP, StallLog } from './ui/stalls';
+import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
+import { KeyControls } from './input/keys';
+import { DisasterFx } from './render/disaster-fx';
+import { isToast, toEntry } from './ui/disaster-log';
+import { DisasterToasts } from './ui/disaster-panel';
+import { CellState, STATE_NAMES } from './world/disasters/ground';
+import { droughtHeat } from './world/disasters/drought';
+import { MAX_DUST, MAX_STORMS } from './render/shaders';
+import { DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './world/disasters/types';
+import { STORM_FLOATS } from './sim/protocol';
+import { feltRadius } from './world/disasters/quakes';
+import { SHAKE_MAGNITUDE } from './world/disasters/meteor';
+import type { Vec3 } from './world/cubesphere';
+import type { WorldKind } from './world/state';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
-import { applyBrush, Tool } from './input/tools';
+import { Tool } from './input/tools';
+import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectonics';
+import { advanceDisplayTick, MAX_SHADER_PLATES, rotate } from './render/plate-motion';
+import type { PlateMotionUniforms } from './render/globe-renderer';
+import { BIOME_INFO, Biome } from './world/biomes';
+import { BASE_TICKS_PER_SECOND } from './core/time';
+import { CLOCK_POST_MS } from './sim/core';
 import { Camera } from './render/camera';
-import { buildColors } from './render/colors';
-import { dirtyRects } from './render/dirty';
 import { GlobeRenderer } from './render/globe-renderer';
 import { Overlay } from './render/overlay';
+import { SimClient } from './sim/client';
+import { applyPatch, type Patch, type PlateMotionInfo, type WorldInfo } from './sim/protocol';
 import { Hud } from './ui/hud';
-import { DebugPanel, NewWorldDialog } from './ui/panels';
-import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
-import { createWorld } from './world/create';
-import { CubeSphere, type Vec3 } from './world/cubesphere';
-import type { WorldState } from './world/state';
+import { BiomeLegend, DepositTip, ResourceLegend } from './ui/resource-legend';
+import { BIOME_LAYER_COLORS, NO_LAYERS, STRESS_COLORS, type Layers } from './render/colors';
+import { depositLabel, isHiddenOil } from './world/resources';
+import { activeBrush, activeDisaster, inputModeOf, WORLD_KINDS } from './ui/menu-state';
+import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
+import { ErrorScreen } from './ui/error-screen';
+import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, meteorSpots, powerLabel, scenarioInvalid, workDelta, type FirstLoad, type GenerationResult, type GpuSample, type ScenarioResult, type WorkCounters } from './ui/benchmark';
 
 /** Resolução padrão da face do planeta (ver docs/01-arquitetura.md). */
 export const DEFAULT_N = 256;
 const MAX_PIXEL_RATIO = 2;
 const DEFAULT_BRUSH = 6;
-/**
- * Espera antes de começar a pintar (ms). Se o segundo dedo chegar antes, é pinça e nada é pintado;
- * sem isso, todo zoom por pinça no modo pintar deixaria um borrão onde o primeiro dedo encostou.
- */
-const PAINT_DELAY_MS = 80;
+/** Sem nenhuma notícia da geração por este tempo (ms), mostra erro em vez de esperar para sempre. */
+const GENERATION_WATCHDOG_MS = 20_000;
+/** Chave da recarga automática por versão diferente (evita recarregar em laço). */
+const VERSION_RELOAD_KEY = 'sandbox-mundo:recarga-por-versao';
+/** Duração da transição suave entre a composição anterior e a nova (ms). */
+const FADE_MS = 350;
+/** Duração do voo da câmera até um desastre (ms). */
+const FLY_MS = 800;
+/** Duração da ida e da volta do zoom no modo de tempo geológico (ms). */
+const GEOLOGIC_ZOOM_MS = 700;
 
-/** Liga simulação, câmera, entrada, interface e renderização. A simulação não sabe que o App existe. */
+/**
+ * Thread principal: câmera, entrada, interface e desenho. O mundo vive no Web Worker
+ * (`src/sim/`); aqui fica só uma cópia das cores para a textura, atualizada por remendos.
+ */
+/** Bateria do aparelho, se o navegador informa (Chrome sim, Firefox não). */
+async function readBattery(): Promise<{ charging: boolean; level: number } | null> {
+  const nav = navigator as Navigator & { getBattery?: () => Promise<{ charging: boolean; level: number }> };
+  try {
+    return nav.getBattery ? await nav.getBattery() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A pergunta antes do "Medir desempenho" (B10, opção b do usuário). */
+export const BENCHMARK_CONFIRM =
+  'O "Medir desempenho" leva cerca de 3 minutos e, no fim, gera o mundo de novo: o jogo volta ao ano 0 e o que você fez neste mundo se perde.\n\nDeixe o jogo na frente, sem trocar de janela. Começar?';
+
 export class App {
   readonly camera = new Camera();
-  readonly renderer: GlobeRenderer;
   readonly overlay: Overlay;
   readonly input: PointerInput;
   readonly hud: Hud;
-  readonly clock = new Clock();
-  private lastRunningSpeed: Speed = 1;
+  readonly sim: SimClient;
   readonly debug: DebugPanel;
   readonly worldDialog: NewWorldDialog;
-  private loadingEl: HTMLDivElement;
-  private generationMs = 0;
-  /** Giro contínuo para medir fps (redesenha todo quadro). */
-  private stressSpin = false;
-  private stats = { frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0 };
-  world: WorldState;
-  colors: Uint8Array;
+  /** Cópia do relógio do worker, só para mostrar a data. */
+  readonly clock = new Clock();
+  renderer: GlobeRenderer | null = null;
+  info: WorldInfo | null = null;
+  colors: Uint8Array = new Uint8Array(0);
   mode: InputMode = 'move';
   tool: Tool = Tool.Raise;
   brushSize = DEFAULT_BRUSH;
-  private grid: CubeSphere;
+  private canvas: HTMLCanvasElement;
+  /** Controle "Placas" (0 a 1), espelho do que foi mandado ao worker. */
+  private plateRate = DEFAULT_PLATE_RATE;
+  /** Travadas da tela e da data (painel Dados e relatório). */
+  private readonly stalls = new StallLog();
+  /** Movimento das placas para o desenho suave: ângulos da composição, recebidos e mostrados. */
+  private motion = {
+    baseAngles: [] as number[],
+    /** Último relógio do worker: passo, quando chegou e ângulos naquele passo. */
+    received: [] as number[],
+    receivedTick: 0,
+    receivedAt: 0,
+    /** Relógio do desenho (passos fracionários) e ângulos mostrados. */
+    displayTick: 0,
+    shown: [] as number[],
+    uniforms: {
+      moving: false,
+      axis: new Float32Array(MAX_SHADER_PLATES * 4),
+      center: new Float32Array(MAX_SHADER_PLATES * 3),
+      total: new Float32Array(MAX_SHADER_PLATES * 2),
+      base: new Float32Array(MAX_SHADER_PLATES * 2),
+      basePrev: new Float32Array(MAX_SHADER_PLATES * 2),
+      fade: 1,
+      maxDeltaPrev: 0,
+      maxDelta: 0,
+    } as PlateMotionUniforms,
+    /** Ângulos da composição anterior e início da transição suave (ms). */
+    prevAngles: [] as number[],
+    fadeStart: 0,
+  };
+  private loadingEl: HTMLDivElement;
+  private errorScreen: ErrorScreen;
+  /** Último sinal de vida da geração (pedido, progresso ou mundo pronto), para o vigia. */
+  private lastGenerationSignal = 0;
+  private loadingText: HTMLDivElement;
+  private loadingFill: HTMLDivElement;
+  private lastRunningSpeed: Speed = 1;
+  /** Giro contínuo para medir fps (redesenha todo quadro). */
+  private stressSpin = false;
+  /** Temperatura global (desvio, °C) e nível do mar (m) do mundo mostrado, e o controle do jogador (T7). */
+  private climate = { offset: 0, seaLevel: 0 };
+  private climateControl = 0;
+  /** Camadas ligadas no menu e o filtro da legenda de recursos (T6). */
+  private layers: Layers = { ...NO_LAYERS };
+  private legend!: ResourceLegend;
+  private biomeLegend!: BiomeLegend;
+  private stressLegend!: BiomeLegend;
+  /** Lista e avisos de desastres (T12) e o voo da câmera até um deles. */
+  private toasts!: DisasterToasts;
+  private flight: { from: Vec3; to: Vec3; start: number } | null = null;
+  /**
+   * Modo de tempo geológico: salto da data em anos (0: desligado), o zoom que o jogador usava antes
+   * (volta com ele), a animação do zoom e o salto já avisado na tela.
+   */
+  private rollingYear = new RollingYear();
+  /** Quando a última mensagem do relógio chegou (ms). */
+  private clockAt = 0;
+  private geologic = { jump: 0, zoomBack: null as number | null, noticed: 0, flight: null as { from: number; to: number; start: number } | null };
+  /** Ferramenta de desastre ativa (tocar no globo provoca), ou null. */
+  private disasterTool: DisasterKind | null = null;
+  private tip!: DepositTip;
+  /** Onde o dedo encostou (para saber se andou: com a camada de recursos, andar = pincelada). */
+  private pressAt: { x: number; y: number } | null = null;
+  private stats = {
+    frames: 0, workMs: 0, since: 0, fps: 0, frameMs: 0, brushMs: 0, ticksPerSecond: 0,
+    minGap: Infinity, maxGap: 0, lastMinGap: 0, lastMaxGap: 0, prevTime: 0, geologyMs: 0, recompositions: 0, memoryMb: 0,
+  };
+  /** "Medir desempenho": quadros do cenário em andamento, recomposições recebidas e o mundo novo. */
+  private bench: {
+    recorder: FrameRecorder | null;
+    receive: number[];
+    onWorld: ((receiveMs: number) => void) | null;
+    /** Cenário com o painel Dados aberto (ele se atualiza como no jogo normal). */
+    panelOpen: boolean;
+  } | null = null;
+  /** Primeira abertura: da navegação até o primeiro globo na tela (ms), e a geração dentro disso. */
+  private firstLoad: FirstLoad | null = null;
+  /** Últimos contadores de trabalho do worker (chegam com o relógio). */
+  private work: WorkCounters = emptyWork();
+  /** Escolha do mundo na primeira abertura: desde quando está aberta, e quanto o jogador levou (fora da medida). */
+  private choosingSince: number | null = null;
+  private choosingMs = 0;
+  /** Momento do pedido de mundo novo, para medir o tempo total até o globo aparecer. */
+  private worldRequestedAt = 0;
+  private worldTotalMs = 0;
   private needsDraw = true;
   private lastTime = 0;
+  /** `sim.receiveMs` no quadro anterior (o que chegou do worker entre dois quadros). */
+  private lastReceiveMs = 0;
+  /** Duração do último quadro (s), para o relógio do desenho. */
+  private frameDt = 0;
   /** Posição do pincel na tela (mouse por cima ou dedo pintando), ou null. */
   private brushScreen: { x: number; y: number } | null = null;
-  private painting = false;
-  private paintStartedAt = 0;
-  private paintApplied = false;
+  /** Decide quando o toque vira pincelada (espera o segundo dedo de uma pinça). */
+  private paintGate = new PaintGate();
+  /** Animações dos desastres na camada de cima (T8–T10) e se ainda há algo dela na tela. */
+  private fx = new DisasterFx();
+  /** O "Medir desempenho" está medindo a GPU (desenhos seguidos): não conta como travada. */
+  private gpuMeasuring = false;
+  /** Frequência dos desastres naturais escolhida (o "Medir desempenho" volta para ela). */
+  private disasterFrequency = DEFAULT_FREQUENCY;
+  /** Furacões andando (R8), pela identidade: o que está no desenho e para onde vai. */
+  private storms = new Map<number, { kind: number; shown: { p: Vec3; radius: number; power: number }; target: { p: Vec3; radius: number; power: number } }>();
+  /** Tremor da tela do terremoto em curso (R5): início, duração (ms) e força (px). */
+  private shake: { start: number; ms: number; amp: number } | null = null;
+  private fxShown = false;
+  /** Nuvens ligadas no menu Clima (o desenho nasce depois do primeiro mundo). */
+  private cloudsOn = true;
+  /** Tipo do mundo atual (mundo novo e "Medir desempenho" repetem o mesmo). */
+  private worldKind: WorldKind;
+  /** Velocidade das placas antes de o arquipélago desligá-las (null: ele não desligou). */
+  private plateRateBeforeStop: number | null = null;
+  /** Setas do teclado: aproximar, afastar e girar (notebook). */
+  private keys = new KeyControls(window, () => this.camera.stopSpin());
 
-  constructor(root: HTMLElement, seedText: string) {
-    const canvas = document.createElement('canvas');
-    canvas.id = 'globe';
+  constructor(root: HTMLElement, seedText: string, kind: WorldKind = 'standard', chooseFirst = false) {
+    this.worldKind = kind;
+    this.canvas = document.createElement('canvas');
+    this.canvas.id = 'globe';
     const overlayCanvas = document.createElement('canvas');
     overlayCanvas.id = 'overlay';
-    root.append(canvas, overlayCanvas);
-
-    this.grid = new CubeSphere(DEFAULT_N);
-    const t0 = performance.now();
-    this.world = this.generate(seedText);
-    this.generationMs = performance.now() - t0;
-    this.colors = new Uint8Array(this.world.cellCount * 4);
-    buildColors(this.world, this.colors);
-    this.renderer = new GlobeRenderer(canvas, this.world.params.n, this.colors);
+    root.append(this.canvas, overlayCanvas);
     this.overlay = new Overlay(overlayCanvas);
-    this.camera.setCellAngle(this.grid.cellAngle);
-    this.camera.lookAt(landCenter(this.world));
 
-    this.input = new PointerInput(canvas, this.camera, {
+    this.input = new PointerInput(this.canvas, this.camera, {
       getMode: () => this.mode,
       onCameraChange: () => this.requestDraw(),
       onPaint: (sx, sy, phase) => this.onPaint(sx, sy, phase),
+      // Toque curto (modo Mover) seleciona: mostra o que há no ponto (pedido do usuário, 2026-10-17).
+      // Com uma ferramenta de desastre (T11), provoca o desastre ali.
+      onTap: (sx, sy) => {
+        const p = this.disasterTool !== null ? this.camera.pick(sx, sy) : null;
+        if (p && this.disasterTool !== null) this.provoke(this.disasterTool, p);
+        else void this.showDepositAt(sx, sy);
+      },
       onHover: (sx, sy) => {
         this.brushScreen = { x: sx, y: sy };
         if (this.mode === 'paint') this.requestDraw();
@@ -84,47 +231,111 @@ export class App {
         this.brushScreen = null;
         this.requestDraw();
       },
+      // O giro de teste ("Girar (fps)") para no toque, como a inércia: com ele ligado, segurar o
+      // pincel arrastava o globo por baixo do dedo e o morro virava uma listra.
+      onPress: () => {
+        if (!this.stressSpin || this.bench) return;
+        this.stressSpin = false;
+        this.debug.setSpinning(false);
+      },
     });
 
     this.hud = new Hud(
       root,
       {
-        onModeToggle: () => this.setMode(this.mode === 'move' ? 'paint' : 'move'),
-        onTool: (tool) => {
-          this.tool = tool;
-          this.hud.setTool(tool);
-          this.setMode('paint');
+        onMenuChange: (state) => {
+          this.disasterTool = activeDisaster(state);
+          const brush = activeBrush(state);
+          if (brush !== null) this.tool = brush;
+          this.setMode(inputModeOf(state));
         },
         onBrushSize: (size) => {
           this.brushSize = size;
           this.requestDraw();
         },
+        onPlateRate: (percent) => this.setPlateRate(percent / 100),
+        onDisasterFrequency: (level) => {
+          this.disasterFrequency = level;
+          this.sim.setDisasterFrequency(level);
+        },
+        onClimateControl: (degrees) => {
+          this.climateControl = degrees;
+          this.sim.setClimateControl(degrees);
+        },
         onSpeed: (speed) => this.setSpeed(speed),
-        onNewWorld: () => this.worldDialog.toggle(this.world.params.seedText),
+        onTogglePause: () => this.togglePause(),
+        onAction: (action) => {
+          if (action === 'newWorld') this.worldDialog.show(this.info?.seedText ?? '', this.worldKind);
+          if (action === 'debug') {
+            this.debug.toggle();
+            this.updateDebug();
+          }
+        },
+        onToggle: (id, on) => {
+          if (id === 'cloudsLayer') {
+            if (this.renderer) this.renderer.clouds = on ? 1 : 0;
+            this.cloudsOn = on;
+            this.requestDraw();
+          }
+        },
+        // Uma visão por vez (decisão do usuário, 2026-10-19): ligar uma desliga as outras.
+        onView: (id) => {
+          const resources = id === 'resourcesLayer';
+          this.layers = { ...this.layers, plates: id === 'platesLayer', biomes: id === 'biomesLayer', stress: id === 'stressLayer', resources };
+          if (!resources) this.tip.hide();
+          if (this.renderer) this.renderer.resourcesLayer = resources;
+          this.legend.show(resources);
+          this.biomeLegend.show(this.layers.biomes);
+          this.stressLegend.show(this.layers.stress);
+          this.sim.setLayers(this.layers);
+          this.requestDraw();
+        },
         onNorthUp: () => {
           this.camera.stopSpin();
           this.camera.northUp();
           this.requestDraw();
         },
-        onDebug: () => {
-          this.debug.toggle();
-          this.updateDebug();
-        },
       },
       this.brushSize,
+      Math.round(DEFAULT_PLATE_RATE * 100),
     );
-    this.debug = new DebugPanel(this.hud.root, () => {
-      this.stressSpin = !this.stressSpin;
-      this.debug.setSpinning(this.stressSpin);
+    this.debug = new DebugPanel(
+      this.hud.root,
+      () => {
+        this.stressSpin = !this.stressSpin;
+        this.debug.setSpinning(this.stressSpin);
+      },
+      () => void this.runBenchmark(),
+    );
+    this.worldDialog = new NewWorldDialog(this.hud.root, (text, kind) => this.newWorld(text, kind));
+    this.legend = new ResourceLegend(this.hud.root, (mask) => {
+      this.layers = { ...this.layers, resourceMask: mask };
+      this.sim.setLayers(this.layers);
     });
-    this.worldDialog = new NewWorldDialog(this.hud.root, (text) => this.newWorld(text));
+    this.tip = new DepositTip(this.hud.root);
+    // Legenda dos biomas: oceanos e gelo primeiro, depois a terra do frio ao quente.
+    const order = [Biome.Ice, Biome.Tundra, Biome.Taiga, Biome.TemperateForest, Biome.Grassland, Biome.Steppe, Biome.ColdDesert, Biome.HotDesert, Biome.Savanna, Biome.TropicalForest, Biome.Swamp, Biome.Mountain, Biome.SnowyPeak, Biome.Beach];
+    this.biomeLegend = new BiomeLegend(
+      this.hud.root,
+      order.map((b) => BIOME_INFO[b]?.name ?? ''),
+      order.map((b) => BIOME_LAYER_COLORS[b] ?? [0, 0, 0]),
+    );
+    this.toasts = new DisasterToasts(this.hud.root, (p) => this.flyTo(p));
+    // Camada "Ver tensão" (T11): a escala de cores das fronteiras.
+    this.stressLegend = new BiomeLegend(this.hud.root, ['Tensão baixa', 'média', 'alta: terremoto perto'], STRESS_COLORS);
+    this.errorScreen = new ErrorScreen(root, () => void retry());
+    // Erros não tratados em qualquer parte da tela também aparecem (em vez de travar em silêncio).
+    window.addEventListener('error', (e) => this.fail(`${e.message}${e.filename ? ` (${e.filename}:${e.lineno})` : ''}`));
+    window.addEventListener('unhandledrejection', (e) => this.fail(`Promessa rejeitada: ${String(e.reason)}`));
     this.loadingEl = document.createElement('div');
     this.loadingEl.className = 'loading';
-    this.loadingEl.hidden = true;
+    this.loadingText = document.createElement('div');
+    const bar = document.createElement('div');
+    bar.className = 'loading-bar';
+    this.loadingFill = document.createElement('div');
+    bar.append(this.loadingFill);
+    this.loadingEl.append(this.loadingText, bar);
     root.append(this.loadingEl);
-
-    this.hud.setTool(this.tool);
-    this.hud.setMode(this.mode);
     this.hud.setSpeed(this.clock.speed);
     this.hud.setDate(formatDate(this.clock));
 
@@ -132,55 +343,505 @@ export class App {
     window.addEventListener('keydown', (e) => {
       if (e.code !== 'Space' || e.target instanceof HTMLInputElement) return;
       e.preventDefault();
-      if (!e.repeat) this.setSpeed(this.clock.speed === 0 ? this.lastRunningSpeed : 0);
+      if (!e.repeat) this.togglePause();
     });
     window.addEventListener('keyup', (e) => {
       if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) e.preventDefault();
     });
+
+    this.sim = new SimClient({
+      onError: (message, versionMismatch) => this.fail(message, versionMismatch),
+      onWorld: (info, colors, plateCells, deposits) => this.onWorld(info, colors, plateCells, deposits),
+      onRecomposed: (patches, plateCells, angles, plates, deposits) => this.onRecomposed(patches, plateCells, angles, plates, deposits),
+      onProgress: (stage, fraction) => {
+        this.lastGenerationSignal = performance.now();
+        this.showProgress(stage, fraction);
+      },
+      onPatch: (patches, brushMs, deposits, fade) => this.onPatch(patches, brushMs, deposits, fade),
+      onDisasters: (events, impacts) => this.onDisasters(events, impacts),
+      onPlatesStopped: () => {
+        this.plateRateBeforeStop = this.plateRate;
+        this.plateRate = 0;
+        this.hud.setPlatePercent(0);
+        this.updateGeologic();
+        this.toasts.notice('🏝️', 'Arquipélago formado: as placas desligaram. Para ligar de novo: Geologia → Velocidade.');
+        this.requestDraw();
+      },
+      onStorms: (storms) => this.onStorms(storms),
+      onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
+        this.climate = climate;
+        this.stats.memoryMb = memoryMb;
+        this.work = work;
+        if (angles.length) {
+          this.motion.received = angles;
+          this.motion.receivedTick = tick;
+          this.motion.receivedAt = performance.now();
+        }
+        this.clock.tick = tick;
+        this.clockAt = performance.now();
+        this.stats.ticksPerSecond = ticksPerSecond;
+        this.stats.geologyMs = geologyMs;
+        this.stats.recompositions = work.recompositions;
+        if (speed !== this.clock.speed) {
+          this.clock.speed = speed;
+          this.hud.setSpeed(speed);
+          this.updateGeologic();
+        }
+        this.showDate();
+        this.stalls.clock(performance.now(), Date.now(), speed !== 0 && this.loadingEl.hidden === true, work.waitMs, work.recompositions, this.stallContext());
+      },
+    });
+    this.watchLongTasks();
+    // Página escondida (outro app por cima): o intervalo até voltar não é travada.
+    document.addEventListener('visibilitychange', () => this.stalls.restart());
+    // Abrindo sem pedir um mundo certo, o jogador escolhe antes de o primeiro nascer (nada é gerado à toa).
+    if (chooseFirst) {
+      this.choosingSince = performance.now();
+      this.loadingEl.hidden = true;
+      this.worldDialog.showFirst(seedText, kind);
+    } else this.newWorld(seedText);
+    this.warmRenderer();
   }
 
-  /** Gera outro planeta com a semente dada (mantém a grade, zera o calendário). */
-  newWorld(seedText: string): void {
-    this.loadingEl.textContent = 'Gerando mundo…';
+  /** Tarefas longas da thread da tela, para o registro de travadas separar causa (nem todo navegador informa). */
+  private watchLongTasks(): void {
+    if (!PerformanceObserver.supportedEntryTypes?.includes('longtask')) return;
+    const take = (list: readonly PerformanceEntry[]): void => {
+      for (const e of list) this.stalls.noteBusy(e.startTime, e.duration);
+    };
+    const observer = new PerformanceObserver((l) => take(l.getEntries()));
+    observer.observe({ type: 'longtask' });
+    this.stalls.flushBusy = () => take(observer.takeRecords());
+  }
+
+  /**
+   * Compila o shader do globo e faz um desenho escondido (atrás da tela de carregamento) enquanto o
+   * primeiro mundo nasce nos workers. Antes o shader só nascia com o mundo e o navegador terminava de
+   * compilar no primeiro desenho, já com o globo na tela: 3 travadas de 233–767 ms "fora do código da
+   * tela" ao abrir a página (A, relatório da `d7479ae2`). Se falhar aqui, tenta de novo com o mundo
+   * (e o erro aparece na tela por lá).
+   */
+  private warmRenderer(): void {
+    try {
+      const n = DEFAULT_N;
+      const renderer = new GlobeRenderer(this.canvas, n, new Uint8Array(n * n * 6 * 4));
+      renderer.clouds = this.cloudsOn ? 1 : 0;
+      renderer.resize(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
+      this.camera.setViewport(renderer.canvas.width, renderer.canvas.height);
+      renderer.draw(this.camera);
+      renderer.flush();
+      this.renderer = renderer;
+    } catch (err) {
+      console.warn('Shader do globo não compilou antes do mundo; tenta de novo com ele.', err);
+    }
+  }
+
+  /** Pede ao worker outro planeta. O globo atual continua na tela (e girável) enquanto ele nasce. */
+  newWorld(seedText: string, kind: WorldKind = this.worldKind): void {
+    this.worldKind = kind;
+    if (this.choosingSince !== null) {
+      this.choosingMs = performance.now() - this.choosingSince;
+      this.choosingSince = null;
+    }
+    // As placas que o arquipélago desligou voltam no mundo novo (quem desligou foi o jogo, não o jogador).
+    if (this.plateRateBeforeStop !== null) {
+      if (this.plateRate === 0) {
+        this.setPlateRate(this.plateRateBeforeStop);
+        this.hud.setPlatePercent(Math.round(this.plateRateBeforeStop * 100));
+      }
+      this.plateRateBeforeStop = null;
+    }
+    this.showProgress('', 0);
     this.loadingEl.hidden = false;
-    // Deixa a mensagem aparecer antes do trabalho pesado.
-    requestAnimationFrame(() =>
-      setTimeout(() => {
-        const t0 = performance.now();
-        this.world = this.generate(seedText);
-        this.generationMs = performance.now() - t0;
-        buildColors(this.world, this.colors);
-        this.renderer.setWorld(this.world.params.n, this.colors);
-        this.camera.stopSpin();
-        this.camera.zoom = 1;
-        this.camera.lookAt(landCenter(this.world));
-        this.clock.tick = 0;
-        this.hud.setDate(formatDate(this.clock));
-        setSeedInUrl(seedText);
-        this.loadingEl.hidden = true;
-        this.updateDebug();
-        this.requestDraw();
-      }, 30),
-    );
+    this.worldRequestedAt = performance.now();
+    this.lastGenerationSignal = this.worldRequestedAt;
+    this.fx.clear();
+    this.rollingYear.reset();
+    this.toasts?.clear();
+    this.storms.clear();
+    this.sim.newWorld(seedText, DEFAULT_N, kind);
+  }
+
+  /**
+   * Algo deu errado: mostra o texto e "tentar de novo" em vez de travar. Versão diferente entre tela
+   * e worker (cache antigo) recarrega sozinha uma vez, limpando o cache.
+   */
+  fail(message: string, versionMismatch = false): void {
+    console.error(message);
+    if (versionMismatch) {
+      let recent: boolean;
+      try {
+        recent = Date.now() - Number(sessionStorage.getItem(VERSION_RELOAD_KEY) ?? 0) < 60_000;
+        if (!recent) sessionStorage.setItem(VERSION_RELOAD_KEY, String(Date.now()));
+      } catch {
+        recent = true; // sem sessionStorage: não arrisca recarregar em laço
+      }
+      if (!recent) {
+        void retry();
+        return;
+      }
+    }
+    this.loadingEl.hidden = true;
+    this.errorScreen.show(`${message}\n\nversão ${__BUILD_ID__} · ${navigator.userAgent}`);
+  }
+
+  /** Barra de progresso da geração (a etapa pesada, o terreno, avisa várias vezes). */
+  private showProgress(stage: string, fraction: number): void {
+    const pct = Math.round(fraction * 100);
+    this.loadingText.textContent = stage ? `Gerando mundo… ${pct}% (${stage})` : 'Gerando mundo…';
+    this.loadingFill.style.width = `${pct}%`;
+  }
+
+  private onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array, deposits: Uint8Array): void {
+    const receiveStart = performance.now();
+    this.worldTotalMs = receiveStart - this.worldRequestedAt;
+    this.firstLoad ??= { pageToGlobeMs: receiveStart - this.choosingMs, requestToGlobeMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs };
+    this.lastGenerationSignal = performance.now();
+    this.info = info;
+    this.colors = colors;
+    if (!this.renderer) {
+      this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
+      this.renderer.clouds = this.cloudsOn ? 1 : 0;
+    } else this.renderer.setWorld(info.n, colors);
+    this.renderer.setPlates(plateCells);
+    this.renderer.setDeposits(deposits);
+    this.renderer.resourcesLayer = this.layers.resources;
+    this.renderer.ridgeColor = ridgeColor();
+    // Mundo novo: placas nos ângulos 0.
+    const zeros = info.plates.map(() => 0);
+    this.motion.baseAngles = zeros;
+    this.motion.prevAngles = [...zeros];
+    this.motion.fadeStart = 0;
+    this.motion.received = [...zeros];
+    this.motion.receivedTick = 0;
+    this.motion.displayTick = 0;
+    this.motion.shown = [...zeros];
+    const u = this.motion.uniforms;
+    u.axis.fill(0);
+    info.plates.forEach((p, k) => u.axis.set([...p.axis, p.speed], k * 4));
+    this.camera.setCellAngle(Math.PI / 2 / info.n);
+    this.camera.stopSpin();
+    this.camera.zoom = 1;
+    this.geologic.flight = null;
+    this.geologic.zoomBack = null;
+    this.camera.lookAt(info.landCenter);
+    setSeedInUrl(info.seedText, info.kind);
+    this.loadingEl.hidden = true;
+    this.updateDebug();
+    this.requestDraw();
+    const bench = this.bench;
+    const done = bench?.onWorld;
+    if (bench && done) {
+      bench.onWorld = null;
+      done(performance.now() - receiveStart);
+    }
+  }
+
+  /** As placas andaram: textura nova composta nos ângulos `angles`; o desenho suave continua dali. */
+  private onRecomposed(patches: Patch[], plateCells: Uint8Array, angles: number[], plates: PlateMotionInfo[], deposits: Uint8Array): void {
+    if (!this.info || !this.renderer) return;
+    // Eixo, velocidade e centro de cada placa nesta composição (o eixo muda quando placas se soldam).
+    this.info.plates = plates;
+    const receiveStart = performance.now();
+    for (const p of patches) applyPatch(this.colors, this.info.n, p);
+    // A composição atual vira a anterior e as duas se misturam por FADE_MS (sem salto na troca). O
+    // renderizador guarda antes a imagem da atual, com os eixos de agora: só depois entram os novos.
+    this.renderer.recomposed(plateCells, deposits);
+    const u = this.motion.uniforms;
+    plates.forEach((p, k) => u.axis.set([...p.axis, p.speed], k * 4));
+    this.motion.prevAngles = this.motion.baseAngles;
+    this.motion.baseAngles = angles;
+    this.motion.fadeStart = performance.now();
+    this.requestDraw();
+    const receivedAt = performance.now();
+    this.stalls.noteRecomposition(receivedAt, receivedAt - receiveStart);
+    this.bench?.receive.push(receivedAt - receiveStart);
+  }
+
+  /**
+   * Ângulos a mostrar neste quadro (adiantando o último recebido pelo tempo) e uniformes do shader.
+   * Retorna true se algo mudou e precisa redesenhar.
+   */
+  private updateMotion(): boolean {
+    const m = this.motion;
+    const info = this.info;
+    if (!info || !m.received.length) return false;
+    const speed = this.clock.speed;
+    const ticksPerSecond = speed === 0 ? 0 : speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * speed;
+    const now = performance.now();
+    const since = Math.min(2, (now - m.receivedAt) / 1000);
+    // Passo estimado do worker agora, e o relógio do desenho seguindo ele sem saltos.
+    const target = m.receivedTick + since * ticksPerSecond;
+    m.displayTick = advanceDisplayTick(m.displayTick, target, ticksPerSecond, this.frameDt);
+    const u = m.uniforms;
+    let changed = false;
+    let maxDelta = 0;
+    let maxDeltaPrev = 0;
+    for (let k = 0; k < info.plates.length; k++) {
+      // Ângulo é linear nos passos: o do último relógio + a taxa × (passo do desenho − passo recebido).
+      const ratePerTick = MAX_PLATE_RATE * this.plateRate * (info.plates[k]?.speed ?? 0);
+      const shown = (m.received[k] ?? 0) + ratePerTick * (m.displayTick - m.receivedTick);
+      if (shown !== m.shown[k]) changed = true;
+      m.shown[k] = shown;
+      const base = m.baseAngles[k] ?? 0;
+      maxDelta = Math.max(maxDelta, Math.abs(shown - base));
+      u.total[k * 2] = Math.cos(shown);
+      u.total[k * 2 + 1] = Math.sin(shown);
+      const plate = info.plates[k];
+      // Centro na composição base, girado pelo que a placa andou desde então.
+      if (plate) u.center.set(rotate(plate.center, plate.axis, shown - base), k * 3);
+      u.base[k * 2] = Math.cos(base);
+      u.base[k * 2 + 1] = Math.sin(base);
+      const prev = m.prevAngles[k] ?? base;
+      maxDeltaPrev = Math.max(maxDeltaPrev, Math.abs(shown - prev));
+      u.basePrev[k * 2] = Math.cos(prev);
+      u.basePrev[k * 2 + 1] = Math.sin(prev);
+    }
+    const fade = Math.min(1, (performance.now() - m.fadeStart) / FADE_MS);
+    if (fade !== u.fade) changed = true;
+    u.fade = fade;
+    const moving = maxDelta > 1e-7 || fade < 1;
+    if (moving !== u.moving) changed = true;
+    u.moving = moving;
+    u.maxDelta = maxDelta;
+    u.maxDeltaPrev = maxDeltaPrev;
+    return changed;
+  }
+
+  /** Furacões que a simulação mandou (R8): o alvo de cada um, pela identidade. */
+  private onStorms(data: Float32Array): void {
+    const seen = new Set<number>();
+    for (let k = 0; k + STORM_FLOATS <= data.length; k += STORM_FLOATS) {
+      const id = data[k] as number;
+      seen.add(id);
+      const target = {
+        p: [data[k + 1] as number, data[k + 2] as number, data[k + 3] as number] as Vec3,
+        radius: data[k + 4] as number,
+        power: data[k + 5] as number,
+      };
+      const kind = data[k + 6] as number;
+      const s = this.storms.get(id);
+      if (s) s.target = target;
+      else this.storms.set(id, { kind, shown: { ...target, p: [...target.p] as Vec3 }, target });
+    }
+    for (const id of [...this.storms.keys()]) if (!seen.has(id)) this.storms.delete(id);
+    this.requestDraw();
+  }
+
+  /**
+   * Furacões no desenho: cada um anda suave até a última posição recebida (a simulação manda uma por
+   * laço; em 1× seriam saltos de uma célula). Devolve quantos.
+   */
+  private updateStorms(dt: number): number {
+    const r = this.renderer;
+    if (!r) return 0;
+    const a = 1 - Math.exp(-dt * 15);
+    let n = 0;
+    let dust = 0;
+    for (const s of this.storms.values()) {
+      if (s.kind === 0 ? n >= MAX_STORMS : dust >= MAX_DUST) continue;
+      const sh = s.shown;
+      const t = s.target;
+      let x = sh.p[0] + (t.p[0] - sh.p[0]) * a;
+      let y = sh.p[1] + (t.p[1] - sh.p[1]) * a;
+      let z = sh.p[2] + (t.p[2] - sh.p[2]) * a;
+      const l = Math.hypot(x, y, z) || 1;
+      x /= l;
+      y /= l;
+      z /= l;
+      sh.p = [x, y, z];
+      sh.radius += (t.radius - sh.radius) * a;
+      sh.power += (t.power - sh.power) * a;
+      if (s.kind === 1) {
+        // Tempestade de areia (C12).
+        r.dust.set([x, y, z, sh.radius], dust * 4);
+        r.dustPower[dust] = sh.power;
+        dust++;
+        continue;
+      }
+      r.storms.set([x, y, z, sh.radius], n * 4);
+      r.stormPower[n] = sh.power;
+      n++;
+    }
+    r.dustCount = dust;
+    return n + dust;
+  }
+
+  /** Desastres que aconteceram: animação, aviso (só os grandes naturais) e lista. */
+  private onDisasters(events: DisasterEvent[], impacts: number[]): void {
+    const now = performance.now();
+    for (const e of events) {
+      this.fx.add(e, now);
+      if (e.kind === DisasterKind.Quake) this.startShake(e, now);
+    }
+    // A rocha toca o chão: o clarão vem no próximo desenho e o meteoro grande e o gigante tremem a tela.
+    for (const id of impacts) {
+      const e = this.fx.land(id, now);
+      if (e && SHAKE_MAGNITUDE[e.magnitude]) this.startShake({ ...e, magnitude: SHAKE_MAGNITUDE[e.magnitude] as number }, now);
+    }
+    for (const e of events) if (isToast(e)) this.toasts.show(toEntry(e));
+  }
+
+  /**
+   * O jogador provoca um desastre (com a força escolhida no cartão). A velocidade não muda: o jogo nunca
+   * muda as escolhas do jogador sozinho (decisão do usuário, 2026-10-19, revertendo a volta para 1×).
+   */
+  private provoke(kind: DisasterKind, point: Vec3): void {
+    this.sim.triggerDisaster(kind, point, this.hud.strengthOf(kind));
+  }
+
+  /**
+   * A tela treme no terremoto (só a câmera): 0,5–2 s e até ~14 px pela magnitude, menos quanto mais
+   * longe o epicentro está do centro da tela; fora da vista, quase nada.
+   */
+  private startShake(e: DisasterEvent, now: number): void {
+    const k = Math.max(0, Math.min(1, (e.magnitude - 6) / 3.5));
+    const c = this.camera.centerPoint();
+    const dist = Math.acos(Math.max(-1, Math.min(1, c[0] * e.point[0] + c[1] * e.point[1] + c[2] * e.point[2])));
+    const near = Math.max(0, 1 - dist / Math.max(1e-3, feltRadius(e.magnitude)));
+    const seen = this.camera.worldToScreen(e.point).visible ? 1 : 0.3;
+    const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+    const amp = (2 + 12 * k) * near * seen * ratio;
+    if (amp < 0.5) return;
+    const ms = 500 + 1500 * k;
+    if (this.shake && this.shake.amp * (1 - (now - this.shake.start) / this.shake.ms) > amp) return;
+    this.shake = { start: now, ms, amp };
+  }
+
+  /** Um quadro do tremor; devolve true enquanto treme. */
+  private updateShake(now: number): boolean {
+    const s = this.shake;
+    if (!s) return false;
+    if (now < s.start) return false;
+    const t = (now - s.start) / s.ms;
+    if (t >= 1) {
+      this.shake = null;
+      this.camera.shakeX = 0;
+      this.camera.shakeY = 0;
+      return true;
+    }
+    const a = s.amp * (1 - t) * (1 - t);
+    this.camera.shakeX = a * (0.6 * Math.sin(now * 0.09) + 0.4 * Math.sin(now * 0.157 + 1.3));
+    this.camera.shakeY = a * (0.6 * Math.sin(now * 0.113 + 2.1) + 0.4 * Math.sin(now * 0.071 + 0.4));
+    return true;
+  }
+
+  /** Leva a câmera até um ponto do planeta, suave (~0,8 s). */
+  private flyTo(point: Vec3): void {
+    this.camera.stopSpin();
+    this.flight = { from: this.camera.centerPoint(), to: point, start: performance.now() };
+    this.requestDraw();
+  }
+
+  /** Um quadro do voo da câmera (interpolação na esfera, com aceleração suave). */
+  private updateFlight(): boolean {
+    const f = this.flight;
+    if (!f) return false;
+    const u = Math.min(1, (performance.now() - f.start) / FLY_MS);
+    const t = u * u * (3 - 2 * u);
+    const p: Vec3 = [f.from[0] + (f.to[0] - f.from[0]) * t, f.from[1] + (f.to[1] - f.from[1]) * t, f.from[2] + (f.to[2] - f.from[2]) * t];
+    if (Math.hypot(p[0], p[1], p[2]) > 1e-6) this.camera.lookAt(p);
+    if (u >= 1) this.flight = null;
+    return true;
+  }
+
+  private onPatch(patches: Patch[], brushMs: number, deposits?: Uint8Array, fade?: boolean): void {
+    if (!this.info || !this.renderer) return;
+    // Cores mudadas pelo clima: a tela troca aos poucos, partindo do que mostra agora (B4).
+    if (fade) this.renderer.fadeFrom(patches);
+    for (const p of patches) applyPatch(this.colors, this.info.n, p);
+    this.renderer.upload(patches);
+    if (deposits) this.renderer.setDeposits(deposits);
+    if (brushMs >= 0) this.stats.brushMs = brushMs;
+    this.requestDraw();
+  }
+
+  /** Pausa, ou retoma na última velocidade usada. */
+  togglePause(): void {
+    this.setSpeed(this.clock.speed === 0 ? this.lastRunningSpeed : 0);
   }
 
   setSpeed(speed: Speed): void {
     if (speed !== 0) this.lastRunningSpeed = speed;
     this.clock.speed = speed;
     this.hud.setSpeed(speed);
+    this.sim.setSpeed(speed);
+    this.updateGeologic();
   }
 
-  private generate(seedText: string): WorldState {
-    return createWorld(
-      { seedText, seed: seedFrom(seedText), n: this.grid.n, seaLevel: 0, landFraction: 0.3 },
-      this.grid,
-    );
+  /** A data na tela: ano e mês, ou em saltos no modo de tempo geológico. */
+  private showDate(): void {
+    if (!this.geologic.jump) {
+      this.rollingYear.reset();
+      this.hud.setDate(formatDate(this.clock));
+      return;
+    }
+    const now = performance.now();
+    this.rollingYear.set(jumpYear(this.clock, this.geologic.jump), now);
+    this.hud.setDate(formatJumpYear(this.rollingYear.at(now)));
+  }
+
+  /**
+   * Liga, atualiza ou desliga o modo de tempo geológico pela velocidade e pelas placas atuais. Ligando, a
+   * câmera vai para o planeta inteiro e o zoom trava. Pausar só destrava (dá para olhar de perto com o tempo
+   * parado); voltar para 1×–5× ou parar as placas devolve o zoom que o jogador usava. A velocidade alta é
+   * escolha do jogador: nada aqui muda a velocidade nem as placas.
+   */
+  private updateGeologic(): void {
+    const g = this.geologic;
+    const jump = geologicJump(this.clock.speed, this.plateRate);
+    const was = g.jump;
+    g.jump = jump;
+    this.showDate();
+    // O "Medir desempenho" põe a câmera onde cada cenário manda.
+    if (this.bench) return;
+    this.camera.zoomLocked = jump > 0;
+    if (jump > 0) {
+      if (!was) {
+        if (g.zoomBack === null) g.zoomBack = this.camera.zoom;
+        this.flyZoom(1);
+      }
+      if (jump !== g.noticed) this.toasts.notice('⏩', `Tempo geológico: planeta inteiro, zoom travado e data de ${jump.toLocaleString('pt-BR')} em ${jump.toLocaleString('pt-BR')} anos.`);
+      g.noticed = jump;
+      return;
+    }
+    if (this.clock.speed === 0) return;
+    g.noticed = 0;
+    if (g.zoomBack !== null && this.camera.zoom === 1) this.flyZoom(g.zoomBack);
+    g.zoomBack = null;
+  }
+
+  private flyZoom(to: number): void {
+    this.camera.stopSpin();
+    this.geologic.flight = { from: this.camera.zoom, to, start: performance.now() };
+    this.requestDraw();
+  }
+
+  /** Um quadro da animação do zoom (interpolação geométrica: a mesma sensação em qualquer zoom). */
+  private updateGeologicZoom(): boolean {
+    const f = this.geologic.flight;
+    if (!f) return false;
+    const u = Math.min(1, (performance.now() - f.start) / GEOLOGIC_ZOOM_MS);
+    const t = u * u * (3 - 2 * u);
+    this.camera.zoom = f.from * Math.pow(f.to / f.from, t);
+    if (u >= 1) {
+      this.camera.zoom = f.to;
+      this.geologic.flight = null;
+    }
+    return true;
+  }
+
+  /** Controle "Placas" (0 a 1): a tela guarda uma cópia para o desenho suave do movimento. */
+  setPlateRate(rate: number): void {
+    this.plateRate = rate;
+    this.sim.setPlateRate(rate);
+    this.updateGeologic();
+    this.requestDraw();
   }
 
   setMode(mode: InputMode): void {
     this.mode = mode;
-    this.painting = false;
-    this.hud.setMode(mode);
+    this.paintGate.cancel();
     this.requestDraw();
   }
 
@@ -190,28 +851,60 @@ export class App {
 
   private onPaint(sx: number, sy: number, phase: PaintPhase): void {
     this.brushScreen = { x: sx, y: sy };
+    const resources = this.layers.resources;
     if (phase === 'start') {
-      this.painting = true;
-      this.paintStartedAt = performance.now();
-      this.paintApplied = false;
-    } else if (phase === 'end') {
-      // Toque rápido (soltou antes da espera): aplica uma vez, com efeito visível.
-      if (this.painting && !this.paintApplied) this.applyBrushAtScreen(1 / 20);
-      this.painting = false;
-    } else if (phase === 'cancel') {
-      this.painting = false;
+      // Com a camada de recursos, espera mais: toque curto mostra o nome da jazida (opção a do usuário).
+      this.paintGate.start(performance.now(), resources ? TAP_HOLD_MS : undefined);
+      this.pressAt = { x: sx, y: sy };
+    } else if (phase === 'move') {
+      const slop = 12 * (window.devicePixelRatio || 1);
+      if (this.pressAt && Math.hypot(sx - this.pressAt.x, sy - this.pressAt.y) > slop) this.paintGate.move();
+    } else if (phase === 'cancel') this.paintGate.cancel();
+    // Toque rápido (soltou antes da espera): aplica uma vez, com efeito visível; com a camada de
+    // recursos, se tocou numa jazida, mostra o nome e não pinta.
+    else if (phase === 'end' && this.paintGate.end()) {
+      if (resources) {
+        void this.showDepositAt(sx, sy).then((found) => {
+          if (found) return;
+          this.brushScreen = { x: sx, y: sy };
+          this.applyBrushAtScreen(1 / 20);
+        });
+      } else this.applyBrushAtScreen(1 / 20);
     }
     this.requestDraw();
   }
 
+  /** Nome da jazida no ponto tocado (pixels do canvas), num balão. Retorna se achou uma. */
+  private async showDepositAt(sx: number, sy: number): Promise<boolean> {
+    const p = this.camera.pick(sx, sy);
+    if (!p) return false;
+    const cell = await this.sim.query(p);
+    const rect = this.canvas.getBoundingClientRect();
+    const k = rect.width / this.canvas.width;
+    if (cell.deposit && this.layers.resources) {
+      this.tip.show(depositLabel(cell.deposit), rect.left + sx * k, rect.top + sy * k);
+      return true;
+    }
+    // Sem a camada de recursos: o bioma e, se houver jazida à vista (não escondida, não sob o gelo),
+    // ela também. No modo pintar (Rebaixar) só a camada de recursos mostra; o resto pinta.
+    if (this.mode !== 'move') return false;
+    let name = BIOME_INFO[cell.biome]?.name ?? '';
+    // Depois de um desastre: o estado e a vegetação ("Floresta temperada · queimada · vegetação 20%").
+    if (!cell.water && !cell.ice) {
+      const state = STATE_NAMES[cell.state];
+      if (state) name += ` · ${state}`;
+      if (cell.state === CellState.Heat) name += ` +${Math.round(droughtHeat(cell.level))} °C`;
+      if (cell.cover < 0.995 || state) name += ` · vegetação ${Math.round(cell.cover * 100)}%`;
+    }
+    const visible = cell.deposit && !isHiddenOil(cell.deposit) && !cell.ice;
+    this.tip.show(visible ? `${name} · ${depositLabel(cell.deposit)}` : name, rect.left + sx * k, rect.top + sy * k);
+    return false;
+  }
+
   private applyBrushAtScreen(dt: number): void {
-    if (!this.brushScreen) return;
+    if (!this.brushScreen || !this.info) return;
     const p = this.camera.pick(this.brushScreen.x, this.brushScreen.y);
-    if (!p) return;
-    const { region } = applyBrush(this.world, this.tool, p, this.brushSize, dt);
-    buildColors(this.world, this.colors, region);
-    this.renderer.upload(dirtyRects(this.grid, region));
-    this.needsDraw = true;
+    if (p) this.sim.brush(this.tool, p, this.brushSize, dt);
   }
 
   /** Um quadro: ajusta tamanho, avança animações e pincel, e desenha se algo mudou. */
@@ -219,37 +912,82 @@ export class App {
     const workStart = performance.now();
     const dt = this.lastTime ? Math.min(0.1, (time - this.lastTime) / 1000) : 0;
     this.lastTime = time;
+    if (!document.hidden && this.loadingEl.hidden && !this.gpuMeasuring) this.stalls.frame(time, Date.now(), this.stallContext(), document.hasFocus());
+    else this.stalls.restart();
+    this.frameDt = dt;
+    // Vigia: geração sem nenhuma notícia há muito tempo vira erro na tela, nunca espera infinita.
+    if (!this.loadingEl.hidden && !this.errorScreen.visible && performance.now() - this.lastGenerationSignal > GENERATION_WATCHDOG_MS) {
+      this.fail(`O simulador não deu notícia da geração por ${GENERATION_WATCHDOG_MS / 1000} s (última etapa: "${this.loadingText.textContent}").`);
+    }
+    const renderer = this.renderer;
+    // Antes do primeiro mundo, o globo (sem cores ainda) não é desenhado: só o desenho escondido de
+    // aquecimento do shader (`warmRenderer`).
+    if (!renderer || !this.info) return;
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
-    if (this.renderer.resize(ratio)) {
-      this.camera.setViewport(this.renderer.canvas.width, this.renderer.canvas.height);
-      this.overlay.resize(this.renderer.canvas.width, this.renderer.canvas.height);
+    if (renderer.resize(ratio)) {
+      this.camera.setViewport(renderer.canvas.width, renderer.canvas.height);
       this.needsDraw = true;
     }
-    // No M1 o tempo só avança o calendário; os passos da simulação entram no M2.
-    if (this.clock.advance(dt) > 0) this.hud.setDate(formatDate(this.clock));
+    // A camada de cima segue o globo em todo quadro. Só no `if` acima ela ficava em 300×150 quando o
+    // aquecimento do shader já tinha ajustado o globo: animações cortadas até a janela mudar de tamanho
+    // (B1, teste da `9b5ba0d4`: "às vezes o meteoro nem aparece").
+    this.overlay.resize(renderer.canvas.width, renderer.canvas.height);
     if (this.camera.update(dt)) this.needsDraw = true;
+    if (this.keys.update(this.camera, dt)) this.needsDraw = true;
+    if (this.updateFlight()) this.needsDraw = true;
+    if (this.updateGeologicZoom()) this.needsDraw = true;
+    if (this.geologic.jump) this.hud.setDate(formatJumpYear(this.rollingYear.at(performance.now())));
+    if (this.updateShake(performance.now())) this.needsDraw = true;
     if (this.input.update(dt)) this.needsDraw = true;
-    if (this.painting && performance.now() - this.paintStartedAt >= PAINT_DELAY_MS) {
-      this.applyBrushAtScreen(this.paintApplied ? dt : 1 / 20);
-      this.paintApplied = true;
-    }
+    if (this.updateMotion()) this.needsDraw = true;
+    const gate = this.paintGate.frame(performance.now());
+    if (gate !== 'none') this.applyBrushAtScreen(gate === 'first' ? 1 / 20 : dt);
 
     if (this.stressSpin) {
-      const r = quatFromAxisAngle([0, 1, 0], dt * 0.6);
+      // Mesma velocidade na tela em qualquer zoom (de perto, girar 0,6 rad/s passaria voando).
+      const r = quatFromAxisAngle([0, 1, 0], (dt * 0.6) / this.camera.zoom);
       this.camera.setOrientation(quatNormalize(quatMultiply(this.camera.orientation, r)));
       this.needsDraw = true;
     }
 
+    // Nuvens andando (só com o tempo correndo e de longe) e furacões: o globo é redesenhado.
+    if (this.renderer) {
+      const r = this.renderer;
+      const running = this.clock.speed !== 0;
+      if (running) r.cloudTime += dt;
+      const before = r.stormCount + r.dustCount;
+      const moving = this.updateStorms(dt);
+      if (moving || before) this.needsDraw = true;
+      r.stormCount = moving - r.dustCount;
+      if (running && r.clouds > 0 && this.camera.cellPixels() < 4) this.needsDraw = true;
+    }
+    const drew = this.needsDraw;
     if (this.needsDraw) {
-      this.renderer.draw(this.camera);
+      renderer.draw(this.camera, this.motion.uniforms);
       this.drawOverlay();
       this.needsDraw = false;
+    } else if (this.fx.active || this.fxShown) {
+      // Animação de desastre correndo com o globo parado: só a camada de cima é redesenhada.
+      this.drawOverlay();
     }
-    this.measure(time, performance.now() - workStart);
+    const workMs = performance.now() - workStart;
+    this.stalls.frameWork(workMs);
+    const received = this.sim.receiveMs;
+    this.bench?.recorder?.frame(time, workMs, drew, received - this.lastReceiveMs);
+    this.lastReceiveMs = received;
+    this.measure(time, workMs);
   }
 
   private measure(time: number, workMs: number): void {
     const st = this.stats;
+    // Menor e maior intervalo entre quadros: mostra a taxa que a tela está oferecendo
+    // (16,7 ms = 60 Hz; 11,1 ms = 90 Hz; 8,3 ms = 120 Hz).
+    if (st.prevTime) {
+      const gap = time - st.prevTime;
+      st.minGap = Math.min(st.minGap, gap);
+      st.maxGap = Math.max(st.maxGap, gap);
+    }
+    st.prevTime = time;
     st.frames++;
     st.workMs += workMs;
     if (!st.since) st.since = time;
@@ -257,6 +995,10 @@ export class App {
     if (elapsed >= 500) {
       st.fps = (st.frames * 1000) / elapsed;
       st.frameMs = st.workMs / st.frames;
+      st.lastMinGap = st.minGap === Infinity ? 0 : st.minGap;
+      st.lastMaxGap = st.maxGap;
+      st.minGap = Infinity;
+      st.maxGap = 0;
       st.frames = 0;
       st.workMs = 0;
       st.since = time;
@@ -264,26 +1006,285 @@ export class App {
     }
   }
 
+  /** Velocidade e placas agora, para cada travada registrada. */
+  private stallContext(): string {
+    const speed = this.clock.speed;
+    const time = speed === 0 ? 'pausado' : speed === 'max' ? 'máx' : `${speed}×`;
+    return `${time} · placas ${Math.round(this.plateRate * 100)}%${this.mode === 'paint' ? ' · pincel' : ''}${this.geologic.jump ? ' · tempo geológico' : ''}`;
+  }
+
   private updateDebug(): void {
-    if (!this.debug.visible) return;
+    if (!this.debug.visible || !this.info || (this.bench && !this.bench.panelOpen)) return;
+    const renderer = this.renderer;
     this.debug.update({
       fps: this.stats.fps,
       frameMs: this.stats.frameMs,
-      cells: this.world.cellCount,
-      n: this.world.params.n,
-      seedText: this.world.params.seedText,
-      seed: this.world.params.seed,
-      generationMs: this.generationMs,
+      cells: this.info.cellCount,
+      n: this.info.n,
+      seedText: this.info.seedText,
+      seed: this.info.seed,
+      kindLabel: WORLD_KINDS.find((k) => k.kind === this.info?.kind)?.label ?? 'Padrão',
+      generationMs: this.info.generationMs,
+      generationTotalMs: this.worldTotalMs,
+      stagesMs: this.info.stagesMs,
+      minGapMs: this.stats.lastMinGap,
+      maxGapMs: this.stats.lastMaxGap,
       zoom: this.camera.zoom,
       cellPixels: this.camera.cellPixels(),
+      ticksPerSecond: this.stats.ticksPerSecond,
+      brushMs: this.stats.brushMs,
+      geologyMs: this.stats.geologyMs,
+      recompositions: this.stats.recompositions,
+      memoryMb: this.stats.memoryMb,
+      drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
+      version: __BUILD_ID__,
+      sharedMemory: `${this.sim.sharedMemory} · recargas p/ isolar ${isolationReloads()}`,
+      cycle: `${CYCLE_PHASES[this.work.cyclePhase] ?? '—'} · ${this.work.supercontinents} supercontinentes · ${this.work.ruptures} rupturas`,
+      climate: `${signed(this.climate.offset)} °C (controle ${signed(this.climateControl)}) · mar ${signed(this.climate.seaLevel, 0)} m`,
+      stalls: this.stalls.lines(4, clockTime),
     });
+  }
+
+  /**
+   * "Medir desempenho" (~2 min): roda sozinho os cenários e mostra o relatório para copiar.
+   * Globo sempre do mesmo jeito (terra no centro, zoom 1) para comparar uma medição com a outra.
+   */
+  async runBenchmark(): Promise<void> {
+    if (this.bench || !this.info || !this.renderer) return;
+    // No fim a medição gera o mundo de novo (mede a geração) e o jogo volta ao ano 0: pergunta antes
+    // (decisão do usuário, 2026-11-03, opção b).
+    // A caixa do navegador para a página inteira enquanto está aberta: o tempo lendo a pergunta não é
+    // travada do jogo (a de 7,7 s do relatório da adf001ea veio daqui).
+    const answer = window.confirm(BENCHMARK_CONFIRM);
+    this.stalls.restart();
+    if (!answer) return;
+    const seedText = this.info.seedText;
+    const before = { speed: this.clock.speed, plateRate: this.plateRate, spin: this.stressSpin };
+    const bench: NonNullable<App['bench']> = { recorder: null, receive: [], onWorld: null, panelOpen: false };
+    this.bench = bench;
+    this.hud.closeMenu();
+    const startedAt = performance.now();
+    const steps = 17;
+    const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
+      this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
+    const scenarios: ScenarioResult[] = [];
+    // Memória da página inteira: o navegador só responde depois de uma limpeza de memória (até ~20 s).
+    const pageMemory = measurePageMemory();
+    const gpu: GpuSample[] = [];
+    const measureGpu = async (label: string): Promise<void> => {
+      const r = this.renderer;
+      if (!r) return;
+      await wait(300);
+      // Os desenhos seguidos da medição seguram a tela por um instante: não é travada do jogo (C1).
+      this.gpuMeasuring = true;
+      const m = await r.measureDraw(this.camera, this.motion.uniforms, 40);
+      this.gpuMeasuring = false;
+      gpu.push({ label, ms: m.ms, method: m.method });
+      this.stalls.restart();
+    };
+    // Transição suave (0,35 s depois de cada recomposição): espera uma de verdade e mede com os valores
+    // dela, no meio da mistura.
+    const measureFade = async (label: string): Promise<void> => {
+      const r = this.renderer;
+      if (!r) return;
+      const u = this.motion.uniforms;
+      const until = performance.now() + 20_000;
+      while (!(u.fade > 0.02 && u.fade < 0.5) && performance.now() < until) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (!(u.fade < 1)) return;
+      this.gpuMeasuring = true;
+      const m = await r.measureDraw(this.camera, { ...u, fade: 0.5 }, 40);
+      this.gpuMeasuring = false;
+      gpu.push({ label, ms: m.ms, method: m.method });
+      this.stalls.restart();
+    };
+    // Um cenário: prepara, espera assentar, mede `ms` e guarda quadros + trabalho do worker.
+    // `panel`: painel Dados escondido (só a linha de andamento) ou aberto, com ou sem o desfoque antigo.
+    const scenario = async (step: number, name: string, ms: number, setup: () => void, panel: PanelMode = 'hidden', during?: () => () => void): Promise<void> => {
+      bench.panelOpen = panel !== 'hidden';
+      status(step, name, panel);
+      setup();
+      this.updateDebug();
+      await wait(800);
+      const recorder = new FrameRecorder();
+      bench.recorder = recorder;
+      bench.receive = [];
+      this.sim.resetWorst();
+      const work0 = { ...this.work };
+      // Página escondida no meio do cenário (B9): o tempo escondido invalida a medição.
+      let hiddenMs = 0;
+      let hiddenSince = document.hidden ? performance.now() : -1;
+      const onVisibility = () => {
+        if (document.hidden) hiddenSince = performance.now();
+        else if (hiddenSince >= 0) {
+          hiddenMs += performance.now() - hiddenSince;
+          hiddenSince = -1;
+        }
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+      const wallStart = performance.now();
+      const dateStalls0 = this.stalls.counts.data;
+      const timer = setInterval(() => status(step, name, panel), 1000);
+      const stopDuring = during?.();
+      await wait(ms);
+      stopDuring?.();
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (hiddenSince >= 0) hiddenMs += performance.now() - hiddenSince;
+      const frames = recorder.summary();
+      const invalid = scenarioInvalid(frames.frames, performance.now() - wallStart, hiddenMs);
+      bench.recorder = null;
+      const r = bench.receive;
+      scenarios.push({
+        name,
+        invalid,
+        frames,
+        ...(during ? { dateStalls: this.stalls.counts.data - dateStalls0 } : {}),
+        work: workDelta(work0, this.work),
+        receiveAvgMs: r.length ? r.reduce((a, b) => a + b, 0) / r.length : 0,
+        receiveMaxMs: r.length ? Math.max(...r) : 0,
+      });
+    };
+    const spin = (on: boolean) => {
+      this.stressSpin = on;
+      this.debug.setSpinning(on);
+    };
+    let gen: GenerationResult;
+    try {
+      this.camera.stopSpin();
+      this.camera.zoom = 1;
+      this.camera.lookAt(this.info.landCenter);
+      await scenario(1, 'pausado, parado', 5000, () => {
+        spin(false);
+        this.setSpeed(0);
+        this.requestDraw();
+      });
+      await scenario(2, 'pausado, girando', 6000, () => spin(true));
+      // De perto (zoom máximo, células quadradas e divisas alisadas): o desenho mais pesado por pixel.
+      await scenario(3, 'de perto, girando', 6000, () => {
+        this.camera.zoom = this.camera.maxZoom;
+      });
+      // GPU do globo (meta ≤ 8 ms por quadro): longe com nuvens e de perto, parado.
+      status(4, 'GPU do globo');
+      spin(false);
+      this.camera.zoom = 1;
+      await measureGpu('longe');
+      this.camera.zoom = this.camera.maxZoom;
+      await measureGpu('de perto');
+      await scenario(5, 'tempo 20×, placas paradas', 8000, () => {
+        spin(false);
+        this.camera.zoom = 1;
+        this.setPlateRate(0);
+        this.setSpeed(20);
+      });
+      await scenario(6, '  idem, painel c/ desfoque', 8000, () => undefined, 'blur');
+      await scenario(7, 'tempo 20×, placas 100%', 12_000, () => this.setPlateRate(1));
+      await scenario(8, '  idem, painel c/ desfoque', 10_000, () => undefined, 'blur');
+      await scenario(9, '  idem, painel s/ desfoque', 10_000, () => undefined, 'plain');
+      // De perto com as placas andando só existe até 5× (em 20× o modo de tempo geológico trava no planeta
+      // inteiro): 20 s dão pelo menos uma recomposição a 5×.
+      await scenario(10, 'tempo 5×, placas 100%, de perto', 20_000, () => {
+        this.setSpeed(5);
+        this.camera.zoom = this.camera.maxZoom;
+      });
+      await measureGpu('de perto com placas andando');
+      await measureFade('de perto na transição');
+      // Distância média (células de ~5 px): bordas orgânicas e vista de perto ao mesmo tempo, o
+      // desenho mais caro por pixel (RG, 2026-10-18).
+      this.camera.zoom = Math.min(this.camera.maxZoom, 5 / (this.camera.baseRadius() * this.camera.cellAngle));
+      await measureGpu('meio com placas andando');
+      await measureFade('meio na transição');
+      // Deriva longa: continua a mesma deriva por mais 1 min (o planeta passa de ~1,5 min de deriva
+      // a 20×, quando os continentes começam a colidir e se soldar).
+      await scenario(11, 'deriva longa c/ colisões', 60_000, () => {
+        this.camera.zoom = 1;
+        this.setSpeed(20);
+      });
+      // Ruptura forçada (G2): o maior bloco soldado racha agora; mede a recomposição que vem junto.
+      await scenario(12, 'ruptura forçada', 10_000, () => this.sim.forceRupture());
+      // Tudo acontecendo (R9): desastres em "Muitos" a 20× com as placas a 100% (fogo, lava, furacões,
+      // secas, enchentes e tsunamis andando passo a passo; o chão repintado a cada laço).
+      await scenario(13, 'desastres "Muitos", 20×', 20_000, () => this.sim.setDisasterFrequency(FREQUENCIES.length - 1));
+      this.camera.zoom = 1;
+      await measureGpu('longe com desastres "Muitos"');
+      this.sim.setDisasterFrequency(this.disasterFrequency);
+      // Tempo geológico no Máx: o relógio não pode esperar o ajudante nem a data travar (teste da `2d9a2156`).
+      await scenario(14, 'tempo Máx, placas 100%', 30_000, () => this.setSpeed('max'), 'hidden', () => () => undefined);
+      // O que o jogador faz (teste da `9b5ba0d4`): meteoros gigantes seguidos em 1×, placas 25%, no mesmo
+      // lugar e em lugares diferentes, com o globo à vista.
+      const center = this.info.landCenter;
+      const meteors = (point: (k: number) => Vec3) => () => {
+        let k = 0;
+        const timer = setInterval(() => this.sim.triggerDisaster(DisasterKind.Meteor, point(k++), 4), METEOR_BENCH_EVERY_MS);
+        return () => clearInterval(timer);
+      };
+      const atOneX = () => {
+        this.camera.lookAt(center);
+        this.setPlateRate(0.25);
+        this.setSpeed(1);
+      };
+      await scenario(15, 'meteoros, mesmo lugar', METEOR_BENCH_MS, atOneX, 'hidden', meteors(() => center));
+      const spots = meteorSpots(center, METEOR_BENCH_MS / METEOR_BENCH_EVERY_MS, METEOR_BENCH_SPREAD);
+      await scenario(16, 'meteoros, lugares variados', METEOR_BENCH_MS, atOneX, 'hidden', meteors((k) => spots[k % spots.length] as Vec3));
+      bench.panelOpen = false;
+      // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
+      status(17, 'geração de mundo');
+      this.setSpeed(0);
+      this.setPlateRate(before.plateRate);
+      await wait(500);
+      const receiveMs = await new Promise<number>((resolve) => {
+        bench.onWorld = resolve;
+        this.newWorld(seedText);
+      });
+      const info = this.info as WorldInfo;
+      gen = { totalMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs, helperShare: info.helperShare, receiveMs };
+    } finally {
+      spin(before.spin);
+      this.sim.setDisasterFrequency(this.disasterFrequency);
+      this.setPlateRate(before.plateRate);
+      this.setSpeed(before.speed);
+      this.bench = null;
+      this.updateGeologic();
+      this.debug.setBenchmarkRunning(null);
+    }
+    const renderer = this.renderer;
+    const canvas = this.canvas;
+    const report = formatReport(
+      {
+        version: __BUILD_ID__,
+        date: new Date().toLocaleString('pt-BR'),
+        gpu: renderer?.gpuName() ?? '—',
+        drawing: renderer ? (renderer.motionSupported ? 'completo' : `simplificado (${renderer.fallbackReason})`) : '—',
+        cores: navigator.hardwareConcurrency || 0,
+        sharedMemory: `${this.sim.sharedMemory} (recargas p/ isolar ${isolationReloads()})`,
+        screen: `tela ${screen.width}×${screen.height} @${(window.devicePixelRatio || 1).toFixed(2)} · desenho ${canvas.width}×${canvas.height} · ~${this.stats.lastMinGap > 0 ? Math.round(1000 / this.stats.lastMinGap) : 0} Hz`,
+        userAgent: navigator.userAgent,
+        power: powerLabel(await readBattery()),
+      },
+      scenarios,
+      gen,
+      this.firstLoad,
+      this.stalls.lines(STALL_KEEP, clockTime),
+      gpu,
+      { dataMb: this.stats.memoryMb, ...(await pageMemory) },
+    );
+    this.debug.showReport(report);
+    this.updateDebug();
   }
 
   private drawOverlay(): void {
     this.overlay.clear();
-    if (this.mode !== 'paint' || !this.brushScreen) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.fxShown = this.fx.active;
+    if (this.fx.active) {
+      const now = performance.now();
+      const rate = this.clock.speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * this.clock.speed;
+      // O passo só chega a cada ~100 ms: entre uma mensagem e outra, estimado pelo ritmo.
+      this.fx.draw(this.overlay.context, this.camera, now, this.clock.tick + (rate * Math.min(now - this.clockAt, 2 * CLOCK_POST_MS)) / 1000, rate, dpr);
+    }
+    if (this.mode !== 'paint' || !this.brushScreen || !this.info) return;
     const p = this.camera.pick(this.brushScreen.x, this.brushScreen.y);
-    if (p) this.overlay.drawCap(this.camera, p, this.brushSize * this.grid.cellAngle);
+    if (p) this.overlay.drawCap(this.camera, p, this.brushSize * (Math.PI / 2 / this.info.n));
   }
 
   start(): void {
@@ -295,25 +1296,69 @@ export class App {
   }
 }
 
+/** "Medir desempenho": meteoros seguidos, de quanto em quanto tempo, por quanto tempo e em que área (rad). */
+const METEOR_BENCH_EVERY_MS = 500;
+const METEOR_BENCH_MS = 20_000;
+const METEOR_BENCH_SPREAD = 0.8;
+
+/** Tentar de novo: limpa o cache do jogo (pode ter versão velha misturada) e recarrega a página. */
+async function retry(): Promise<void> {
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
+    await Promise.all(regs.map((r) => r.update().catch(() => undefined)));
+    const keys = (await caches?.keys?.()) ?? [];
+    await Promise.all(keys.filter((k) => k.startsWith('sandbox-mundo')).map((k) => caches.delete(k)));
+  } catch {
+    // sem cache para limpar: segue para o recarregamento
+  }
+  window.location.reload();
+}
+
+/** Cor do fundo oceânico recém-nascido (a mesma que o worker pinta na dorsal), de 0 a 1. */
+function ridgeColor(): [number, number, number] {
+  const c = BIOME_INFO[Biome.DeepOcean]?.color ?? [22, 52, 110];
+  const k = 1.12 - 0.42 * Math.min(1, -RIDGE_DEPTH / 5000);
+  return [(c[0] * k) / 255, (c[1] * k) / 255, (c[2] * k) / 255];
+}
+
+/** Hora do relógio de parede (hh:mm:ss) de uma travada. */
+function clockTime(wall: number): string {
+  return new Date(wall).toLocaleTimeString('pt-BR', { hour12: false });
+}
+
 /** Guarda a semente na URL: o link compartilhado abre o mesmo mundo. */
-export function setSeedInUrl(seedText: string): void {
+export function setSeedInUrl(seedText: string, kind: WorldKind = 'standard'): void {
   const url = new URL(window.location.href);
   url.searchParams.set('seed', seedText);
+  if (kind === 'standard') url.searchParams.delete('tipo');
+  else url.searchParams.set('tipo', kind);
   window.history.replaceState(null, '', url);
 }
 
-/** Direção média da terra firme: onde a câmera começa olhando. */
-export function landCenter(world: WorldState): Vec3 {
-  const { positions } = world.grid;
-  let x = 0;
-  let y = 0;
-  let z = 0;
-  for (let i = 0; i < world.cellCount; i++) {
-    if (world.isWater(i)) continue;
-    x += positions[i * 3] as number;
-    y += positions[i * 3 + 1] as number;
-    z += positions[i * 3 + 2] as number;
+/** Número com sinal, em português (vírgula decimal): "+1,5", "−3,2", "0". */
+function signed(v: number, digits = 1): string {
+  const r = Number(v.toFixed(digits));
+  if (r === 0) return '0';
+  return `${r > 0 ? '+' : '−'}${Math.abs(r).toFixed(digits).replace('.', ',')}`;
+}
+
+/**
+ * Memória da página inteira (com os workers), se o navegador informa: a medida completa do Chrome com
+ * a página isolada; senão só a memória do JavaScript da tela (Chrome); o Firefox não informa.
+ */
+async function measurePageMemory(): Promise<{ pageMb: number | null; pageHow: string }> {
+  const perf = performance as Performance & {
+    measureUserAgentSpecificMemory?: () => Promise<{ bytes: number }>;
+    memory?: { usedJSHeapSize: number };
+  };
+  try {
+    if (perf.measureUserAgentSpecificMemory && globalThis.crossOriginIsolated) {
+      const r = await perf.measureUserAgentSpecificMemory();
+      return { pageMb: r.bytes / 1e6, pageHow: 'medida do navegador, com os workers' };
+    }
+  } catch {
+    // Cai para a medida mais simples.
   }
-  const len = Math.hypot(x, y, z);
-  return len > 1e-9 ? [x / len, y / len, z / len] : [0, 0, 1];
+  if (perf.memory) return { pageMb: perf.memory.usedJSHeapSize / 1e6, pageHow: 'só o JavaScript da tela' };
+  return { pageMb: null, pageHow: 'este navegador não informa' };
 }

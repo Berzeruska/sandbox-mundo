@@ -1,0 +1,477 @@
+import { newArray } from '../core/shared';
+import { buildColors, NO_LAYERS, type Layers } from '../render/colors';
+import { applyClimateOffset, climateOffsetAt, computeWaterDistance, seaLevelFor, updateClimate, updateWaterDistance } from '../world/climate';
+import type { CellsRequest } from '../world/cell-pool';
+import type { CubeSphere } from '../world/cubesphere';
+import type { Plate } from '../world/plates';
+import { DepositFormation, REVEALED_BIT } from '../world/resources';
+import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, Tectonics } from '../world/tectonics';
+import { WorldState, type WorldParams } from '../world/state';
+import type { PlateMotionInfo } from './protocol';
+import { packPlates } from './plates-pack';
+
+/**
+ * Ajudante 2 "Terra" (correção 2; plano em `docs/01-arquitetura.md`): a recomposição das placas, o
+ * clima e as cores do mundo todo saem do relógio.
+ *
+ * Regra que mantém o jogo determinístico: o motor da geologia anda pelos mesmos passos do relógio,
+ * na ordem dos comandos (cada comando leva o passo em que aconteceu). Uma recomposição feita no passo
+ * T vale para o mundo visto pelo jogador no passo T + APPLY_DELAY_TICKS, nem antes nem depois. Se o
+ * ajudante não terminou até lá, o relógio espera; se terminou, o tempo não para. O resultado é o mesmo
+ * com o motor no ajudante ou no próprio relógio (testes, ou página sem memória compartilhada).
+ */
+
+/**
+ * Passos entre a recomposição e o mundo novo aparecer. 480 passos = 40 anos = 2 s reais a 20×: dá
+ * folga a uma recomposição de ~1–1,3 s num núcleo forte do Hot 50i. Com placas a 100%, o desenho
+ * desliza as placas por até ~3 células (2 entre recomposições + ~1 de espera), dentro do alcance do
+ * shader (NEAR_REACH_CELLS = 3,5).
+ */
+export const APPLY_DELAY_TICKS = 480;
+
+/** Arrays do mundo que mudam numa recomposição e são copiados para o mundo do relógio. */
+export const COMPOSED_FIELDS = [
+  'elevation',
+  'temperature',
+  'precipitation',
+  'biome',
+  'ice',
+  'plate',
+  'crust',
+  'boundary',
+  'waterDistance',
+  'deposit',
+] as const;
+/** Arrays do mundo enviados na criação do motor (o resto nasce na geração e não muda). */
+export const WORLD_FIELDS = [...COMPOSED_FIELDS, 'iceMode', 'tempNoise', 'rainNoise'] as const;
+export type WorldField = (typeof WORLD_FIELDS)[number];
+export type WorldArrays = Record<WorldField, Float32Array | Uint8Array | Uint16Array>;
+
+/**
+ * Pincelada vista pelo motor: para cada célula da região, a placa e o ponto do referencial dela que a
+ * célula mostrava, e a altura, a crosta e o gelo pintado que ficaram.
+ */
+export interface BrushDelta {
+  cells: Int32Array;
+  plate: Uint8Array;
+  ref: Int32Array;
+  elevation: Float32Array;
+  crust: Uint8Array;
+  iceMode: Uint8Array;
+  /** 1 = esta pincelada (Rebaixar) revelou o petróleo da célula (T6). */
+  reveal: Uint8Array;
+}
+
+/** Tudo de que o motor precisa para começar num mundo recém-gerado. */
+export interface GeologyInit {
+  world: number;
+  params: WorldParams;
+  plates: Plate[];
+  arrays: WorldArrays;
+  rate: number;
+  layers: Layers;
+  /** Controle de temperatura global do jogador (°C, T7). */
+  climateControl: number;
+}
+
+/**
+ * O clima é refeito (no motor) quando o desvio global andou isto desde a última vez, ou quando o mar
+ * mudou de degrau (T7). Ciclo glacial mais rápido (no aquecimento): ~1 vez a cada 1,6 s a 20×.
+ */
+export const CLIMATE_STEP = 0.2;
+
+/** Comandos para o motor. `world` descarta o que for de um mundo anterior. */
+export type GeologyCommand =
+  | { type: 'advance'; world: number; tick: number }
+  | { type: 'rate'; world: number; tick: number; rate: number }
+  | { type: 'brush'; world: number; tick: number; delta: BrushDelta }
+  | { type: 'rupture'; world: number; tick: number }
+  /** Controle de temperatura global (°C), a partir deste passo. */
+  | { type: 'climate'; world: number; tick: number; control: number }
+  | { type: 'layers'; world: number; layers: Layers }
+  | { type: 'consumed'; world: number; index: number };
+
+/** Uma recomposição pronta. Os arrays do mundo, as cores e os pontos de referência estão no motor. */
+export interface GeologyResult {
+  world: number;
+  index: number;
+  /**
+   * 'recompose': as placas andaram (tudo muda). 'climate': só o clima (temperatura global ou nível do
+   * mar); placas, ângulos e jazidas são os da recomposição anterior.
+   */
+  kind: 'recompose' | 'climate';
+  /** Desvio da temperatura global e nível do mar usados (T7), e o controle do jogador que valia. */
+  climateOffset: number;
+  seaLevel: number;
+  control: number;
+  /** Visões (Ver placas, recursos, biomas, tensão) com que as cores foram pintadas. */
+  layers: Layers;
+  /** Passo do relógio em que a recomposição aconteceu (aparece em tick + APPLY_DELAY_TICKS). */
+  tick: number;
+  /** Vaga dos buffers com este resultado. */
+  slot: number;
+  /** Ângulos das placas e deriva na recomposição; eixo, velocidade e centro de cada placa. */
+  angles: number[];
+  drift: number;
+  motion: PlateMotionInfo[];
+  plates: Plate[];
+  plateCells: Uint8Array;
+  /** Tempo de trabalho (ms): placas, clima e cores. */
+  platesMs: number;
+  climateMs: number;
+  colorsMs: number;
+  stats: GeologyStats;
+}
+
+export interface GeologyStats {
+  welds: number;
+  fragments: number;
+  /** Jazidas formadas durante a deriva até agora (T6). */
+  depositsFormed: number;
+  ruptures: number;
+  supercontinents: number;
+  /** 1 dispersão, 2 montagem, 3 supercontinente. */
+  cyclePhase: number;
+  recompositions: number;
+  /** Memória do motor (mundo de trabalho, cores, tectônica), em bytes. */
+  engineBytes: number;
+}
+
+/** Mensagens do relógio para o ajudante 2. */
+export type HelperRequest =
+  | {
+      type: 'init';
+      init: GeologyInit;
+      /** Grade e tabelas fixas, em memória compartilhada (o ajudante usa sem copiar). */
+      grid: { n: number; positions: Float32Array; neighbors: Int32Array };
+      upwind: Int32Array;
+      shade: Float32Array;
+    }
+  | { type: 'command'; cmd: GeologyCommand }
+  /** Pedaços da geração de um mundo novo (`cell-pool.ts`). */
+  | CellsRequest;
+
+/** Mensagens do ajudante 2 para o relógio: os buffers do mundo novo, ou um evento do motor. */
+export type HelperReply = { type: 'ready'; buffers: GeologyBuffers } | GeologyEvent;
+
+/** O que o motor manda de volta. */
+export type GeologyEvent =
+  | { type: 'progress'; world: number; tick: number }
+  | { type: 'result'; result: GeologyResult }
+  | { type: 'error'; message: string; stack?: string };
+
+/**
+ * Vagas de entrega: o motor copia cada resultado para uma vaga e já pode seguir para o próximo. Com uma
+ * vaga só (até 2026-11-03), um clima refeito logo antes de uma recomposição prendia o motor até o relógio
+ * aplicar o clima, e a recomposição atrasada fazia o relógio esperar (A, relatório da `d7479ae2`, na
+ * bateria: "relógio esperou 195 ms").
+ */
+export const RESULT_SLOTS = 2;
+
+/** Uma vaga: o mundo, as cores e as referências de uma entrega. */
+export interface GeologySlot {
+  arrays: Pick<WorldArrays, (typeof COMPOSED_FIELDS)[number]>;
+  colors: Uint8Array;
+  cellRef: Int32Array;
+}
+
+/** Buffers do motor que o relógio lê ao aplicar uma recomposição (compartilhados no ajudante). */
+export interface GeologyBuffers {
+  world: number;
+  slots: GeologySlot[];
+}
+
+/** Copia os arrays de um mundo (para mandar ao motor). */
+export function worldArrays(world: WorldState): WorldArrays {
+  const out = {} as WorldArrays;
+  for (const k of WORLD_FIELDS) out[k] = world[k];
+  return out;
+}
+
+/** Leitura da fase do ciclo em número (para os contadores). */
+function phaseNumber(phase: string): number {
+  return phase === 'dispersal' ? 1 : phase === 'assembly' ? 2 : 3;
+}
+
+/**
+ * O motor da geologia. Recebe comandos na ordem em que aconteceram e anda os passos até o último
+ * passo conhecido do relógio. Para (sem perder nada) quando precisa recompor e a recomposição
+ * anterior ainda não foi aplicada pelo relógio: os buffers dela ainda estão em uso.
+ */
+export class GeologyEngine {
+  readonly world: WorldState;
+  readonly worldId: number;
+  tectonics: Tectonics | null = null;
+  /** Jazidas que nascem durante a deriva (T6). */
+  readonly formation: DepositFormation;
+  readonly colors: Uint8Array;
+  readonly cellRef: Int32Array;
+  /** Passos já processados (o mesmo relógio do jogo). */
+  tick = 0;
+  private target = 0;
+  private rate: number;
+  private layers: Layers;
+  private climateControl: number;
+  private queue: GeologyCommand[] = [];
+  private nextIndex = 0;
+  /** Índices entregues e ainda não aplicados pelo relógio, do mais antigo ao mais novo. */
+  private unconsumed: number[] = [];
+  /** Vagas de entrega (RESULT_SLOTS). */
+  private readonly slots: GeologySlot[];
+  private lastProgress = -1;
+
+  constructor(
+    init: GeologyInit,
+    grid: CubeSphere,
+    private emit: (event: GeologyEvent, transfer?: ArrayBuffer[]) => void,
+    private now: () => number = () => performance.now(),
+  ) {
+    this.worldId = init.world;
+    const world = new WorldState(init.params, grid);
+    for (const k of WORLD_FIELDS) world[k].set(init.arrays[k]);
+    world.plates = init.plates.map((p) => ({ ...p, seed: [...p.seed], center: [...p.center], omega: [...p.omega] }) as Plate);
+    this.world = world;
+    this.rate = init.rate;
+    this.layers = init.layers;
+    this.climateControl = init.climateControl;
+    this.formation = new DepositFormation(init.params.seed);
+    this.colors = new Uint8Array(world.cellCount * 4);
+    this.cellRef = new Int32Array(world.cellCount);
+    for (let c = 0; c < world.cellCount; c++) this.cellRef[c] = c;
+    this.slots = Array.from({ length: RESULT_SLOTS }, () => {
+      const arrays = {} as GeologySlot['arrays'];
+      for (const k of COMPOSED_FIELDS) (arrays as Record<string, unknown>)[k] = newArray(world[k].constructor as Uint8ArrayConstructor, world[k].length);
+      return { arrays, colors: newArray(Uint8Array, world.cellCount * 4), cellRef: newArray(Int32Array, world.cellCount) };
+    });
+  }
+
+  /** Há vaga para mais uma entrega? */
+  private get slotFree(): boolean {
+    return this.unconsumed.length < RESULT_SLOTS;
+  }
+
+  /** Buffers que o relógio lê ao aplicar uma recomposição (as vagas de entrega). */
+  get buffers(): GeologyBuffers {
+    return { world: this.worldId, slots: this.slots };
+  }
+
+  /** Bytes próprios do motor (mundo de trabalho, cores, referências e tectônica). */
+  get bytes(): number {
+    let total = this.colors.byteLength + this.cellRef.byteLength + (this.tectonics?.bytes ?? 0);
+    for (const k of WORLD_FIELDS) total += this.world[k].byteLength;
+    for (const slot of this.slots) {
+      total += slot.colors.byteLength + slot.cellRef.byteLength;
+      for (const k of COMPOSED_FIELDS) total += slot.arrays[k].byteLength;
+    }
+    return total;
+  }
+
+  receive(cmd: GeologyCommand): void {
+    if (cmd.world !== this.worldId) return;
+    switch (cmd.type) {
+      case 'advance':
+        this.target = Math.max(this.target, cmd.tick);
+        break;
+      case 'layers':
+        this.layers = cmd.layers;
+        return;
+      case 'consumed':
+        this.unconsumed = this.unconsumed.filter((i) => i > cmd.index);
+        break;
+      default:
+        this.queue.push(cmd);
+        this.target = Math.max(this.target, cmd.tick);
+    }
+    this.process();
+  }
+
+  /** Anda até o próximo comando (ou até o passo do relógio), aplica, repete. */
+  private process(): void {
+    for (;;) {
+      const cmd = this.queue[0];
+      const until = cmd && 'tick' in cmd ? cmd.tick : this.target;
+      while (this.tick < until) {
+        if (!this.stepOnce()) return this.progress();
+      }
+      if (!cmd) break;
+      // A ruptura do passo T ainda vai entregar uma recomposição do passo T: até lá, o relógio só pode
+      // contar com T − 1 (senão ele passa de T + APPLY_DELAY_TICKS sem ela; achado com os desastres).
+      if (cmd.type === 'rupture' && !this.slotFree) return this.progress(this.tick - 1);
+      this.queue.shift();
+      this.apply(cmd);
+    }
+    this.progress();
+  }
+
+  /** Avisa o relógio até onde o motor já entregou tudo (`tick`: padrão, o passo atual). */
+  private progress(tick = this.tick): void {
+    if (tick <= this.lastProgress) return;
+    this.lastProgress = tick;
+    this.emit({ type: 'progress', world: this.worldId, tick });
+  }
+
+  /** O clima precisa ser refeito no passo `tick` (desvio andou CLIMATE_STEP, ou o mar mudou de degrau)? */
+  private climateDue(tick: number): boolean {
+    const offset = climateOffsetAt(tick, this.climateControl);
+    const w = this.world;
+    return Math.abs(offset - w.climateOffset) >= CLIMATE_STEP || seaLevelFor(w.params.seaLevel, offset) !== w.seaLevel;
+  }
+
+  /**
+   * Um passo; false se precisa entregar algo (recomposição ou clima) e a entrega anterior ainda não foi
+   * aplicada pelo relógio.
+   */
+  private stepOnce(): boolean {
+    const climate = this.climateDue(this.tick + 1);
+    if (this.rate <= 0) {
+      if (climate && !this.slotFree) return false;
+      this.tick++;
+      if (climate) this.refreshClimate();
+      return true;
+    }
+    // A tectônica nasce no primeiro passo com placas ligadas (como antes da correção 2).
+    this.tectonics ??= new Tectonics(this.world);
+    if (!this.slotFree && (climate || this.tectonics.willRecompose(this.rate))) return false;
+    this.tick++;
+    const t0 = this.now();
+    if (this.tectonics.step(this.rate)) this.finish(t0);
+    else if (climate) this.refreshClimate();
+    return true;
+  }
+
+  private apply(cmd: GeologyCommand): void {
+    if (cmd.type === 'rate') {
+      this.rate = Math.max(0, Math.min(1, cmd.rate));
+    } else if (cmd.type === 'climate') {
+      this.climateControl = cmd.control;
+    } else if (cmd.type === 'brush') {
+      this.applyBrush(cmd.delta);
+    } else if (cmd.type === 'rupture') {
+      // Racha e recompõe já, no passo do comando.
+      const t0 = this.now();
+      if (this.tectonics?.forceRupture()) {
+        this.tectonics.recompose();
+        this.finish(t0);
+      }
+    }
+  }
+
+  private applyBrush(d: BrushDelta): void {
+    const world = this.world;
+    const t = this.tectonics;
+    // Células do mundo do motor que mudaram (para o clima delas ser refeito já: um recálculo de clima
+    // antes da próxima recomposição não pode desfazer a pincelada).
+    const touched: number[] = [];
+    for (let k = 0; k < d.cells.length; k++) {
+      const c = d.cells[k] as number;
+      // O gelo pintado fica no lugar (não anda com a placa).
+      world.iceMode[c] = d.iceMode[k] as number;
+      const reveal = d.reveal[k] ? REVEALED_BIT : 0;
+      if (t) {
+        const shown = t.syncSample(d.plate[k] as number, d.ref[k] as number, d.elevation[k] as number, d.crust[k] as number, reveal);
+        if (shown >= 0) {
+          world.elevation[shown] = d.elevation[k] as number;
+          world.crust[shown] = d.crust[k] as number;
+          if (world.deposit[shown]) world.deposit[shown] = (world.deposit[shown] as number) | reveal;
+          touched.push(shown);
+        }
+        touched.push(c);
+      } else {
+        // Antes da primeira recomposição cada célula mostra a si mesma: o mundo é a fonte.
+        const ref = d.ref[k] as number;
+        world.elevation[ref] = d.elevation[k] as number;
+        world.crust[ref] = d.crust[k] as number;
+        if (world.deposit[ref]) world.deposit[ref] = (world.deposit[ref] as number) | reveal;
+        touched.push(ref);
+      }
+    }
+    if (touched.length) {
+      updateWaterDistance(world, touched);
+      updateClimate(world, touched);
+    }
+  }
+
+  /** Só o clima mudou (ciclo glacial ou controle): refaz e entrega como uma composição de clima (T7). */
+  private refreshClimate(): void {
+    const t0 = this.now();
+    const world = this.world;
+    applyClimateOffset(world, climateOffsetAt(this.tick, this.climateControl));
+    const t1 = this.now();
+    buildColors(world, this.colors, undefined, this.layers);
+    const t2 = this.now();
+    this.deliver('climate', new Uint8Array(0), 0, t1 - t0, t2 - t1);
+  }
+
+  /** Depois de recompor: clima, cores, textura das placas, e entrega ao relógio. */
+  private finish(t0: number): void {
+    const world = this.world;
+    const tectonics = this.tectonics;
+    if (!tectonics) return;
+    const t1 = this.now();
+    // Clima do passo atual (ciclo glacial + controle): nível do mar, costa, chuva, gelo e biomas.
+    world.climateOffset = climateOffsetAt(this.tick, this.climateControl);
+    world.seaLevel = seaLevelFor(world.params.seaLevel, world.climateOffset);
+    computeWaterDistance(world);
+    updateClimate(world);
+    // Jazidas: as da crosta (andaram com as placas) e as que nascem nas frentes ativas (T6).
+    tectonics.writeDeposits(world.deposit);
+    this.formation.step(world, this.tick, (c, code) => tectonics.setDeposit(c, code));
+    const t2 = this.now();
+    buildColors(world, this.colors, undefined, this.layers);
+    tectonics.writeCellRefs(this.cellRef);
+    const plateCells = packPlates(world);
+    const t3 = this.now();
+    this.deliver('recompose', plateCells, t1 - t0, t2 - t1, t3 - t2);
+  }
+
+  /** Entrega ao relógio o que está nos buffers do motor (recomposição ou só clima). */
+  private deliver(kind: GeologyResult['kind'], plateCells: Uint8Array, platesMs: number, climateMs: number, colorsMs: number): void {
+    const world = this.world;
+    const tectonics = this.tectonics;
+    const cycle = tectonics?.cycle;
+    const index = this.nextIndex++;
+    const slot = index % RESULT_SLOTS;
+    const into = this.slots[slot] as GeologySlot;
+    for (const k of COMPOSED_FIELDS) into.arrays[k].set(world[k] as never);
+    into.colors.set(this.colors);
+    into.cellRef.set(this.cellRef);
+    const result: GeologyResult = {
+      world: this.worldId,
+      index,
+      slot,
+      kind,
+      climateOffset: world.climateOffset,
+      seaLevel: world.seaLevel,
+      control: this.climateControl,
+      layers: this.layers,
+      tick: this.tick,
+      angles: tectonics ? Array.from(tectonics.angle) : [],
+      drift: tectonics?.driftNow ?? 0,
+      motion: tectonics ? world.plates.map((pl, k) => ({ ...tectonics.plateMotion(k), center: [pl.center[0], pl.center[1], pl.center[2]] })) : [],
+      plates: world.plates.map((p) => ({ ...p, seed: [...p.seed], center: [...p.center], omega: [...p.omega] }) as Plate),
+      plateCells,
+      platesMs,
+      climateMs,
+      colorsMs,
+      stats: {
+        welds: tectonics?.welds ?? 0,
+        fragments: tectonics?.fragmentsAbsorbed ?? 0,
+        depositsFormed: this.formation.formed.length,
+        ruptures: cycle?.ruptures ?? 0,
+        supercontinents: cycle?.supercontinents ?? 0,
+        cyclePhase: cycle ? phaseNumber(cycle.phase) : 1,
+        recompositions: tectonics?.recompositions ?? 0,
+        engineBytes: this.bytes,
+      },
+    };
+    this.unconsumed.push(index);
+    this.emit({ type: 'result', result }, plateCells.byteLength ? [plateCells.buffer as ArrayBuffer] : []);
+  }
+}
+
+/** Mesma soma do `Tectonics.step` para a deriva (o relógio acompanha os ângulos sem a tectônica). */
+export function driftStep(rate: number): number {
+  return rate > 0 ? MAX_PLATE_RATE * rate : 0;
+}
+
+export { DEFAULT_PLATE_RATE, NO_LAYERS };

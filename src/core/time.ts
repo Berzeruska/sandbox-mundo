@@ -30,13 +30,19 @@ export class Clock {
    * Avança o relógio pelo tempo real `dt` (segundos), chamando `step` a cada passo.
    * Retorna quantos passos rodaram. `now` mede o orçamento da velocidade máxima.
    */
-  advance(dt: number, step?: (tick: number) => void, now: () => number = () => performance.now()): number {
+  advance(
+    dt: number,
+    step?: (tick: number) => void,
+    now: () => number = () => performance.now(),
+    canStep?: (next: number) => boolean,
+  ): number {
     if (this.speed === 0 || dt <= 0) return 0;
     let count: number;
     if (this.speed === 'max') {
       const start = now();
       count = 0;
       while (count < MAX_TICKS_PER_FRAME && now() - start < MAX_SPEED_BUDGET_MS) {
+        if (canStep && !canStep(this.tick + 1)) break;
         this.tick++;
         count++;
         step?.(this.tick);
@@ -49,10 +55,21 @@ export class Clock {
     // Se bateu no teto, descarta o atraso em vez de acumular uma dívida infinita.
     if (this.accumulator > MAX_TICKS_PER_FRAME) this.accumulator = 0;
     for (let i = 0; i < count; i++) {
+      // `canStep` false: espera (ex.: o ajudante da geologia atrasou); o que faltou fica para depois,
+      // dentro do teto de MAX_FRAME_DT por chamada.
+      if (canStep && !canStep(this.tick + 1)) {
+        this.accumulator = Math.min(this.accumulator + (count - i), BASE_TICKS_PER_SECOND * (this.speed as number) * MAX_FRAME_DT);
+        return i;
+      }
       this.tick++;
       step?.(this.tick);
     }
     return count;
+  }
+
+  /** Passos já devidos e ainda não rodados (fração incluída). */
+  get backlog(): number {
+    return this.accumulator;
   }
 
   /** Ano atual, começando no ano 1. */

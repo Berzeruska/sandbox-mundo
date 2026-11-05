@@ -36,11 +36,22 @@ function serviceWorker(): Plugin {
   };
 }
 
+/**
+ * Identificador do build: o mesmo valor entra na tela e no worker. Se um cache antigo servir uma
+ * parte de outra versão, a tela percebe pela conferência de versão e recarrega.
+ */
+const BUILD_ID = (process.env.GITHUB_SHA ?? '').slice(0, 8) || Date.now().toString(36);
+
 // `base: './'` faz o build funcionar tanto na raiz quanto em /sandbox-mundo/ (GitHub Pages).
 export default defineConfig({
   base: './',
-  server: { host: true },
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
+  // Os mesmos cabeçalhos que o service worker põe no site publicado (memória compartilhada).
+  server: { host: true, headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
+  preview: { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
   plugins: [serviceWorker()],
+  // O worker da simulação cria o ajudante da geologia (worker dentro de worker): formato ES.
+  worker: { format: 'es' },
   test: {
     include: ['tests/**/*.test.ts'],
   },

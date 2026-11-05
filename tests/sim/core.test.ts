@@ -1,0 +1,274 @@
+import { applyTerrainDeltas } from '../../src/input/tools';
+import { Disasters } from '../../src/world/disasters';
+import { describe, expect, it } from 'vitest';
+import { seedFrom } from '../../src/core/rng';
+import { Tool } from '../../src/input/tools';
+import { buildColors, NO_LAYERS } from '../../src/render/colors';
+import { SimulationCore } from '../../src/sim/core';
+import { applyPatch, type FromWorker } from '../../src/sim/protocol';
+import { createWorld } from '../../src/world/create';
+import { latLonToPoint } from '../../src/world/cubesphere';
+
+const N = 32;
+
+/** Núcleo com "correio" que guarda as mensagens, e relógio falso (sem tempo real). */
+function makeCore() {
+  const inbox: FromWorker[] = [];
+  let fakeNow = 0;
+  const core = new SimulationCore((msg) => inbox.push(msg), () => fakeNow);
+  return { core, inbox, tick: (ms: number) => (fakeNow += ms) };
+}
+
+const lastOf = <T extends FromWorker['type']>(inbox: FromWorker[], type: T) =>
+  [...inbox].reverse().find((m) => m.type === type) as Extract<FromWorker, { type: T }> | undefined;
+
+describe('núcleo da simulação (worker)', () => {
+  it('o mundo gerado no worker é idêntico ao gerado na thread principal (mesma semente)', () => {
+    const { core, inbox } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'terra', n: N });
+    const msg = lastOf(inbox, 'world')!;
+    const direct = createWorld({ seedText: 'terra', seed: seedFrom('terra'), n: N, seaLevel: 0, landFraction: 0.3 });
+    // O mundo nasce com os cones dos vulcões (R7), que vêm dos desastres.
+    const disasters = new Disasters(direct);
+    for (const t of disasters.takeInitialTerrain()) applyTerrainDeltas(direct, t.cells, t.deltas);
+    const expected = new Uint8Array(direct.cellCount * 4);
+    buildColors(direct, expected, undefined, undefined, disasters.ground);
+    expect(msg.colors).toEqual(expected);
+    expect(core.world!.elevation).toEqual(direct.elevation);
+    expect(msg.info).toMatchObject({ n: N, cellCount: direct.cellCount, seedText: 'terra', seed: seedFrom('terra') });
+  });
+
+  it('a cópia de cores enviada é independente da do worker', () => {
+    const { core, inbox } = makeCore();
+    core.handle({ type: 'newWorld', seedText: '1', n: N });
+    const msg = lastOf(inbox, 'world')!;
+    expect(msg.colors.buffer).not.toBe(core.colors.buffer);
+  });
+
+  it('pinceladas viram remendos; aplicados na cópia, ela fica igual às cores do worker', () => {
+    const { core, inbox } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'pincel', n: N });
+    const mirror = lastOf(inbox, 'world')!.colors;
+    const p = latLonToPoint(0.2, 0.4);
+    for (const tool of [Tool.Raise, Tool.Water, Tool.Ice, Tool.Lower, Tool.EraseIce]) {
+      core.handle({ type: 'brush', tool, point: p, radius: 5, dt: 0.3 });
+      for (const patch of lastOf(inbox, 'patch')!.patches) applyPatch(mirror, N, patch);
+    }
+    expect(mirror).toEqual(core.colors);
+  });
+
+  it('relógio: avança só com tempo, respeita a velocidade e avisa a data', () => {
+    const { core, inbox, tick } = makeCore();
+    core.handle({ type: 'newWorld', seedText: '1', n: N });
+    core.handle({ type: 'speed', speed: 2 });
+    for (let i = 0; i < 60; i++) {
+      tick(1000 / 60);
+      core.advance(1 / 60);
+    }
+    expect(core.clock.tick).toBe(24); // 2× = 24 passos por segundo
+    expect(lastOf(inbox, 'clock')!.tick).toBeGreaterThanOrEqual(22);
+    expect(lastOf(inbox, 'clock')!.speed).toBe(2);
+    core.handle({ type: 'speed', speed: 0 });
+    // Ao pausar, a data final vai na hora.
+    expect(lastOf(inbox, 'clock')).toMatchObject({ tick: 24, speed: 0 });
+    core.advance(1);
+    expect(core.clock.tick).toBe(24);
+  });
+
+  it('relógio: no máximo uma mensagem a cada CLOCK_POST_MS, e nenhuma sem mudança', async () => {
+    const { CLOCK_POST_MS } = await import('../../src/sim/core');
+    const { core, inbox, tick } = makeCore();
+    core.handle({ type: 'newWorld', seedText: '1', n: N });
+    core.handle({ type: 'speed', speed: 20 });
+    inbox.length = 0;
+    for (let i = 0; i < 120; i++) {
+      tick(1000 / 60);
+      core.advance(1 / 60);
+    }
+    const clocks = inbox.filter((m) => m.type === 'clock').length;
+    // 2 s de tempo a 20× (480 passos), mas só ~2000 / CLOCK_POST_MS mensagens.
+    expect(core.clock.tick).toBe(480);
+    expect(clocks).toBeLessThanOrEqual(Math.ceil(2000 / CLOCK_POST_MS) + 1);
+    expect(clocks).toBeGreaterThanOrEqual(Math.floor(2000 / CLOCK_POST_MS) - 1);
+    // Pausado: o laço nem precisa rodar, e avançar não manda nada.
+    core.handle({ type: 'speed', speed: 0 });
+    expect(core.running).toBe(false);
+    inbox.length = 0;
+    for (let i = 0; i < 60; i++) {
+      tick(1000 / 60);
+      core.advance(1 / 60);
+    }
+    expect(inbox.length).toBe(0);
+    core.handle({ type: 'speed', speed: 1 });
+    expect(core.running).toBe(true);
+  });
+
+  it('novo mundo zera o calendário', () => {
+    const { core } = makeCore();
+    core.handle({ type: 'newWorld', seedText: '1', n: N });
+    core.advance(1);
+    expect(core.clock.tick).toBeGreaterThan(0);
+    core.handle({ type: 'newWorld', seedText: '2', n: N });
+    expect(core.clock.tick).toBe(0);
+  });
+
+  it('consulta de célula responde com elevação, bioma e água', () => {
+    const { core, inbox } = makeCore();
+    core.handle({ type: 'newWorld', seedText: '1', n: N });
+    core.handle({ type: 'query', id: 7, point: latLonToPoint(0, 0) });
+    const msg = lastOf(inbox, 'query')!;
+    expect(msg.id).toBe(7);
+    expect(typeof msg.cell.elevation).toBe('number');
+    expect(msg.cell.water).toBe(msg.cell.elevation <= 0);
+  });
+});
+
+describe('progresso da geração', () => {
+  it('avisa várias vezes durante o terreno, só para a frente, até ~100%', () => {
+    const inbox: FromWorker[] = [];
+    const core = new SimulationCore((m) => inbox.push(m), () => 0);
+    core.handle({ type: 'newWorld', seedText: 'p', n: 128 });
+    const progress = inbox.filter((m) => m.type === 'progress') as Extract<FromWorker, { type: 'progress' }>[];
+    expect(progress.filter((p) => p.stage === 'terreno').length).toBeGreaterThan(3);
+    for (let i = 1; i < progress.length; i++) expect(progress[i]!.fraction).toBeGreaterThanOrEqual(progress[i - 1]!.fraction);
+    expect(progress.at(-1)!.fraction).toBeGreaterThan(0.85);
+    expect(progress.at(-1)!.fraction).toBeLessThanOrEqual(1);
+  });
+
+  it('overallProgress soma os pesos das etapas', async () => {
+    const { overallProgress, GENERATION_STAGES } = await import('../../src/sim/core');
+    expect(GENERATION_STAGES.reduce((s, x) => s + x.weight, 0)).toBeCloseTo(1, 9);
+    expect(overallProgress('grade', 0)).toBe(0);
+    expect(overallProgress('cores', 1)).toBeCloseTo(1, 9);
+  });
+});
+
+describe('placas no worker', () => {
+  it('com o controle "Placas" ligado, o relógio move as placas e manda o mundo repintado', () => {
+    const { core, inbox, tick } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'deriva', n: 32 });
+    core.handle({ type: 'plateRate', rate: 1 });
+    core.handle({ type: 'speed', speed: 20 });
+    const before = Float32Array.from(core.world!.elevation);
+    inbox.length = 0;
+    for (let i = 0; i < 400; i++) {
+      tick(250);
+      core.advance(0.25); // 400 × 60 passos
+    }
+    expect(core.tectonics!.recompositions).toBeGreaterThan(0);
+    expect(core.world!.elevation).not.toEqual(before);
+    const recomposed = lastOf(inbox, 'recomposed')!;
+    expect(recomposed.patches.length).toBe(6);
+    expect(recomposed.plateCells.length).toBe(core.world!.cellCount * 2); // 2 canais por célula
+    expect(recomposed.angles.length).toBe(core.world!.plates.length);
+    expect(recomposed.angles.some((a) => a > 0)).toBe(true);
+    // O relógio manda os ângulos atuais para o desenho suave.
+    expect(lastOf(inbox, 'clock')!.angles.length).toBe(core.world!.plates.length);
+    expect(lastOf(inbox, 'clock')!.work.recompositions).toBe(core.tectonics!.recompositions);
+  });
+
+  it('visão ligada no meio de uma recomposição continua ligada quando ela aparece (E9/E5)', () => {
+    const { core, inbox } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'visao', n: 32 });
+    core.handle({ type: 'plateRate', rate: 1 });
+    core.handle({ type: 'speed', speed: 20 });
+    const pending = () => (core as unknown as { pending: unknown[] }).pending.length;
+    // Anda até o motor ter feito uma recomposição que ainda não apareceu (pintada sem a visão).
+    while (pending() === 0) core.advance(1 / 240 + 1e-12);
+    for (const layers of [{ ...NO_LAYERS, plates: true }, NO_LAYERS, { ...NO_LAYERS, resources: true }]) {
+      core.handle({ type: 'layers', layers });
+      inbox.length = 0;
+      while (!inbox.some((m) => m.type === 'recomposed')) core.advance(1 / 240 + 1e-12);
+      const expected = new Uint8Array(core.colors.length);
+      buildColors(core.world!, expected, undefined, layers, core.disasters!.ground);
+      expect(core.colors).toEqual(expected);
+      while (pending() === 0) core.advance(1 / 240 + 1e-12);
+    }
+  });
+
+  it('controle em 0 congela a geologia mesmo com o tempo correndo', () => {
+    const { core } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'parado', n: 32 });
+    core.handle({ type: 'plateRate', rate: 0 });
+    core.handle({ type: 'speed', speed: 20 });
+    const before = Float32Array.from(core.world!.elevation);
+    for (let i = 0; i < 200; i++) core.advance(0.25);
+    expect(core.tectonics?.recompositions ?? 0).toBe(0);
+    expect(core.world!.elevation).toEqual(before);
+  });
+
+  it.each([
+    ['antes de a tectônica existir', false],
+    ['depois de a tectônica existir', true],
+  ])('pincelada fica gravada na placa %s (sobrevive à recomposição)', (_label, startFirst) => {
+    const { core, inbox } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'grava', n: 32 });
+    core.handle({ type: 'plateRate', rate: 1 });
+    core.handle({ type: 'speed', speed: 20 });
+    if (startFirst) core.advance(1 / 240 + 1e-12); // um passo: monta a tectônica
+    const p = latLonToPoint(0.1, 0.2);
+    core.handle({ type: 'brush', tool: Tool.Raise, point: p, radius: 3, dt: 2 });
+    const max0 = Math.max(...core.world!.elevation);
+    inbox.length = 0;
+    // Anda até a primeira recomposição aparecer no mundo do relógio.
+    while (!inbox.some((m) => m.type === 'recomposed')) core.advance(0.25);
+    // A montanha continua lá (a erosão leve do relevo pode baixar um pouco o pico).
+    expect(Math.max(...core.world!.elevation)).toBeGreaterThan(max0 * 0.85);
+  });
+
+  it('a tectônica só é montada no primeiro passo, e não com o controle em 0', () => {
+    const { core } = makeCore();
+    core.handle({ type: 'newWorld', seedText: 'preguica', n: 32 });
+    expect(core.tectonics).toBeNull();
+    core.handle({ type: 'plateRate', rate: 0 });
+    core.advance(1);
+    expect(core.tectonics).toBeNull();
+    core.handle({ type: 'plateRate', rate: 0.5 });
+    core.advance(1 / 12);
+    expect(core.tectonics).not.toBeNull();
+  });
+});
+
+it('controle de temperatura: o clima atrasado do motor não desfaz a prévia na tela (C2)', () => {
+  const { core } = makeCore();
+  core.handle({ type: 'newWorld', seedText: 'terra', n: 32 });
+  core.handle({ type: 'speed', speed: 20 });
+  core.handle({ type: 'climateControl', control: 6 });
+  for (let k = 0; k < 40; k++) core.advance(0.25);
+  // Volta para 2: a prévia desce aos poucos; os resultados do motor feitos com os valores de antes
+  // (mais quentes) chegam APPLY_DELAY_TICKS depois e não podem fazer a temperatura subir de novo.
+  core.handle({ type: 'climateControl', control: 2 });
+  let last = core.world!.climateOffset;
+  for (let k = 0; k < 60; k++) {
+    core.advance(0.25);
+    const now = core.world!.climateOffset;
+    expect(now).toBeLessThanOrEqual(last + 0.05);
+    last = now;
+  }
+});
+
+describe('arquipélago: as placas desligam sozinhas (decisão do usuário, 2026-11-04)', () => {
+  it('avisa uma vez, para as placas e o jogador pode ligar de novo sem desligar outra vez', () => {
+    const msgs: FromWorker[] = [];
+    let clock = 0;
+    const core = new SimulationCore((m) => msgs.push(m), () => clock);
+    core.handle({ type: 'newWorld', seedText: 'terra', n: 128, kind: 'archipelago' });
+    core.handle({ type: 'plateRate', rate: 1 });
+    core.handle({ type: 'speed', speed: 20 });
+    const stops = () => msgs.filter((m) => m.type === 'platesStopped').length;
+    const maxTicks = 8 * 60 * 240 + 480;
+    for (let k = 0; k < maxTicks / 60 && !stops(); k++) {
+      clock += 250;
+      core.advance(0.25);
+    }
+    expect(stops()).toBe(1);
+    expect(core.plateRate).toBe(0);
+    core.handle({ type: 'plateRate', rate: 1 });
+    for (let k = 0; k < 400; k++) {
+      clock += 250;
+      core.advance(0.25);
+    }
+    expect(core.plateRate).toBe(1);
+    expect(stops()).toBe(1);
+  }, 180_000);
+});

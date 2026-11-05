@@ -1,0 +1,186 @@
+import { describe, expect, it } from 'vitest';
+import { createRng, seedFrom } from '../../src/core/rng';
+import { TICKS_PER_YEAR } from '../../src/core/time';
+import { createWorld } from '../../src/world/create';
+import { CellState, Ground } from '../../src/world/disasters/ground';
+import { applyTerrainDeltas, LOCAL_TERRAIN_STEPS } from '../../src/input/tools';
+import { inlandReach, PLAN_CELLS_PER_TICK, planTsunami, TsunamiPlanner, TsunamiProcess, tsunamiRunup } from '../../src/world/disasters/tsunami';
+import type { DisasterOutcome } from '../../src/world/disasters';
+import type { WorldState } from '../../src/world/state';
+
+const worldOf = (seed = 'terra', n = 128) => createWorld({ seedText: seed, seed: seedFrom(seed), n, seaLevel: 0, landFraction: 0.3 });
+
+/** Mar fundo a ~6 células de uma costa baixa e larga. */
+function offshore(world: WorldState): number {
+  const { neighbors } = world.grid;
+  let best = -1;
+  let score = -1;
+  for (let c = 0; c < world.cellCount; c += 3) {
+    if (!world.isWater(c) || world.heightAboveSea(c) > -1500) continue;
+    // Terra baixa a até 8 passos.
+    let low = 0;
+    let frontier = [c];
+    const seen = new Set(frontier);
+    for (let s = 0; s < 8; s++) {
+      const next: number[] = [];
+      for (const x of frontier) for (let d = 0; d < 4; d++) {
+        const j = neighbors[x * 4 + d]!;
+        if (seen.has(j)) continue;
+        seen.add(j);
+        next.push(j);
+        if (!world.isWater(j) && world.heightAboveSea(j) < 60) low++;
+      }
+      frontier = next;
+    }
+    if (low > score) {
+      score = low;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/** Roda o tsunami inteiro e devolve o relevo mudado. */
+function runAll(world: WorldState, ground: Ground, start: number, m: number): DisasterOutcome['terrain'] {
+  const plan = planTsunami(world, start, m);
+  const p = new TsunamiProcess(ground, plan, m, 0, createRng(1));
+  const out: DisasterOutcome = { events: [], impacts: [], marked: [], uplifts: [], terrain: [], ice: [], winters: [] };
+  let tick = 1;
+  for (; tick < 2000; tick++) {
+    ground.expire(tick, TICKS_PER_YEAR);
+    if (!p.step(tick, out)) break;
+  }
+  // A água termina de voltar (a lama dura 15–30 anos: bem mais que isso).
+  for (const end = tick + 30; tick < end; tick++) ground.expire(tick, TICKS_PER_YEAR);
+  return out.terrain;
+}
+
+describe('tsunami (R6)', () => {
+  /** Continente de `c0` e a largura dele: o dobro da maior distância até o mar. */
+  function continentOf(w: WorldState, c0: number): { cells: Set<number>; width: number } {
+    const cells = new Set([c0]);
+    let deepest = 0;
+    for (const c of cells) {
+      deepest = Math.max(deepest, w.waterDistance[c]!);
+      for (let d = 0; d < 4; d++) {
+        const j = w.grid.neighbors[c * 4 + d]!;
+        if (!w.isWater(j)) cells.add(j);
+      }
+    }
+    return { cells, width: deepest * 2 };
+  }
+
+  // Pedido do usuário (2026-11-05): "até cerca de 1/5 da largura do continente atingido, seguindo o terreno baixo".
+  it('o maior tsunami avança até cerca de 1/5 da largura do continente atingido', () => {
+    for (const seed of ['pangeia', 'terra']) {
+      const w = worldOf(seed, 256);
+      const plan = planTsunami(w, offshore(w), 9.5);
+      const reached = new Map<number, number>();
+      plan.land.forEach((c, k) => reached.set(c, plan.landSteps[k]!));
+      let biggest = continentOf(w, plan.land[0]!);
+      for (const c of plan.land) {
+        if (biggest.cells.has(c)) continue;
+        const other = continentOf(w, c);
+        const reach = Math.max(...[...other.cells].map((x) => reached.get(x) ?? 0));
+        // Ilha ou continente menor: também nunca passa de 1/5 da largura dele.
+        expect(reach).toBeLessThanOrEqual(Math.max(1, Math.round(other.width / 5)));
+        if (other.cells.size > biggest.cells.size) biggest = other;
+      }
+      const farthest = Math.max(...[...biggest.cells].map((x) => reached.get(x) ?? 0));
+      const target = biggest.width / 5;
+      expect(farthest).toBeGreaterThanOrEqual(target * 0.8);
+      expect(farthest).toBeLessThanOrEqual(target + 1);
+    }
+  }, 60_000);
+
+  it('quanto maior a magnitude, mais longe e mais terra; a regra de cada magnitude vale em todo continente', () => {
+    expect(inlandReach(9.5, 100)).toBe(20);
+    expect(inlandReach(7.5, 100)).toBeLessThan(inlandReach(8.5, 100));
+    expect(inlandReach(8.5, 100)).toBeLessThan(inlandReach(9, 100));
+    expect(inlandReach(9.5, 2)).toBe(1);
+    const w = worldOf();
+    const s = offshore(w);
+    const land = [7.5, 8.5, 9.5].map((m) => planTsunami(w, s, m));
+    expect(land[1]!.land.length).toBeGreaterThan(land[0]!.land.length);
+    expect(land[2]!.land.length).toBeGreaterThan(land[1]!.land.length);
+    expect(Math.max(...land[2]!.landSteps)).toBeGreaterThan(Math.max(...land[0]!.landSteps));
+    for (const p of land) p.landSteps.forEach((step, k) => expect(step).toBeLessThan(p.landReach[k]!));
+  });
+
+  it('segue o terreno baixo: nenhuma célula coberta é mais alta que a onda, e ela nasce em costa ligada pelo baixo', () => {
+    const w = worldOf();
+    const plan = planTsunami(w, offshore(w), 9.5);
+    const steps = new Map(plan.land.map((c, k) => [c, plan.landSteps[k]!]));
+    plan.land.forEach((c, k) => {
+      expect(w.heightAboveSea(c)).toBeLessThan(tsunamiRunup(9.5) * (1 - 0.6 * plan.landTimes[k]!));
+      // Toda célula alagada longe da costa tem vizinha alagada um passo antes: a água anda pelo chão.
+      if (plan.landSteps[k]! > 0) {
+        const near = [0, 1, 2, 3].map((d) => steps.get(w.grid.neighbors[c * 4 + d]!));
+        expect(near).toContain(plan.landSteps[k]! - 1);
+      }
+    });
+  });
+
+  it('toda célula alcançada perde a vegetação e vira lama; a costa é raspada para sempre', () => {
+    const w = worldOf();
+    const g = new Ground(w.cellCount);
+    const s = offshore(w);
+    const plan = planTsunami(w, s, 9);
+    expect(plan.land.length).toBeGreaterThan(20);
+    expect(plan.seabed.length).toBeGreaterThan(0);
+    const terrain = runAll(w, g, s, 9);
+    for (const c of plan.land) {
+      expect(g.cover[c]).toBe(0);
+      expect(g.state[c]).toBe(CellState.Mud);
+    }
+    expect(terrain.length).toBe(1);
+    const t = terrain[0]!;
+    expect(t.cells.length).toBeGreaterThan(0);
+    for (const d of t.deltas) {
+      expect(d).toBeLessThan(0);
+      expect(d).toBeGreaterThanOrEqual(-20);
+    }
+    // O mar recuou e a espuma passou: nada disso fica.
+    for (const c of plan.band) expect([CellState.None]).toContain(g.state[c]);
+  });
+
+  // F3 (teste da `58f53e7`): vários M 9,5 seguidos travavam o jogo. Pelo desenho da correção: o plano
+  // da onda anda em pedaços de no máximo PLAN_CELLS_PER_TICK células por passo, dando o mesmo plano que
+  // de uma vez; e a costa raspada (espalhada pelo mundo) refaz o clima só em volta de cada célula.
+  it('o plano da onda anda em pedaços limitados e dá o mesmo plano que de uma vez (F3)', () => {
+    const w = worldOf('terra', 256);
+    const start = offshore(w);
+    const whole = planTsunami(w, start, 9.5);
+    const p = new TsunamiPlanner(w, start, 9.5);
+    let chunks = 0;
+    while (!p.plan) {
+      expect(p.run(PLAN_CELLS_PER_TICK)).toBeLessThanOrEqual(PLAN_CELLS_PER_TICK);
+      chunks++;
+    }
+    expect(chunks).toBeGreaterThan(1);
+    expect(p.plan).toEqual(whole);
+  });
+
+  it('a costa raspada refaz o clima só a até LOCAL_TERRAIN_STEPS células de cada célula raspada (F3)', () => {
+    const w = worldOf('terra', 128);
+    const g = new Ground(w.cellCount);
+    const scrape = runAll(w, g, offshore(w), 9.5)[0]!;
+    expect(scrape.local).toBe(true);
+    const { region } = applyTerrainDeltas(w, scrape.cells, scrape.deltas.map(() => 0), true);
+    // Distância (passos) de cada célula da região até a célula raspada mais perto.
+    const near = new Set(scrape.cells);
+    let frontier = [...near];
+    for (let s = 0; s < LOCAL_TERRAIN_STEPS; s++) {
+      const next: number[] = [];
+      for (const c of frontier) for (let d = 0; d < 4; d++) {
+        const j = w.grid.neighbors[c * 4 + d]!;
+        if (near.has(j)) continue;
+        near.add(j);
+        next.push(j);
+      }
+      frontier = next;
+    }
+    for (const c of region) expect(near.has(c)).toBe(true);
+    expect(region.length).toBe(near.size);
+  });
+});

@@ -1,0 +1,398 @@
+/**
+ * Botão "Medir desempenho" (painel Dados): estatística dos quadros de cada cenário e o relatório em
+ * texto que o usuário copia e cola. Funções puras: os tempos entram como parâmetro (testável com
+ * tempos sintéticos); quem roda os cenários é o `App`.
+ */
+
+/** Contadores acumulados do worker (desde que ele nasceu). A diferença entre dois mostra um trecho. */
+export interface WorkCounters {
+  /** Tempo trabalhando no relógio (passos + aplicar recomposições), ms. */
+  ms: number;
+  ticks: number;
+  recompositions: number;
+  /**
+   * Partes das recomposições, ms: mover as placas, clima e cores (no ajudante 2, sem parar o relógio,
+   * quando há memória compartilhada) e aplicar no mundo do relógio e enviar à tela.
+   */
+  plates: number;
+  climate: number;
+  colors: number;
+  send: number;
+  /** Pior recomposição completa, ms, desde o último `resetWorst` (o começo do cenário). */
+  worstGeology: number;
+  /** Tempo em que o relógio ficou parado esperando o ajudante da geologia, ms. */
+  waitMs: number;
+  /** Mensagens de relógio enviadas à tela. */
+  clockMessages: number;
+  /** Soldas de continentes e pedaços de placa absorvidos (geologia). */
+  welds: number;
+  fragments: number;
+  /** Ciclo de Wilson (G2): rupturas e supercontinentes já formados, e a fase atual (CYCLE_PHASES). */
+  ruptures: number;
+  supercontinents: number;
+  cyclePhase: number;
+  /** Recálculos só de clima (ciclo glacial ou controle, T7) e o tempo deles no ajudante 2 (ms). */
+  climateUpdates: number;
+  climateUpdateMs: number;
+}
+
+/** Nomes das fases do ciclo, pelo código em `WorkCounters.cyclePhase` (0 = sem placas andando ainda). */
+export const CYCLE_PHASES = ['—', 'dispersão', 'reunião', 'supercontinente'] as const;
+
+export function emptyWork(): WorkCounters {
+  return { ms: 0, ticks: 0, recompositions: 0, plates: 0, climate: 0, colors: 0, send: 0, worstGeology: 0, waitMs: 0, clockMessages: 0, welds: 0, fragments: 0, ruptures: 0, supercontinents: 0, cyclePhase: 0, climateUpdates: 0, climateUpdateMs: 0 };
+}
+
+/**
+ * Diferença entre dois retratos dos contadores. O pior é o do fim: o cenário zera o pior ao começar
+ * (`resetWorst`), então ele é o pior do trecho (antes era o pior desde que o mundo abriu).
+ */
+export function workDelta(a: WorkCounters, b: WorkCounters): WorkCounters {
+  return {
+    ms: b.ms - a.ms,
+    ticks: b.ticks - a.ticks,
+    recompositions: b.recompositions - a.recompositions,
+    plates: b.plates - a.plates,
+    climate: b.climate - a.climate,
+    colors: b.colors - a.colors,
+    send: b.send - a.send,
+    worstGeology: b.worstGeology,
+    waitMs: b.waitMs - a.waitMs,
+    clockMessages: b.clockMessages - a.clockMessages,
+    welds: Math.max(0, b.welds - a.welds),
+    fragments: Math.max(0, b.fragments - a.fragments),
+    ruptures: Math.max(0, b.ruptures - a.ruptures),
+    supercontinents: Math.max(0, b.supercontinents - a.supercontinents),
+    cyclePhase: b.cyclePhase,
+    climateUpdates: b.climateUpdates - a.climateUpdates,
+    climateUpdateMs: b.climateUpdateMs - a.climateUpdateMs,
+  };
+}
+
+export interface FrameSummary {
+  frames: number;
+  durationMs: number;
+  fpsAvg: number;
+  /** Pior janela de 1 s. */
+  fpsMin: number;
+  /** Maior intervalo entre dois quadros (ms). */
+  worstFrameMs: number;
+  /** Quadros com intervalo acima de 50 ms (abaixo de 20 fps naquele instante). */
+  slowFrames: number;
+  /** Trabalho da thread principal por quadro (ms): média e máximo. */
+  workAvgMs: number;
+  workMaxMs: number;
+  /** Quadros em que o globo foi desenhado de fato (parado, nada muda e nada é desenhado). */
+  drawn: number;
+  /** Os quadros acima de 50 ms (até SLOW_KEEP), para o relatório dizer o que houve em cada um. */
+  slow: SlowFrame[];
+}
+
+/** Um quadro acima de 50 ms: quando (ms desde o começo do cenário), quanto durou e o que a tela fez. */
+export interface SlowFrame {
+  atMs: number;
+  gapMs: number;
+  /** Trabalho da tela no quadro (ms) e tempo recebendo mensagens do worker desde o quadro anterior. */
+  workMs: number;
+  receiveMs: number;
+}
+
+/** Quadros acima de 50 ms guardados por cenário. */
+export const SLOW_KEEP = 4;
+
+/**
+ * Medição inválida (B9, pedido do usuário): sem quadros desenhados (aba escondida, janela minimizada
+ * ou coberta) o cenário mostraria 0 fps e números absurdos. Inválido quando a página ficou escondida
+ * em algum momento ou quando chegaram menos de MIN_VALID_FPS quadros por segundo.
+ */
+export const MIN_VALID_FPS = 10;
+
+export function scenarioInvalid(frames: number, wallMs: number, hiddenMs: number): boolean {
+  return hiddenMs > 0 || wallMs <= 0 || (frames * 1000) / wallMs < MIN_VALID_FPS;
+}
+
+/** Junta os quadros de um cenário. `frame` recebe o horário do quadro e o trabalho dele (ms). */
+export class FrameRecorder {
+  private times: number[] = [];
+  private work: number[] = [];
+  private drew: boolean[] = [];
+  private received: number[] = [];
+
+  /** `receiveMs`: tempo recebendo mensagens do worker desde o quadro anterior. */
+  frame(time: number, workMs: number, drew = true, receiveMs = 0): void {
+    this.times.push(time);
+    this.work.push(workMs);
+    this.drew.push(drew);
+    this.received.push(receiveMs);
+  }
+
+  summary(): FrameSummary {
+    const t = this.times;
+    const frames = Math.max(0, t.length - 1);
+    const durationMs = frames > 0 ? (t[t.length - 1] as number) - (t[0] as number) : 0;
+    let worst = 0;
+    let slow = 0;
+    const slowList: SlowFrame[] = [];
+    for (let i = 1; i < t.length; i++) {
+      const gap = (t[i] as number) - (t[i - 1] as number);
+      worst = Math.max(worst, gap);
+      if (gap > 50) {
+        slow++;
+        // O trabalho que atrasou este quadro é o do quadro anterior (e o que chegou entre os dois).
+        if (slowList.length < SLOW_KEEP) slowList.push({ atMs: (t[i] as number) - (t[0] as number), gapMs: gap, workMs: this.work[i - 1] as number, receiveMs: this.received[i] as number });
+      }
+    }
+    // Pior janela de 1 s, deslizando quadro a quadro: quadros que começam dentro dela.
+    let fpsMin = durationMs >= 1000 ? Infinity : frames > 0 ? (frames * 1000) / durationMs : 0;
+    if (durationMs >= 1000) {
+      let j = 0;
+      for (let i = 0; i < t.length; i++) {
+        while (j < t.length - 1 && (t[j + 1] as number) - (t[i] as number) <= 1000) j++;
+        if ((t[i] as number) + 1000 > (t[t.length - 1] as number)) break;
+        // Intervalos inteiros dentro da janela, mais a fração do que atravessa o fim dela.
+        const inside = j - i;
+        const next = j + 1 < t.length ? (t[j + 1] as number) - (t[j] as number) : 0;
+        const partial = next > 0 ? ((t[i] as number) + 1000 - (t[j] as number)) / next : 0;
+        fpsMin = Math.min(fpsMin, inside + partial);
+      }
+    }
+    const work = this.work.slice(1);
+    return {
+      frames,
+      durationMs,
+      fpsAvg: durationMs > 0 ? (frames * 1000) / durationMs : 0,
+      fpsMin: fpsMin === Infinity ? 0 : fpsMin,
+      worstFrameMs: worst,
+      slowFrames: slow,
+      workAvgMs: work.length ? work.reduce((a, b) => a + b, 0) / work.length : 0,
+      workMaxMs: work.length ? Math.max(...work) : 0,
+      drawn: this.drew.slice(1).filter(Boolean).length,
+      slow: slowList,
+    };
+  }
+}
+
+/**
+ * Pontos do cenário de meteoros "em lugares diferentes": `count` pontos espalhados em volta de `center`,
+ * sempre os mesmos (para comparar uma medição com a outra), todos a menos de `spread` rad dele (o lado
+ * que está na tela). Espiral de ângulo áureo: não repete lugar.
+ */
+export function meteorSpots(center: readonly [number, number, number], count: number, spread: number): [number, number, number][] {
+  const [cx, cy, cz] = center;
+  // Base tangente ao centro.
+  const ax0 = Math.abs(cy) < 0.9 ? 0 : 1;
+  const ay0 = Math.abs(cy) < 0.9 ? 1 : 0;
+  let ux = cy * 0 - cz * ay0;
+  let uy = cz * ax0 - cx * 0;
+  let uz = cx * ay0 - cy * ax0;
+  const ul = Math.hypot(ux, uy, uz) || 1;
+  ux /= ul;
+  uy /= ul;
+  uz /= ul;
+  const vx = cy * uz - cz * uy;
+  const vy = cz * ux - cx * uz;
+  const vz = cx * uy - cy * ux;
+  const out: [number, number, number][] = [];
+  for (let k = 0; k < count; k++) {
+    const d = spread * Math.sqrt((k + 0.5) / count);
+    const a = k * 2.399963;
+    const s = Math.sin(d);
+    const c = Math.cos(d);
+    out.push([cx * c + (ux * Math.cos(a) + vx * Math.sin(a)) * s, cy * c + (uy * Math.cos(a) + vy * Math.sin(a)) * s, cz * c + (uz * Math.cos(a) + vz * Math.sin(a)) * s]);
+  }
+  return out;
+}
+
+export interface ScenarioResult {
+  name: string;
+  frames: FrameSummary;
+  /** Travadas da data durante o cenário (a data parada > 300 ms); só nos cenários que contam. */
+  dateStalls?: number;
+  /** Sem quadros suficientes (página escondida ou sem desenhar): os números não valem (B9). */
+  invalid?: boolean;
+  work: WorkCounters;
+  /** Tempo da tela ao receber cada recomposição (aplicar cores e enviar à GPU), ms. */
+  receiveAvgMs: number;
+  receiveMaxMs: number;
+}
+
+export interface GenerationResult {
+  totalMs: number;
+  workerMs: number;
+  stagesMs: Record<string, number>;
+  /** Fração do terreno feita pelo ajudante 2. */
+  helperShare: number;
+  /** Tela: montar o globo com o mundo recebido (ms). */
+  receiveMs: number;
+}
+
+/** Primeira abertura da página (o mundo nasce junto com a página, sem nada em cache no worker). */
+export interface FirstLoad {
+  /** Da navegação até o globo aparecer. */
+  pageToGlobeMs: number;
+  /** Do pedido de mundo (página já carregada) até o globo. */
+  requestToGlobeMs: number;
+  workerMs: number;
+  stagesMs: Record<string, number>;
+}
+
+export interface DeviceInfo {
+  version: string;
+  date: string;
+  gpu: string;
+  drawing: string;
+  cores: number;
+  /** Memória compartilhada entre a tela e o worker (teste da correção 2). */
+  sharedMemory: string;
+  screen: string;
+  userAgent: string;
+  /** Bateria ou tomada (no notebook a bateria baixa o relógio da CPU e da GPU; A, 2026-11-03). */
+  power?: string;
+}
+
+/** Linha de energia do relatório, pelo que o navegador informa da bateria (ou "não informado"). */
+export function powerLabel(battery: { charging: boolean; level: number } | null): string {
+  if (!battery) return 'não informado pelo navegador';
+  return battery.charging ? `na tomada (bateria ${Math.round(battery.level * 100)}%)` : `NA BATERIA (${Math.round(battery.level * 100)}%): CPU e GPU mais lentas`;
+}
+
+/** Tempo da GPU desenhando o globo, num enquadramento (meta do notebook: ≤ 8 ms por quadro). */
+export interface GpuSample {
+  label: string;
+  /** Tempos de cada desenho (ms). */
+  ms: readonly number[];
+  /** Como foi medido: consulta de tempo da GPU (exata) ou quadro esperando a GPU (inclui a CPU). */
+  method: string;
+}
+
+/** Memória (meta do notebook: ≤ 400 MB). */
+export interface MemoryInfo {
+  /** Dados do jogo somados pelo relógio (arrays do mundo, da geologia e da tela), MB. */
+  dataMb: number;
+  /** O que o navegador diz da página inteira (com os workers), MB; null se ele não informa. */
+  pageMb: number | null;
+  /** De onde veio `pageMb`. */
+  pageHow: string;
+}
+
+/** Média e pior de uma série de tempos, sem o primeiro (aquecimento). */
+export function gpuStats(ms: readonly number[]): { avg: number; max: number } {
+  const v = ms.length > 1 ? ms.slice(1) : ms.slice();
+  if (!v.length) return { avg: 0, max: 0 };
+  return { avg: v.reduce((a, b) => a + b, 0) / v.length, max: Math.max(...v) };
+}
+
+/** Linhas de GPU e memória do relatório. */
+export function gpuMemoryLines(gpu: readonly GpuSample[], memory: MemoryInfo | null): string[] {
+  const lines: string[] = [];
+  if (gpu.length) {
+    const parts = gpu.map((g) => {
+      const st = gpuStats(g.ms);
+      return `${g.label} ${f1(st.avg)} ms (pior ${f1(st.max)})`;
+    });
+    lines.push(`GPU do globo (meta ≤ 8 ms por quadro): ${parts.join(' · ')} — ${gpu[0]?.method ?? ''}`);
+  }
+  if (memory) {
+    const page = memory.pageMb === null ? `página inteira: ${memory.pageHow}` : `página inteira ${f0(memory.pageMb)} MB (${memory.pageHow})`;
+    lines.push(`memória (meta ≤ 400 MB): dados do jogo ~${f0(memory.dataMb)} MB · ${page}`);
+  }
+  return lines;
+}
+
+const f0 = (v: number): string => v.toFixed(0);
+const f1 = (v: number): string => v.toFixed(1);
+const pad = (s: string, n: number): string => (s.length >= n ? s : s + ' '.repeat(n - s.length));
+const lpad = (s: string, n: number): string => (s.length >= n ? s : ' '.repeat(n - s.length) + s);
+
+/** Relógio do worker num cenário, em uma linha. */
+function workLine(r: ScenarioResult): string {
+  const w = r.work;
+  const secs = r.frames.durationMs / 1000;
+  if (w.ticks === 0) return 'worker parado';
+  const busy = secs > 0 ? (100 * w.ms) / 1000 / secs : 0;
+  const climate = w.climateUpdates ? ` · clima ${w.climateUpdates}× (média ${f0(w.climateUpdateMs / w.climateUpdates)} ms no ajudante)` : '';
+  const base = `worker ${f0(w.ticks / Math.max(secs, 1e-9))} passos/s · ${(w.ms / w.ticks).toFixed(3)} ms/passo · ocupado ${f0(busy)}% · ${f0(w.clockMessages / Math.max(secs, 1e-9))} msg/s${climate}`;
+  if (!w.recompositions) return base;
+  const k = w.recompositions;
+  return (
+    `${base}\n    ${k} recomposições (${w.welds} soldas · ${w.ruptures} rupturas · ${w.fragments} pedaços absorvidos): média ${f0((w.plates + w.climate + w.colors + w.send) / k)} ms (placas ${f0(w.plates / k)} · clima ${f0(w.climate / k)} · cores ${f0(w.colors / k)} · aplicar ${f0(w.send / k)}) · pior ${f0(w.worstGeology)} ms · relógio esperou ${f0(w.waitMs)} ms` +
+    `\n    tela ao receber: média ${f1(r.receiveAvgMs)} · pior ${f1(r.receiveMaxMs)} ms`
+  );
+}
+
+/** O relatório completo, em texto simples (o usuário copia e cola na conversa). */
+export function formatReport(
+  device: DeviceInfo,
+  scenarios: readonly ScenarioResult[],
+  gen: GenerationResult | null,
+  first: FirstLoad | null = null,
+  stalls: readonly string[] = [],
+  gpu: readonly GpuSample[] = [],
+  memory: MemoryInfo | null = null,
+): string {
+  const lines = [
+    'Sandbox Mundo — medição de desempenho',
+    `versão ${device.version} · ${device.date}`,
+    `GPU: ${device.gpu}`,
+    `desenho: ${device.drawing} · núcleos: ${device.cores} · memória compartilhada: ${device.sharedMemory} · ${device.screen}`,
+    `navegador: ${device.userAgent}`,
+    ...(device.power ? [`energia: ${device.power}`] : []),
+    '',
+    `${pad('cenário', 26)}${lpad('fps méd', 8)}${lpad('mín', 6)}${lpad('pior quadro', 13)}${lpad('>50ms', 7)}${lpad('tela ms', 9)}${lpad('desenhados', 13)}`,
+  ];
+  const invalid = scenarios.filter((s) => s.invalid);
+  if (invalid.length) {
+    lines.splice(
+      1,
+      0,
+      `MEDIÇÃO INVÁLIDA: em ${invalid.length} cenário(s) a tela não desenhou (aba escondida, janela minimizada ou coberta).`,
+      'Os números desses cenários não valem. Rode de novo com o jogo na frente, sem trocar de janela.',
+    );
+  }
+  for (const s of scenarios) {
+    const fr = s.frames;
+    if (s.invalid) {
+      lines.push(`${pad(s.name, 26)}  medição inválida (sem quadros desenhados)`);
+      continue;
+    }
+    lines.push(
+      `${pad(s.name, 26)}${lpad(f0(fr.fpsAvg), 8)}${lpad(f0(fr.fpsMin), 6)}${lpad(`${f0(fr.worstFrameMs)} ms`, 13)}${lpad(String(fr.slowFrames), 7)}${lpad(`${f1(fr.workAvgMs)}/${f0(fr.workMaxMs)}`, 9)}${lpad(`${fr.drawn} de ${fr.frames}`, 13)}`,
+    );
+    if (s.dateStalls !== undefined) lines.push(`    travadas da data no cenário: ${s.dateStalls}`);
+    for (const q of fr.slow) {
+      const where = q.receiveMs >= 0.5 * q.gapMs ? 'recebendo do worker' : q.workMs >= 0.5 * q.gapMs ? 'trabalho da tela' : 'fora do código da tela';
+      lines.push(`    quadro de ${f0(q.gapMs)} ms aos ${f1(q.atMs / 1000)} s · tela ${f0(q.workMs)} ms · recebendo ${f0(q.receiveMs)} ms · ${where}`);
+    }
+  }
+  lines.push(
+    '',
+    '("tela ms" = trabalho da thread principal por quadro: média/pior; "desenhados" = quadros em que o globo',
+    ' foi desenhado. Parado, nada é desenhado e o fps é o ritmo que o aparelho dá a uma página parada.',
+    ' A meta de "pausado" vale para "pausado, girando". "De perto" = zoom máximo, células quadradas.)',
+  );
+  const extra = gpuMemoryLines(gpu, memory);
+  if (extra.length) lines.push('', ...extra);
+  lines.push('');
+  for (const s of scenarios) lines.push(`${s.name}: ${s.invalid ? 'medição inválida' : workLine(s)}`);
+  if (gen) {
+    const stages = Object.entries(gen.stagesMs)
+      .map(([k, v]) => `${k} ${f0(v)}`)
+      .join(' · ');
+    lines.push(
+      '',
+      `geração: ${f0(gen.totalMs)} ms do pedido ao globo (worker ${f0(gen.workerMs)} · tela ao receber ${f0(gen.receiveMs)})`,
+      `  etapas: ${stages} · ajudante fez ${f0(gen.helperShare * 100)}% do terreno`,
+    );
+  }
+  if (first) {
+    const stages = Object.entries(first.stagesMs)
+      .map(([k, v]) => `${k} ${f0(v)}`)
+      .join(' · ');
+    lines.push(
+      `primeira abertura: ${f0(first.pageToGlobeMs)} ms da página ao globo (pedido ao globo ${f0(first.requestToGlobeMs)} · worker ${f0(first.workerMs)})`,
+      `  etapas: ${stages}`,
+    );
+  }
+  if (stalls.length) lines.push('', 'desde que a página abriu (inclui a medição):', ...stalls);
+  return lines.join('\n');
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { applyBrush, brushFalloff, MAX_ELEVATION, MIN_ELEVATION, softLimit, Tool } from '../../src/input/tools';
+import { applyBrush, applyTerrainDeltas, brushFalloff, MAX_ELEVATION, MIN_ELEVATION, softLimit, Tool } from '../../src/input/tools';
 import { Biome } from '../../src/world/biomes';
-import { computeWaterDistance, updateClimate } from '../../src/world/climate';
+import { computeWaterDistance, SHADOW_REACH, updateClimate } from '../../src/world/climate';
 import { createWorld } from '../../src/world/create';
 import { CubeSphere, faceCoordToPoint, latLonToPoint } from '../../src/world/cubesphere';
 import { WorldState } from '../../src/world/state';
@@ -212,5 +212,25 @@ describe('queda suave do pincel (T14)', () => {
     expect(softLimit(MAX_ELEVATION - 3000, 1)).toBeCloseTo(0.5, 6);
     expect(softLimit(0, -1)).toBe(-1);
     expect(softLimit(MIN_ELEVATION, -1)).toBe(-0);
+  });
+});
+
+// F4 (teste da `58f53e7`): uma mudança de relevo ou de gelo em células espalhadas pelo mundo (gelo
+// voltando em dois lugares distantes) refazia o clima de um círculo do tamanho da distância entre elas,
+// quase o planeta inteiro. Pelo desenho do pincel, o clima muda só até a sombra de chuva em volta de cada
+// célula mudada.
+describe('mudança de relevo em células espalhadas (F4)', () => {
+  it('refaz o clima só perto de cada célula, não entre elas', () => {
+    const w = landWorld();
+    const a = latLonToPoint(0.2, 0.1);
+    const b = latLonToPoint(-0.2, 2.9);
+    const cells = [grid.pointToCell(a[0], a[1], a[2]), grid.pointToCell(b[0], b[1], b[2])];
+    const { region } = applyTerrainDeltas(w, cells, [0, 0]);
+    const limit = 1.6 * (SHADOW_REACH + 2 * grid.cellAngle);
+    const pos = grid.positions;
+    const dist = (x: number, y: number) => Math.acos(Math.min(1, pos[x * 3]! * pos[y * 3]! + pos[x * 3 + 1]! * pos[y * 3 + 1]! + pos[x * 3 + 2]! * pos[y * 3 + 2]!));
+    for (const c of region) expect(Math.min(...cells.map((x) => dist(c, x)))).toBeLessThanOrEqual(limit);
+    // E cobre a vizinhança inteira de cada uma (a sombra de chuva em volta).
+    for (const x of cells) for (const c of grid.cellsInCap(pos[x * 3]!, pos[x * 3 + 1]!, pos[x * 3 + 2]!, SHADOW_REACH)) expect(region.includes(c)).toBe(true);
   });
 });

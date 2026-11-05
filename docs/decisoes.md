@@ -118,3 +118,1173 @@ Formato: data — decisão — motivo — alternativa descartada.
   Perfil de Elevar com pincel 29 por 4 s: antes 8.999 m no centro (teto) e 5.213 m no meio do raio;
   depois 6.799 m e 3.909 m, borda intacta. Imagem: `docs/img/t14-antes-depois.png`.
   Só visual e pincéis: a mesma semente continua gerando o mesmo mundo.
+
+- **2026-10-15 — Linha de base de desempenho (v1.1), medida pelo usuário no celular dele.**
+  Painel de depuração, "girar sem parar":
+  | Situação              | mín. | média | máx.  |
+  |-----------------------|------|-------|-------|
+  | Globo inteiro         | 59   | 65–67 | 91    |
+  | De perto, girando     | 55   | —     | 61–63 |
+  Notebook (Radeon 610M, sem limite de tela, build de produção): globo inteiro 727 fps, zoom máximo
+  619 fps em 1920×1080; 1.168 / 615 fps em tela de celular 412×915 @2x.
+  **Regra:** ao fim de cada marco, medir de novo nas mesmas condições e comparar com esta tabela
+  (registrar aqui). Meta mínima continua: ≥ 30 fps no celular, 60 no notebook.
+
+- **2026-10-15 — Nenhum teste pode depender do relógio real.**
+  O CI roda só o Vitest (`npm run check`), determinístico. As verificações no navegador (Playwright)
+  são roteiros locais de conferência, fora do CI. A checagem de inércia do roteiro dependia do
+  intervalo real entre eventos de toque emulados (janela de 80 ms) e falhava quando o navegador
+  desenhava por software e ficava lento. Correção: a lógica virou função pura
+  (`inertiaFromHistory` em `src/input/pointer.ts`) com teste determinístico de tempos sintéticos em
+  `tests/input/pointer.test.ts`; a checagem dependente de relógio saiu do roteiro do navegador.
+  O mesmo foi feito com a espera de 80 ms que separa pincelada de pinça (`PaintGate` em
+  `src/input/paint-gate.ts`, teste em `tests/input/paint-gate.test.ts`).
+
+- **2026-10-15 — Menu de ferramentas por categorias (M2, T1): layout aprovado pelo usuário.**
+  Esboço: `docs/img/m2-t1-esboco-menu.png`. Decisões junto com a aprovação:
+  - aba extra **"Mundo"** com Novo mundo e Dados (depuração); a **bússola fica no canto** da tela;
+  - **sem** opção de mão esquerda (botões à direita, zona do polegar direito);
+  - tocar no cartão da ferramenta ativa abre o menu **na categoria dela**.
+  **Lembrete:** o acabamento visual do menu (ícones próprios, animações, estilo) fica para o
+  **Marco 8 — Embelezamento**. Na T1 vale o layout e a usabilidade, não a beleza.
+
+- **2026-10-15 — T1 do M2 feita: menu por categorias (`src/ui/menu-state.ts` + `src/ui/hud.ts`).**
+  Área da tela coberta pela interface num celular 390×844: v1.1 = 24,3%; menu fechado = **8,8%**;
+  menu aberto ≈ 50%, só enquanto aberto. O botão ☰ e o cartão abrem o menu na categoria da
+  ferramenta ativa. Ferramentas de tarefas futuras ficam desativadas ("em breve"). A lógica do menu
+  é pura e testada; a barra de espaço (pausa) e Esc (fecha o menu) funcionam no notebook.
+
+- **2026-10-15 — Prévias de branch publicadas em `/previa/<branch>/` (workflow `preview.yml`).**
+  Motivo: o usuário testa no celular por link antes do merge, sem mexer no `main`.
+  Como funciona: um push num branch `marco-*` reconstrói o site principal a partir do `main`
+  (igual ao que já está no ar) e coloca o build do branch em `/previa/<branch>/`, com etiqueta
+  "PRÉVIA". O ambiente `github-pages` passou a aceitar deploy de `marco-*`. O cache offline é
+  separado por endereço, para a prévia e o site principal não apagarem um ao outro.
+  Limitação: o próximo deploy do `main` publica só o `main` e remove as prévias (voltam no próximo
+  push do branch). Descartado: repositório separado para prévias (mais um repo e um token).
+
+- **2026-10-15 — Ideias novas do usuário registradas nos marcos certos (sem implementar agora).**
+  Recursos minerais e petróleo: geração no M2 (nova T6), uso nos M4/M7 (`03`, `05`, `06`).
+  Quatro classes sociais: M5 (`05`). Feedback ambiental: base no M3, gatilhos humanos no M4/M7
+  (`04`). Doutrinas de guerra ligadas a cultura, terreno e tecnologia: M6/M7 (`06`). Escala visual
+  pequena de pessoas e cidades: M3/M4 e M8 (`00`). Resumo em `docs/02-marcos.md`.
+
+- **2026-10-15 — T2 do M2: simulação no Web Worker.**
+  O worker (`src/sim/worker.ts`) guarda o mundo, o relógio, a geração, o clima e os pincéis; a lógica
+  fica em `SimulationCore` (`src/sim/core.ts`), testada sem worker. A thread principal guarda só uma
+  cópia das cores, atualizada por **remendos** (retângulos alterados, buffers transferidos sem cópia).
+  Pinceladas são agrupadas: enquanto o worker processa uma, as seguintes acumulam tempo e posição,
+  sem formar fila. Sem `SharedArrayBuffer` (o GitHub Pages não permite os cabeçalhos exigidos).
+  Medição (build de produção, Radeon 610M, tela de celular): gerar mundo novo leva ~1,65 s nos dois
+  casos, mas o maior intervalo entre quadros caiu de **1.658 ms (tela congelada) para 17 ms**.
+  Pincel 30 segurado: 60 fps (máx. 19 ms entre quadros). Mesma semente, mesmo mundo (teste).
+
+- **2026-10-15 — fps "cravado em 60" na T2: não é limite do jogo.**
+  O laço de desenho é só `requestAnimationFrame`, que segue a taxa que o navegador oferece. Sem limite
+  de tela (notebook, build de produção), a T2 desenha 741–907 fps, no mesmo patamar da v1.1
+  (948–1.097). No Android, quem escolhe 60/90/120 Hz é o sistema: economia de bateria e taxa
+  adaptativa (muitos aparelhos só sobem com o dedo na tela) costumam derrubar para 60.
+  Para comparar nas mesmas condições, o painel Dados agora mostra a taxa da tela (~Hz) e o menor e o
+  maior intervalo entre quadros.
+
+- **2026-10-15 — Tempo de geração no painel e barra de progresso.**
+  Painel Dados: tempo total do pedido até o globo aparecer, tempo do worker e de cada etapa.
+  Medido no notebook: 0,8–1,7 s (varia bastante entre rodadas), então ~3–5 s no celular, acima do
+  limite de 2 s do usuário: a tela "Gerando mundo…" ganhou barra de progresso, que avança durante o
+  terreno (a etapa pesada, ~65% do tempo). O ruído virou classe (`Noise3D`), o que ajuda o motor
+  JavaScript a manter o código otimizado entre mundos; mundos idênticos aos da v1.1 (byte a byte).
+  Próximo passo, se precisar: gerar o terreno em vários workers ao mesmo tempo (mesmo resultado,
+  2–4× mais rápido em celulares com vários núcleos).
+
+- **2026-10-15 — T3 do M2: placas tectônicas.**
+  Voronoi com pesos e deformação de uma oitava (duas oitavas custavam ~2× sem diferença que se veja);
+  distância de corda ao quadrado (sem `acos`) para escolher a placa. Placas continentais se afastam
+  do centro do supercontinente. Fronteiras uniformizadas por voto da vizinhança (células isoladas de
+  tipo diferente: ~5–10% → ~0,3%). Sorteio separado do terreno: relevo idêntico ao de antes.
+  Custo: ~140 ms no notebook em ritmo normal (o processador deste notebook às vezes cai ~2,8× de
+  velocidade com aquecimento: todas as etapas sobem juntas, inclusive as que não mudaram).
+
+- **2026-10-15 — Medição do usuário na T3 (celular).**
+  Geração: 2.373 ms total (2.355 no worker). fps 89–91, mínimo 71 (a tela agora sobe a 90 Hz, então
+  o "cravado em 60" da T2 era escolha do aparelho). Pausar rápido enquanto gira derruba a 64–71 por
+  instantes: registrado, sem correção por enquanto (investigar se voltar a incomodar).
+
+- **2026-10-15 — "Placas se encontram no polo": sem viés, é geometria.**
+  Medido em 300–1.500 sementes, por faixas de latitude de igual área (uniforme = 20% cada):
+  centros das placas 19,7 / 20,3 / 19,7 / 20,8 / 19,5%; pontos triplos 19,6 / 20,7 / 20,0 / 20,2 /
+  19,5% (equador → polo). Cada mundo tem ~16–20 pontos triplos e a região a menos de ~18° dos polos
+  cobre 5% da esfera: a chance de ao menos um cair ali é ~60% (medido: 63%). A calota branca destaca
+  as linhas. O sorteio das sementes já era uniforme na esfera (coordenada vertical uniforme, não a
+  latitude). Efeito pequeno e esperado: sementes do mar pendem ~1,5 ponto para os polos porque
+  precisam ficar longe das sementes da terra, e a Pangeia nasce em latitudes baixas e médias; não
+  afeta centros nem pontos triplos. Teste de regressão: `tests/world/plates.test.ts`.
+
+- **2026-10-15 — T4 do M2: movimento das placas por recomposição a partir do referencial da placa.**
+  Cada placa guarda a crosta no próprio referencial (amostras + índice por placa e célula, ~22 MB no
+  máximo de 14 placas); o mundo é recomposto quando alguma placa anda 1 célula. Motivo: copiar crosta
+  de célula em célula a cada passo acumularia erro e deformaria os continentes.
+  Descartado: avançar a crosta célula a célula no mapa global (deforma com o tempo).
+  Ritmo: 6×10⁻⁶ rad/passo no máximo (≈ 9.000× a deriva real de ~5 cm/ano), com 20× e controle 100% a
+  Pangeia se abre em ~2 min (decisão do usuário). Controle inicial 25%.
+  Medição (notebook, processador em modo lento): recomposição com clima e cores ~530 ms, no worker;
+  tela a 60 fps durante a deriva (p99 17 ms). No celular deve ficar ~1,5 s a cada ~5 s em 20× no
+  máximo: o relógio segue. A T7 (clima que acompanha a deriva) vai recalcular só o que mudou.
+
+- **2026-10-15 — Movimento suave das placas no desenho (pedido do usuário: "nenhum salto visível").**
+  O shader interpola a rotação rígida de cada placa entre recomposições: cada pixel descobre a placa
+  (busca entre a placa que estava ali e as vizinhas, com tolerância de ~0,7 célula ao arredondamento
+  da textura) e desfaz a rotação dela desde a composição. Fenda onde as placas se afastam aparece
+  como fundo oceânico novo; sem afastamento, fica com a placa de antes (mesma regra da recomposição).
+  Ruído de borda e textura de detalhe ficam presos à placa. Na chegada de cada recomposição, 350 ms
+  de transição misturando a composição anterior e a nova (as bordas sempre diferem ~1 célula, porque
+  a textura já é arredondada por célula e a recomposição lê o referencial da placa).
+  O worker manda a textura de placas (placa, crosta continental, "perto de fronteira") e os ângulos;
+  o App adianta o ângulo entre mensagens do worker (no máximo 0,3 s, nunca para trás).
+  Medição quadro a quadro (leitura de pixels a 60 fps, placas em 100%, tempo 20×): antes, 7 saltos
+  em 40 s com 17–21% da região mudando de uma vez; depois, 2.252 quadros, mediana 0,11% e máximo
+  0,75% por quadro, **zero** quadros com mais de 2%.
+  Custo de GPU: ~30–40% a mais só enquanto as placas andam (atalho para o miolo das placas: longe
+  de fronteira só pode ser a própria placa); parado, no patamar da T3.
+
+- **2026-10-15 — Regressão de geração no celular (2,4 → ~6 s): memória da tectônica.**
+  No notebook a T4 custava só +50–70 ms; o que pesava no celular era memória: índice denso de
+  placas × células (~22 MB) mais o mundo antigo vivo durante a geração do novo. Correção: índice só
+  das amostras novas (as iniciais valem por identidade), mundo antigo solto antes de gerar e
+  tectônica montada no primeiro passo. Notebook: mesmo tempo da T3. Painel Dados mostra a memória
+  estimada do worker (~35 MB + tabelas) e o tempo por etapa.
+
+- **2026-10-15 — Resolução continua N = 256 até o Marco 3** (decisão do usuário). A escala do
+  planeta versus humanos é questão aberta da especificação do M3.
+
+- **2026-10-15 — Formas dos continentes (critério de "bonito" do usuário) e T5 (relevo).**
+  Antes (T4, 5 sementes, 2 min a 20× no máximo): 1–4 continentes, o maior com 46–100% da terra,
+  riftes como canais estreitos. Causas: poucas placas na Pangeia (3–5), direções parecidas entre
+  vizinhas, fronteiras em arcos lisos, contorno de bolota. Depois: 5–7 continentes, o maior com
+  23–37%. Mudanças: placas por crescimento de regiões com custo por ruído; 5–8 sementes na terra e
+  teto de 35% da terra por placa; expansão radial da Pangeia (todo par de vizinhas se afasta);
+  deriva ~2,3× mais rápida com recomposição a cada 2 células; cicatrização só de buracos isolados;
+  geração v2 (ruído costeiro + bacias internas); relevo da T5. Tentativa descartada: repulsão entre
+  placas continentais (pedaços se reencontravam depois de 2 min).
+  Imagens: `docs/img/m2-formas-antes.png`, `docs/img/m2-formas-depois.png`.
+
+- **2026-10-15 — Relógio do desenho próprio e raio de busca da composição anterior.**
+  Com o relevo, cada recomposição ocupa o worker por mais tempo e o relógio parava de chegar; o
+  desenho passou a ter um relógio próprio que segue o ritmo nominal e corrige aos poucos, sem voltar
+  nem saltar (`advanceDisplayTick`). Na transição, a composição anterior usa o próprio raio de busca
+  (antes usava o da nova, ~5× menor, e errava as bordas no primeiro quadro). Medido de novo: zero
+  quadros com salto (máximo 0,47% dos pixels por quadro) com placas em 100% e tempo 20×.
+
+- **2026-10-15 — Erros sempre visíveis, desenho de reserva e conferência de versão.**
+  Todo erro (worker, shader, tela) vira uma tela com o texto e "Tentar de novo"; um vigia de 20 s
+  cobre o caso de silêncio. O globo tem dois shaders: o completo (interpolação das placas) e um
+  simplificado de reserva, escolhido sozinho se o completo não compilar. Worker e tela trocam a
+  versão do build (`__BUILD_ID__`, o hash do commit no CI) e recarregam uma vez se diferirem.
+  Alternativa descartada: só mostrar o erro, sem reserva (o jogo ficaria inutilizável num celular
+  com driver defeituoso).
+
+- **2026-10-15 — Sem desfoque nos painéis; worker dorme pausado; relógio à tela até 10×/s (D2).**
+  O 1º relatório do aparelho-alvo mostrou 91 fps com tempo rodando e o painel escondido, e o worker
+  0% ocupado: a queda para 48 que o usuário via não vinha do worker. O painel Dados (onde ele lê o
+  fps) tinha `backdrop-filter: blur`, que a GPU refaz sobre o globo a cada mudança na tela. Painéis
+  passam a ter fundo quase opaco. O laço do worker só roda com mundo e tempo correndo, e o relógio vai
+  à tela no máximo a cada 100 ms (o desenho das placas já adianta os ângulos sozinho entre mensagens).
+  Alternativa descartada: manter o desfoque só fora da deriva (complica e não resolve tempo rodando).
+
+- **2026-10-15 — Placas com identidade fixa: polaridade por par, solda e pedaços (D3).**
+  Medido em 2 min de deriva no máximo (3 sementes, N = 128): ~10% das trocas de dono de célula eram
+  A→B→A, quase todas em fronteiras oceano–oceano, porque quem mergulhava era decidido célula a célula
+  e a crosta inicial tem toda a mesma idade. Agora a polaridade é do par de placas (decidida uma vez).
+  Continentes que colidem por 8 recomposições se soldam (giram juntos); pedaço solto < 0,4% do planeta
+  passa para a vizinha. Trocas A→B→A: 2.276/1.591/1.949 → 457/207/227 (o resto é arredondamento de
+  1 célula). Critério de "bonito" segue valendo (4–7 continentes, nenhum > 40%, nas 5 sementes aos
+  2 min; "mundo" ficou em 4 continentes com o maior em 40% — no limite, porque continentes que se
+  encontram agora ficam juntos). Consequência de design a decidir depois: sem rifte, com o tempo os
+  continentes tendem a se juntar (ciclo de supercontinente). "Tamanho fixo" ao pé da letra não é
+  possível com placas rígidas cobrindo a esfera (dorsais fazem crescer, subducção encolhe); o que
+  ficou fixo é a identidade e a forma: nada de placas comendo umas às outras alternadamente.
+
+- **2026-10-15 — Resultado da rodada de desempenho no aparelho-alvo (Infinix Hot 50i, Mali-G52).**
+  Relatório do botão "Medir desempenho" (versão 5d83bca), rodado pelo usuário: tempo 20× com placas
+  paradas 91 fps; placas em 100% 82 fps (mínimo 66, pior quadro 44 ms); geração 2,7 s do pedido ao
+  globo. Bate as metas (tempo rodando ≥ 60; deriva ≥ 30, nunca abaixo de 20; geração ≤ 3 s). O
+  usuário encerrou aqui as otimizações de shader. Entraram depois disso, já prontas e verificadas:
+  painéis sem desfoque, worker dormindo pausado e relógio até 10×/s (D2), e o shader de deriva com
+  candidatas guardadas na textura de placas, atan por polinômio e texturas reaproveitadas a cada
+  recomposição (D4: no notebook, o custo de GPU somado pela deriva caiu de 0,33 para 0,19 ms por
+  quadro; pior quadro 3,69 → 3,24 ms). As quedas a 5–10 fps vistas jogando vinham das colisões sem
+  fim (ver D3) e do desfoque atrás do painel Dados.
+
+- **2026-10-15 — Solda só entre continentes; lasca pequena gruda na placa maior (acreção).**
+  Contar qualquer frente de colisão na solda acabava com a moagem sem fim, mas soldava placas quase só
+  oceânicas a continentes logo na abertura da Pangeia (na semente "mundo", o maior continente ia a 57%
+  da terra aos 2 min). Agora a solda exige ≥ 1,5% do planeta em crosta continental nas duas placas;
+  senão a lasca continental do lado pequeno passa para a outra placa. Junto: histerese nas
+  sobreposições sem aproximação e preenchimento dos "dentes" de arredondamento na frente das placas.
+  Alternativa descartada: exigir frente mínima para soldar (deixava lascas moendo para sempre).
+
+- **2026-10-15 (noite) — Ciclo de Wilson, prioridades do Bloco G e desempenho só no aparelho (usuário).**
+  Depois de testar a `d36c156b` no celular (oscilação resolvida), o usuário decidiu:
+  1. **Ciclo de Wilson:** o supercontinente se forma, fica um tempo e racha de novo, de preferência
+     pelas suturas antigas. A solda deixa de ser permanente.
+  2. **Riftes inspirados na Terra:** nascem em junções tríplices, às vezes com um braço que falha e
+     vira vale interior; costas que se encaixam dos dois lados; margens recortadas;
+     microcontinentes de vez em quando. Continua valendo o critério de 4 a 7 continentes variados,
+     com penínsulas, golfos e mares internos, e nenhum com mais de ~40% da terra.
+  3. **Latitude sem tendência:** a latitude média da terra deve flutuar sem ir para os polos, com
+     teste automático de 10 min simulados.
+  4. **Prioridade:** G1 (latitude, provável bug), depois G2 (ciclo), depois G3 (formas).
+     Diagnóstico medido e especificação aprovados antes de codar.
+  5. **Desempenho:** só vale medido no Hot 50i.
+
+  Diagnóstico (Bloco G em `M2-especificacao.md`): o movimento já é rotação rígida em torno de um polo
+  de Euler, e as costuras do cubo não criam nem perdem crosta (medido). A ida aos polos vem de três
+  coisas juntas: os eixos iniciais em "balão" (grandes círculos que saem do centro da Pangeia e passam
+  pelos polos quando ela está no equador), os eixos que nunca mudam e a solda permanente e transitiva,
+  que congela a terra no meio da dispersão. A deriva morre porque todas as placas continentais acabam
+  num grupo só, entre 6 e 10 min nas 5 sementes.
+
+  Alternativa descartada: só limitar a latitude à força (empurrar a terra de volta para os trópicos).
+  Esconderia a causa e não tem base física.
+
+- **2026-10-15 — G1: suturas, estágios com polo novo e guarda polar.**
+  - **Solda:** só com aproximação de verdade (≥ 0,05 de velocidade relativa) e com contato
+    continental (até 2 células). O contador de colisão desce sem frente. A sutura some depois de 3
+    recomposições sem contato.
+  - **Estágios:** a cada estágio (30–45° de giro a velocidade 1; o primeiro, a dispersão da Pangeia,
+    20–25° ≈ 2 min), cada grupo ganha polo novo. O rumo vira até ±60°, e a velocidade é 0,4–1,0, mais
+    lenta com muito continente.
+  - **Guarda polar a 65°**, inclusive na dispersão inicial, onde o desvio é escolhido sem sorteio novo
+    para não mudar o resto da geração.
+  - **Defeito antigo corrigido:** crosta consumida só morre se não aparece em outra célula.
+  - **Teste de formas aos 3 min**, com o critério do usuário (4–7, ≤ 40%). Antes era aos 2 min, com
+    folga de 8 e 45%.
+  - **Motivo:** o diagnóstico do Bloco G (balão + eixos fixos + solda permanente e transitiva) e as
+    medições em N = 128 e N = 256 (tabela em `M2-especificacao.md`, "G1 — Resultado").
+  - **Alternativas descartadas:**
+    - Rumo totalmente aleatório a cada estágio: zigue-zague sem física.
+    - Guarda só no fim do estágio: a trajetória cruzava o polo e voltava.
+    - Guarda pelo centro da placa inteira: inclui oceano, e a terra da placa passava do limite.
+    - Primeiro estágio de 30–45°: com a guarda desviando mais, a `terra` ficava com um continente de
+      48% aos 2 min.
+
+- **2026-10-15 — Menu e painel Dados compactos (pedido do usuário).**
+  No celular, o menu cobria ~48% da altura da tela e o painel Dados ~44%. Agora:
+  - **Menu:** botões de baixo com 52 px (eram 64), abas com 42 px (eram 58) e ferramentas com
+    40 px, com o ícone ao lado do nome (eram 70 px, com o ícone em cima). Em telas com até 420 px de
+    largura são 3 colunas, para os nomes caberem sem corte. O menu fica entre ~30% e 35% da tela.
+  - **Painel Dados:** 7 linhas curtas (eram 14) em fonte de 10 px, e os dois botões pequenos numa
+    linha só. Fica em ~20% da tela.
+
+  Alternativa descartada: menu em gaveta lateral (mudaria a navegação aprovada na T1).
+
+- **2026-10-16 — G2: ciclo de Wilson.**
+  - **Fases:** dispersão de 50° (~4,3 min) → reunião de até 65° (~5,6 min), rumo a um ponto a
+    20–40° do último supercontinente e a até 35° de latitude → supercontinente (≥ 70% do continente
+    num grupo soldado, quase parado) por um mandato de 23° × 0,8–1,25 → ruptura.
+  - **Ruptura:** 1 a 3 suturas; as mais antigas e os pedaços mais equilibrados, nenhum com ≥ 70%.
+    Cada pedaço gira em torno do polo que abre a fenda continental (oposto da soma de p × n). Entre
+    os sorteios, fica o que passa na guarda polar e menos empurra os vizinhos.
+  - **Regra secundária:** um bloco com ≥ 35% racha no fim de uma reunião sem supercontinente.
+  - **Motivo:** decisões do usuário (ciclo de Wilson; ~2 min de supercontinente; ciclo de 8–12 min;
+    tempos em constantes).
+  - **Calibração:** com 60%, dois blocos grandes que se encostavam já "eram" supercontinente e o
+    ciclo caía para ~3 min. Com 75%, algumas sementes não formavam nenhum em 20 min. Com reunião de
+    50°, faltava tempo. A dispersão de 35° dava ciclos de 6–7 min.
+  - **Alternativas descartadas:**
+    - Pedaços "para longe do centro da fenda": numa fenda curva, parte fechava e soldava de novo.
+    - Ponto de reunião a 90° (ortoversão): a 11,6°/min no máximo, não cabe num ciclo de 8–12 min.
+    - Não reconhecer supercontinente durante a dispersão: o grupo único durava 4,5 min na `42`.
+  - **Teste de oscilação:** recomposições logo após uma troca de polo têm teto de 0,5%. Inverter o
+    rumo devolve as células recém-tomadas; é um evento único.
+
+- **2026-10-16 — Fluxo: o Project de orientação lê os docs direto do GitHub (regra do usuário).**
+  - **Decisão:** o usuário discute cada relato com um Project do claude.ai que lê os docs no branch
+    mais recente do marco atual. Ao fim de cada tarefa, commit e push nesse branch, com
+    `docs/estado-atual.md` atualizado. Todo conhecimento que importa fica no git.
+  - **Motivo:** os dois lados (Claude Code e orientador) trabalham sobre os mesmos fatos, sem cópia
+    manual.
+  - **Alternativa descartada:** pasta local `project-conhecimento/` com script de cópia e upload
+    manual dos arquivos para o Project (removida; dependia de o usuário lembrar de subir).
+
+- **2026-10-16 — Plano de 3 ajudantes (workers) do M2 ao M7 e teto de 150 MB (decisão do usuário).**
+  - **Decisão:** thread principal + ajudante 1 "relógio" + ajudante 2 "Terra" (M2) + ajudante 3 "vida
+    e sociedade" (M3); detalhes em `docs/01-arquitetura.md`. Dados do jogo ≤ 150 MB de RAM no Hot 50i
+    (4 GB), medido no fim de cada marco.
+  - **Motivo:** só 2 núcleos fortes; trabalho grande e raro sai do relógio para o tempo não parar, e
+    pode rodar num núcleo fraco.
+  - **Alternativa descartada:** um ajudante por sistema (mais memória, sem núcleo forte livre).
+
+- **2026-10-16 — Tempo travando com placas no máximo: recomposição no ajudante 2 com memória
+  compartilhada; recomposição mais barata depois (decisão do usuário).**
+  - **Decisão:** opção (b) completa com SharedArrayBuffer. Primeira tarefa: testar no celular se a
+    memória compartilhada funciona (isolamento entre origens pelo service worker). Se não funcionar,
+    perguntar antes de seguir com cópia. A opção (a) entra depois, como complemento.
+  - **Motivo:** o tempo não para enquanto o celular acompanhar, e o ajudante 2 serve aos marcos
+    seguintes. Compartilhar evita copiar o mundo (+45–48 MB → ~+15–20 MB, estimativa).
+  - **Alternativas descartadas:** (b) mínima (ainda para ~0,3–0,4 s e seria jogada fora); só (a)
+    (a data ainda para ~0,5 s).
+
+- **2026-10-16 — Rifte que para de abrir fica como vale em terra (decisão do usuário, correção 1).**
+  - **Decisão:** fenda entre dois continentes nasce como vale de rifte (300–800 m abaixo das bordas);
+    com 3 células de largura, o meio vira dorsal. Se parar de abrir antes disso, o vale fica (aulacógeno).
+  - **Motivo:** o morro pintado numa fronteira não ganha mais um rasgo de fundo oceânico; é o que a
+    Terra faz (riftes abortados).
+  - **Consequência aceita:** istmos de vale ligam continentes; os testes de formas de `terra` e `mundo`
+    aos 3 min viram falha conhecida até o fim do G3, com o critério intacto.
+  - **Alternativas descartadas:** vale sempre abaixo do mar (volta o corte no morro); vale parado vira
+    mar com o tempo (regra nova).
+
+- **2026-10-16 — Teste por bloco, não por tarefa (regra do usuário, vale para os próximos marcos).**
+  - **Decisão:** o Claude Code segue de tarefa em tarefa (commit, push e `estado-atual.md` a cada uma)
+    e só para no fim de cada bloco, com a prévia e uma lista numerada do que testar no celular, tarefa
+    por tarefa (o que fazer, o que deve aparecer, o que seria defeito, e o "Medir desempenho"). Blocos
+    do M2: G (correção 2, G3, G4); minerais e clima (T6, T7); desastres (T8–T12); final (T13, T14).
+  - **Paradas obrigatórias no meio do bloco:** decisão de design; teste de portão; meta de desempenho
+    quebrada na estimativa no notebook.
+  - **Motivo:** menos idas e vindas; o usuário testa um conjunto que faz sentido junto.
+  - **Alternativa descartada:** parar a cada tarefa com mudança visível (regra de 2026-10-15).
+
+- **2026-10-16 — Recomposição aparece 480 passos depois de feita (correção 2).**
+  - **Decisão:** o motor da geologia anda nos mesmos passos do relógio e a recomposição feita no passo T
+    aparece no passo T + 480 (40 anos; 2 s a 20×). O relógio nunca fica mais de 480 passos à frente do
+    motor (espera se precisar). Pinceladas vão ao motor como "placa + ponto do referencial"; as feitas
+    na janela valem de novo quando a recomposição aparece.
+  - **Motivo:** determinístico (não depende de quanto o aparelho demora) e o tempo não para enquanto o
+    ajudante acompanhar; 480 passos cabem numa recomposição de ~1–1,3 s num núcleo forte do Hot 50i e
+    mantêm o deslize do desenho em ~3 células, dentro do alcance do shader (3,5).
+  - **Alternativas descartadas:** aplicar quando o ajudante terminar (o mundo dependeria da velocidade
+    do aparelho); recompor mais vezes com menos deslize (dobra o trabalho do ajudante).
+
+- **2026-10-16 — G3: riftes traçados por busca de caminho; geração v3; rifte que abre como zíper.**
+  - **Decisão:** toda fenda continental (na quebra da Pangeia, já na geração, e em toda ruptura) é
+    traçada célula a célula (`src/world/rifts.ts`), com junção tríplice, braço que falha (aulacógeno),
+    terceiro braço que corta um pedaço, microcontinente e margem passiva igual dos dois lados. Onde a
+    fenda já virou mar, o mar avança pelo vale que ainda liga as margens enquanto as placas se afastam.
+  - **Motivo:** costas que se encaixam com dentes e degraus, em vez de cortes retos de Voronoi; e o fim
+    dos istmos de vale que ligavam continentes (falha conhecida da correção 1).
+  - **Detalhes decididos no caminho:** placa com mais de 35% da terra é cortada na geração;
+    microcontinente anda com a média das duas placas da fenda (com metade da velocidade da placa-mãe,
+    era engolido de volta); a primeira dispersão fica como no G1 (a regra das seguintes não melhorou
+    as formas: 11 contra 12 de 20 sementes).
+  - **Alternativas descartadas:** deformar a fronteira antiga com ruído (não traça braços novos dentro
+    de uma placa); votação por componente para dividir os lados (uma brecha entre braços passava um
+    pedaço inteiro para o vizinho).
+  - **Custo:** geração +67 ms de mediana no notebook (~+0,2 s no celular, ~2,9–3,0 s no total).
+
+- **2026-10-16 — G4: montanha na placa de cima; planalto sem limite extra (se a medida confirmar).**
+  - **Decisão do usuário:** a crosta consumida na colisão vira montanha toda na placa que fica por
+    cima (como o Himalaia). O planalto não ganha limite extra se a colisão terminar sozinha na solda num
+    tamanho realista (estimativa: 300–470 km de cordilheira, menor que o Himalaia–Tibete com ~1.000 km);
+    se passar disso na medida, limite baseado no Tibete.
+  - **Pedido junto:** relevo variado com base no mundo real (proposta na especificação, versão 2).
+  - **Registro de método:** mecanismo novo com efeito de jogo, mesmo para fazer um critério passar,
+    é decisão de design: perguntar antes (o "rifte que abre como zíper" do G3 foi feito sem perguntar;
+    o usuário aprovou depois).
+
+- **2026-10-16 — Erosão mais lenta (decisão do usuário, G4).**
+  - **Decisão:** erosão de 0,5% (antes 3,5%) do que passa de 2.500 m e alisamento de 3% (antes 25%)
+    acima de 1.200 m, por recomposição.
+  - **Motivo:** com os valores antigos a cordilheira de colisão sumia ~1 min depois de a colisão parar
+    (na solda) e quase nada ficava acima de 4.000 m aos 10 min. Agora 4 de 5 sementes ficam no alvo
+    do mundo real (2.000 / 4.000 / 6.000 m); a `7` é falha conhecida.
+  - **Alternativas descartadas:** colisão que continua empurrando depois da solda (regra de placas,
+    mais risco); deixar como estava até a T7.
+
+- **2026-10-16 — Direção geral do usuário: o mundo real é a base, não uma cópia exata.**
+  O que precisar mudar para o jogo funcionar bem pode mudar, desde que o usuário decida as mudanças com
+  efeito de jogo.
+
+
+- **2026-10-16 — Geração de volta abaixo de 3 s (decisão do usuário: correções técnicas, mesmo mundo).**
+  - **Mundo novo larga o velho na hora:** o ajudante 2 é encerrado (mesmo no meio de uma recomposição)
+    e um **ajudante reserva**, já carregado e vazio, assume. Motivo do reserva: um worker criado pelo
+    relógio só termina de carregar quando o relógio fica livre; criado na hora do mundo novo, nunca
+    ajudava na geração.
+  - **Terreno dividido entre o relógio e o ajudante** (`src/world/cell-pool.ts`): a primeira passada
+    do terreno (16 ruídos por célula) vai em pedaços de 4.096 células, que os dois pegam de um contador
+    em memória compartilhada; cada célula é calculada pela mesma função, então o mundo é idêntico
+    (26 mundos conferidos byte a byte, N = 128 e 256). Se o ajudante sumir, o relógio refaz os
+    pedaços dele depois de 10 s.
+  - **Limiar da fração de terra sem ordenar tudo** (seleção rápida, mesmo valor exato).
+  - **Medido (notebook, Chromium preso a 3 núcleos, geração logo depois da deriva):** mediana 903 ms,
+    contra 893 da versão que deu 2,7 s no celular (antes destas correções, +30%). O relatório mostra
+    "ajudante fez X% do terreno".
+  - **Descartado:** cortar o custo da etapa "placas" do G3 (tudo espalhado em pedaços de 5–20 ms; o
+    ganho que sobrava com mesmo resultado era pequeno).
+
+- **2026-10-16 — Meta de "pausado" medida girando; "desenhados X de Y" (decisão do usuário).**
+  Pausado e parado, o jogo não desenha nada e o fps é o ritmo que o aparelho dá a uma página parada
+  (o Android baixa a taxa da tela). A meta de pausado (≥ 85) vale para "pausado, girando".
+
+- **2026-10-16 — Registro de travadas sempre ligado (pedido do usuário).** Painel Dados e relatório:
+  quadro da tela acima de 100 ms e data parada acima de 300 ms com o tempo correndo, com a hora, a
+  duração, a causa provável (tela aplicando recomposição, desenho, relógio esperando o ajudante,
+  relógio aplicando recomposição, fora do jogo) e a velocidade/placas. Lógica pura em `src/ui/stalls.ts`.
+
+- **2026-10-16 — Vista de perto: células quadradas (pedido do usuário; aparência a aprovar no celular).**
+  De longe nada muda (bordas orgânicas, globo redondo). Entre 6 e 14 px por célula, as bordas
+  orgânicas e a textura manchada somem aos poucos e entram: cor 25% mais saturada, variação leve por
+  célula (±4% na terra, ±1,5% na água), contorno fino onde o bioma muda (não entre os dois tons de
+  oceano) e sombra na água junto da terra. Só desenho: a simulação não muda.
+  - **Custo (notebook, sem limite de fps):** igual de longe e no zoom máximo; 10–15% mais lento no
+    meio do caminho (as duas aparências juntas na transição).
+  - **Limite conhecido:** perto dos 8 cantos do cubo as células são losangos, e na aresta entre duas
+    faces não há contorno.
+
+- **2026-10-16 — Registros do teste do Bloco G (decisões do usuário).**
+  - Semente `42` com terra demais perto dos polos (33% acima de 60° em N = 256): **falha conhecida**.
+  - Critério de formas mantido; pedacinhos de terra no oceano depois de colisões: aceitável.
+  - Polos (duas manchas brancas que não interagem com as placas e não parecem gelo), neve demais (vale
+    do rifte e todas as montanhas) e biomas pouco variados: **T7**.
+  - O Hot 50i continua como aparelho-alvo; no fim do M2, com o relatório, o usuário decide se mantém.
+
+- **2026-10-17 — Sem lixo de memória nos caminhos quentes da recomposição (técnica).** O ajudante 2
+  criava ~117 MB de objetos temporários por recomposição (N = 256). Regras para código que roda em
+  todas as células a cada recomposição ou passo: nada de vetor `[x, y, z]` temporário, nada de lista
+  zerada com `length = 0` a cada célula (use array tipado e contador), nada de objeto de parâmetros por
+  célula, e não passar números com vírgula soltos a funções que podem não ser embutidas (use
+  `pointToCellOf(vetor)` ou passe a célula). Arrays do tamanho do mundo usados só durante a conta ficam
+  guardados e são reaproveitados. Resultado: ~20 MB por recomposição, 24% mais rápida, mesmo mundo.
+  - **Guarda:** `tests/sim/geology-golden.test.ts` (impressão digital do motor da geologia depois de 40
+    recomposições). Otimização não pode mudar o mundo; se o teste falhar sem mudança de regra de
+    propósito, a otimização errou.
+  - **Descartado:** reescrever as funções grandes (`recompose`, `relief`) em pedaços menores só para o
+    otimizador do navegador; o que sobrou (~20 MB) está espalhado e cada corte daria pouco.
+
+- **2026-10-17 — Toque no globo desliga o giro de teste (correção de bug).** O "Girar (fps)" do painel
+  Dados para no primeiro toque, como a inércia. Com ele ligado, segurar o pincel desenhava uma listra.
+
+- **2026-10-17 — Registro de travadas: "fora do código da tela" e "recomposição há X s".** O nome
+  antigo ("fora do jogo") sugeria que o jogo não tinha culpa. Quer dizer só que a tela não estava no
+  código dela: pode ser GPU, outro trabalho no mesmo núcleo, limpeza de memória (inclusive a provocada
+  pelo ajudante) ou o sistema. O tempo desde a última recomposição mostra se as travadas coincidem com
+  ela.
+
+- **2026-10-17 — Vista de perto alisada: o planeta não fica "cubado" (decisão do usuário: "dá um jeito
+  de alisar e manter funcional").** De perto, cada ponto olha as 4 células em volta do canto de célula
+  mais perto (também do outro lado de uma emenda do cubo) e mostra o bioma com mais peso somado (peso
+  pela distância ao centro, 1 no centro e 0 a 1 célula). A cor vem da célula mais perto com esse
+  bioma, então cada célula guarda a sua cor e variação. Divisas e costas viram curvas: sem escadinha,
+  sem a dobra em ângulo reto nas emendas, e o contorno entre biomas passa a existir também nas emendas
+  (largura fixa na tela). Só desenho: a simulação, o pincel e os dados continuam na grade.
+  - **Custo (notebook, sem limite de fps):** de longe igual (~610); de perto ~200 contra ~330 antes. A
+    tangente de cada centro sai de uma série curta a partir da tangente do ponto (a Mali-G52 é lenta em
+    tangente). Falta o celular medir de perto.
+  - **Limite:** perto dos 8 cantos do cubo o miolo das células continua um pouco torto (vira um mosaico
+    arredondado), mas sem quina.
+  - **Descartado:** trocar a grade (semanas, outro marco); malha de quadrados presa à tela (escorrega ao
+    girar); só misturar bordas orgânicas nas emendas (dois estilos na mesma tela).
+  - Imagens: `docs/img/m2-perto-alisado-emendas.png` (em cima antes, embaixo agora: emenda e canto do
+    cubo, semente `42`) e `docs/img/m2-perto-alisado-face.png` (meio de uma face, do zoom máximo ao
+    médio).
+
+- **2026-10-17 — Vista de perto mais leve, mesma imagem (meta de desempenho quebrada: "de perto está
+  travando muito" no celular).** Medido no notebook (GPU real, sem limite de fps, semente `terra`, zoom
+  máximo, 720×1600): antes do alisamento 489 fps; com o alisamento **264**; agora **~395 girando** e
+  **~340–420 com placas a 100%** (varia com a posição das placas); de longe igual (~775). A imagem é a
+  mesma: comparação pixel a pixel com a versão anterior em 5 vistas (meio da face, emenda, 2 cantos),
+  no máximo 13 pixels diferentes em 1,15 milhão (uma borda 1 pixel ao lado). Os hexágonos dos cantos
+  ficam (o usuário gostou). O que mudou no shader:
+  1. **Sem arrays com índice variável:** as 4 células são escritas por extenso; guardam só bioma,
+     distância e endereço, e a cor é lida uma vez, no fim, só da escolhida.
+  2. **Bits dos cantos na textura de cores:** o canal alfa leva o bioma em 4 bits e, nos outros 4, um
+     bit por canto da célula: "as 3 células na direção deste canto estão na face e têm o mesmo bioma".
+     Nesse caso (a maior parte da tela) o pixel só escolhe a célula mais perto e lê 1 ou 2 texels em vez
+     de 4, sem divisa. O pincel repinta também o anel de 1 célula em volta da área pintada (`withRing`).
+     **Limite: 16 biomas** (hoje são 16); bioma novo na T7 exige mover os bits para outra textura (teste
+     em `tests/render/colors.test.ts` avisa).
+  3. **Métrica local da grade** em vez do centro exato de cada célula: perto de 1–2 células, a distância
+     na esfera é `X·du² − 2xy·du·dv + Y·dv²` (com X = 1 + x², Y = 1 + y² na face); erro máximo 0,55% de
+     uma célula (0,3 pixel no zoom máximo). Tira 4 divisões e 4 raízes por pixel. O termo cruzado é o que
+     inclina a grade perto dos cantos (losangos de ~120°, células hexagonais). Do outro lado da emenda o
+     cálculo continua por vetores (raro).
+  - **Testado e descartado:** usar o desenho simplificado quando o jogo está pausado. Pausado no meio da
+    deriva as placas estão fora da posição da última recomposição e precisam do desenho completo;
+    recompor ao pausar mudaria o mundo (determinismo).
+  - **Medido e não é o gargalo:** a segunda cópia da função de perto (transição suave, só 8% dos quadros
+    com placas a 100%) e a quantidade de variáveis vivas.
+  - **Custo na CPU:** pintar as cores do mundo todo 16,4 → 20,0 ms no notebook (N = 256): uns +15–20 ms
+    na geração do celular (2,8 s, meta 3 s) e na recomposição do ajudante 2 (fora do relógio).
+  - **"Medir desempenho":** cenários novos "de perto, girando" (pausado) e "idem, de perto" (tempo 20×,
+    placas 100%). O giro de teste anda na mesma velocidade na tela em qualquer zoom. A "deriva longa"
+    começa 10 s mais tarde que nos relatórios anteriores.
+  - A impressão digital do motor da geologia (`tests/sim/geology-golden.test.ts`) passa a olhar só o
+    bioma no canal alfa: com ela, o valor antigo bate (o mundo não mudou).
+
+
+- **2026-10-17 — Metas de desempenho "de perto" (decisão do usuário, depois do relatório `751d6e39`).**
+  De perto (zoom máximo), parado ou girando: ≥ 60 fps. De perto com placas andando: ≥ 30, nunca abaixo
+  de 20 (a mesma da deriva de longe). Medidas nos cenários "de perto, girando" e "idem, de perto" do
+  "Medir desempenho". No Hot 50i, `751d6e39`: 61 e 46 (mínimo 33): batidas; travadas 147 → 1. "Não
+  precisa otimizar mais agora."
+
+- **2026-10-17 — T6, recursos minerais: decisões técnicas.**
+  - **Código de 1 byte por célula** (tipo em 5 bits, tamanho em 2, petróleo revelado em 1), gravado na
+    amostra de crosta da tectônica: anda com a placa e some quando a crosta afunda, sem custo na
+    recomposição. Crosta nova ou copiada de vizinha não herda jazida (não duplica); crosta que passa de
+    placa (acréscimo) leva a jazida.
+  - **Pincelada só liga o bit de revelado** na amostra (nunca apaga nem troca o tipo): o motor da
+    geologia pode ter uma jazida mais nova que o mundo do relógio.
+  - **Formação medida no relógio da deriva**, não em recomposições (que dependem da resolução):
+    períodos 0,27 rad (arco), 0,34 (colisão), 0,2 (rifte), chance 0,6 a cada período; frente com menos
+    de 3 células não conta. Sorteios próprios na ordem das recomposições (determinístico; teste repete
+    e compara).
+  - **Geração em províncias com amostragem** (1 célula em 5 entra na busca de lugares; o ambiente,
+    inclusive o cráton pelo mesmo ruído das províncias do G4, só é calculado onde precisa): 13–19 ms no
+    notebook. Descartado: avaliar todas as células (27 ms) e filtrar candidatos por província (15 ms).
+  - **Desenho:** a tela recebe o array de jazidas inteiro (0,4 MB) com o mundo e a cada recomposição, e
+    numa pincelada só quando ela revela petróleo; vira uma textura de 1 byte por célula (e a cópia da
+    composição anterior, para a transição suave). O bit mais baixo do azul na textura de cores marca as
+    células com algo a desenhar de perto: só elas leem a textura das jazidas (desempenho de perto igual).
+  - **Filtro da legenda na CPU** (repinta as cores do mundo ao trocar, como "Ver placas"), não na GPU como
+    proposto: uma repintura por toque na legenda, sem código a mais no shader.
+  - **Halo de 5 células** em volta das jazidas, só com a camada ligada: de longe uma jazida tem 1–2
+    pixels.
+  - **Toque com a camada ligada:** o pincel espera 300 ms parado (ou começa ao arrastar) para separar
+    toque curto de pincelada; o nome vem do relógio (`query`), na célula tocada ou numa vizinha.
+
+- **2026-10-17 — T7, clima: decisões técnicas.**
+  - **Desvio global com amplificação polar** (0,5 + 1,3·|lat|/90°): "−8 °C" do usuário é o valor do
+    ciclo; o equador esfria ~4 °C e os polos ~14 °C. Calibrado em 5 sementes (calota em ~62–65° no
+    clima normal, ~45–50° no máximo glacial). Limites: calota em terra −10 °C, geleira de montanha
+    −12 °C com chuva ≥ 250 mm, tudo gelo abaixo de −18 °C, mar −10 °C ± 4 °C de corrente.
+  - **Nível do mar** só desce (o gelo em terra guarda a água): 15 m/°C, degraus de 10 m. A geologia
+    passa a usar `heightAboveBase` (nível de referência fixo): crosta continental ou oceânica não muda
+    com o mar baixo. Clima, água e biomas usam o nível atual.
+  - **Recálculo do clima no ajudante 2** a cada 0,2 °C ou degrau do mar, entregue como "composição de
+    clima" (mesma fila e mesmo atraso de 480 passos das recomposições, determinístico). Parcial (só
+    temperatura, gelo e bioma; mesma conta do total, testado) quando o mar não muda. A tela recebe só
+    os retângulos com cor nova.
+  - **Pinceladas no mundo do ajudante:** a tectônica diz em que célula está cada amostra
+    (`syncSample` devolve a célula); o motor grava a pincelada e refaz o clima dela. Sem isso, um
+    recálculo de clima entre duas recomposições desfazia o morro pintado.
+  - **Controle de temperatura:** manda ao soltar o controle; o relógio faz uma prévia na hora (o mesmo
+    cálculo do ajudante, que chega depois).
+  - **Umidade:** alcance 0,25 → 0,8 rad e chuva base ×1,35 (chuva mediana 595 mm, desertos 16%).
+  - **Erosão pela chuva:** taxa × chuva/700 mm, entre 0,25× e 2×.
+  - **Fronteira de placas de perto:** só células da própria placa (bit de "encosta em outra placa" da
+    textura de placas decide quando olhar); a cópia de tolerância continua só de longe (células < 6 px).
+
+- **2026-10-17 — Aparelho-alvo passa a ser o notebook (decisão do usuário).**
+  - **Decisão:** o alvo é o ASUS Vivobook Go E1504FA com Ubuntu (Ryzen 5 7520U, Radeon 610M, 16 GB,
+    tela 1080p a 60 Hz com toque). O celular (Infinix Hot 50i) sai do projeto **sem meta nenhuma**.
+    O "Medir desempenho" passa a ser rodado no notebook. O usuário joga pelo toque.
+  - **Motivo:** manter dois aparelhos dobraria o trabalho.
+  - **Descartado:** manter o celular como alvo mínimo.
+  - **Medição de partida (notebook, 1920×1080, Chrome, versão de 2026-10-17):** 60 fps (teto da tela)
+    em todos os cenários, inclusive "de perto" e placas 100%; pior quadro 17 ms, nenhum > 50 ms;
+    geração 0,79 s (primeira abertura 1,48 s); recomposição média ~330 ms (pior 505), relógio sem
+    esperar; recálculo do clima ~88 ms no ajudante.
+  - **Metas propostas (aprovadas pelo usuário em 2026-10-17, ver a entrada do teste da `b3297292`):**
+    1. Todos os cenários (pausado, girando, de perto, tempo 20×, placas 100%, deriva longa, ruptura):
+       **60 fps de média** (o teto da tela), **mínimo ≥ 50**, **nenhum quadro > 50 ms**.
+    2. **Geração ≤ 1,5 s** do pedido ao globo (primeira abertura ≤ 2,5 s).
+    3. **Recomposição ≤ 1 s** no ajudante e o relógio **nunca esperando** em 20× com placas 100%.
+    4. **Folga para os marcos seguintes:** o desenho do globo ≤ 8 ms de GPU por quadro em 1080p (metade
+       do quadro de 60 Hz), medido com consulta de tempo de GPU.
+    5. Memória: o teto de 150 MB de dados vira **≤ 400 MB** (o notebook tem 16 GB).
+
+- **2026-10-17 — Teste da 50f0dca: correções e decisões.**
+  - **Pontos rosa e azuis no gelo:** a cor do gelo claro passava de 255 e a textura (`Uint8Array`) dava
+    a volta (260 → 4). Cor presa em 0–255. Não era o limite de 16 biomas (são 16 exatos, cabem).
+  - **Costa reta (aprovada):** de perto fica a célula de centro mais perto, sem alisamento por pesos;
+    o contorno sai da diferença de distância (√) até a célula de outro bioma. Custo menor por pixel.
+  - **Quadrados mais cedo:** as células viram quadrados a partir de 3–6 px (antes 6–14). Entre 6 e
+    14 px a borda orgânica ainda agia sobre pixels já visíveis e fazia formas redondas e "lascas"
+    pontudas na costa. A borda orgânica fica só onde a célula tem menos de ~3–6 px.
+  - **Fronteiras de placa de longe:** a borda orgânica desloca o ponto até ~0,7 célula e perto da
+    fronteira ele caía na textura da outra placa, lida com a rotação desta: faixas arrastadas ao longo
+    da costa, maiores quanto mais as placas andaram. Agora, se o ponto deslocado é de outra placa, lê
+    sem o deslocamento (1 leitura de textura a mais por pixel, só com placas fora da composição).
+  - **Minério de perto:** mosaico 3×3 de pixels quadrados na cor do tipo (sem bolinhas). Jazidas
+    maiores (pequena 3–6, média 10–20, grande 25–45 células), mesmo número (~45–55): 0,67% da terra.
+  - **Formação de jazidas pelo relógio do jogo:** cada frente ativa forma uma jazida a cada intervalo
+    sorteado de 1.000–10.000 anos (pedido do usuário). Medido: ~2,5 jazidas novas por 1.000 anos no
+    mundo todo com placas 100%. A formação só roda nas recomposições (placas paradas = geologia parada).
+  - **Plataforma continental larga:** a faixa rasa da geração vai a 28% da faixa de profundidades
+    (antes 6%), até −160 m. No máximo glacial (mar −120 m) a terra sobe de 30% para ~32–33,5% (antes
+    ~30,5%). Efeito colateral: a crosta continental (acima de −500 m) passa de ~31% para ~35% do
+    planeta (a Terra tem ~40%); a semente "7" passou a cumprir o critério de altitudes (era falha
+    conhecida); dois testes longos passaram por menos de uma amostra e ganharam essa folga.
+  - **Controle de temperatura suave:** o controle manda o alvo já ao arrastar; o aplicado anda até ele
+    a 1 °C por segundo real (também pausado) e o mundo é refeito a cada 0,5 °C.
+  - **Teclado e mouse no notebook:** setas ↑/↓ aproximam/afastam no centro, ←/→ giram (velocidade na
+    tela igual em qualquer zoom); mãozinha (grab/grabbing) sobre o globo no modo mover; toque curto no
+    modo mover sempre mostra o bioma e a jazida à vista. Norte/sul pelo teclado: não há (arrastar faz).
+
+- **2026-10-17 — T8, terremotos e tsunamis: decisões técnicas.**
+  - **Desastres no relógio (ajudante 1)**, um sorteio por ano de jogo, com sorteios próprios na ordem dos
+    passos (determinístico). Em "Placas 0" a geologia congela: sem terremoto natural.
+  - **Tensão por trecho de fronteira** (par de placas + tipo), não por célula: não depende da resolução e
+    sobrevive às recomposições (a fronteira anda, o trecho continua). "Ver tensão" (T11) pinta o trecho.
+  - **Animações em tempo real** (camada de cima, canvas 2D), separadas dos efeitos no mundo (anos de
+    jogo): a 20× um ano passa em 0,05 s. Descartado: animar no tempo do jogo.
+  - **Marcas temporárias em anos de jogo** (alagado 8, cinzas 25, queimado 60, seco 12), repintadas a
+    cada 3 anos enquanto somem; o relógio pinta por cima das cores que vêm do ajudante 2.
+  - **Onda com velocidade mínima de 0,4** da do oceano fundo: com √profundidade pura ela ficava presa
+    na plataforma continental larga.
+- **2026-10-17 — T9, vulcões: decisões técnicas.** Erupção ergue o terreno pelo mesmo caminho do pincel
+  de Elevar (gravado na placa, anda com ela). Ponto quente medido pela distância que a placa anda por
+  cima (3.500 m por célula em média, em pulsos de 3 células, teto 150 m/ano): sem o pulso nascia uma
+  crista contínua em vez de ilhas em fila. O crescimento do ponto quente não é desastre (não conta na
+  frequência); só as erupções visíveis dependem dela.
+- **2026-10-17 — T10, clima: decisões técnicas.** Furacão desenhado no shader do globo (espiral nas
+  nuvens, até 4 ao mesmo tempo), andando pela trilha em 9 s reais; seca, enchente e incêndio piscam na
+  camada de cima. Nuvens animadas só com o tempo correndo e de longe (parado, o globo continua sem
+  redesenhar). Ruído das nuvens em eixos girados e deformado pela escala maior: com os eixos da textura
+  de ruído, as nuvens viravam blocos. Incêndio só a partir do ano seguinte ao início da seca.
+
+- **2026-10-17 — Teste da `b3297292` no notebook: decisões do usuário.**
+  1. **Metas do notebook aprovadas** (as cinco propostas acima; `CLAUDE.md` regra 6 e
+     `docs/01-arquitetura.md`). Medição do usuário (Firefox, 1920×1080): mínimo 59–60 fps em todos os
+     cenários, pior quadro 34 ms, nenhum acima de 50 ms, geração 0,96 s, primeira abertura 2,25 s.
+     Faltaram o tempo de GPU e a memória: o "Medir desempenho" passa a mostrar os dois.
+  2. **Controles ficam como estão**, sem tecla para norte e sul.
+  3. **Polos: trocar pela proposta** (`docs/img/m2-polos-proposta.png`), desde que o losango de perto
+     não deforme o que passa por cima; calotas polares e variação de cor no gelo; textura fina no M8.
+  4. **A mancha oval sem nuvens em volta do polo tem que sumir** (parece uma tampa). As nuvens em si
+     estão boas.
+  5. Floresta tropical fica como está. 6. Minérios aprovados.
+  7. **Prioridade visual:** o que o desastre faz no mundo, legível; acabamento fino no M8.
+  8. **Redesenho dos desastres** (refaz T8–T12): todo desastre muda o mundo (terreno, bioma,
+     vegetação), não uma "rodela" por cima; furacões vários, das nuvens, ciclone para os pequenos;
+     terremoto treme a tela e destrói o que há no epicentro; tsunami recua, avança e raspa a costa,
+     com alcance maior; magnitude ao provocar terremoto, tsunami e furacão; seca esquenta e mata a
+     vegetação; incêndio célula a célula, campo pega fogo; enchente melhorada e diferente do tsunami;
+     vulcão com cratera, lava, adormecido/acordado; raio novo; sem lista, aviso no canto inferior
+     esquerdo. Especificação e imagens antes de codar (`docs/M2-especificacao.md`, Bloco Desastres v2).
+     Sobre "mais parecidos com os do WorldBox": a regra 8 continua valendo; segue-se a ideia (desastre
+     agindo célula por célula no mapa), com cores, regras e números nossos.
+  9. Para os docs de marcos futuros: seca −30% de vida, furacão "puxa as coisas", terremoto destrói o
+     que há em cima, características do mundo em porcentagem (`docs/04-ecologia.md`); nômades caçam
+     depois de "dominar o fogo" (`docs/02-marcos.md`, M4); eventos de exemplo da crônica ("Fim da
+     Pangeia", "Ora, temos um Sócrates aqui", "Piromania") em `docs/07-cronica-nomes.md`.
+
+- **2026-10-18 — Redesenho dos desastres: respostas e ajustes do usuário** (detalhes em
+  `docs/M2-especificacao.md`, Bloco Desastres v2).
+  1. Velocidade: provocar um desastre volta o jogo para 1×; desastre natural não mexe na velocidade.
+     Motivo: os desastres andam no relógio do jogo (determinismo), e em 20× o provocado passaria em
+     menos de 1 s; frear no natural frearia o tempo toda hora.
+  2. **Reversão da decisão de 2026-10-15** ("só o vulcão muda o relevo para sempre; os outros se
+     recuperam"): agora o tsunami raspa a costa e o terremoto derruba encostas, para sempre e pouco.
+     Alternativa descartada: só a vegetação mudar.
+  3. Raio e vulcão: os dois sentidos (erupção solta raios que acendem fogo; raio acorda vulcão
+     adormecido). Raio do jogador num furacão cria um **furacão de fogo**.
+  4. Enchente aprovada. Tsunami aprovado com alcance de 3 a 28 células pela magnitude (o usuário
+     dobrou o máximo proposto, 14).
+  5. Ajustes: seca maior e semiárida (caatinga), desenhada célula a célula, sem mancha por cima;
+     terremoto com fenda e estrago pela magnitude, fenda irregular, deslizamentos seguindo a encosta;
+     vulcão em tamanhos variados, lava seguindo o terreno, cone e basalto bem separados; seletor do
+     furacão por categoria. Relevo do terreno mais legível: proposta antes de fazer.
+  6. Aprovados como estão: raio e incêndio, enchente, desenho do tsunami, nuvens e correção da tampa
+     no polo. A R1 (polos, nuvens, GPU e memória no relatório) pode começar.
+
+- **2026-10-18 — R1: polos, nuvens no polo e GPU/memória no relatório (decisões técnicas).**
+  - Polos pela proposta aprovada (patch guardado da proposta, reaplicado). O "losango" de perto: perto
+    do polo as células aparecem giradas 45° (o polo é o centro de uma face do cubo); o gelo é só a cor
+    de cada célula, então não entorta nada que passa por cima (terra, nuvens).
+  - Nuvens: a tampa vinha da emenda das faixas de vento (cada lado girando para um lado) e de quase
+    nenhuma nuvem acima de 60°. Solução: misturar os dois lados numa faixa de ~6° (o ruído é calculado
+    duas vezes só nessa faixa) e +0,32 de cobertura perto do polo. Descartado: vento variando suave
+    com a latitude (as nuvens se esticariam sem fim com o tempo).
+  - GPU: consulta de tempo da GPU (EXT_disjoint_timer_query_webgl2) quando existe; no Firefox ela não
+    existe, e o relatório mede cada desenho esperando a GPU (lendo 1 pixel), o que inclui a CPU.
+    Memória: `measureUserAgentSpecificMemory` (Chrome, página isolada) para a página inteira; os
+    "dados do jogo" são a soma dos arrays do mundo, da geologia e da tela (já existia no painel Dados).
+  - **Achado: a meta de GPU (≤ 8 ms) está quebrada de perto com as placas andando** (~8,1 ms; ~14,6 ms
+    na transição suave depois de cada recomposição, quando a superfície é desenhada duas vezes).
+    Longe e de perto parado ficam em ~4 ms. Parada obrigatória: opções levadas ao usuário.
+
+- **2026-10-18 — Respostas do usuário à R1 e às imagens do `35a5ceb`.**
+  1. **Meta de GPU de perto com as placas andando: opção (a), otimizar para caber em 8 ms**, depois
+     de implementar o relevo (que também pesa na GPU; otimizar antes faria o trabalho duas vezes).
+     Se a transição de perto mudar de aparência, mostrar antes. A meta é 8 ms; não otimizar além.
+     Descartadas: (b) meta pela média do cenário; (c) meta separada de 12 ms.
+  2. **Relevo do terreno: opção (b), degraus** (níveis a cada 150 m, sombra e borda iluminada pela
+     luz de noroeste), o quadro 7 da proposta. Vale também de perto; se ficar ruim, o usuário avisa.
+     Descartadas: (a) sombra suave de encosta; (c) sombra + cor pela altura.
+  3. Imagens aprovadas: terremoto v2, vulcão v2 e seletores de força. A seca v2 fica como está por
+     enquanto; o semiárido deve ficar mais bonito com a ecologia (M3, `docs/04-ecologia.md`).
+  4. Ordem do bloco: R2 → RL (relevo) → RG (GPU) → R3 a R9.
+  5. Docs: referência da câmera em primeira pessoa (vídeo do Andrezitos) em `docs/02-marcos.md`.
+
+- **2026-10-18 — R2: base dos desastres v2 (decisões técnicas).**
+  - O chão (vegetação e estados) vive só no relógio, com as células fixas no lugar: a recomposição
+    das placas leva décadas para andar uma célula e quase tudo volta antes disso. O que dura séculos
+    (basalto) passa a andar com a placa na R7. O ajudante 2 continua pintando o mundo sem o chão; o
+    relógio repinta por cima só as células com algo (lista de células ativas).
+  - Vegetação em ponto flutuante (0–1) por célula (~1,5 MB em N = 256); a tela só recebe a célula
+    quando a aparência muda de degrau (4% de cobertura ou 1/8 da força do estado), para não mandar
+    remendos a cada ano em 20×.
+  - Uma célula tem um estado de cada vez; o novo substitui o anterior, menos lava e basalto (só lava
+    cobre). Descartado: vários estados por célula (mais memória e cor ambígua).
+  - Provocar volta para 1× pela tela (o seletor de velocidade acompanha); pausado continua pausado
+    (a decisão do usuário fala em "se estiver mais rápido").
+
+- **2026-10-18 — RG: GPU de perto com as placas andando (decisões técnicas).** Medido no notebook:
+  o custo não era a sobreposição de placas nem o tamanho do código, e sim (1) a busca larga de placas
+  vizinhas (4 sondas por pixel) virando o caso comum com placas a 100% em 20×, porque elas andam até
+  ~3,2 células entre recomposições e o alcance guardado era 3,5 células com folga de 1,5×; e (2) a
+  transição desenhando o globo duas vezes. Decidido: candidatas a 8 passos (alcance 5,6 células), a
+  distância até a outra placa mais perto nos bits livres da textura de placas (bits 5 e 7), e a
+  transição lendo uma imagem guardada na recomposição (reprojetada pela câmera e pelo giro de cada
+  placa; fora dela, o desenho completo de antes). Descartados, medidos sem ganho: busca em laço,
+  reaproveitar a placa da composição atual na anterior, imagem guardada em 16 bits, ler a imagem
+  guardada antes do resto do pixel. A leitura da imagem guardada custa ~1,4 ms nesta GPU (medido; não
+  é falta de banda). O pior caso que sobra é a distância média (células de ~5 px, onde bordas
+  orgânicas e vista de perto se sobrepõem): média 7,1–7,8 ms, quadros isolados até 8,4 ms. Como o
+  usuário pediu ("a meta é 8 ms; não otimize além disso"), parei aqui.
+
+- **2026-10-18 — R3: incêndio e raio (decisões técnicas).**
+  - O fogo é um processo de percolação: perto do ponto crítico, o tamanho muda muito com a chance de
+    passar (medido: com 30% a mais de chance a mediana vai de 3 para 160 células). Calibrado para ficar
+    abaixo do ponto crítico sem seca (a favor do vento ~55% por célula ao longo da queima) e acima na
+    seca (×3). Descartado: tamanho sorteado de antemão (o de antes), que não deixa o vento e o terreno
+    decidirem a forma.
+  - Incêndio do jogador mais forte (foco de raio 2, chance ×1,2), mantendo a regra da T11 de que os
+    desastres provocados são fortes. Sem isso, metade dos fogos do jogador morria em 2–3 células.
+  - Raio natural só entra na simulação (e na tela) quando acende fogo: os que caem no mar ou na chuva
+    seriam dezenas de clarões por segundo a 20×, sem efeito.
+  - O aviso do incêndio sai quando ele apaga (só então se sabe o tamanho).
+
+- **2026-10-18 — R4: seca e enchente (decisões técnicas).**
+  - O calor da seca (+2 a +6 °C) não entra na temperatura do clima: mudaria o bioma das células (e o
+    ajudante refaz o clima a cada recomposição). Fica como intensidade guardada no chão, aparece na cor
+    (mais chão avermelhado) e no toque. Descartado: somar à temperatura do mundo.
+  - A primeira perda de vegetação da seca vem na hora (sem ela, a seca provocada levava 1 ano, 1 s em
+    1×, para aparecer).
+  - A enchente encosta no mar sem problema (planície costeira é o terreno baixo); só sobra lago quando
+    a água não encosta no mar.
+  - O relógio do chão passou a ter agenda por passo de vencimento (antes varria todas as células com
+    algo a cada passo; com secas grandes e solo fértil de décadas, são milhares).
+  - Custo: a seca repinta as suas células conforme a vegetação cai (degraus de 4%). Medir com tudo
+    acontecendo na R9.
+
+- **2026-10-18 — R5: terremoto (decisões técnicas).** Fenda por cima do deslizamento quando se cruzam
+  (é o que mais conta a história do tremor). Mudança de relevo dos desastres célula a célula pelo mesmo
+  registro do pincel (`commitRegion` no relógio), para andar com a placa. Tremor: deslocamento do centro
+  da câmera em pixels (não mexe no giro nem no zoom; os toques durante o tremor caem um pouco ao lado,
+  aceitável por até 2 s). Descartado: tremer o canvas inteiro pelo CSS (mostraria a borda da página).
+
+- **2026-10-18 — R6: tsunami (decisões técnicas).** A faixa de espuma só é desenhada no mar perto das
+  costas atingidas (até 8 células), como na imagem aprovada: no oceano todo seriam centenas de milhares
+  de células repintadas por segundo. "Costa atingida" da tabela = células de costa que a onda toca;
+  as que alagam são menos (costas altas seguram a água). Repinturas dos desastres juntadas por laço do
+  relógio e cores em degraus (determinismo em qualquer velocidade). Descartado: desenhar a onda no
+  shader (precisaria de uma textura de tempos de chegada; fica para o M8 se o usuário quiser a onda no
+  mar aberto).
+
+- **2026-10-18 — R7: vulcões (decisões técnicas).**
+  - Rocha do cone numa camada própria do chão (não um estado): a lava passa por cima, esfria, some, e o
+    cone continua. Descartado: estado "cone" (seria apagado pela lava).
+  - O chão inteiro anda com as placas a cada recomposição (não só o basalto): mais simples e coerente
+    (fenda, lama, solo fértil e seca também duram décadas, e as placas andam ~1 célula a cada 13 anos a
+    20× com placas a 100%). Custo: uma passada pelas células do mundo por recomposição.
+  - Os vulcões do começo são criados junto com o mundo (o relevo do cone entra antes das cores e do
+    motor da geologia), pela semente: mesmo mundo, mesmos vulcões.
+  - Vulcões não acordam com as placas paradas (regra de "em 0 a geologia congela"), nem pelo raio
+    natural; o jogador acorda em qualquer caso.
+
+- **2026-10-18 — R8: furacão (decisões técnicas).** Só a torção das nuvens do globo deixava uma bola
+  branca (as manchas de nuvem são maiores que o furacão): a nuvem torcida é juntada em braços de espiral
+  e engrossada no furacão, para ficar como a imagem aprovada. A posição vai da simulação para a tela a
+  cada laço (não mais uma animação de 9 s em tempo real), para o furacão andar no relógio do jogo como os
+  outros desastres. Furacão de fogo: um incêndio por furacão, alimentado pelo miolo (em vez de um
+  incêndio por célula, que seriam centenas).
+
+- **2026-10-18 — R9: frequências.** "Raro" passou de fator 1 para 0,4 (as outras frequências na mesma
+  proporção) e o espaçamento dos vulcões de arco passou a ser em ângulo, para o mesmo planeta ter os
+  mesmos vulcões em qualquer resolução. Meta do usuário (~1 aviso a cada 1–2 min em 1×) medida em
+  N = 256: 12–17 avisos por 1.000 anos de jogo. Descartado: subir o limite de "grande" de cada desastre
+  (os avisos deixariam de mostrar coisas que o usuário quer ver, como erupção IEV 4).
+
+- **2026-10-18 — Teste da `30e5e93` no notebook (decisões do usuário).** Modelo da Terra aprovado
+  ("ficou lindo"); todas as metas batidas no relatório (pior quadro 36 ms, GPU ≤ 6,8 ms, memória
+  160 MB, geração 0,93 s), mas o rodapé mostrou 6 travadas (117–217 ms em 20× logo depois de
+  recomposição; ~1 s em 1× mexendo na temperatura): diagnosticar e corrigir (meta: nenhum quadro > 50 ms).
+  1. **Furacão de fogo: removido** (reverte o pedido de 2026-10-18; "ideia ruim minha").
+  2. **Derretimento das calotas sobe o mar:** com o clima quente o gelo derrete, o mar sobe acima do
+     normal e alaga as terras baixas. Corrige a T7 (o nível do mar "só descia") e segue o item 4 da T7
+     na especificação (eras quentes alagam planícies).
+  3. **Vulcão coberto de gelo** continua ativo: o calor e a lava derretem o gelo em volta e a água desce
+     de uma vez numa enchente súbita (jökulhlaup). Proposta e imagem antes de codar.
+  4. **Raio que acerta um vulcão faz a lava espirrar.** Raios saindo do vulcão (opção c) estão certos.
+  5. Tsunami fica como está (até 28 células). Terremoto aprovado (fenda escura, aceitável). Aprovados:
+     seca, vulcão, relevo em degraus e polos.
+  6. Decisões técnicas do bloco aceitas: calor da seca só visual; vulcões desde o começo; incêndio do
+     jogador maior; "Raro" 0,4; chão andando com as placas; furacão com braços de espiral.
+  7. **Desastres novos:** tempestade de areia e meteoro (especificação e imagem antes de codar).
+  8. **Ordem:** bugs e decisões (itens 2–12 do teste) → desastres novos → T13 e T14.
+  9. Raio derretendo gelo: na vida real é irrelevante; não implementar.
+
+- **2026-10-18 — Respostas às propostas do `e8c6104` (regra do usuário: respeitar o mundo real).**
+  1. Vulcão sob gelo e meteoro aprovados; tempestade de areia aprovada **maior** e com a poeira
+     desenhada como as nuvens (borda recortada, andando), nunca uma mancha laranja redonda ("rodela").
+  2. Gelo derretido pelo vulcão volta sozinho **só onde o clima é de gelo**, e devagar; onde não é, não
+     volta.
+  3. Tempestade de areia: só a areia temporária (a tempestade não faz o deserto avançar; isso vem da
+     seca prolongada).
+  4. Meteoro gigante também esfria o planeta por um tempo (poeira e fuligem no ar). Meteoros naturais
+     de todos os tamanhos: pequenos os mais comuns, médios e grandes cada vez mais raros, gigante
+     raríssimo.
+  5. **Processo:** o `f81f2f7` saiu com teste falhando (o comando decidia o commit pelo `grep` depois da
+     verificação, não pelo resultado dela). Corrigido com uma trava mecânica: `.githooks/pre-commit`
+     roda `npm run check` e recusa o commit se falhar (testada: recusou um teste falhando de propósito).
+  6. **Critério do teste vem do desenho:** o `ee890c6` usou "raios acendem mais de 1/3 dos incêndios",
+     um número tirado do resultado. Agora cada incêndio registra a origem (raio, lava ou jogador) e o
+     teste exige que todo incêndio natural venha de raio ou de lava.
+
+
+## 2026-10-18 — Meteoro natural só com as placas andando (decisão técnica, a confirmar)
+- **Decisão:** com o controle "Placas" em 0 não cai meteoro natural (o do jogador cai sempre).
+- **Motivo:** "Placas 0" foi definido como "a geologia congela" (o relevo não muda sozinho); a cratera
+  muda o relevo para sempre. O teste "controle em 0 congela a geologia" pegou isso no commit.
+- **Alternativa descartada:** meteoro natural independente das placas (mudaria a regra do "Placas 0").
+  Fica em aberto para o usuário confirmar.
+
+## 2026-10-19 — T13: teste longo de estabilidade (decisões técnicas)
+- **"X passos" = 12.000 anos** (144.000 passos, 10 min a 20×): a janela das medições do Bloco G e um
+  ciclo de Wilson inteiro com as placas no máximo. Tudo no padrão do jogo (placas 25%, "Raro").
+- **"Continente grande" = componente de terra com ≥ 2% da terra**, o mesmo corte do critério de formas
+  aprovado (2026-10-15). **"Quantidades esperadas" dos desastres** = os 10 tipos naturais acontecem e
+  os avisos ficam na meta do "Raro" (1 a cada 1–2 min em 1× = 8–17 por 1.000 anos), com a folga do
+  teste da R9 (5 a 25).
+- **Resolução do teste: N = 128.** Em N = 64 o teste reprova: a terra sobe de 30% para 40–42% em
+  12.000 anos. Causa medida: a lava que chega ao mar vira terra (R7) e cada erupção anda um número fixo
+  de células (10–80); numa grade pequena isso é 4× (N = 128) ou 16× (N = 256) mais área. Com desastres
+  em "Nenhum" a terra fica estável; em N = 128 e N = 256 (o jogo) também (+1–2 pontos em 12.000 anos).
+- **Não corrigido agora:** a lava medida em células só vale para N = 256, a resolução do jogo até o M3.
+  Se a resolução mudar, a lava passa a ser medida em área (como o espaçamento dos vulcões na R9).
+- **Alternativa descartada:** rodar em N = 256 no CI (~46 s por semente, só o teste).
+
+## 2026-10-19 — Teste da `d644319` no notebook (decisões do usuário)
+1. **Processo:** a T13 foi começada antes do teste do usuário. Fica, mas a ordem do fluxo vale mesmo
+   para teste automático: teste do usuário → correções → próximas tarefas. A T14 só depois das
+   correções (E1–E13 na especificação) e do teste delas.
+2. **Um efeito por vez** (referência do usuário: a seleção de poderes de um jogo de deus, só a ideia):
+   só um poder selecionado e destacado; escolher outro substitui o anterior; tocar no selecionado
+   desliga. Vale para ferramentas, desastres e visões (Ver placas, Ver recursos, Ver tensão). Os
+   padrões do mundo (nuvens) continuam ligados.
+3. **O jogo nunca muda as escolhas do jogador sozinho:** provocar um desastre não volta mais o tempo
+   para 1×. **Reverte** a decisão de 2026-10-18 ("provocar volta para 1×").
+4. **Meteoro maior**, proporcional à cratera (hoje o meteoro é pequeno e só a cratera é grande).
+5. **Aprovados:** raio, tempestade de areia, terremoto e a duração geral dos desastres.
+6. **Meteoro natural com "Placas 0":** confirmada a escolha técnica (não cai).
+
+## 2026-10-19 — Correções E1–E13 do teste da `d644319` (decisões técnicas)
+- **Um efeito por vez (E9):** pincéis, desastres e as visões Ver placas, Ver recursos, Ver tensão e Ver
+  biomas dividem a mesma vez: escolher um substitui o anterior; tocar no selecionado desliga. Os
+  controles (tempo, temperatura, frequência, velocidade das placas) e "Mover" não são poderes: não
+  desligam a visão (ex.: ver as placas enquanto muda a velocidade delas). Nuvens continuam à parte.
+- **Avisos com o menu aberto (E8):** somem enquanto o menu está aberto (numa janela mais estreita que
+  ~900 px ficavam por cima das ferramentas) e voltam ao fechar, se ainda valerem.
+- **Tempestade de areia (E4):** a poeira desenhada vai até ~2,5 raios do centro; o raio de cada ponto
+  do caminho é o que cabe em terra até a água, e abaixo de 5 células ela se desfaz. Perto da costa ela
+  nasce menor. O desenho (aprovado) não mudou. Alternativa descartada: recortar a poeira no shader pela
+  água (uma leitura a mais por pixel e erro de algumas células com as placas andando).
+- **Furacão do jogador (E7):** segura a força em terra por 2/0/4/8/12 s (categorias 1–5) antes de
+  enfraquecer como antes; teto de 24 s. Os naturais não mudaram.
+- **Meteoro (E12):** a bola tem ~1/3 do raio da cratera na tela (cauda e clarão crescem junto).
+- **Inverno de impacto (E6):** chega em 3 anos (suave) e é cuidado só pelo relógio (o ajudante 2 não o
+  vê mais), em degraus de 0,5 °C como o controle de temperatura (~100 ms por degrau no relógio em
+  N = 256). **Não mexe no nível do mar:** o mar acompanha o volume das geleiras, que leva milênios; um
+  inverno de 30 anos não o baixa (antes descia 50 m de uma vez). A confirmar com o usuário.
+- **Cores (E6):** em terra, o brilho pela altura, a sombra de encosta e os degraus contam do nível de
+  base do mar, não do atual. A troca entre terra e mar e a cor da profundidade seguem o mar atual.
+  Impressão digital do motor nova (`aee2695d`).
+- **Visões e recomposição (E5/E9):** o resultado do ajudante leva as visões com que foi pintado; se o
+  jogador trocou de visão no meio, o relógio repinta.
+- **Revisão (E13):** a agenda de volta do gelo derretido fica no lugar (o modo do gelo não anda com a
+  placa); estados de terra firme saem quando a célula vira mar ou fica sob o gelo.
+- **Tsunami recomeçando (E10):** não reproduzido. Com o painel Dados aberto o tsunami segue normal
+  (capturas a cada 0,4 s). O "Medir desempenho" pausa e, no fim, gera o mundo de novo (para medir a
+  geração): tudo volta ao ano 0. Pergunta ao usuário se isso deve mudar.
+- **Desempenho (E1–E3):** as travadas das 07:27 coincidem com as sondas e testes pesados que o Claude
+  Code rodava no mesmo notebook (07:25–07:35, todos os núcleos ocupados); o jogo do usuário no Firefox
+  também estava aberto durante a medição do Claude Code (GPU dividida). Sem carga, 1× com placas 100%
+  por 150 s: 0 travadas. Achado à parte: com a janela coberta (sem a página ficar "escondida"), o
+  navegador desenha 1 quadro por segundo e o rodapé conta travadas falsas da tela.
+
+## 2026-10-19 (noite) — Teste da `58f53e79` no notebook (decisões do usuário)
+1. **Aprovados no teste:** um efeito por vez (E9, item 5), "Ver placas" não desliga nem escurece (item
+   6), provocar não muda a velocidade (E11, item 7) e a bola do meteoro crescendo com a cratera (E12).
+2. **Ciclones de ~20–30 s:** aceitáveis.
+3. **Frio do meteoro gigante (E6):** melhor que antes; congelar o planeta somando meteoros agradou (vira a
+   ideia P9: temperatura extrema transformando o planeta).
+4. **Desempenho medido pelo usuário (Chrome):** 60 fps, nenhum quadro > 50 ms, GPU ≤ 3,7 ms, memória
+   158 MB, geração 1,0 s, primeira abertura 2,3 s (todas na meta). Fora da meta: relógio esperou 114 ms
+   ("deriva longa"), 4 travadas de ~300 ms em 1×, pior recomposição 980 ms (corrigidos: F3/F4).
+5. **Regra da rodada noturna:** decisão de design (mecanismo novo com efeito de jogo ou mudança visual)
+   não para o trabalho e não é codificada: vira proposta escrita na especificação (o que muda,
+   alternativas, custo e imagem em `docs/img/` se for visual), e o trabalho segue. Não começar a T14,
+   não fechar o M2, não mexer nas 5 perguntas pendentes (meteoro e mar, controles e visão, "Medir
+   desempenho" volta ao ano 0, tamanho das placas, 8 sementes). Critério de teste sai do desenho, nunca
+   do resultado observado.
+6. **Pedidos:** defeitos F1–F6 (diagnóstico, correção e teste), propostas P7–P9, testes do Claude Code
+   no notebook (item 10), lista de teste para o dia seguinte (item 11).
+
+## 2026-10-19 (noite) — Correções do teste da `58f53e79` (decisões técnicas)
+- **Tempestade de areia (F1):** "areia seca" = deserto quente ou frio, calor da seca ou areia de
+  tempestade, em terra sem gelo. O recorte do desenho é feito no shader por um bit da textura de cores
+  (`SAND_BIT`, o mais baixo do vermelho; mudar 1/255 não aparece), na mesma célula que já é lida. Reverte
+  a alternativa descartada na E4 (recortar no shader): o custo que se temia (leitura a mais) não existe
+  com o bit, e o erro com as placas andando é justamente o que o recorte no shader evita. O centro anda só
+  sobre areia seca e para na borda (duração 6–15 s como desenhado); raio pelo espaço até a borda, mínimo
+  6 células (abaixo disso o ruído da poeira quase não aparece). Alternativa descartada: encolher a
+  poeira até caber inteira no deserto (testada: 40–60% dos toques sem nada e vida mediana < 1 s).
+- **Impressão digital do motor nova (`152f1801`)** só pelo bit da areia seca no vermelho: com o bit
+  mascarado, a impressão é a mesma antes e depois (`064fedfd`).
+- **Anel da repintura (`withRing`) passa a incluir as 4 vizinhas da grade:** na borda da face as vizinhas
+  ficam em outra face e não eram repintadas quando o relevo ao lado mudava (sombreado e degraus leem as
+  4 vizinhas). Achado pelo teste "visão ligada no meio de uma recomposição" (`tests/sim/core.test.ts`),
+  que passou a falhar quando a mudança da tempestade de areia mudou o sorteio dos desastres: 1 byte
+  diferente numa célula de canto da face. Defeito antigo, de efeito pequeno (um tom de sombra errado na
+  borda da face até a próxima repintura).
+- **Tsunamis (F3):** plano da onda em pedaços de 25 mil células de mar por passo (conta em células, não
+  em tempo: o mundo é o mesmo em qualquer velocidade), um plano por vez em fila; fechamento num passo
+  próprio. Costa raspada (mudança pequena espalhada) refaz o clima só a até 2 células de cada célula e
+  não a sombra de chuva a favor do vento; a próxima recomposição refaz o clima inteiro. Alternativa
+  descartada: limite de tsunamis ao mesmo tempo (efeito de jogo, decisão do usuário) e calcular a onda
+  num ajudante separado (mais trabalho; fica como opção se a espera da fila incomodar).
+- **Mudança de relevo espalhada (F4):** quando as células mudadas estão a mais de 2 margens (sombra de
+  chuva + 2 células) do centro delas, a região do clima é a soma de círculos em volta de centros que
+  cobrem as células (cada célula a até meia margem de um centro; círculos de 1,5 margem). Mudança só de
+  gelo (volta ao clima ou derretimento) refaz o clima a até 2 células de cada célula, como a costa raspada.
+
+## 2026-11-03 — Teste da `d7479ae2` (20/10 e 29/10) e decisões do usuário
+1. **Regra nova (CLAUDE.md, regra 14):** toda decisão de design (mecanismo novo com efeito de jogo,
+   mudança visual ou de interface) vem com **4 a 6 opções variadas**, com imagem quando for visual, e o
+   custo de cada uma. O usuário escolhe; o código só vem depois.
+2. **Aprovado:** a fenda do terremoto sumindo aos poucos (R5/F2).
+3. **Desempenho:** o "Medir desempenho" de 20/10 (Firefox) não vale. O de 29/10 (Chrome, `d7479ae2`)
+   tem falhas a trazer para dentro das metas, sem otimizar além delas: quadros > 50 ms em três cenários,
+   "relógio esperou 195 ms" na deriva longa, primeira abertura 2.666 ms, geração 1.489 ms, pior
+   recomposição 976 ms, 3 travadas ao abrir a página.
+4. **Crateras sobrepostas (P8):** opção (b), o estrago soma, alargando e aprofundando sem virar mar.
+5. **Meteoro no estilo diorama de cubos** (item 13), não mais o "mini sol" (P7 sai): opções com imagem
+   antes do código.
+6. **Tempestade de areia:** é uma corrente de ar que levanta areia. Passa da borda do deserto e vai
+   perdendo força até se desfazer logo depois de sair do deserto (ou de terreno parecido), como no mundo
+   real: a areia grossa cai perto, a poeira fina vai mais longe. **Reverte a E4** ("a poeira não passa
+   por cima do mar") e responde à pergunta da F1 (areia fora do deserto). Continua sem fazer o deserto
+   avançar.
+7. **Terremoto (F2):** opção (b), degrau permanente ao longo da falha nos M ≥ 8, como no mundo real:
+   altura proporcional à magnitude, exagerada só o necessário para ser vista no jogo. A altura e a
+   imagem vêm antes do código. **Muda a decisão de 2026-10-18** ("o terremoto muda o relevo para sempre,
+   só um pouco"): nos M ≥ 8 a marca passa a ser visível.
+8. **Fila de tsunamis (F3):** fica como está (a onda começa ~1 s depois do tremor; muitos seguidos
+   esperam na fila).
+9. **Vulcões em continente (F6):** não decidido; proposta refeita com 4 a 6 opções e imagem.
+10. **Avisos:** devem aparecer abaixo da etiqueta "PRÉVIA marco-2"; tocar no ano muda a velocidade do
+    tempo, como pelo menu. Mudança de interface: 4 a 6 opções com imagem antes do código.
+11. **Relatório:** se nenhum quadro foi desenhado (aba escondida, janela sem foco), o "Medir desempenho"
+    diz "medição inválida" em vez de mostrar 0 fps e números absurdos.
+12. **As 5 perguntas pendentes:** (i) o meteoro gigante esfria o planeta sem mexer no nível do mar: sim
+    (E6 confirmada); (ii) tempo, temperatura, frequência e velocidade das placas não desligam a visão:
+    confirmado (E9); (iii) "Medir desempenho" volta o mundo ao ano 0: opção (b), perguntar antes de
+    começar; (iv) "tamanho fixo" das placas = identidade e forma fixas, placa de oceano pode sumir: sim;
+    (v) as 8 de 20 sementes fora do critério de formas aos 3 min: corrigir no M2, sem afrouxar o critério;
+    se a correção for cara ou mexer em comportamento de jogo, parar e mostrar o custo antes.
+13. **Temperatura extrema (P9):** vai para o M3 (física e vida); a parte de civilização em
+    `docs/05-civilizacao-politica.md` e `docs/06-guerra.md`. Frio máximo: era glacial total, cidades-
+    fábrica e aldeias mecanizadas para gerar calor, pesca precária, canibalismo. Calor máximo: planeta
+    deserto, vermelho, caótico e destruído, florestas só em montanhas e lugares isolados; gangues,
+    veículos, dunas, vilas especializadas (munição, combustível), monopólio de recursos, ataques
+    suicidas, num modelo social único. Um filme de estrada pós-apocalíptico é só inspiração (regra 8):
+    nomes e desenho nossos.
+14. **Doutrinas de guerra (M6):** exércitos lutam organizados por uma doutrina; inspirações: soviética
+    (batalha profunda), alemã (guerra-relâmpago), vietnamita (túneis e selva), brasileira (selva), terra
+    arrasada e japonesa (ataques suicidas). Cada uma com vantagens e desvantagens por terreno.
+15. **Direção visual (M3, antecipada do M8):** diorama de cubos, "o pixel em 3D". Importam a forma das
+    cidades, o jeito das montanhas e a distribuição do conteúdo, não o detalhe fino. Referências: as
+    imagens de países em maquete que o usuário mostrou ao orientador (relevo, cidades, costa,
+    florestas). Antecipa o "possível pseudo-3D" do M8; o M8 fica com o acabamento (animações, som, luz,
+    detalhes).
+16. **Primeira tarefa do M3, antes de qualquer outra:** (a) protótipo técnico de um pedaço do globo em
+    cubos no notebook, meta 60 fps e GPU ≤ 8 ms; se não couber, a decisão volta ao usuário; (b) guia de
+    estilo de uma página (tamanho do cubo, paleta, direção da luz, montanha, floresta, vila, cidade) com
+    4 a 6 opções em imagem. A imagem aprovada vira referência fixa; cada marco constrói as suas peças
+    nesse estilo.
+17. **Escala (responde à questão do M3, opções 2 + 3):** de longe, o globo diorama; de perto, a região
+    vira uma maquete em escala própria, com humanos, tanques e aviões visíveis.
+18. **Simulação:** de longe números, de perto indivíduos, mas sempre indivíduos para exércitos em
+    marcha, generais, aviões em missão e figuras da Crônica. O exército é uma peça permanente (posição,
+    general, rota, "5.000 soldados"): de perto os soldados aparecem um por um e lutam; quem morre sai do
+    número; ao afastar, o número continua de onde parou.
+19. **Batalha de longe:** cada soldado calculado (as mesmas ações de mover, atacar e matar, sem
+    desenho), otimizado de forma orgânica. No marco da guerra: 4 a 6 formas de otimizar, com o custo
+    medido de cada uma.
+
+## 2026-11-03 — A: desempenho do relatório da `d7479ae2` (decisões técnicas)
+- **Duas vagas de entrega no ajudante 2 (`RESULT_SLOTS = 2`).** O motor copia o resultado (mundo,
+  cores, referências: ~11 MB por vaga) para a vaga `índice % 2` e segue; para só com as duas ocupadas.
+  Custo: +22 MB de memória e ~5 ms de cópia por entrega. Mundo igual (impressão digital sem mudança).
+  Alternativas descartadas: entregar mais tarde (APPLY_DELAY_TICKS maior: as placas deslizariam além
+  do alcance do shader, 3,5 células) e recomposição mais barata (não garante nada na bateria).
+- **Shader compilado ao abrir a página**, com um desenho escondido atrás da tela de carregamento, em vez
+  de nascer com o mundo. O laço da tela não desenha o globo antes do primeiro mundo.
+- **Relatório:** quadros > 50 ms listados por cenário (até 4) com hora, trabalho da tela e tempo
+  recebendo do worker; "medição inválida" quando a página ficou escondida ou chegaram menos de 10
+  quadros por segundo (B9); `window.confirm` antes de começar (B10 iii, opção b do usuário).
+- **Ruído mais rápido descartado:** idêntico bit a bit, mas sem ganho no jogo (o motor já otimizava).
+- **Bateria:** as medições do Claude Code passam a dizer se o notebook estava na bateria ou na tomada.
+- **2026-11-03 — B2, crateras somando (técnico):** lista de até 256 crateras (centro, raio, fundo) nos
+  desastres; o centro é acompanhado na recomposição pelo `Ground.remap` (parâmetro `track`, sem estado de
+  chão). Cratera cuja crosta some na recomposição sai da lista. O meteoro soma com a cratera mais perto
+  que o contém, em volta do centro dela.
+- **2026-11-03 — B4, tempestade de areia (técnico):** força por ponto do caminho (recarga 0,2 por passo
+  sobre areia seca; fora, × e^(−0,5/6) por passo; fim abaixo de 0,1); areia no chão só com força > 0,45,
+  na proporção do que passa disso; a vida sorteada (72–180 passos) conta só sobre a areia; o raio não se
+  ajusta mais ao espaço até a borda. Sai o `SAND_BIT` das cores e o recorte da poeira no shader (F1): a
+  impressão digital da geologia volta ao valor de antes da F1 (`aee2695d`). Alternativa descartada:
+  manter o recorte e deixar só passar 1–2 células (a pergunta da F1), superada pela decisão do usuário.
+- **2026-11-03 — Energia no relatório (técnico):** o "Medir desempenho" diz "na tomada" ou "NA
+  BATERIA" pelo `navigator.getBattery()` (Chrome informa; Firefox não, e aparece "não informado").
+
+## 2026-11-03 (segunda mensagem) — Teste da `adf001ea` e decisões do usuário
+O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e revertia o diorama); vale esta.
+1. **Regra nova (CLAUDE.md, regra 15):** a cada prévia nova, o link da prévia mais recente vai para o topo
+   do `README.md` e para o campo "Website" do repositório no GitHub.
+2. **Regra de qualidade (CLAUDE.md, regra 16):** a qualidade visual e de função não se negocia. Vale
+   qualquer técnica que mantenha a qualidade e deixe o jogo mais leve (pré-renderizar, enganar a luz,
+   desenhar em lote, trocar detalhe pela distância). Se uma meta de desempenho não fechar, esgotar as
+   técnicas antes de propor baixar a qualidade; a decisão de baixar é do usuário.
+3. **Relatório da `adf001ea` (Chrome, tomada, janela 854×843):** passou GPU ≤ 2,7 ms, memória 231 MB,
+   abertura 2,4 s, geração 1,1 s, pior recomposição 616 ms, relógio esperou 0 ms. Falhou: quadro de 67 ms
+   em "pausado, girando" ("fora do código da tela"); travada de 7,7 s (tela e data, "núcleo ocupado",
+   pausado/1×, placas 25%) e uma de 1,2 s. No jogo, pouco liso. O usuário repete em tela cheia.
+4. **Defeitos a corrigir (M2):** travada ao jogar meteoro (todos os tamanhos e velocidades; nenhum quadro
+   > 50 ms; verificar o resto do que pode travar); temperatura subindo ao máximo depois de uma era do
+   gelo feita com meteoros (e por que nenhum teste pegou); crateras com limite de crescimento, proposto
+   pelo mundo real (as maiores crateras da Terra) adaptado à escala do jogo, junto com meteoros se
+   sobrepondo; mudanças de bioma e de temperatura sem tranco, aos poucos.
+5. **Tempestade de areia (B4):** aprovada.
+6. **B3, meteoro:** rocha em brasa da opção 4, com sombra suave, mais a fumacinha final da opção 5.
+7. **B5 (degrau do terremoto) e B8 (avisos e ano):** uma mescla de todas as opções; mostrar a mescla com
+   imagem antes do código, dizendo o que vem de cada opção e qual não combina e por quê. No B8 sai o
+   sinal de "toque".
+8. **B7, ponto quente em continente:** todas as opções, cada uma no lugar certo como no mundo real
+   (planalto de basalto no nascimento, caldeiras sob continente espesso, cadeia de ilhas no mar, campo de
+   cones em crosta fina, cones velhos envelhecendo); regra de quando aparece cada uma, com imagem, antes
+   do código.
+9. **B10, formas:** a opção 1 (Pangeia em pedaços menores + vale de 2 células) vira uma **escolha na
+   criação do mundo**, não o padrão; e um tipo de mundo novo, **"arquipélago"** (só ilhas, sem continente
+   fechado). A interface da escolha (4 a 6 opções) antes do código.
+10. **Tsunami:** tem que avançar mais (o efeito tem que se ver; Tōhoku 2011 entrou ~4,5 km, a célula tem
+    ~35 km, mas a proporção serve ao jogo). Muda a R6 (3 a 28 células): 4 a 6 opções de alcance com imagem.
+11. **A1 (metas na bateria):** continua aberta até o usuário medir na bateria.
+12. **Direção visual (substitui o "diorama de cubos" do item 15 de 2026-11-03, acima):** de perto,
+    **diorama** como a imagem de referência em `docs/img/referencias/` (maquete de uma região com relevo
+    em degraus e penhasco na borda, árvores, casas e prédios em quarteirões, rio com pontes, tanques,
+    mísseis com fumaça e explosões; modelos 3D simples, low-poly, luz suave, cores vivas). A maquete é
+    viva: é o desenho da simulação daquele lugar, e ali os indivíduos andam, atacam e morrem.
+13. **De longe:** o globo em **pixel 2D** no estilo do jogo de guerra que o usuário mostrou ao orientador
+    (rios, fronteiras, florestas de árvores desenhadas uma a uma, cidades em quarteirões, mísseis e fumaça
+    em sprites). A textura dos biomas de hoje é feia: muda nesse estilo, no guia de estilo do M3, não agora.
+14. As duas vistas são só **referência de estilo** (regra 8): desenho nosso, nada copiado.
+15. **Plano B:** se o 3D de perto não couber no notebook, modelos 3D salvos como sprites pré-renderizados
+    (cara de 3D, custo de 2D), com quadros de animação. Esgotar as possibilidades antes de propor voltar
+    atrás no estilo.
+16. **Escala:** vai mudar para o jogo dar certo (os humanos precisam ocupar o mundo; com o planeta do
+    tamanho atual não funciona). Responde à questão de escala do M3; **substitui o item 17** de 2026-11-03
+    (opções 2 + 3) e o item 16 (primeira tarefa).
+17. **Primeira tarefa do M3, o portão:** (a) protótipo de uma região em diorama (~64×64 células, árvores,
+    casas, relevo, luz e alguns bonecos andando), medido no notebook (60 fps, GPU ≤ 8 ms), comparando o
+    motor atual (WebGL2) e o Three.js por cima da simulação atual; (b) a passagem de longe (2D) para perto
+    (diorama) ao aproximar; (c) guia de estilo de uma página (paleta, luz, montanha, floresta, vila,
+    cidade, biomas no 2D de longe) com 4 a 6 opções em imagem; (d) 4 a 6 opções de escala (planeta,
+    célula, zoom) com o custo de cada uma. Nada do M3 se constrói antes da aprovação.
+18. **Temperatura extrema (docs):** frio máximo = o planeta todo congelado, bem extremo; calor máximo,
+    "Mad Max" (só inspiração, regra 8): água e floresta raras, que viram objetos de poder numa sociedade
+    apocalíptica. Física no M3; social no M5/M6, com o que já estava registrado.
+- **2026-11-03 — B1, inverno de impacto mais leve (técnico):** a prévia do clima repinta só as células
+  marcadas por `shiftClimate` (bioma ou gelo mudou: ela, o anel 3×3 e as 4 vizinhas; mar congelado: só
+  ela), também quando um resultado do ajudante chega e o frio vai por cima. O frio é refeito no máximo a
+  cada `IMPACT_PREVIEW_TICKS` = 4 passos e uma vez por volta do relógio. Consequência: em 20× (ou numa
+  volta que alcança o tempo) o passo exato de cada degrau de meio grau pode variar com a velocidade
+  (só a temperatura lida por furacões e incêndios naqueles passos). Alternativa descartada: refazer
+  em pedaços por passo (mesmo custo por quadro em 20×) e só a cada ano (degraus de até 6 °C em 1×).
+- **2026-11-03 — B4, troca suave das cores do clima (técnico, pedido do usuário):** textura extra RGBA8
+  (1,5 MB) com a cor antiga e a hora da troca (alfa, unidades de 1/32 s, volta em 255; 255 = sem troca);
+  0,6 s por célula; o shader só lê a textura enquanto há troca; recomposição cancela as trocas (ela tem
+  a transição dela). Alternativas descartadas: degraus menores (5× mais clima refeito no relógio) e
+  misturar na CPU a cada quadro (custo na tela).
+- **2026-11-04 — Limite real das crateras (decisão do usuário):** maior cratera = Vredefort (250–280 km de
+  diâmetro), `MAX_CRATER_RADIUS` = 4 células em N = 256; fundo até 1.500 m. **Consequência para decidir:**
+  como o gigante abria 12 células, para cada tamanho continuar maior que o anterior (F5) os raios passaram
+  de 1 · 3 · 6 · 12 para **1 · 2 · 3 · 4**. O alcance da onda de choque e dos incêndios ficou o aprovado
+  (`BLAST_RADIUS`: 3 · 7,5 · 15 · 30), para o gigante continuar devastador. Decisão técnica junto: perfil
+  por célula em vez de somar relevo. Alternativa descartada: limitar só a soma e manter o gigante com 12
+  (já nasceria 3× acima do limite).
+- **2026-11-04 — Cenários "meteoros" no Medir desempenho:** gigante a cada 0,5 s por 20 s, em 1×, placas 25%,
+  no mesmo lugar e em 40 lugares fixos (`meteorSpots`). O relatório mostra as travadas da data no cenário.
+- **2026-11-04 — Tipo de mundo na criação (decisão do usuário):** opção 2, cartões com miniatura: Padrão,
+  Continentes menores e Arquipélago. O tipo fica na URL (`tipo=`) e na linha "mundo" do Dados. Miniaturas:
+  mundos reais da semente `pangeia`, em `public/tipos/` (~30 KB cada).
+  - **Continentes menores:** peça máxima 20% ao nascer + vale de rifte vira mar com 2 células (B10 v, opção 1).
+  - **Arquipélago:** nasce Pangeia (30% de terra), partida em 14–16 placas. **Limite técnico:** o desenho
+    aceita no máximo 16 placas (4 bits), então só com placas sairiam no máximo ~13 pedaços, não ilhas. Por
+    isso, a cada recomposição, o interior afunda aos poucos até o mar raso (−180 m), numa mancha de ruído
+    presa à placa; ficam de pé 42% da terra. Não mudar para 32 placas: custaria reformar a textura de placas.
+  - **Desenho de arquipélago, quando as placas desligam:** terra ≤ 18%, ≥ 100 ilhas (com ≥ 0,1% da terra) e
+    nenhuma acima de 8% da terra. Medido em 6 sementes (N = 256, 20×, placas 100%): chega em ~3–4 min.
+    Com as placas em 25%, leva 4× mais. Desliga uma vez; se o jogador ligar de novo, não desliga mais. As
+    placas voltam à velocidade anterior no mundo novo. Depois de pronto, o afundamento termina o que falta
+    e não abre mais terra.
+- **2026-11-04 — Teste da `9b5ba0d4` e fim do M2 (mensagem do usuário):** aprovados clima sem tranco, tsunamis
+  seguidos e tipo de mundo na criação. Daqui em diante o usuário só faz testes objetivos e decide design e
+  mecânica; o resto é do Claude Code, que para só no fim, com até 6 itens de teste e até 3 decisões. B5, B7,
+  B8 e alcance do tsunami: não aprovados, vão para o ajuste fino depois do M3 (`docs/02-marcos.md`). T14 e, com
+  o ok do usuário, merge no `main`. Portão do M3 ganha a comparação globo × mapa plano. Todo link do README
+  para o jogo leva à prévia até o M2 ir para o `main`.
+- **2026-11-04 — T14, medição final do M2 contra a linha de base da v1.1** (`0c6dce7b`, build de produção,
+  Chromium com GPU real, 1920×1080, na tomada, pelo Claude Code; relatório em `docs/medicao-t14.txt`).
+  | Medida | v1.1 | M2 | Meta |
+  |---|---|---|---|
+  | Globo inteiro, sem limite de tela | 727 fps | 345 fps | — |
+  | Zoom máximo, sem limite de tela | 619 fps | 249 fps | — |
+  | Todos os 15 cenários, tela a 60 Hz | — | 60 fps, pior quadro 17 ms | 60 fps, ≤ 50 ms |
+  | Placas 100% + tempo Máx, 60 s | — | 60 fps, pior quadro 35 ms | ≥ 60 fps |
+  | GPU do globo, pior média | — | 6,2 ms | ≤ 8 ms |
+  | Memória da página | — | 215 MB | ≤ 400 MB |
+  | Geração / primeira abertura | — | 0,95 s / 1,46 s | ≤ 1,5 s / ≤ 2,5 s |
+  | Pior recomposição | — | 743 ms | ≤ 1 s |
+  | Relógio esperou, nos 15 cenários | — | 0 ms | 0 |
+  - O globo ficou ~2,1× a 2,5× mais caro que na v1.1 (placas andando, nuvens, relevo em degraus, desastres),
+    dentro da meta: a folga é de 2 a 3 vezes o quadro de 60 Hz.
+  - **O celular não foi medido:** saiu do projeto em 2026-10-17.
+  - **Tempo Máx com placas 100%:** o relógio chega a ~1.930 passos/s (8× o 20×); o limite passa a ser o
+    ajudante da geologia, então o relógio esperou 41 s em 60 s e a data parou 74 vezes, com a tela a 60 fps.
+    É o esperado do "Máx" (o resultado não muda, só o ritmo); nos cenários de até 20× a espera é 0.
+
+- **2026-11-05 — Modo de tempo geológico (decisão do usuário, item 1 da última rodada):** em 20× ou Máx com as placas
+  andando, a câmera vai para o planeta inteiro (zoom 1), o zoom trava e a data salta (500 anos em 20×, 1.000 no Máx). Só
+  a data na tela salta; a simulação anda igual, passo a passo. Detalhes técnicos decididos: girar o globo, tocar e provocar
+  desastres continuam; pausado o zoom destrava sem mexer na câmera; voltando a 1×–5× ou parando as placas, volta o zoom
+  que o jogador usava (se ele não mexeu no zoom enquanto estava pausado); o aviso aparece ao ligar e ao trocar o salto, não a
+  cada pausa. O "Medir desempenho" trocou o cenário "20× de perto" por "5× de perto" (o outro não existe mais no jogo) e
+  ganhou "tempo Máx, placas 100%".
+- **2026-11-05 — Ritmo do Máx (`maxSpeedQuota`):** a espera vinha de o relógio correr até 480 passos à frente do motor e
+  ficar parado o resto da recomposição (~500 ms). Agora a velocidade é (440 − folga usada) / 0,2 s: 2.200 passos/s com o
+  motor livre, freando até quase zero sem chegar ao limite. **Custo: o Máx caiu de ~1.930 para ~1.400 passos/s** com placas
+  100%. O mundo não muda (o ritmo só decide quantos passos andam por segundo real). Alternativas descartadas: passo fixo de
+  ~800 passos/s (mais lento); aumentar os 480 passos (as placas deslizariam além do alcance do desenho perto da recomposição e
+  o mundo passaria a depender da velocidade); esconder a espera só com a data em saltos (a espera continuaria lá).
+- **2026-11-05 — Cartões na primeira abertura (item 3):** decidido o detalhe técnico: o primeiro mundo só nasce depois da
+  escolha (gerar um Padrão atrás da tela seria 1 s de trabalho jogado fora a cada outra escolha). Vale para todo link sem semente
+  nem tipo, não só para a primeira vez da vida do navegador; a semente entra na URL ao criar, então recarregar não pergunta de novo.
+- **2026-11-05 — Tsunami até ~1/5 do continente (decisão do usuário, item 4; substitui os 3 a 28 células da R6 e tira o alcance
+  do ajuste fino):** a água entra a partir de todas as costas ao mesmo tempo, pelo terreno baixo. Decidido por medição (3 sementes,
+  antes e depois de a Pangeia se partir): **largura** = 2 × a maior distância até o mar dentro do continente (o lado curto; 94–160
+  células depois da quebra, 190–314 na Pangeia; a área superestimaria continente comprido). **Terreno baixo** = até 400 m no M 9,5, o
+  quarto mais baixo da terra; a altura não cai mais a cada célula, só com a distância percorrida no mar. **Magnitudes menores**, lendo
+  "até" como teto: parte da largura 1/20 · 1/12 · 1/8 · 1/6 · 1/5 e terreno 60 · 120 · 200 · 300 · 400 m para M 7,5 · 8 · 8,5 · 9 · 9,5.
+  Ilha pequena segue a mesma regra (1/5 de pouco é pouco). Alternativa descartada: frentes uma costa por vez (uma cortava o caminho da outra).
+- **2026-11-05 — O impacto do meteoro chega com a rocha, em qualquer velocidade (teste da `3238cd7b`; substitui "bate sempre ENTRY_TICKS passos depois"):**
+  a rocha continua levando ~1 s real, para ser vista; o que muda é o jogo, que espera por ela. O passo do impacto é fixado quando o meteoro nasce. **Do jogador:** os passos
+  de 1 s na velocidade do pedido (12 em 1×, 240 em 20×, o ritmo medido no Máx). **Natural:** sorteado 2.200 passos antes (o maior que 1 s pode ter) e a rocha só aparece no último
+  segundo; o impacto cai no mesmo passo em toda velocidade e a regra 4 continua valendo. Nenhum dos dois muda de passo depois de fixado. O impacto chega à tela numa mensagem própria, logo depois do remendo da cratera: é ela,
+  e não a conta do tempo, que põe a rocha no chão, com clarão e tremor. **Efeitos a conhecer:** meteoro natural cai 183 anos de jogo depois do sorteio (ninguém vê); o do jogador no Máx leva ~120 anos de
+  jogo para bater, e o mundo depende da velocidade no momento do pedido (como já depende do momento em que o jogador toca). Quem reduz a velocidade no meio da queda vê a rocha quase parada até faltar 1 s (Máx para 1×: até ~2 min); é raro e o impacto continua na hora certa. **Descartados:** rocha em 50 ms em 20× (nem seria vista); segurar só
+  o desenho da cratera (a recomposição e o fogo mostrariam antes, e o fogo já teria andado); contar a queda em tempo real no relógio (mundos diferentes em cada velocidade, contra a regra 4).
+- **2026-11-05 — Data rolando no tempo geológico (usuário, teste da `3238cd7b`):** os números sobem até o salto novo em 700 ms (~630 ms visíveis), rápido no começo e assentando. Não volta ao trocar 20× por Máx: fica no ano até o múltiplo novo passar dele.

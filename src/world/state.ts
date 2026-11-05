@@ -1,4 +1,6 @@
+import { newArray } from '../core/shared';
 import { CubeSphere } from './cubesphere';
+import type { Plate } from './plates';
 
 /** Gelo pintado/apagado pelo jogador vence o clima; `Auto` segue a temperatura. */
 export const IceMode = {
@@ -7,6 +9,18 @@ export const IceMode = {
   Erased: 2,
 } as const;
 export type IceMode = (typeof IceMode)[keyof typeof IceMode];
+
+/**
+ * Tipo de mundo escolhido na criação (decisão do usuário, 2026-11-04). A mesma semente com outro tipo dá
+ * outro mundo. `standard`: o de sempre; `smaller`: a Pangeia parte em pedaços menores; `archipelago`: a
+ * Pangeia vai se partindo até virar ilhas e, nesse ponto, as placas desligam sozinhas.
+ */
+export type WorldKind = 'standard' | 'smaller' | 'archipelago';
+
+/** O tipo de mundo de um texto (ex.: da URL); desconhecido vira o padrão. */
+export function parseWorldKind(text: string | null | undefined): WorldKind {
+  return text === 'smaller' || text === 'archipelago' ? text : 'standard';
+}
 
 export interface WorldParams {
   /** Texto digitado pelo jogador (ou o número) que originou a semente. */
@@ -18,6 +32,8 @@ export interface WorldParams {
   seaLevel: number;
   /** Fração alvo de terra na geração (0–1). */
   landFraction: number;
+  /** Tipo de mundo (sem isso, `standard`). */
+  kind?: WorldKind;
 }
 
 /**
@@ -43,9 +59,26 @@ export class WorldState {
   /** Variação regional do clima gerada pela semente, em [-1, 1]: temperatura e chuva. */
   readonly tempNoise: Float32Array;
   readonly rainNoise: Float32Array;
+  /** Placa de cada célula (índice em `plates`). */
+  readonly plate: Uint8Array;
+  /** Tipo de crosta (`Crust` em plates.ts). */
+  readonly crust: Uint8Array;
+  /** Tipo de fronteira de placa (`Boundary` em plates.ts); 0 = interior da placa. */
+  readonly boundary: Uint8Array;
+  plates: Plate[] = [];
+  /**
+   * Braços que falharam na quebra da Pangeia (geração v3): células de cada traçado. A tectônica cava
+   * o vale (aulacógeno) quando as placas começam a andar.
+   */
+  aulacogens: number[][] = [];
   /** Distância (em células) até a água mais próxima; 0 na água. Usada pela umidade. */
   readonly waterDistance: Uint16Array;
+  /** Jazida mineral de cada célula (T6, código em `resources.ts`); 0 = nenhuma. */
+  readonly deposit: Uint8Array;
+  /** Nível do mar atual (m): desce nas eras glaciais (T7). A geologia usa o nível de referência fixo. */
   seaLevel: number;
+  /** Desvio da temperatura global (°C, ciclo glacial + controle do jogador), na média do planeta (T7). */
+  climateOffset = 0;
 
   constructor(params: WorldParams, grid: CubeSphere = new CubeSphere(params.n)) {
     if (grid.n !== params.n) throw new Error('Grade com resolução diferente dos parâmetros');
@@ -53,15 +86,19 @@ export class WorldState {
     this.grid = grid;
     this.cellCount = grid.cellCount;
     this.seaLevel = params.seaLevel;
-    this.elevation = new Float32Array(this.cellCount);
-    this.temperature = new Float32Array(this.cellCount);
-    this.precipitation = new Float32Array(this.cellCount);
-    this.biome = new Uint8Array(this.cellCount);
-    this.ice = new Uint8Array(this.cellCount);
-    this.iceMode = new Uint8Array(this.cellCount);
-    this.tempNoise = new Float32Array(this.cellCount);
-    this.rainNoise = new Float32Array(this.cellCount);
-    this.waterDistance = new Uint16Array(this.cellCount);
+    this.elevation = newArray(Float32Array, this.cellCount);
+    this.temperature = newArray(Float32Array, this.cellCount);
+    this.precipitation = newArray(Float32Array, this.cellCount);
+    this.biome = newArray(Uint8Array, this.cellCount);
+    this.ice = newArray(Uint8Array, this.cellCount);
+    this.iceMode = newArray(Uint8Array, this.cellCount);
+    this.tempNoise = newArray(Float32Array, this.cellCount);
+    this.rainNoise = newArray(Float32Array, this.cellCount);
+    this.plate = newArray(Uint8Array, this.cellCount);
+    this.crust = newArray(Uint8Array, this.cellCount);
+    this.boundary = newArray(Uint8Array, this.cellCount);
+    this.waterDistance = newArray(Uint16Array, this.cellCount);
+    this.deposit = newArray(Uint8Array, this.cellCount);
   }
 
   isWater(i: number): boolean {
@@ -71,6 +108,14 @@ export class WorldState {
   /** Altura acima do nível do mar (negativa = profundidade). */
   heightAboveSea(i: number): number {
     return (this.elevation[i] as number) - this.seaLevel;
+  }
+
+  /**
+   * Altura acima do nível de referência (o mar da geração). A geologia (crosta continental ou
+   * oceânica) usa esta: o mar baixando numa era glacial não muda as placas.
+   */
+  heightAboveBase(i: number): number {
+    return (this.elevation[i] as number) - this.params.seaLevel;
   }
 
   landFraction(): number {

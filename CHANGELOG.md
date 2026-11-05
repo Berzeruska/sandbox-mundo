@@ -2,6 +2,19 @@
 
 ## [Não lançado]
 
+## [2.0] — 2026-11-05 — Marco 2: geologia viva
+- Placas tectônicas: a Pangeia se parte, os continentes derivam, colidem e se soldam, dorsais abrem oceanos, rupturas e ciclo de Wilson. Controle
+  "Placas" de 0 a 100%; em 0 a geologia congela. A recomposição roda num ajudante, sem travar a tela nem o relógio.
+- Toda a simulação em Web Workers. Menu por categorias, camada "Ver placas" e o painel "Medir desempenho", com registro de travadas.
+- Desastres naturais e provocados: terremoto, vulcão, tsunami, meteoro com cratera de verdade, furacão, tempestade de areia, incêndio, raio, seca, enchente. Frequência de "Nenhum" a "Muitos",
+  avisos só dos grandes e lista completa.
+- Tipos de mundo na abertura (cartões "Escolha o seu mundo"), entre eles o arquipélago.
+- Clima que acompanha as placas e a temperatura global: controle de temperatura, ciclo glacial, nível do mar e inverno de impacto, sem tranco na tela.
+- Recursos minerais e camada "Ver recursos"; o relevo revela jazidas.
+- Modo de tempo geológico: em 20× ou Máx com placas andando, planeta inteiro, zoom travado e a data rolando de 500 em 500 ou de 1.000 em 1.000 anos.
+- Meta de desempenho medida no notebook-alvo: 60 fps em todos os cenários, sem travadas (`docs/medicao-2026-11-05-final.txt`).
+- Pendências registradas para o ajuste fino depois do M3 em `docs/02-marcos.md`.
+
 ## [1.1] — 2026-10-15 — Ajustes visuais da v1.0
 - Projeção cubo→esfera verificada: já era a equiangular (área maior/menor 1,41; a gnomônica seria
   5,16). O losango nos cantos do cubo é geométrico e foi escondido no desenho (abaixo).

@@ -12,6 +12,10 @@ export interface InputHandlers {
   /** Mouse passando por cima sem apertar (null = saiu do canvas). */
   onHover(sx: number, sy: number): void;
   onLeave(): void;
+  /** Um dedo (ou botão) tocou o globo, antes de decidir entre girar, pintar ou pinça. */
+  onPress(): void;
+  /** Toque curto no modo mover (sem arrastar), em pixels do canvas (T6: nome da jazida). */
+  onTap?(sx: number, sy: number): void;
 }
 
 interface PointerState {
@@ -25,11 +29,28 @@ interface PointerState {
 type Action = 'none' | 'rotate' | 'paint' | 'pinch';
 
 /** Quanto tempo de movimento recente (ms) entra no cálculo da inércia. */
-const INERTIA_WINDOW = 80;
+export const INERTIA_WINDOW = 80;
 const TAP_MAX_MS = 300;
 const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_ZOOM = 2.5;
 const ZOOM_ANIM_SECONDS = 0.25;
+
+/**
+ * Inércia ao soltar: compõe as rotações feitas nos últimos INERTIA_WINDOW ms e devolve a rotação
+ * total e o tempo que ela levou (para virar velocidade). Sem movimento recente, devolve null.
+ * Função pura (tempos entram como parâmetro), testada sem depender do relógio.
+ */
+export function inertiaFromHistory(
+  history: readonly { t: number; r: Quat }[],
+  now: number,
+): { rotation: Quat; seconds: number } | null {
+  const recent = history.filter((h) => h.t >= now - INERTIA_WINDOW);
+  const first = recent[0];
+  if (recent.length < 2 || !first) return null;
+  let rotation = quatIdentity();
+  for (const h of recent) rotation = quatMultiply(rotation, h.r);
+  return { rotation, seconds: Math.max(1000 / 120, now - first.t) / 1000 };
+}
 
 /**
  * Mouse e toque com Pointer Events (o mesmo código nos dois).
@@ -86,6 +107,7 @@ export class PointerInput {
     const p = this.toCanvas(e);
     this.pointers.set(e.pointerId, { x: p.x, y: p.y, startX: p.x, startY: p.y, startTime: e.timeStamp });
     this.camera.stopSpin();
+    this.handlers.onPress();
     this.zoomAnim = null;
     this.history = [];
 
@@ -93,6 +115,7 @@ export class PointerInput {
       const paints = this.handlers.getMode() === 'paint' && (e.pointerType !== 'mouse' || e.button === 0);
       this.action = paints ? 'paint' : 'rotate';
       if (paints) this.handlers.onPaint(p.x, p.y, 'start');
+      if (e.pointerType === 'mouse') this.setCursor(p.x, p.y);
     } else {
       if (this.action === 'paint') this.handlers.onPaint(p.x, p.y, 'cancel');
       this.action = 'pinch';
@@ -100,10 +123,23 @@ export class PointerInput {
     }
   };
 
+  /**
+   * Cursor do mouse (pedido do usuário, 2026-10-17): mãozinha aberta sobre o globo no modo mover,
+   * fechada enquanto arrasta; fora do globo e no modo pintar, o normal.
+   */
+  private setCursor(x: number, y: number): void {
+    const over = this.handlers.getMode() === 'move' && this.camera.screenToView(x, y) !== null;
+    const cursor = this.action === 'rotate' || this.action === 'pinch' ? 'grabbing' : over ? 'grab' : '';
+    if (this.canvas.style.cursor !== cursor) this.canvas.style.cursor = cursor;
+  }
+
   private onMove = (e: PointerEvent): void => {
     const ptr = this.pointers.get(e.pointerId);
     const p = this.toCanvas(e);
-    if (e.pointerType === 'mouse') this.handlers.onHover(p.x, p.y);
+    if (e.pointerType === 'mouse') {
+      this.handlers.onHover(p.x, p.y);
+      this.setCursor(p.x, p.y);
+    }
     if (!ptr) return;
     const prevX = ptr.x;
     const prevY = ptr.y;
@@ -143,6 +179,7 @@ export class PointerInput {
       this.detectTap(ptr, p.x, p.y, e.timeStamp);
       this.action = 'none';
     }
+    if (e.pointerType === 'mouse') this.setCursor(p.x, p.y);
   };
 
   private onWheel = (e: WheelEvent): void => {
@@ -171,13 +208,8 @@ export class PointerInput {
 
   /** Soma os movimentos dos últimos instantes e transforma em velocidade de giro. */
   private startInertia(now: number): void {
-    const recent = this.history.filter((h) => h.t >= now - INERTIA_WINDOW);
-    const first = recent[0];
-    if (recent.length < 2 || !first) return;
-    let total = quatIdentity();
-    for (const h of recent) total = quatMultiply(total, h.r);
-    const span = Math.max(1000 / 120, now - first.t) / 1000;
-    this.camera.setSpinFrom(total, span);
+    const spin = inertiaFromHistory(this.history, now);
+    if (spin) this.camera.setSpinFrom(spin.rotation, spin.seconds);
   }
 
   private detectTap(ptr: PointerState, x: number, y: number, t: number): void {
@@ -192,6 +224,7 @@ export class PointerInput {
       this.lastTap.t = -Infinity;
     } else {
       this.lastTap = { t, x, y };
+      this.handlers.onTap?.(x, y);
     }
   }
 }

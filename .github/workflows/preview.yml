@@ -1,0 +1,63 @@
+name: Prévia do branch no GitHub Pages
+
+# Publica uma prévia dos branches de marco em /previa/<branch>/, sem mexer no main:
+# o site principal (raiz) é reconstruído a partir do main, igual ao que já está no ar.
+# Observação: o próximo deploy do main (deploy.yml) publica só o main e remove as prévias,
+# que voltam no próximo push do branch.
+on:
+  push:
+    branches: ['marco-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Código do main (site principal)
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: main
+      - name: Código do branch (prévia)
+        uses: actions/checkout@v7
+        with:
+          path: branch
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - name: Build do main
+        working-directory: main
+        run: npm ci && npm run build
+      - name: Check e build da prévia
+        working-directory: branch
+        env:
+          VITE_PREVIEW: ${{ github.ref_name }}
+        run: npm ci && npm run check && npm run build
+      - name: Junta os dois
+        run: |
+          mkdir -p site
+          cp -r main/dist/. site/
+          mkdir -p "site/previa/${{ github.ref_name }}"
+          cp -r branch/dist/. "site/previa/${{ github.ref_name }}/"
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}previa/${{ github.ref_name }}/
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
