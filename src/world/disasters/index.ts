@@ -5,7 +5,7 @@ import type { WorldState } from '../state';
 import { CellState, Ground } from './ground';
 import { quakeDamage } from './quake-damage';
 import { canStartSandstorm, type DustView, MAX_SANDSTORMS, NOTABLE_SAND_RADIUS, pickSandstormCell, PLAYER_SAND_RADIUS, PLAYER_SAND_SEARCH, SAND_RADIUS, SANDSTORM_CHANCE, SandstormProcess } from './sandstorm';
-import { type Crater, CRATER_RADIUS, GIANT_WINTER, impact, MAX_CRATERS, mergeCrater, METEOR_NAMES, MeteorProcess, sampleNaturalMeteor, SEA_TSUNAMI } from './meteor';
+import { type Crater, CRATER_RADIUS, ENTRY_TICKS, GIANT_WINTER, impact, MAX_CRATERS, mergeCrater, METEOR_NAMES, MeteorProcess, NATURAL_METEOR_LEAD, sampleNaturalMeteor, SEA_TSUNAMI } from './meteor';
 import { IceReturnProcess, MELT_CELLS_PER_ICE, MELT_MAX_CELLS, MELT_MIN_ICE, MeltwaterProcess, NOTABLE_MELT_CELLS } from './meltwater';
 import { IceMode } from '../state';
 import { HurricaneProcess, MAX_PER_QUADRANT, MAX_STORMS_WORLD, quadrantOf, stormName, type StormView } from './hurricane';
@@ -90,6 +90,8 @@ export interface IceChange {
 /** O que os desastres de um passo fizeram: o relógio aplica e avisa a tela. */
 export interface DisasterOutcome {
   events: DisasterEvent[];
+  /** Meteoros que bateram neste passo (id do evento): a tela termina a queda com o impacto. */
+  impacts: number[];
   /** Células cuja aparência mudou (vegetação ou estado): repintar. */
   marked: number[];
   uplifts: Uplift[];
@@ -158,6 +160,8 @@ export class Disasters {
   private plateRate = 0;
   /** Saída do passo em andamento (os desastres passo a passo avisam por ela quando acabam). */
   private stepOut: DisasterOutcome | null = null;
+  /** Passos que a queda do meteoro leva agora (~1 s real): a velocidade vem do relógio. */
+  meteorFall = ENTRY_TICKS;
 
   constructor(private world: WorldState) {
     this.rng = createRng((world.params.seed ^ 0x6d15a57e) >>> 0);
@@ -274,7 +278,7 @@ export class Disasters {
    */
   step(tick: number, plateRate: number): DisasterOutcome | null {
     this.plateRate = plateRate;
-    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [], winters: [] };
+    const out: DisasterOutcome = { events: [], impacts: [], marked: [], uplifts: [], terrain: [], ice: [], winters: [] };
     this.ground.expire(tick, TICKS_PER_YEAR);
     // Gelo derretido por vulcão voltando ao clima (só fica gelo onde o clima é de gelo).
     if (this.iceReturn.pending) {
@@ -294,7 +298,7 @@ export class Disasters {
     if (tick % TICKS_PER_YEAR === 0) this.yearly(tick, plateRate, out);
     this.stepOut = null;
     out.marked = this.ground.takeChanged();
-    return out.events.length || out.marked.length || out.uplifts.length || out.terrain.length || out.ice.length || out.winters.length ? out : null;
+    return out.events.length || out.impacts.length || out.marked.length || out.uplifts.length || out.terrain.length || out.ice.length || out.winters.length ? out : null;
   }
 
   private yearly(tick: number, plateRate: number, out: DisasterOutcome): void {
@@ -342,7 +346,7 @@ export class Disasters {
    * força escolhida no cartão (magnitude do terremoto e do tsunami, categoria do furacão).
    */
   trigger(kind: DisasterKind, point: Vec3, tick: number, strength?: number): DisasterOutcome {
-    const out: DisasterOutcome = { events: [], marked: [], uplifts: [], terrain: [], ice: [], winters: [] };
+    const out: DisasterOutcome = { events: [], impacts: [], marked: [], uplifts: [], terrain: [], ice: [], winters: [] };
     const world = this.world;
     this.ground.tick = tick;
     const cell = world.grid.pointToCell(point[0], point[1], point[2]);
@@ -713,29 +717,37 @@ export class Disasters {
   }
 
   /**
-   * Meteoro (C12): entra no céu (o risco na tela) e bate ENTRY_TICKS passos depois: cratera no relevo,
-   * entulho, vegetação derrubada e incêndios; no mar, tsunami (médio para cima); o gigante esfria o
-   * planeta por um tempo.
+   * Meteoro (C12): a rocha entra no céu (o risco na tela) e bate cerca de 1 s real depois, em qualquer
+   * velocidade: cratera no relevo, entulho, vegetação derrubada e incêndios; no mar, tsunami (médio para
+   * cima); o gigante esfria o planeta por um tempo. O passo do impacto é fixado aqui: o do jogador conta os
+   * passos de 1 s na velocidade do pedido; o natural vem de um sorteio NATURAL_METEOR_LEAD passos antes, igual
+   * em toda velocidade (regra 4). Antes batia sempre 12 passos depois de entrar: 50 ms em 20×, com a rocha
+   * ainda no alto (teste da `3238cd7b`).
    */
   private meteor(cell: number, size: number, tick: number, manual: boolean, out: DisasterOutcome): void {
     const world = this.world;
     const s = Math.max(1, Math.min(4, Math.round(size)));
     this.count(DisasterKind.Meteor);
-    out.events.push({
-      id: this.nextId++,
-      kind: DisasterKind.Meteor,
-      tick,
-      point: cellPoint(world, cell),
-      magnitude: s,
-      notable: s >= 2,
-      manual,
-      label: `Meteoro ${METEOR_NAMES[s]}`,
-      radius: (CRATER_RADIUS[s] as number) * world.grid.cellAngle,
-    });
-    this.start(
-      new MeteorProcess(tick, (t) => {
-        const o = this.stepOut;
-        if (!o) return;
+    const id = this.nextId++;
+    const process = new MeteorProcess(
+      tick + (manual ? this.meteorFall : NATURAL_METEOR_LEAD),
+      () => this.meteorFall,
+      (t, at, o) => {
+        o.events.push({
+          id,
+          kind: DisasterKind.Meteor,
+          tick: t,
+          impactTick: at,
+          point: cellPoint(world, cell),
+          magnitude: s,
+          notable: s >= 2,
+          manual,
+          label: `Meteoro ${METEOR_NAMES[s]}`,
+          radius: (CRATER_RADIUS[s] as number) * world.grid.cellAngle,
+        });
+      },
+      (t, o) => {
+        o.impacts.push(id);
         const atSea = world.isWater(cell);
         // Caiu dentro de uma cratera guardada: o estrago soma (P8 b) em volta do centro dela, até o limite.
         let old: Crater | null = null;
@@ -762,8 +774,10 @@ export class Disasters {
         const m = SEA_TSUNAMI[s] as number;
         if (atSea && m > 0) this.planTsunami(cell, m, manual, true);
         if (s === 4) o.winters.push({ amount: GIANT_WINTER.amount, years: GIANT_WINTER.years });
-      }),
+      },
     );
+    process.enter(tick, out);
+    this.start(process);
   }
 
   /** Tempestade de areia (C12): anda com o vento e deixa areia por cima da vegetação fora do deserto. */

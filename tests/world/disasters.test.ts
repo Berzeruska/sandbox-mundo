@@ -84,13 +84,13 @@ describe('desastres (T8): terremotos', () => {
   });
 
   it('"Raro": terremoto grande (M ≥ 7) a cada ~250–1.500 anos de jogo', () => {
-    for (const seed of ['terra', 'mundo', '42']) {
-      const { events } = run(worldOf(seed), 6000);
-      const big = events.filter((e) => e.kind === DisasterKind.Quake && e.notable).length;
-      // "Raro" = fator 0,4 desde a R9: um grande a cada ~250–1.500 anos.
-      expect(big, seed).toBeGreaterThanOrEqual(4);
-      expect(big, seed).toBeLessThanOrEqual(24);
-    }
+    // A taxa vale na soma das sementes: uma só varia muito (a mesma semente deu de 1 a 6 só com a ordem dos
+    // sorteios mudando). "Raro" = fator 0,4 desde a R9: um grande a cada ~250–1.500 anos.
+    const seeds = ['terra', 'mundo', '42'];
+    let big = 0;
+    for (const seed of seeds) big += run(worldOf(seed), 6000).events.filter((e) => e.kind === DisasterKind.Quake && e.notable).length;
+    expect(big).toBeGreaterThanOrEqual(4 * seeds.length);
+    expect(big).toBeLessThanOrEqual(24 * seeds.length);
   }, 30_000);
 
   it('determinismo: mesma semente, mesmos desastres', () => {

@@ -1280,4 +1280,11 @@ O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e reve
   quarto mais baixo da terra; a altura não cai mais a cada célula, só com a distância percorrida no mar. **Magnitudes menores**, lendo
   "até" como teto: parte da largura 1/20 · 1/12 · 1/8 · 1/6 · 1/5 e terreno 60 · 120 · 200 · 300 · 400 m para M 7,5 · 8 · 8,5 · 9 · 9,5.
   Ilha pequena segue a mesma regra (1/5 de pouco é pouco). Alternativa descartada: frentes uma costa por vez (uma cortava o caminho da outra).
-
+- **2026-11-05 — O impacto do meteoro chega com a rocha, em qualquer velocidade (teste da `3238cd7b`; substitui "bate sempre ENTRY_TICKS passos depois"):**
+  a rocha continua levando ~1 s real, para ser vista; o que muda é o jogo, que espera por ela. O passo do impacto é fixado quando o meteoro nasce. **Do jogador:** os passos
+  de 1 s na velocidade do pedido (12 em 1×, 240 em 20×, o ritmo medido no Máx). **Natural:** sorteado 2.200 passos antes (o maior que 1 s pode ter) e a rocha só aparece no último
+  segundo; o impacto cai no mesmo passo em toda velocidade e a regra 4 continua valendo. Nenhum dos dois muda de passo depois de fixado. O impacto chega à tela numa mensagem própria, logo depois do remendo da cratera: é ela,
+  e não a conta do tempo, que põe a rocha no chão, com clarão e tremor. **Efeitos a conhecer:** meteoro natural cai 183 anos de jogo depois do sorteio (ninguém vê); o do jogador no Máx leva ~120 anos de
+  jogo para bater, e o mundo depende da velocidade no momento do pedido (como já depende do momento em que o jogador toca). Quem reduz a velocidade no meio da queda vê a rocha quase parada até faltar 1 s (Máx para 1×: até ~2 min); é raro e o impacto continua na hora certa. **Descartados:** rocha em 50 ms em 20× (nem seria vista); segurar só
+  o desenho da cratera (a recomposição e o fogo mostrariam antes, e o fogo já teria andado); contar a queda em tempo real no relógio (mundos diferentes em cada velocidade, contra a regra 4).
+- **2026-11-05 — Data rolando no tempo geológico (usuário, teste da `3238cd7b`):** os números sobem até o salto novo em 700 ms (~630 ms visíveis), rápido no começo e assentando. Não volta ao trocar 20× por Máx: fica no ano até o múltiplo novo passar dele.

@@ -28,58 +28,98 @@ describe('tamanho do meteoro na tela (E12, F5)', () => {
   });
 });
 
-// B1 (teste da `d7479ae2`): "o meteoro não faz cratera nem muda a temperatura". A simulação bate o
-// meteoro ENTRY_TICKS passos depois de ele entrar; a animação batia sempre em 1 s de tempo real. Pelo
-// desenho (C12), a bola bate quando o meteoro bate: pausado ela não pode chegar ao chão.
-describe('a bola do meteoro bate junto com o impacto do jogo (B1)', () => {
-  /** Quadros de 60 Hz, com o passo do jogo vindo de `ticksAt(ms)`; devolve a entrada em cada quadro. */
-  function fall(ms: number, ticksAt: (ms: number) => number): number[] {
+// B1 (teste da `d7479ae2`): pausada, a bola não pode chegar ao chão. Teste da `3238cd7b`: em 20× e no Máx a
+// cratera vinha ~1 s antes da rocha. Pelo desenho: a rocha toca o chão junto com o impacto, em qualquer velocidade.
+describe('a rocha cai junto com o impacto do jogo', () => {
+  /** Quadros de 60 Hz até `ms`; `ticksLeft(ms)`: passos até o impacto; devolve a entrada em cada quadro. */
+  function fall(ms: number, tps: number, ticksLeft: (ms: number) => number): number[] {
     const out: number[] = [];
     let entry = 0;
     for (let t = 1000 / 60; t <= ms; t += 1000 / 60) {
-      entry = meteorEntry(entry, 1000 / 60, ticksAt(t));
+      entry = meteorEntry(entry, 1000 / 60, ticksLeft(t), tps);
       out.push(entry);
     }
     return out;
   }
+  const fallTicks = (tps: number) => tps * (METEOR_ENTRY_MS / 1000);
 
-  it('pausado, a bola nunca chega ao chão', () => {
-    expect(fall(60_000, () => 0).at(-1)).toBeLessThan(1);
+  it('pausado, a rocha aparece no céu e fica', () => {
+    const frames = fall(60_000, 0, () => 12);
+    expect(frames.at(-1)).toBeGreaterThan(0);
+    expect(frames.at(-1)).toBeLessThan(0.2);
   });
 
-  it('em 20× não bate antes de 1 s (senão nem seria vista)', () => {
-    const frames = fall(METEOR_ENTRY_MS * 0.9, (ms) => (ms / 1000) * 240);
-    expect(frames.at(-1)).toBeLessThan(1);
-    expect(fall(METEOR_ENTRY_MS + 50, (ms) => (ms / 1000) * 240).at(-1)).toBe(1);
+  it('pausado no meio da queda, para onde está', () => {
+    expect(meteorEntry(0.6, 16, 5, 0)).toBe(0.6);
   });
 
-  // Item 2 do teste da `2d9a2156`. Em 1× a tela só sabe o passo a cada ~100 ms: a rocha tem que andar o mesmo
-  // tanto em todo quadro, sem degraus, e chegar em ~1 s.
-  it('em 1× o movimento é liso: passo igual em todo quadro, mesmo com o relógio chegando aos degraus', () => {
-    const lastMessage = (ms: number) => Math.floor(ms / CLOCK_POST_MS) * CLOCK_POST_MS;
-    const frames = fall(METEOR_ENTRY_MS, (ms) => Math.floor((lastMessage(ms) / 1000) * BASE_TICKS_PER_SECOND));
-    const step = 1000 / 60 / METEOR_ENTRY_MS;
-    for (let k = 1; k < frames.length - 1; k++) expect((frames[k] as number) - (frames[k - 1] as number)).toBeCloseTo(step, 6);
+  for (const speed of [1, 2, 5, 20]) {
+    it(`em ${speed}× chega ao chão em ~1 s, com passo igual em todo quadro`, () => {
+      const tps = BASE_TICKS_PER_SECOND * speed;
+      // O passo só chega a cada 100 ms; entre uma mensagem e outra a tela estima, com até um passo de erro.
+      const left = (ms: number) => fallTicks(tps) - Math.floor(Math.floor(ms / CLOCK_POST_MS) * CLOCK_POST_MS * tps / 1000) - (tps * (ms % CLOCK_POST_MS)) / 1000;
+      const frames = fall(METEOR_ENTRY_MS * 0.9, tps, left);
+      const step = (frames[20] as number) - (frames[19] as number);
+      for (let k = 1; k < frames.length; k++) expect((frames[k] as number) - (frames[k - 1] as number)).toBeCloseTo(step, 2);
+      // A 90% do tempo a rocha está perto de 90% do caminho: nem cedo nem tarde.
+      expect(frames.at(-1)).toBeGreaterThan(0.86);
+      expect(frames.at(-1)).toBeLessThan(0.96);
+      expect(fall(METEOR_ENTRY_MS, tps, left).at(-1)).toBeGreaterThan(0.95);
+    });
+  }
+
+  it('no Máx, com o ritmo variando, a rocha chega ao chão quando os passos acabam', () => {
+    // 1.560 passos/s de média, com o ritmo oscilando entre ~1.000 e ~2.100, mas a tela só vê a média.
+    let ticks = 1560;
+    let entry = 0;
+    let t = 0;
+    while (ticks > 0) {
+      t += 1000 / 60;
+      ticks -= (1560 + 550 * Math.sin(t / 90)) / 60;
+      entry = meteorEntry(entry, 1000 / 60, ticks, 1560);
+    }
+    expect(t).toBeGreaterThan(700);
+    expect(entry).toBeGreaterThan(0.97);
+  });
+
+  it('acelerar no meio da queda adianta a rocha; frear faz ela esperar no ar', () => {
+    const fast = meteorEntry(0.3, 1000 / 60, 40, 240);
+    expect(fast).toBeGreaterThan(0.3 + (1000 / 60) / METEOR_ENTRY_MS);
+    const slow = meteorEntry(0.3, 1000 / 60, 200, 12);
+    expect(slow - 0.3).toBeLessThan(0.001);
   });
 
   it('nunca anda para trás', () => {
-    expect(meteorEntry(0.5, 16, 0)).toBe(0.5);
+    expect(meteorEntry(0.5, 16, 1000, 12)).toBeGreaterThanOrEqual(0.5);
   });
 
-  it('o clarão só vem depois da batida no jogo: pausar no meio deixa a bola parada', () => {
+  it('a chuva de outros desastres não tira a rocha da tela', () => {
     const fx = new DisasterFx();
-    const e = { id: 1, kind: DisasterKind.Meteor, tick: 100, point: [0, 0, 1], magnitude: 2, notable: true, manual: true, label: '', radius: 0.01 } as DisasterEvent;
+    const point = [0, 0, 1] as DisasterEvent['point'];
+    const rock = { id: 1, kind: DisasterKind.Meteor, tick: 0, impactTick: 12, point, magnitude: 2, notable: true, manual: false, label: '', radius: 0.01 } as DisasterEvent;
+    fx.add(rock, 0);
+    for (let id = 2; id < 200; id++) fx.add({ ...rock, id, kind: DisasterKind.Lightning }, 0);
+    expect(fx.land(1, 10)).toBe(rock);
+  });
+
+  it('o clarão só vem com o impacto: sem ele a rocha nunca toca o chão, mesmo com os passos já vencidos', () => {
+    const fx = new DisasterFx();
+    const e = { id: 1, kind: DisasterKind.Meteor, tick: 100, impactTick: 112, point: [0, 0, 1], magnitude: 2, notable: true, manual: true, label: '', radius: 0.01 } as DisasterEvent;
     fx.add(e, 0);
     const ctx = new Proxy({}, { get: () => () => ({ addColorStop: () => undefined }) }) as unknown as CanvasRenderingContext2D;
     const camera = { worldToScreen: () => ({ x: 0, y: 0, visible: true }), cellAngle: 0.01, cellPixels: () => 4 } as unknown as Camera;
     // Pausado no passo 105 por 10 s: a animação continua (esperando).
-    for (let ms = 0; ms <= 10_000; ms += 500) fx.draw(ctx, camera, ms, 105, 1);
+    for (let ms = 0; ms <= 10_000; ms += 500) fx.draw(ctx, camera, ms, 105, 0, 1);
     expect(fx.active).toBe(true);
-    // O tempo volta: bate, brilha e acaba.
-    fx.draw(ctx, camera, 10_500, 112, 1);
-    fx.draw(ctx, camera, 10_500 + METEOR_AFTER_MS / 2, 112, 1);
+    expect(fx.land(99, 10_000)).toBeUndefined();
+    // O tempo volta, os passos vencem e o impacto não chegou: continua caindo, não some.
+    for (let ms = 10_000; ms <= 30_000; ms += 500) fx.draw(ctx, camera, ms, 120, 12, 1);
     expect(fx.active).toBe(true);
-    fx.draw(ctx, camera, 10_500 + METEOR_AFTER_MS + 100, 112, 1);
+    // O impacto chega: bate, brilha e acaba.
+    expect(fx.land(1, 30_000)).toBe(e);
+    fx.draw(ctx, camera, 30_000 + METEOR_AFTER_MS / 2, 120, 12, 1);
+    expect(fx.active).toBe(true);
+    fx.draw(ctx, camera, 30_000 + METEOR_AFTER_MS + 100, 120, 12, 1);
     expect(fx.active).toBe(false);
   });
 });

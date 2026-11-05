@@ -1,5 +1,6 @@
 import type { Rng } from '../../core/rng';
-import { TICKS_PER_YEAR } from '../../core/time';
+import { type Speed, TICKS_PER_YEAR } from '../../core/time';
+import type { DisasterOutcome } from './index';
 import type { WorldState } from '../state';
 import { patchNoise } from './drought';
 import { CellState, cellHash, type Ground, hasVegetation } from './ground';
@@ -35,8 +36,20 @@ export const SEA_TSUNAMI = [0, 0, 8, 8.5, 9.5] as const;
 export const SHAKE_MAGNITUDE = [0, 0, 6.5, 7.5, 9] as const;
 /** Gigante: inverno de impacto (°C a menos, anos). */
 export const GIANT_WINTER = { amount: 3, years: 30 } as const;
-/** Passos entre entrar no céu e bater (~1 s em 1×). */
+/** Passos entre entrar no céu e bater em 1× (1 s). */
 export const ENTRY_TICKS = 12;
+/**
+ * Com quantos passos de antecedência o meteoro natural é sorteado: o maior número de passos que 1 s pode ter
+ * no Máx. O passo do impacto fica fixo no sorteio e o mundo é o mesmo em qualquer velocidade (regra 4); só o
+ * momento em que a rocha aparece na tela muda.
+ */
+export const NATURAL_METEOR_LEAD = 2200;
+
+/** Passos que 1 s real tem nesta velocidade: 12 em 1×, 240 em 20×; no Máx, o ritmo medido (`maxRate`). */
+export function meteorFallTicks(speed: Speed, maxRate: number): number {
+  if (speed === 'max') return Math.round(Math.min(NATURAL_METEOR_LEAD, Math.max(ENTRY_TICKS, maxRate)));
+  return ENTRY_TICKS * Math.max(1, speed);
+}
 /**
  * Naturais por ano antes da frequência (decisão do usuário: pequenos os mais comuns; médios e grandes
  * cada vez mais raros; gigante raríssimo). Em "Raro" (0,4): um pequeno a cada ~1.250 anos de jogo.
@@ -158,20 +171,31 @@ export function impact(world: WorldState, ground: Ground, center: number, size: 
   return { terrainCells, terrainDeltas, fires };
 }
 
-/** O meteoro andando: entra no céu e, ENTRY_TICKS passos depois, bate. */
+/**
+ * O meteoro andando: bate no passo `at`, fixado quando ele nasce. `onEntry` é chamado uma vez, quando faltam
+ * `fallTicks()` passos ou menos: é quando a rocha entra na tela.
+ */
 export class MeteorProcess {
-  private readonly at: number;
+  private entered = false;
 
   constructor(
-    start: number,
-    private onImpact: (tick: number) => void,
-  ) {
-    this.at = start + ENTRY_TICKS;
+    private readonly at: number,
+    private fallTicks: () => number,
+    private onEntry: (tick: number, at: number, out: DisasterOutcome) => void,
+    private onImpact: (tick: number, out: DisasterOutcome) => void,
+  ) {}
+
+  /** A rocha entra já, se chegou a hora (o meteoro do jogador entra no passo em que foi pedido). */
+  enter(tick: number, out: DisasterOutcome): void {
+    if (this.entered || this.at - tick > this.fallTicks()) return;
+    this.entered = true;
+    this.onEntry(tick, this.at, out);
   }
 
-  step(tick: number): boolean {
+  step(tick: number, out: DisasterOutcome): boolean {
+    this.enter(tick, out);
     if (tick < this.at) return true;
-    this.onImpact(tick);
+    this.onImpact(tick, out);
     return false;
   }
 }

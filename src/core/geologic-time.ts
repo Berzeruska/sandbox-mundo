@@ -16,10 +16,53 @@ export function geologicJump(speed: Speed, plateRate: number): number {
   return speed === 'max' ? JUMP_YEARS_MAX : 0;
 }
 
-/** Data em saltos: "Ano 12.500", o último múltiplo do salto já alcançado (sem mês). */
-export function formatJumpDate(clock: Clock, jump: number): string {
-  const year = Math.max(1, Math.floor(clock.year() / jump) * jump);
+/** O último múltiplo do salto já alcançado: o ano que a data mostra nesse modo. */
+export function jumpYear(clock: Clock, jump: number): number {
+  return Math.max(1, Math.floor(clock.year() / jump) * jump);
+}
+
+/** Data em saltos: "Ano 12.500" (sem mês). */
+export function formatJumpYear(year: number): string {
   return `Ano ${year.toLocaleString('pt-BR')}`;
+}
+
+/** Quanto os números da data levam rolando até o salto novo (ms). */
+export const DATE_ROLL_MS = 700;
+
+/**
+ * Os números da data rolando até o salto novo, como um contador (usuário, teste da `3238cd7b`): rápido no
+ * começo e assentando no valor certo. Só calcula um número por quadro e só enquanto rola; a data nunca volta
+ * (20× para Máx troca o salto de 500 por 1.000: o ano fica até o múltiplo novo passar dele).
+ */
+export class RollingYear {
+  private from = 0;
+  private to = 0;
+  private start = 0;
+  private started = false;
+
+  /** O ano-alvo agora: a primeira vez aparece direto, depois rola. */
+  set(target: number, now: number): void {
+    if (!this.started) {
+      this.started = true;
+      this.from = this.to = target;
+      return;
+    }
+    if (target <= this.to) return;
+    this.from = this.at(now);
+    this.to = target;
+    this.start = now;
+  }
+
+  /** O ano a mostrar no instante `now`. */
+  at(now: number): number {
+    const u = Math.min(1, (now - this.start) / DATE_ROLL_MS);
+    return u >= 1 ? this.to : Math.round(this.from + (this.to - this.from) * (1 - (1 - u) ** 3));
+  }
+
+  /** Mundo novo ou fim do modo: o próximo `set` aparece direto. */
+  reset(): void {
+    this.started = false;
+  }
 }
 
 /**

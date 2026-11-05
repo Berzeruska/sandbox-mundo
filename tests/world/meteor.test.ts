@@ -5,9 +5,9 @@ import { glacialOffset, IMPACT_RAMP_YEARS } from '../../src/world/climate';
 import { buildColors } from '../../src/render/colors';
 import { SimulationCore } from '../../src/sim/core';
 import { createWorld } from '../../src/world/create';
-import { cellDistance, cellPoint, DisasterKind, Disasters } from '../../src/world/disasters';
+import { cellDistance, cellPoint, DisasterKind, Disasters, FREQUENCIES } from '../../src/world/disasters';
 import { CellState, Ground } from '../../src/world/disasters/ground';
-import { BLAST_RADIUS, CRATER_DEPTH, CRATER_RADIUS, ENTRY_TICKS, GIANT_WINTER, impact, MAX_CRATER_DEPTH, MAX_CRATER_RADIUS, NATURAL_PER_YEAR, sampleNaturalMeteor, VREDEFORT_DIAMETER_KM } from '../../src/world/disasters/meteor';
+import { BLAST_RADIUS, CRATER_DEPTH, CRATER_RADIUS, ENTRY_TICKS, GIANT_WINTER, impact, MAX_CRATER_DEPTH, MAX_CRATER_RADIUS, meteorFallTicks, NATURAL_METEOR_LEAD, NATURAL_PER_YEAR, sampleNaturalMeteor, VREDEFORT_DIAMETER_KM } from '../../src/world/disasters/meteor';
 import type { WorldState } from '../../src/world/state';
 
 const worldOf = (seed = 'terra', n = 128) => createWorld({ seedText: seed, seed: seedFrom(seed), n, seaLevel: 0, landFraction: 0.3 });
@@ -195,7 +195,8 @@ describe('meteoro (C12)', () => {
     }
     buildColors(w, full, undefined, undefined, core.disasters!.ground);
     expect(colors).toEqual(full);
-    while (core.clock.tick < last + (GIANT_WINTER.years + 10) * TICKS_PER_YEAR) {
+    // O último gigante ainda leva a queda inteira para bater.
+    while (core.clock.tick < last + core.disasters!.meteorFall + (GIANT_WINTER.years + 10) * TICKS_PER_YEAR) {
       now += 250;
       core.advance(0.25);
     }
@@ -379,4 +380,76 @@ describe('crateras sobrepostas somam (P8 b)', () => {
     expect(dark[c * 4]!).toBeLessThan(100);
     expect(dark[c * 4]!).toBeLessThan(white[c * 4]! - 40);
   });
+});
+
+// Teste da `3238cd7b`: em 20× e no Máx o impacto vinha 1 s antes da rocha, porque batia sempre 12 passos depois.
+describe('o meteoro bate ~1 s real depois de entrar, em qualquer velocidade', () => {
+  it('os passos da queda são os de 1 s na velocidade atual', () => {
+    expect(meteorFallTicks(1, 0)).toBe(12);
+    expect(meteorFallTicks(5, 0)).toBe(60);
+    expect(meteorFallTicks(20, 0)).toBe(240);
+    expect(meteorFallTicks('max', 1560)).toBe(1560);
+    expect(meteorFallTicks('max', 1e9)).toBe(NATURAL_METEOR_LEAD);
+    // Pausado o pedido não chega aqui, mas o valor continua válido.
+    expect(meteorFallTicks(0, 0)).toBe(12);
+  });
+
+  for (const [speed, ticks] of [[1, 12], [5, 60], [20, 240]] as const) {
+    it(`pedido em ${speed}×: entra já e bate ${ticks} passos depois`, () => {
+      const w = worldOf();
+      const d = new Disasters(w);
+      d.frequency = 0;
+      d.meteorFall = meteorFallTicks(speed, 0);
+      const c = inland(w);
+      const [e] = d.trigger(DisasterKind.Meteor, cellPoint(w, c), 1000, 2).events;
+      expect(e!.impactTick).toBe(1000 + ticks);
+      let hit = 0;
+      for (let t = 1001; t <= 1000 + ticks + 5 && !hit; t++) if (d.step(t, 0)?.impacts.includes(e!.id)) hit = t;
+      expect(hit).toBe(1000 + ticks);
+    });
+  }
+
+  it('o impacto e a cratera vêm no mesmo passo e na mesma resposta', () => {
+    const w = worldOf();
+    const d = new Disasters(w);
+    d.frequency = 0;
+    const c = inland(w);
+    d.trigger(DisasterKind.Meteor, cellPoint(w, c), 0, 2);
+    let at = 0;
+    for (let t = 1; t <= ENTRY_TICKS + 2; t++) {
+      const o = d.step(t, 0);
+      if (o?.impacts.length) {
+        at = t;
+        expect(o.terrain.length).toBe(1);
+      } else expect(o?.terrain.length ?? 0).toBe(0);
+    }
+    expect(at).toBe(ENTRY_TICKS);
+  });
+
+  it('mesma semente = mesmo mundo com meteoros naturais em 1× e em 20× (regra 4)', () => {
+    const run = (fall: number) => {
+      const w = worldOf();
+      const d = new Disasters(w);
+      d.frequency = FREQUENCIES.length - 1;
+      d.meteorFall = fall;
+      const impacts: number[] = [];
+      let seen = 0;
+      for (let t = 1; t <= 1500 * TICKS_PER_YEAR; t++) {
+        const o = d.step(t, 1);
+        for (const e of o?.events ?? []) {
+          if (e.kind !== DisasterKind.Meteor) continue;
+          seen++;
+          // A rocha aparece só na última parte: quando faltam os passos de 1 s nessa velocidade.
+          expect(e.impactTick! - e.tick).toBe(fall);
+        }
+        if (o?.impacts.length) impacts.push(t);
+      }
+      return { impacts, seen, cover: d.ground.cover.slice() };
+    };
+    const slow = run(12);
+    const fast = run(240);
+    expect(slow.impacts.length).toBeGreaterThan(0);
+    expect(fast.impacts).toEqual(slow.impacts);
+    expect(fast.cover).toEqual(slow.cover);
+  }, 60_000);
 });

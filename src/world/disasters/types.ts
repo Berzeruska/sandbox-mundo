@@ -54,6 +54,10 @@ export interface DisasterEvent {
   id: number;
   kind: DisasterKind;
   tick: number;
+  /** Meteoro: passo em que a rocha bate. */
+  impactTick?: number;
+  /** Meteoro: quanto da queda já passou quando a mensagem saiu (o passo seguinte já estava andando), 0 a 1. */
+  fallDone?: number;
   /** Ponto da esfera onde aconteceu (unitário). */
   point: Vec3;
   /** Magnitude (terremoto), índice de explosividade (erupção), categoria (furacão) ou área relativa. */

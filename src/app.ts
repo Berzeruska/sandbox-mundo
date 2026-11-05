@@ -1,6 +1,6 @@
 import { isolationReloads } from './ui/isolation';
 import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
-import { formatJumpDate, geologicJump } from './core/geologic-time';
+import { formatJumpYear, geologicJump, jumpYear, RollingYear } from './core/geologic-time';
 import { Clock, formatDate, type Speed } from './core/time';
 import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
@@ -24,6 +24,7 @@ import { advanceDisplayTick, MAX_SHADER_PLATES, rotate } from './render/plate-mo
 import type { PlateMotionUniforms } from './render/globe-renderer';
 import { BIOME_INFO, Biome } from './world/biomes';
 import { BASE_TICKS_PER_SECOND } from './core/time';
+import { CLOCK_POST_MS } from './sim/core';
 import { Camera } from './render/camera';
 import { GlobeRenderer } from './render/globe-renderer';
 import { Overlay } from './render/overlay';
@@ -141,6 +142,9 @@ export class App {
    * Modo de tempo geológico: salto da data em anos (0: desligado), o zoom que o jogador usava antes
    * (volta com ele), a animação do zoom e o salto já avisado na tela.
    */
+  private rollingYear = new RollingYear();
+  /** Quando a última mensagem do relógio chegou (ms). */
+  private clockAt = 0;
   private geologic = { jump: 0, zoomBack: null as number | null, noticed: 0, flight: null as { from: number; to: number; start: number } | null };
   /** Ferramenta de desastre ativa (tocar no globo provoca), ou null. */
   private disasterTool: DisasterKind | null = null;
@@ -354,7 +358,7 @@ export class App {
         this.showProgress(stage, fraction);
       },
       onPatch: (patches, brushMs, deposits, fade) => this.onPatch(patches, brushMs, deposits, fade),
-      onDisasters: (events) => this.onDisasters(events),
+      onDisasters: (events, impacts) => this.onDisasters(events, impacts),
       onPlatesStopped: () => {
         this.plateRateBeforeStop = this.plateRate;
         this.plateRate = 0;
@@ -374,6 +378,7 @@ export class App {
           this.motion.receivedAt = performance.now();
         }
         this.clock.tick = tick;
+        this.clockAt = performance.now();
         this.stats.ticksPerSecond = ticksPerSecond;
         this.stats.geologyMs = geologyMs;
         this.stats.recompositions = work.recompositions;
@@ -451,6 +456,7 @@ export class App {
     this.worldRequestedAt = performance.now();
     this.lastGenerationSignal = this.worldRequestedAt;
     this.fx.clear();
+    this.rollingYear.reset();
     this.toasts?.clear();
     this.storms.clear();
     this.sim.newWorld(seedText, DEFAULT_N, kind);
@@ -662,13 +668,16 @@ export class App {
   }
 
   /** Desastres que aconteceram: animação, aviso (só os grandes naturais) e lista. */
-  private onDisasters(events: DisasterEvent[]): void {
+  private onDisasters(events: DisasterEvent[], impacts: number[]): void {
     const now = performance.now();
     for (const e of events) {
       this.fx.add(e, now);
       if (e.kind === DisasterKind.Quake) this.startShake(e, now);
-      // Meteoro grande e gigante tremem a tela quando batem (~1 s depois de entrar, em 1×).
-      if (e.kind === DisasterKind.Meteor && SHAKE_MAGNITUDE[e.magnitude]) this.startShake({ ...e, magnitude: SHAKE_MAGNITUDE[e.magnitude] as number }, now + 1000);
+    }
+    // A rocha toca o chão: o clarão vem no próximo desenho e o meteoro grande e o gigante tremem a tela.
+    for (const id of impacts) {
+      const e = this.fx.land(id, now);
+      if (e && SHAKE_MAGNITUDE[e.magnitude]) this.startShake({ ...e, magnitude: SHAKE_MAGNITUDE[e.magnitude] as number }, now);
     }
     for (const e of events) if (isToast(e)) this.toasts.show(toEntry(e));
   }
@@ -762,7 +771,14 @@ export class App {
 
   /** A data na tela: ano e mês, ou em saltos no modo de tempo geológico. */
   private showDate(): void {
-    this.hud.setDate(this.geologic.jump ? formatJumpDate(this.clock, this.geologic.jump) : formatDate(this.clock));
+    if (!this.geologic.jump) {
+      this.rollingYear.reset();
+      this.hud.setDate(formatDate(this.clock));
+      return;
+    }
+    const now = performance.now();
+    this.rollingYear.set(jumpYear(this.clock, this.geologic.jump), now);
+    this.hud.setDate(formatJumpYear(this.rollingYear.at(now)));
   }
 
   /**
@@ -920,6 +936,7 @@ export class App {
     if (this.keys.update(this.camera, dt)) this.needsDraw = true;
     if (this.updateFlight()) this.needsDraw = true;
     if (this.updateGeologicZoom()) this.needsDraw = true;
+    if (this.geologic.jump) this.hud.setDate(formatJumpYear(this.rollingYear.at(performance.now())));
     if (this.updateShake(performance.now())) this.needsDraw = true;
     if (this.input.update(dt)) this.needsDraw = true;
     if (this.updateMotion()) this.needsDraw = true;
@@ -1259,7 +1276,12 @@ export class App {
     this.overlay.clear();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.fxShown = this.fx.active;
-    if (this.fx.active) this.fx.draw(this.overlay.context, this.camera, performance.now(), this.clock.tick, dpr);
+    if (this.fx.active) {
+      const now = performance.now();
+      const rate = this.clock.speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * this.clock.speed;
+      // O passo só chega a cada ~100 ms: entre uma mensagem e outra, estimado pelo ritmo.
+      this.fx.draw(this.overlay.context, this.camera, now, this.clock.tick + (rate * Math.min(now - this.clockAt, 2 * CLOCK_POST_MS)) / 1000, rate, dpr);
+    }
     if (this.mode !== 'paint' || !this.brushScreen || !this.info) return;
     const p = this.camera.pick(this.brushScreen.x, this.brushScreen.y);
     if (p) this.overlay.drawCap(this.camera, p, this.brushSize * (Math.PI / 2 / this.info.n));

@@ -415,4 +415,9 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **O que mudou:** "fora do código da tela" era um texto só para duas coisas. Agora o navegador informa as tarefas longas e a linha diz "tela
   ocupada fora do quadro (X ms…)" ou "tela livre esperando o quadro (GPU, navegador ou janelas do sistema)". Conferido com um bloqueio de 1,5 s.
 - **Próximo passo:** se reaparecer, a linha do rodapé decide de que lado procurar.
+- **Novas travadas relatadas no teste da `3238cd7b` (2026-11-05), fora da medição:** 1.852 ms às 14:13:33 (pausado, "tela ocupada fora do quadro") e 717 ms às 13:59:30 ("tela livre esperando o quadro"). Não investigadas por decisão do usuário: se voltarem, investigar (`docs/02-marcos.md`).
 
+## Impacto do meteoro antes de a rocha chegar em 20× e no Máx (teste da `3238cd7b`, corrigido)
+- **Causa:** o impacto vinha sempre 12 passos depois da entrada: 1 s em 1×, 50 ms em 20×, ~8 ms no Máx. A rocha levava 1 s de tempo real, e o tremor era marcado para 1 s depois da entrada, sem olhar o jogo.
+- **Correção:** ver `docs/decisoes.md`. **Achado na conferência:** no Máx com "Muitos", 6 de 17 meteoros bateram sem rocha na tela (a lista de 24 animações descartava o mais antigo, e os raios a enchiam); o meteoro agora é o último a sair (17 de 17 com rocha).
+- **Teste que mudou:** "'Raro': terremoto grande" passou a medir a soma de 3 sementes. A semente `terra` dá de 1 a 6 grandes só com a ordem dos sorteios mudando; a média de 7 sementes ficou como antes (~9).

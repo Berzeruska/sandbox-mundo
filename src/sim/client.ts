@@ -28,7 +28,7 @@ export interface SimEvents {
     climate: { offset: number; seaLevel: number },
   ): void;
   /** Desastres que aconteceram (T8–T12). */
-  onDisasters?(events: DisasterEvent[]): void;
+  onDisasters?(events: DisasterEvent[], impacts: number[]): void;
   onPlatesStopped?(): void;
   /** Furacões andando (R8): STORM_FLOATS números por furacão (ver protocol.ts). */
   onStorms?(storms: Float32Array): void;
@@ -196,7 +196,7 @@ export class SimClient {
         this.events.onPlatesStopped?.();
         break;
       case 'disasters':
-        this.events.onDisasters?.(msg.events);
+        this.events.onDisasters?.(msg.events, msg.impacts);
         break;
       case 'sharedProbe':
         this.sharedProbe = msg.ok && !!this.sharedBuffer && Atomics.load(new Int32Array(this.sharedBuffer), 0) === SHARED_PROBE_VALUE;

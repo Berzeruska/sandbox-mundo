@@ -61,6 +61,8 @@ Entram na mesma rodada de ajuste fino, depois do M3 (usuário, 2026-11-05; não 
 - **Formato dos continentes** mais parecido com o da Terra (hoje estão feios);
 - **Modo econômico:** menos fps com o jogo parado ou pausado (o notebook faz barulho com o jogo aberto);
 - **B8** (tocar no ano muda a velocidade), **B5** e **B7**, que continuam na lista acima.
+- **Tsunami M 9,5 atinge o planeta inteiro:** rever o alcance (usuário, teste da `3238cd7b`; o alcance em terra, ~1/5 do continente, fica);
+- **Travadas fora da medição, se voltarem, investigar:** 1.852 ms às 14:13:33 (pausado, "tela ocupada fora do quadro") e 717 ms às 13:59:30 ("tela livre esperando o quadro"). Mais em `docs/bugs.md`.
 
 ## Marco 3 — Ecologia
 Plantas e animais em nível agregado e individual, cadeia alimentar, migração, dragão como predador

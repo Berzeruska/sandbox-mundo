@@ -1,13 +1,25 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-05**, branch `marco-2`. **Última rodada do M2 pronta, esperando os 3 testes do usuário.** Com os 3
-passando, merge no `main` sem nova rodada, tag, link do README no `main` e começo do portão do M3.
+Atualizado em: **2026-11-05**, branch `marco-2`. **Teste da `3238cd7b` aprovado; duas correções feitas e conferidas (abaixo).** Com CI e
+prévia ok: merge no `main`, tag, link do README e portão do M3.
 Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/marco-2/** (também no README e no "Website").
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
 estamos", vale este.
 
 ## Modo de trabalho (usuário, 2026-11-04)
 O usuário só faz testes objetivos e decide design e mecânica; o resto é do Claude Code, que para só no fim.
+
+## Antes do merge (teste da `3238cd7b`, usuário, 2026-11-05)
+Aprovados: relatório do Chrome (60 fps, nenhum quadro > 50 ms, relógio esperou 0, 0 travadas da data), tempo geológico; tsunami "bem melhor".
+- [x] **Impacto do meteoro em alta velocidade:** batia 12 passos depois de entrar (50 ms em 20×) e a rocha levava 1 s. Agora o passo do impacto
+  conta 1 s na velocidade atual (natural: sorteado 2.200 passos antes, mundo igual em qualquer velocidade). Medido quadro a quadro em 1×, 5×, 20× e Máx (5 tiros
+  cada, build de produção): clarão e tremor no mesmo quadro em que o impacto chega; a cratera apareceu nesse quadro em 18 de 20 tiros (nos outros 2, no Máx, a
+  medida não separou a cratera do resto da mudança do globo). A rocha estava a 98–100% do caminho em 1×, 5× e 20× e a 92–100% no Máx (ritmo variável).
+  Imagens: `docs/img/m2-meteoro-20x-quadros.png`, `docs/img/m2-meteoro-max-quadros.png`.
+- [x] **Data rolando:** os números sobem até o salto novo em ~630 ms, como um contador, e assentam no valor exato. Só um número por quadro
+  durante a rolagem; 0,015 ms por troca, nenhum quadro lento em 60 s (20×) e 20 s (Máx).
+- [x] **"Medir desempenho" de novo (build de produção):** 15 cenários a 60 fps, pior quadro 17 ms, 0 travadas, relógio esperou 0 (`docs/medicao-2026-11-05-final.txt`).
+- [x] **Registrados em `docs/02-marcos.md`:** alcance do tsunami M 9,5 (atinge o planeta inteiro) e as travadas de 1.852 ms e 717 ms.
 
 ## Última rodada (mensagem do usuário, 2026-11-05)
 Aprovados no teste da `2d9a2156`: crateras com limite, arquipélago, cartões, desenho novo do meteoro, clima sem
@@ -29,15 +41,8 @@ tranco. O fogo em volta da cratera fica. Quadros "janela sem foco" não contam.
   separa "tela ocupada" (e quanto) de "tela livre esperando o quadro": se voltar, a linha diz de que lado está.
 - [x] 6–10. **Registrados em `docs/02-marcos.md`:** ilhas estilo mar Egeu, formato dos continentes, modo econômico, B5, B7 e B8 no
   ajuste fino depois do M3; camadas estranhas sobrepostas no portão do M3.
-- [ ] 11. Três testes do usuário e merge.
+- [x] 11. Três testes do usuário: aprovados na `3238cd7b`.
 
-## Os 3 testes do usuário
-1. **Modo de tempo geológico:** placas ligadas, 20× e depois Máx: planeta inteiro, zoom travado, aviso de uma linha, data de 500 em 500
-   e de 1.000 em 1.000 anos. Voltando a 1×–5×, tudo normal, com o zoom de antes.
-2. **Meteoro em 1×:** a queda lisa, sem degraus.
-3. **"Medir desempenho"** sem trocar de janela: 60 fps, relógio esperou 0, "travadas da data no cenário: 0".
-
-Passando os 3: merge do M2 no `main`, tag, link do README no `main` e começo do portão do M3, sem nova rodada.
 
 ## Medição do Claude Code nesta rodada
 `docs/medicao-2026-11-05.txt` (`cd49610`, build de produção, Chromium headless com GPU real, 1080p, na tomada): 15 cenários a 60 fps, pior

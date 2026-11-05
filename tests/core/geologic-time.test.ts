@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatJumpDate, geologicJump, JUMP_YEARS_20X, JUMP_YEARS_MAX, MAX_SPEED_LEAD, maxSpeedQuota } from '../../src/core/geologic-time';
+import { DATE_ROLL_MS, formatJumpYear, geologicJump, JUMP_YEARS_20X, JUMP_YEARS_MAX, jumpYear, MAX_SPEED_LEAD, maxSpeedQuota, RollingYear } from '../../src/core/geologic-time';
 import { APPLY_DELAY_TICKS } from '../../src/sim/geology';
 import { Clock, TICKS_PER_YEAR } from '../../src/core/time';
 import { Camera } from '../../src/render/camera';
@@ -17,13 +17,48 @@ describe('modo de tempo geológico', () => {
     const clock = new Clock();
     const at = (year: number) => {
       clock.tick = (year - 1) * TICKS_PER_YEAR;
-      return formatJumpDate(clock, 500);
+      return formatJumpYear(jumpYear(clock, 500));
     };
     expect(at(1)).toBe('Ano 1');
     expect(at(499)).toBe('Ano 1');
     expect(at(500)).toBe('Ano 500');
     expect(at(999)).toBe('Ano 500');
     expect(at(12_750)).toBe('Ano 12.500');
+  });
+
+  // Teste da `3238cd7b`: "em vez de pular direto, os números rolam até o valor novo, como um contador".
+  it('os números rolam até o salto novo, sempre subindo, e param no valor exato', () => {
+    const y = new RollingYear();
+    y.set(500, 0);
+    expect(y.at(0)).toBe(500);
+    y.set(1000, 1000);
+    const seen: number[] = [];
+    for (let t = 1000; t <= 1000 + DATE_ROLL_MS; t += 1000 / 60) seen.push(y.at(t));
+    expect(seen[0]).toBe(500);
+    for (let k = 1; k < seen.length; k++) expect(seen[k]).toBeGreaterThanOrEqual(seen[k - 1] as number);
+    // Rola de verdade: passa por muitos valores no caminho, não um pulo.
+    expect(new Set(seen).size).toBeGreaterThan(20);
+    expect(y.at(1000 + DATE_ROLL_MS)).toBe(1000);
+  });
+
+  it('um salto no meio da rolagem continua de onde está, sem voltar', () => {
+    const y = new RollingYear();
+    y.set(1000, 0);
+    y.set(2000, 100);
+    const mid = y.at(300);
+    y.set(3000, 300);
+    expect(y.at(300)).toBe(mid);
+    expect(y.at(300 + DATE_ROLL_MS)).toBe(3000);
+  });
+
+  it('a data não volta ao trocar 20× por Máx; num mundo novo aparece direto', () => {
+    const y = new RollingYear();
+    y.set(12_500, 0);
+    y.set(12_000, 5000);
+    expect(y.at(5000)).toBe(12_500);
+    y.reset();
+    y.set(1, 6000);
+    expect(y.at(6000)).toBe(1);
   });
 
   it('o zoom travado ignora o jogador', () => {

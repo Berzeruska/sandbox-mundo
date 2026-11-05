@@ -1,13 +1,12 @@
 import type { Vec3 } from '../world/cubesphere';
 import { DisasterKind, type DisasterEvent } from '../world/disasters/types';
-import { ENTRY_TICKS } from '../world/disasters/meteor';
 import type { Camera } from './camera';
 
 /**
  * Animações dos desastres na camada sobreposta (canvas 2D por cima do globo). Correm em tempo real,
  * independente da velocidade do jogo: a 20× um ano passa em 0,05 s e nada seria visto. Os efeitos de
- * verdade (relevo, marcas) a simulação já aplicou. Exceção: o meteoro só bate quando o relógio do jogo
- * chega ao impacto (B1, teste da `d7479ae2`: pausado, a bola caía e brilhava e nada acontecia).
+ * verdade (relevo, marcas) a simulação já aplicou. Exceção: o meteoro só bate quando o impacto do jogo
+ * chega à tela (`land`), o que vale para qualquer velocidade (B1, teste da `d7479ae2`; teste da `3238cd7b`).
  */
 
 interface Fx {
@@ -18,11 +17,11 @@ interface Fx {
   /** Meteoro: quanto da entrada já foi desenhado (0 a 1) e o instante do último desenho. */
   entry?: number;
   drawnAt?: number;
-  /** Meteoro: quando a bola chegou ao chão (ms), depois de 1 s e do relógio do jogo chegar ao impacto. */
+  /** Meteoro: quando o impacto chegou (ms). */
   landed?: number;
 }
 
-/** Meteoro: quanto tempo o risco leva até bater (1 s = os 12 passos da entrada em 1×). */
+/** Meteoro: quanto tempo a rocha leva até o chão, em qualquer velocidade. */
 export const METEOR_ENTRY_MS = 1000;
 /**
  * Meteoro: quanto a animação dura depois de bater (ms): clarão curto, entulho em cubos e a fumacinha que
@@ -31,21 +30,25 @@ export const METEOR_ENTRY_MS = 1000;
 export const METEOR_AFTER_MS = 1800;
 /** Clarão da batida (ms), dentro de METEOR_AFTER_MS. */
 const METEOR_FLASH_MS = 220;
+/** Até onde a rocha desce sem o tempo andar: pedida com o jogo pausado, ela aparece no céu e espera. */
+const METEOR_PAUSED_ENTRY = 1 / 6;
+/** O quase-chão: só o impacto (`land`) põe a rocha no chão. */
+const METEOR_MAX_ENTRY = 0.999;
+
 /**
- * Folga da rocha sobre o relógio do jogo (passos). A tela conhece o passo só pelas mensagens do relógio (uma
- * a cada ~100 ms), então o passo chega atrasado e aos degraus; com folga, em 1× quem manda é o tempo real.
+ * Quanto da queda está desenhado depois de um quadro de `dtMs`. `ticksLeft`: passos até o impacto (estimado);
+ * `ticksPerSecond`: ritmo do jogo agora (0 = pausado). Enquanto a rocha está no tempo certo (até 1,5 passo de
+ * diferença), anda igual em todo quadro: em 1× o passo chega aos degraus, e seguir o passo daria o movimento
+ * "engasgado" (teste da `2d9a2156`). Fora disso, mira no impacto: no Máx o ritmo varia, e quem muda a
+ * velocidade no meio da queda acelera ou freia a rocha. Nunca anda para trás.
  */
-export const METEOR_TICK_LEAD = 2;
-/**
- * Quanto da entrada do meteoro está desenhado depois de um quadro de `dtMs`: anda sempre em tempo real (1 s
- * no total) e só para quando o relógio do jogo fica para trás. Em 1× os dois andam juntos e o movimento é
- * liso; pausado a rocha para no céu até o tempo andar; em 20× continua levando 1 s (senão nem seria vista).
- * Antes a posição vinha direto do passo do jogo: em 1× a rocha andava em degraus, 10 por segundo, enquanto a
- * tela desenhava 60 (item 2 do teste da `2d9a2156`, "engasgada"). Nunca anda para trás.
- */
-export function meteorEntry(entry: number, dtMs: number, ticksSince: number): number {
-  const cap = (Math.max(0, ticksSince) + METEOR_TICK_LEAD) / ENTRY_TICKS;
-  return Math.max(entry, Math.min(1, entry + dtMs / METEOR_ENTRY_MS, cap));
+export function meteorEntry(entry: number, dtMs: number, ticksLeft: number, ticksPerSecond: number): number {
+  if (ticksPerSecond <= 0) return entry < METEOR_PAUSED_ENTRY ? Math.min(METEOR_PAUSED_ENTRY, entry + dtMs / METEOR_ENTRY_MS) : entry;
+  const tickMs = 1000 / ticksPerSecond;
+  const leftMs = Math.max(0, ticksLeft) * tickMs;
+  const late = 1 - leftMs / METEOR_ENTRY_MS - entry;
+  const speed = Math.abs(late) <= (1.5 * tickMs) / METEOR_ENTRY_MS ? 1 / METEOR_ENTRY_MS : (1 - entry) / Math.max(leftMs, dtMs);
+  return Math.max(entry, Math.min(METEOR_MAX_ENTRY, entry + speed * dtMs));
 }
 
 /** Raio da bola do meteoro em relação ao raio da cratera na tela (E12). */
@@ -102,8 +105,12 @@ export class DisasterFx {
   add(e: DisasterEvent, now: number): void {
     const ms = FX_MS[e.kind];
     if (!ms) return;
-    this.list.push({ e, start: now, ms });
-    if (this.list.length > MAX_FX) this.list.shift();
+    this.list.push({ e, start: now, ms, entry: e.fallDone ?? 0 });
+    if (this.list.length <= MAX_FX) return;
+    // Cheio: sai o mais antigo que não é meteoro. Sem a rocha, a cratera apareceria do nada (no Máx com "Muitos"
+    // os raios enchiam a lista: 6 de 17 meteoros bateram sem rocha na medição).
+    const k = this.list.findIndex((f) => f.e.kind !== DisasterKind.Meteor);
+    this.list.splice(Math.max(0, k), 1);
   }
 
   get active(): boolean {
@@ -114,20 +121,24 @@ export class DisasterFx {
     this.list = [];
   }
 
-  /** Desenha tudo no instante `now` (com o relógio do jogo em `tick`); tira o que acabou. */
-  draw(ctx: CanvasRenderingContext2D, camera: Camera, now: number, tick: number, dpr: number): void {
+  /** O meteoro `id` bateu no jogo: a rocha chega ao chão agora. Devolve o evento, se ele estava na tela. */
+  land(id: number, now: number): DisasterEvent | undefined {
+    const f = this.list.find((x) => x.e.id === id && x.e.kind === DisasterKind.Meteor);
+    if (f) f.landed = now;
+    return f?.e;
+  }
+
+  /** Desenha tudo no instante `now`, com o jogo no passo `tick` (estimado) e neste ritmo; tira o que acabou. */
+  draw(ctx: CanvasRenderingContext2D, camera: Camera, now: number, tick: number, ticksPerSecond: number, dpr: number): void {
     for (const f of this.list) {
       if (f.e.kind !== DisasterKind.Meteor || f.landed !== undefined) continue;
-      const ticks = tick - f.e.tick;
-      f.entry = meteorEntry(f.entry ?? 0, now - (f.drawnAt ?? f.start), ticks);
+      f.entry = meteorEntry(f.entry ?? 0, now - (f.drawnAt ?? f.start), (f.e.impactTick ?? f.e.tick) - tick, ticksPerSecond);
       f.drawnAt = now;
-      // Bate quando a rocha chegou e o jogo está a menos da folga do impacto: pausado antes disso, nada.
-      if (f.entry >= 1 && ticks >= ENTRY_TICKS - METEOR_TICK_LEAD) f.landed = now;
     }
     this.list = this.list.filter((f) => (f.e.kind === DisasterKind.Meteor ? f.landed === undefined || now - f.landed < METEOR_AFTER_MS : now - f.start < f.ms));
     for (const f of this.list) {
       if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
-      else if (f.e.kind === DisasterKind.Meteor) drawMeteor(ctx, camera, f.e, f.landed === undefined ? Math.min(f.entry ?? 0, 0.999) : 1 + (now - f.landed) / METEOR_AFTER_MS, f.e.id, dpr);
+      else if (f.e.kind === DisasterKind.Meteor) drawMeteor(ctx, camera, f.e, f.landed === undefined ? (f.entry ?? 0) : 1 + (now - f.landed) / METEOR_AFTER_MS, f.e.id, dpr);
     }
   }
 }

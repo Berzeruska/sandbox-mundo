@@ -8,6 +8,7 @@ import { applyClimateOffset, climateCacheBytes, type ImpactWinter, climateOffset
 import type { CellPool } from '../world/cell-pool';
 import { createWorld, WORLD_STAGES } from '../world/create';
 import { DEFAULT_FREQUENCY, Disasters, FREQUENCIES, type DisasterOutcome } from '../world/disasters';
+import { meteorFallTicks } from '../world/disasters/meteor';
 import { Tool } from '../input/tools';
 import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
 import { CONTINENTAL_DEPTH, Crust } from '../world/plates';
@@ -474,7 +475,11 @@ export class SimulationCore {
     // relógio, juntando os passos: a 20× seriam 240 mensagens por segundo (`flushPaint`).
     for (const c of o.marked) this.pendingPaint.add(c);
     if (patches.length) this.send(deposits ? { type: 'patch', patches, brushMs: -1, deposits } : { type: 'patch', patches, brushMs: -1 });
-    if (o.events.length) this.send({ type: 'disasters', events: o.events });
+    for (const e of o.events) {
+      if (e.impactTick !== undefined) e.fallDone = this.clock.backlog / Math.max(1, e.impactTick - e.tick);
+    }
+    // Depois do remendo com a cratera: a tela recebe os dois juntos e o impacto cai no mesmo quadro.
+    if (o.events.length || o.impacts.length) this.send({ type: 'disasters', events: o.events, impacts: o.impacts });
   }
 
   /** Manda à tela onde estão os furacões (enquanto houver algum, e uma vez quando o último acaba). */
@@ -776,6 +781,7 @@ export class SimulationCore {
       quota = pace.quota;
       this.paceCarry = pace.carry;
     }
+    if (this.disasters && this.clock.speed !== 0) this.disasters.meteorFall = meteorFallTicks(this.clock.speed, this.ticksWindow.rate);
     const firstTick = this.clock.tick;
     const ran = this.clock.advance(
       dt,

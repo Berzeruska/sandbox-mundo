@@ -120,7 +120,7 @@ export type FromWorker =
     }
   | { type: 'query'; id: number; cell: CellQuery }
   /** Desastres que aconteceram neste passo (animação, aviso e lista na tela). */
-  | { type: 'disasters'; events: DisasterEvent[] }
+  | { type: 'disasters'; events: DisasterEvent[]; impacts: number[] }
   /**
    * Furacões, ciclones (R8) e tempestades de areia (C12) andando agora, STORM_FLOATS números por um: id,
    * x, y, z, raio (rad), força (no furacão, com o sinal do giro), tipo (0 furacão, 1 areia).
