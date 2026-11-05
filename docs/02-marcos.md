@@ -105,6 +105,7 @@ cubos" da primeira; detalhes em `docs/decisoes.md`):**
   cidades e nas placas; **(f) (acrescentado pelo usuário em 2026-11-05) as camadas estranhas sobrepostas
   em alguns pontos do globo**: entram junto com o novo desenho do mundo. **A decisão é do usuário.** O M3 só
   começa depois do merge do M2.
+  **Portão feito em 2026-11-05, esperando as decisões do usuário: `docs/M3-portao.md`.**
 - **Simulação:** de longe números, de perto indivíduos; exércitos em marcha, generais, aviões em missão
   e figuras da Crônica são sempre indivíduos (detalhe em `docs/06-guerra.md`).
 Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a

@@ -50,6 +50,8 @@ export default defineConfig({
   server: { host: true, headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
   preview: { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
   plugins: [serviceWorker()],
+  // Protótipo do portão do M3: página à parte; o jogo não importa nada dela.
+  build: { rollupOptions: { input: { main: 'index.html', prototipo: 'prototipo/index.html' } } },
   // O worker da simulação cria o ajudante da geologia (worker dentro de worker): formato ES.
   worker: { format: 'es' },
   test: {
