@@ -1,7 +1,6 @@
 # Sandbox Mundo (nome provisório)
 
 **Prévia mais recente (para testar):** https://berzeruska.github.io/sandbox-mundo/previa/marco-2/
-· versão estável: https://berzeruska.github.io/sandbox-mundo/
 
 Sandbox de deus num planeta redondo: civilizações que evoluem na ordem histórica, economia,
 ideologias, guerra com frentes fluidas, ecologia equilibrada e geologia viva.
@@ -24,4 +23,4 @@ npm run dev -- --host
 ```
 
 ## Jogar
-https://berzeruska.github.io/sandbox-mundo/
+https://berzeruska.github.io/sandbox-mundo/previa/marco-2/

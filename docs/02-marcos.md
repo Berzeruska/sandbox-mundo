@@ -47,6 +47,14 @@ furacão). Simulação passa para Web Worker. Ver `docs/03-mundo-geologia.md`.
 **Aceite:** a Pangeia se parte em continentes ao longo do tempo acelerado sem travar a tela;
 desastres surgem onde a geologia e o clima indicam.
 
+**Pendência de ajuste fino (decisão do usuário, 2026-11-04):** fica para a rodada de ajuste fino e
+balanceamento dos desastres, **depois do M3**; não aprovados, o jogo fica como está hoje. Propostas em
+`docs/M2-especificacao.md`, "Correções do teste da `adf001ea`":
+- **B5:** degrau permanente do terremoto;
+- **B7:** formas dos pontos quentes conforme o chão;
+- **B8:** avisos embaixo da etiqueta e ano mudando a velocidade;
+- **Alcance do tsunami** em terra.
+
 ## Marco 3 — Ecologia
 Plantas e animais em nível agregado e individual, cadeia alimentar, migração, dragão como predador
 de topo, avisos de espécie em risco e de último indivíduo. Ver `docs/04-ecologia.md`.
@@ -82,7 +90,10 @@ cubos" da primeira; detalhes em `docs/decisoes.md`):**
   (WebGL2) e o Three.js por cima da simulação atual; (b) a passagem de longe (2D) para perto (diorama)
   ao aproximar; (c) guia de estilo de uma página (paleta, luz, montanha, floresta, vila, cidade, biomas
   no 2D de longe) com 4 a 6 opções em imagem; (d) 4 a 6 opções de escala (tamanho do planeta, da célula,
-  zoom), com o custo de cada uma.
+  zoom), com o custo de cada uma; texturas dos biomas e plano B com sprites pré-renderizados, como
+  registrado; **(e) (acrescentado pelo usuário em 2026-11-04) comparar o globo atual com um mapa plano,
+  com e sem as bordas se ligando**, com imagem e custo de cada um, e o que cada um muda no diorama, nas
+  cidades e nas placas. **A decisão é do usuário.** O M3 só começa depois do merge do M2.
 - **Simulação:** de longe números, de perto indivíduos; exércitos em marcha, generais, aviões em missão
   e figuras da Crônica são sempre indivíduos (detalhe em `docs/06-guerra.md`).
 Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a

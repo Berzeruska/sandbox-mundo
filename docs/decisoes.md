@@ -1231,4 +1231,10 @@ O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e reve
     Com as placas em 25%, leva 4× mais. Desliga uma vez; se o jogador ligar de novo, não desliga mais. As
     placas voltam à velocidade anterior no mundo novo. Depois de pronto, o afundamento termina o que falta
     e não abre mais terra.
+- **2026-11-04 — Teste da `9b5ba0d4` e fim do M2 (mensagem do usuário):** aprovados clima sem tranco, tsunamis
+  seguidos e tipo de mundo na criação. Daqui em diante o usuário só faz testes objetivos e decide design e
+  mecânica; o resto é do Claude Code, que para só no fim, com até 6 itens de teste e até 3 decisões. B5, B7,
+  B8 e alcance do tsunami: não aprovados, vão para o ajuste fino depois do M3 (`docs/02-marcos.md`). T14 e, com
+  o ok do usuário, merge no `main`. Portão do M3 ganha a comparação globo × mapa plano. Todo link do README
+  para o jogo leva à prévia até o M2 ir para o `main`.
 
