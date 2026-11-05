@@ -737,7 +737,7 @@ export class Disasters {
         const o = this.stepOut;
         if (!o) return;
         const atSea = world.isWater(cell);
-        // Caiu dentro de uma cratera guardada: o estrago soma (P8 b), em volta do centro dela.
+        // Caiu dentro de uma cratera guardada: o estrago soma (P8 b) em volta do centro dela, até o limite.
         let old: Crater | null = null;
         let oldD = Infinity;
         for (const k of this.craters) {
@@ -749,7 +749,7 @@ export class Disasters {
         }
         const shape = mergeCrater(old, oldD, s);
         const at = old ? old.cell : cell;
-        const hit = impact(world, this.ground, at, s, t, this.rng, shape);
+        const hit = impact(world, this.ground, at, s, t, this.rng, shape, this.craters);
         if (old) {
           old.radius = shape.radius;
           old.depth = shape.depth;

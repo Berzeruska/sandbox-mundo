@@ -13,11 +13,22 @@ import { CellState, cellHash, type Ground, hasVegetation } from './ground';
 
 /** Tamanhos: 1 pequeno, 2 médio, 3 grande, 4 gigante. */
 export const METEOR_NAMES = ['', 'pequeno', 'médio', 'grande', 'gigante'] as const;
-/** Raio da cratera (células) e profundidade do fundo (m), por tamanho. */
-export const CRATER_RADIUS = [0, 1, 3, 6, 12] as const;
+/**
+ * Maior cratera conhecida na Terra: Vredefort, 250–280 km de diâmetro (decisão do usuário, 2026-11-04).
+ * Uma célula tem ~39 km (N = 256): ~4 células de raio. Nenhuma cratera passa disso, somando ou não.
+ */
+export const VREDEFORT_DIAMETER_KM = 280;
+export const MAX_CRATER_RADIUS = 4;
+/** Raio da cratera (células) e profundidade do fundo (m), por tamanho. O gigante chega ao limite real. */
+export const CRATER_RADIUS = [0, 1, 2, 3, MAX_CRATER_RADIUS] as const;
 export const CRATER_DEPTH = [0, 200, 500, 900, 1500] as const;
-/** Vegetação derrubada e incêndios até este múltiplo do raio da cratera. */
-export const BLAST_FACTOR = 2.5;
+/** Fundo mais fundo que uma cratera chega (m): somar meteoros não cava além do gigante. */
+export const MAX_CRATER_DEPTH = 1500;
+/**
+ * Até onde a onda de choque derruba vegetação e acende incêndios (células), por tamanho. Não depende da
+ * cratera: o limite real é da cratera, o estrago em volta continua o aprovado na C12.
+ */
+export const BLAST_RADIUS = [0, 3, 7.5, 15, 30] as const;
 /** No mar: magnitude do tsunami (0 = nenhum), por tamanho. */
 export const SEA_TSUNAMI = [0, 0, 8, 8.5, 9.5] as const;
 /** Tremor da tela como um terremoto desta magnitude (0 = nenhum), por tamanho. */
@@ -42,7 +53,7 @@ export function sampleNaturalMeteor(rng: Rng, factor: number): number {
 
 /**
  * Cratera guardada (P8 opção b, decisão do usuário de 2026-11-03): um meteoro que cai dentro dela soma o
- * estrago. Anda com a placa (o centro é acompanhado na recomposição).
+ * estrago, até o limite real. Anda com a placa (o centro é acompanhado na recomposição).
  */
 export interface Crater {
   cell: number;
@@ -55,14 +66,15 @@ export interface Crater {
 export const MAX_CRATERS = 256;
 
 /**
- * O meteoro de tamanho `size` caindo a `distance` células do centro de `old`: soma com ela? Soma
- * quando cai dentro da cratera. A área soma (raio² + raio²) e o fundo fica o mais fundo dos dois.
+ * O meteoro de tamanho `size` caindo a `distance` células do centro de `old`: soma com ela? Soma quando
+ * cai dentro da cratera. A área soma (raio² + raio²) até MAX_CRATER_RADIUS e o fundo fica o mais fundo
+ * dos dois: depois do limite, novos impactos não alargam nem aprofundam mais.
  */
 export function mergeCrater(old: Crater | null, distance: number, size: number): { radius: number; depth: number } {
   const r = CRATER_RADIUS[size] as number;
   const depth = CRATER_DEPTH[size] as number;
   if (!old || distance > old.radius) return { radius: r, depth };
-  return { radius: Math.sqrt(old.radius * old.radius + r * r), depth: Math.max(old.depth, depth) };
+  return { radius: Math.min(MAX_CRATER_RADIUS, Math.sqrt(old.radius * old.radius + r * r)), depth: Math.min(MAX_CRATER_DEPTH, Math.max(old.depth, depth)) };
 }
 
 export interface Impact {
@@ -74,10 +86,29 @@ export interface Impact {
 }
 
 /**
- * O impacto em `center`: cratera no relevo (perfil de tigela, borda erguida a ~1,2 raio), rocha escura
- * no fundo, entulho claro na borda (20–50 anos), vegetação derrubada até BLAST_FACTOR raios.
+ * Perfil-alvo da cratera na célula, em relação ao terreno de antes: negativo no fundo (tigela), positivo
+ * na borda erguida (até ~1,4 raio), 0 fora. A borda recortada nunca passa do raio: o raio é o limite.
  */
-export function impact(world: WorldState, ground: Ground, center: number, size: number, tick: number, rng: Rng, shape?: { radius: number; depth: number }): Impact {
+function craterProfile(world: WorldState, c: number, x: number, y: number, z: number, radius: number, depth: number): number {
+  const p = world.grid.positions;
+  const dot = (p[c * 3] as number) * x + (p[c * 3 + 1] as number) * y + (p[c * 3 + 2] as number) * z;
+  const d = Math.acos(Math.max(-1, Math.min(1, dot))) / world.grid.cellAngle / (radius * (0.8 + 0.2 * patchNoise(world, c, 3)));
+  if (d < 1) return -depth * (1 - d * d);
+  return d < 1.4 ? depth * 0.25 * (1 - (d - 1) / 0.4) : 0;
+}
+
+/** Duas crateras na mesma célula: vale o fundo mais fundo; sem fundo, a borda mais alta. Não somam. */
+function combineProfiles(a: number, b: number): number {
+  return a < 0 || b < 0 ? Math.min(a, b) : Math.max(a, b);
+}
+
+/**
+ * O impacto em `center`: a cratera (`shape`) no relevo, rocha escura no fundo, entulho claro na borda
+ * (20–50 anos), vegetação derrubada até BLAST_RADIUS. `existing`: as crateras que já estão no mundo (com a
+ * que esta substitui); o relevo só anda do perfil que elas já fizeram até o novo, então repetir um meteoro
+ * no mesmo lugar não cava de novo.
+ */
+export function impact(world: WorldState, ground: Ground, center: number, size: number, tick: number, rng: Rng, shape?: { radius: number; depth: number }, existing: readonly Crater[] = []): Impact {
   const p = world.grid.positions;
   const cx = p[center * 3] as number;
   const cy = p[center * 3 + 1] as number;
@@ -86,23 +117,28 @@ export function impact(world: WorldState, ground: Ground, center: number, size: 
   const r = shape?.radius ?? (CRATER_RADIUS[size] as number);
   const depth = shape?.depth ?? (CRATER_DEPTH[size] as number);
   const ang = world.grid.cellAngle;
-  const reach = Math.max(r * BLAST_FACTOR, r + 2);
+  const reach = Math.max(BLAST_RADIUS[size] as number, r * 1.4 + 1);
+  // Só as crateras que encostam nesta (as guardadas podem estar em qualquer lugar do mundo).
+  const nearby = existing
+    .map((k) => ({ x: p[k.cell * 3] as number, y: p[k.cell * 3 + 1] as number, z: p[k.cell * 3 + 2] as number, radius: k.radius, depth: k.depth }))
+    .filter((k) => Math.acos(Math.max(-1, Math.min(1, k.x * cx + k.y * cy + k.z * cz))) <= (r + k.radius) * 1.4 * ang);
   const terrainCells: number[] = [];
   const terrainDeltas: number[] = [];
   const near: number[] = [];
   for (const c of world.grid.cellsInCap(cx, cy, cz, (reach + 0.5) * ang)) {
-    const dot = (p[c * 3] as number) * cx + (p[c * 3 + 1] as number) * cy + (p[c * 3 + 2] as number) * cz;
-    // Distância em raios da cratera, com a borda um pouco recortada.
-    const d = Math.acos(Math.max(-1, Math.min(1, dot))) / ang / (r * (0.9 + 0.2 * patchNoise(world, c, 3)));
-    let delta = 0;
+    const target = craterProfile(world, c, cx, cy, cz, r, depth);
+    let already = 0;
+    for (const k of nearby) already = combineProfiles(already, craterProfile(world, c, k.x, k.y, k.z, k.radius, k.depth));
+    let delta = combineProfiles(already, target) - already;
     // Em terra o fundo fica acima do mar (a cratera não vira mar; no mar ela fica no fundo).
-    const floor = world.isWater(c) ? depth : Math.min(depth, Math.max(0, world.heightAboveSea(c) - 20));
-    if (d < 1) delta = -floor * (1 - d * d);
-    else if (d < 1.4) delta = depth * 0.25 * (1 - (d - 1) / 0.4);
+    if (delta < 0 && !world.isWater(c)) delta = Math.max(delta, -Math.max(0, world.heightAboveSea(c) - 20));
     if (Math.abs(delta) > 1) {
       terrainCells.push(c);
       terrainDeltas.push(delta);
     }
+    const dot = (p[c * 3] as number) * cx + (p[c * 3 + 1] as number) * cy + (p[c * 3 + 2] as number) * cz;
+    const cells = Math.acos(Math.max(-1, Math.min(1, dot))) / ang;
+    const d = cells / (r * (0.8 + 0.2 * patchNoise(world, c, 3)));
     if (world.isWater(c) && d >= 1) continue;
     if (d < 0.8) {
       ground.damage(c, 1);
@@ -110,9 +146,9 @@ export function impact(world: WorldState, ground: Ground, center: number, size: 
     } else if (d < 1.4) {
       ground.damage(c, 1);
       ground.setState(c, CellState.Ejecta, tick, rng.range(20, 50), TICKS_PER_YEAR);
-    } else if (d * r <= reach && hasVegetation(world.biome[c] as number)) {
+    } else if (cells <= reach && hasVegetation(world.biome[c] as number)) {
       // Onda de choque: derruba mais perto da cratera.
-      ground.damage(c, Math.max(0.2, 1 - (d * r) / reach) * (0.7 + 0.3 * cellHash(c, 0x3e7)));
+      ground.damage(c, Math.max(0.2, 1 - cells / reach) * (0.7 + 0.3 * cellHash(c, 0x3e7)));
       near.push(c);
     }
   }

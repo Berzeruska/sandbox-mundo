@@ -358,3 +358,41 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **Causa:** degraus de meio grau aplicados de uma vez; o laço do relógio só rodava com o tempo andando.
 - **Correção:** troca suave das cores na tela (0,6 s por célula, `src/render/climate-fade.ts`, testes em
   `tests/render/climate-fade.test.ts`); o laço roda enquanto a temperatura desliza.
+
+## 2026-11-04 — Meteoro que às vezes nem aparece (notebook, `9b5ba0d4`, B1)
+- **Como reproduzir:** abrir a página sem mudar o tamanho da janela e jogar um meteoro fora do canto de
+  cima à esquerda da tela. Rocha, clarão e fumaça não aparecem; a cratera sim.
+- **Causa principal:** a camada de cima (canvas 2D das animações e do contorno do pincel) só mudava de
+  tamanho quando `renderer.resize` devolvia true. O aquecimento do shader (`warmRenderer`, rodada anterior)
+  já tinha ajustado o globo, então ela ficava em 300×150 pixels até a janela mudar de tamanho: daí o
+  "às vezes". O raio e o contorno do pincel sofriam igual.
+- **Causas menores, medidas em 36 condições (terra, mar, gelo; longe, meio, perto; os 4 tamanhos):** de
+  perto ou tocando perto da borda a rocha nascia fora da tela (pausada, ficava lá); o pequeno de longe
+  tinha cubos de ~1 px; **em gelo** a rocha escura e o entulho da cratera não eram pintados (o branco
+  ficava por cima).
+- **Correção:** tamanho da camada conferido em todo quadro; queda sempre começando dentro da tela
+  (`meteorFall`); rocha mínima de 3 · 4,5 · 6 · 8 px; cratera pintada por cima do gelo.
+- **Medido depois (Chromium, GPU real, 1080p):** rocha pausada visível nas 36 condições. A cor da rocha
+  (escura com brasa) já se lia no branco; a hipótese "rocha clara no branco" não era a causa.
+
+## 2026-11-04 — Cratera sem limite (`9b5ba0d4`, B2)
+- **Como reproduzir:** muitos gigantes no mesmo ponto: a cratera crescia sem fim (raio² somando), até ~1/4
+  do planeta, e cada impacto cavava de novo a partir da altura atual.
+- **Correção:** limite pela escala real (Vredefort, 250–280 km de diâmetro, ~4 células de raio, decisão do
+  usuário). Cada impacto só leva o relevo do perfil que já está lá até o novo; depois do limite o relevo
+  não muda nem uma célula. Crateras encostadas também não somam o fundo. Testes em
+  `tests/world/meteor.test.ts`, com o critério tirado do limite.
+
+## 2026-11-04 — 28 travadas seguidas da data jogando meteoros (`9b5ba0d4`, B3)
+- **Como reproduzir (código antigo):** 150 gigantes no mesmo ponto em 1×, um a cada 0,5 s: 79 travadas da
+  data, crescendo de 0,3 s até 2 s, com a tela a 60 fps.
+- **Causa:** a cratera sem limite (acima). Cratera grande = relevo de dezenas de milhares de células
+  mudando por impacto = clima da região refeito no relógio (até ~1,6 s por impacto) e a onda de choque
+  crescendo junto (`active` passava de 120 mil células).
+- **Correção:** o limite da cratera; a onda de choque tem alcance fixo por tamanho. Mesmo teste: **0
+  travadas**, pior volta do relógio 117 ms. Cenários novos no "Medir desempenho" (B3).
+- **A de 1,8 s (tela, pausado): não reproduzida.** Tentativas: medição inteira, temperatura e camadas
+  pausado, meteoros pausados, zoom. Hipótese não confirmada: janela sem foco (o navegador para de desenhar
+  sem esconder a página). O registro agora diz "janela sem foco" quando for isso; se voltar com outra causa,
+  a linha do rodapé mostra qual.
+

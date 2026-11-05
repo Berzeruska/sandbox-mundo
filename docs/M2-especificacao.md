@@ -1801,6 +1801,17 @@ Pedido do usuário: o tsunami tem que avançar mais sobre as células, para o ef
   mais células de água por tsunami (até ~3× na 5), ainda dentro do plano em pedaços (F3). O teste da R6
   muda para a tabela nova.
 
+## Correções do teste da `9b5ba0d4` (2026-11-04; antes da T14)
+Mensagem do usuário de 2026-11-04. Aprovados no teste: clima sem tranco, tsunamis seguidos, tipo de mundo na
+criação. Causas em `docs/bugs.md`, decisões em `docs/decisoes.md`.
+- [x] **B1 — Meteoro às vezes não aparece.** Causa: camada de cima presa em 300×150; mais rocha fora da tela,
+  rocha pequena demais e cratera escondida pelo gelo.
+- [x] **B2 — Limite das crateras.** Raio ≤ 4 células (Vredefort), fundo ≤ 1.500 m; tamanhos 1 · 2 · 3 · 4;
+  depois do limite o relevo não muda; onda de choque com o alcance de antes.
+- [x] **B3 — Travadas.** Causa das seguidas: cratera sem limite (79 → 0 no mesmo teste). A de 1,8 s não foi
+  reproduzida (registro melhorado). Medição com os 2 cenários novos: 60 fps, nenhum quadro > 50 ms,
+  relógio esperou 0, 0 travadas (Chromium, GPU real, 1080p, na tomada).
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

@@ -795,9 +795,12 @@ export class App {
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
     if (renderer.resize(ratio)) {
       this.camera.setViewport(renderer.canvas.width, renderer.canvas.height);
-      this.overlay.resize(renderer.canvas.width, renderer.canvas.height);
       this.needsDraw = true;
     }
+    // A camada de cima segue o globo em todo quadro. Só no `if` acima ela ficava em 300×150 quando o
+    // aquecimento do shader já tinha ajustado o globo: animações cortadas até a janela mudar de tamanho
+    // (B1, teste da `9b5ba0d4`: "às vezes o meteoro nem aparece").
+    this.overlay.resize(renderer.canvas.width, renderer.canvas.height);
     if (this.camera.update(dt)) this.needsDraw = true;
     if (this.keys.update(this.camera, dt)) this.needsDraw = true;
     if (this.updateFlight()) this.needsDraw = true;

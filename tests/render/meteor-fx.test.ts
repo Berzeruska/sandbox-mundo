@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Camera } from '../../src/render/camera';
-import { DisasterFx, METEOR_AFTER_MS, meteorEntry, METEOR_ENTRY_MS, meteorHead, METEOR_HEAD } from '../../src/render/disaster-fx';
+import { DisasterFx, METEOR_AFTER_MS, meteorEntry, METEOR_ENTRY_MS, meteorFall, meteorHead, METEOR_HEAD } from '../../src/render/disaster-fx';
 import { CRATER_RADIUS, ENTRY_TICKS } from '../../src/world/disasters/meteor';
 import { DisasterKind, type DisasterEvent } from '../../src/world/disasters/types';
 
@@ -60,5 +60,38 @@ describe('a bola do meteoro bate junto com o impacto do jogo (B1)', () => {
     expect(fx.active).toBe(true);
     fx.draw(ctx, camera, 10_500 + METEOR_AFTER_MS + 100, 112, 1);
     expect(fx.active).toBe(false);
+  });
+});
+
+// B1 (teste da `9b5ba0d4`): "às vezes o meteoro nem aparece". De perto, ou tocando perto da borda, a rocha
+// nascia fora da tela e, pausada, ficava lá. Pelo desenho: a rocha sempre começa dentro da tela.
+describe('a rocha do meteoro aparece em qualquer condição', () => {
+  const [W, H] = [1920, 1080];
+
+  it('qualquer tamanho, zoom e ponto da tela: o começo da queda fica dentro da tela', () => {
+    for (const s of [1, 2, 3, 4]) {
+      for (const cellPx of [1.5, 3, 10, 40, 64]) {
+        const head = meteorHead(s, (CRATER_RADIUS[s] as number) * cellPx, 1);
+        for (const [x, y] of [[960, 540], [40, 40], [1880, 40], [40, 1040], [1880, 1040], [960, 10]] as const) {
+          for (const dx of [-0.9, -0.55, 0.55, 0.9]) {
+            const len = meteorFall(x, y, head, dx, -1, W, H);
+            const sx = x + dx * len;
+            const sy = y - len;
+            expect(sx).toBeGreaterThanOrEqual(Math.min(x, 0));
+            expect(sx).toBeLessThanOrEqual(Math.max(x, W));
+            expect(sy).toBeGreaterThanOrEqual(0);
+          }
+        }
+      }
+    }
+  });
+
+  it('de longe, com espaço, a rocha percorre pelo menos 16 vezes o raio dela', () => {
+    const head = meteorHead(1, 3, 1);
+    expect(meteorFall(960, 540, head, 0.6, -1, W, H)).toBeCloseTo(head * 16, 5);
+  });
+
+  it('de longe, até a menor rocha tem tamanho para ser vista (pelo menos 3 px de raio)', () => {
+    expect(meteorHead(1, (CRATER_RADIUS[1] as number) * 1.5, 1)).toBeGreaterThanOrEqual(3);
   });
 });

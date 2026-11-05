@@ -200,6 +200,9 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
   const h = world.heightAboveSea(i);
   // Camadas de leitura (biomas, recursos, tensão) mostram o mundo sem os desastres.
   const showGround = ground !== undefined && h > 0 && !world.ice[i] && !layers.biomes && !layers.resources && !layers.stress;
+  // Cratera em gelo (B1, teste da `9b5ba0d4`): a rocha e o entulho aparecem por cima do branco; sem isso,
+  // no planeta congelado o meteoro batia e não ficava nada à vista.
+  const craterOnIce = ground !== undefined && world.ice[i] === 1 && (ground.state[i] === CellState.Impact || ground.state[i] === CellState.Ejecta) && !layers.biomes && !layers.resources && !layers.stress;
   let base: readonly number[] = info.color;
   if (showGround && (ground.cover[i] as number) < 1) base = vegetationColor(biome, stepCover(ground.cover[i] as number)) ?? base;
   if (showGround && ground.rock[i]) base = rockColor(ground.rock[i] as number, base);
@@ -250,7 +253,7 @@ export function writeCellColor(world: WorldState, i: number, out: Uint8Array, la
     r = stateOut[0] as number;
     g = stateOut[1] as number;
     b = stateOut[2] as number;
-  } else if (showGround && ground.state[i]) {
+  } else if ((showGround || craterOnIce) && ground.state[i]) {
     stateColor(biome, i, ground.state[i] as number, ground.strength(i), r, g, b);
     r = stateOut[0] as number;
     g = stateOut[1] as number;

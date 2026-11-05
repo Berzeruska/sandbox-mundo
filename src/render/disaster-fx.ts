@@ -43,13 +43,33 @@ export const METEOR_HEAD = 0.35;
  * Bola mínima (px, × dpr) por tamanho (Pequeno, Médio, Grande, Gigante), para o tamanho continuar
  * visível de longe (F5, teste da `58f53e7`: com o globo inteiro na tela a cratera pequena tem ~3 px e a
  * média ~9; o mínimo único de 4 px deixava pequeno, médio e grande iguais). Na proporção das crateras
- * (1 : 3 : 6 : 12), suavizada pela raiz para o pequeno não sumir.
+ * (1 : 2 : 3 : 4). Rocha de menos de ~3 px não se lê como rocha (B1, teste da `9b5ba0d4`: o pequeno de longe
+ * tinha cubos de 1 px e "nem aparecia").
  */
-export const METEOR_MIN_HEAD = [0, 2, 3.5, 5, 7] as const;
+export const METEOR_MIN_HEAD = [0, 3, 4.5, 6, 8] as const;
+/** Lado mínimo dos cubos da rocha na tela (px, × dpr). */
+const METEOR_MIN_CUBE = 2;
+/** Quantas vezes o raio da bola ela percorre no céu, quando cabe na tela. */
+const METEOR_FALL_HEADS = 16;
 
 /** Raio da bola (px) do meteoro de tamanho `size` (1–4) com a cratera de `craterPx` px na tela. */
 export function meteorHead(size: number, craterPx: number, dpr: number): number {
   return Math.max((METEOR_MIN_HEAD[size] ?? 2) * dpr, METEOR_HEAD * craterPx);
+}
+
+/**
+ * Comprimento da queda (px) até o ponto (x, y): 16 bolas, mas a rocha sempre começa dentro da tela (B1,
+ * teste da `9b5ba0d4`: de perto, ou tocando perto da borda, ela nascia fora da tela; pausada, ficava lá e
+ * "nem aparecia"). `dx`, `dy`: direção da subida (dy < 0).
+ */
+export function meteorFall(x: number, y: number, head: number, dx: number, dy: number, width: number, height: number): number {
+  const margin = head * 2;
+  let len = head * METEOR_FALL_HEADS;
+  if (dy < 0) len = Math.min(len, Math.max(0, y - margin) / -dy);
+  if (dy > 0) len = Math.min(len, Math.max(0, height - margin - y) / dy);
+  if (dx > 0) len = Math.min(len, Math.max(0, width - margin - x) / dx);
+  if (dx < 0) len = Math.min(len, Math.max(0, x - margin) / -dx);
+  return len;
 }
 
 /** Duração das animações (ms). */
@@ -161,11 +181,17 @@ function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEv
   const crater = (e.radius / camera.cellAngle) * camera.cellPixels();
   const head = meteorHead(e.magnitude, crater, dpr);
   // Vem do alto, de um lado sorteado (nunca de baixo para cima).
-  const side = rand(id, 0) < 0.5 ? -1 : 1;
-  const dx = side * (0.55 + 0.35 * rand(id, 1));
+  const dx = (rand(id, 0) < 0.5 ? -1 : 1) * (0.55 + 0.35 * rand(id, 1));
   const dy = -1;
-  const len = head * 16;
-  const cubeSize = Math.max(1.2 * dpr, head * 0.55);
+  const canvas = ctx.canvas as HTMLCanvasElement | undefined;
+  const w = canvas?.width ?? Infinity;
+  const h = canvas?.height ?? Infinity;
+  // Sem espaço do lado sorteado e com mais do outro, vem do outro.
+  const room = dx > 0 ? w - c.x : c.x;
+  const other = dx > 0 ? c.x : w - c.x;
+  const fx = room < head * METEOR_FALL_HEADS * Math.abs(dx) && other > room ? -dx : dx;
+  const len = meteorFall(c.x, c.y, head, fx, dy, w, h);
+  const cubeSize = Math.max(METEOR_MIN_CUBE * dpr, head * 0.55);
   if (phase < 1) {
     const t = phase;
     // Sombra suave no ponto de impacto, crescendo e escurecendo até a batida.
@@ -178,14 +204,14 @@ function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEv
     ctx.beginPath();
     ctx.ellipse(c.x, c.y, sr, sr * 0.62, 0, 0, Math.PI * 2);
     ctx.fill();
-    const hx = c.x + dx * len * (1 - t);
+    const hx = c.x + fx * len * (1 - t);
     const hy = c.y + dy * len * (1 - t);
     // Rastro de fumaça: cubos cinza ficando para trás, menores e mais claros quanto mais longe.
     const trail = 14;
     for (let k = 1; k <= trail; k++) {
       const back = (k / trail) * len * 0.9 * Math.min(1, t * 3 + 0.25);
       const jitter = (rand(id, 10 + k) - 0.5) * cubeSize * (0.6 + k * 0.08);
-      cube(ctx, hx + dx * back + jitter, hy + dy * back + jitter * 0.5, cubeSize * (0.95 - 0.5 * (k / trail)), SMOKE, 0.9 * (1 - k / (trail + 2)));
+      cube(ctx, hx + fx * back + jitter, hy + dy * back + jitter * 0.5, cubeSize * (0.95 - 0.5 * (k / trail)), SMOKE, 0.9 * (1 - k / (trail + 2)));
     }
     // A rocha: um bloco de cubos escuros, a frente (para o lado da queda) em brasa.
     const parts: [number, number, number][] = [
@@ -199,7 +225,7 @@ function drawMeteor(ctx: CanvasRenderingContext2D, camera: Camera, e: DisasterEv
     for (let k = 0; k < parts.length; k++) {
       const [ox, oy, sz] = parts[k] as [number, number, number];
       // Frente em brasa: as partes do lado de baixo e do lado para onde vai.
-      const front = oy > 0.5 || ox * -side > 0.4;
+      const front = oy > 0.5 || ox * -Math.sign(fx) > 0.4;
       const color = front ? (k % 2 ? EMBER : EMBER_HOT) : k % 2 ? ROCK_DARK : ROCK;
       cube(ctx, hx + ox * cubeSize * 1.1, hy + oy * cubeSize * 1.1, cubeSize * sz, color, 1);
     }

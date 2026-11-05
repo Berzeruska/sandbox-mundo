@@ -1,96 +1,15 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-03**, branch `marco-2`. **Rodada do teste da `adf001ea` terminada** (mensagem do
-usuário de 2026-11-03, segunda, itens A–G). **Esperando o teste do usuário na prévia** (lista abaixo) **e
-as escolhas das propostas.** A T14 não começa e o M2 não fecha antes disso.
-Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/marco-2/** (também no topo do README e no
-"Website" do repositório, regra 15). A linha "versão" do Dados tem que mostrar o último commit do `marco-2`.
-O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa
-sobre "onde estamos", vale este.
+Atualizado em: **2026-11-04**, branch `marco-2`. **Rodada do teste da `9b5ba0d4` em andamento** (fim do M2).
+Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/marco-2/**
+O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
+estamos", vale este.
 
-## O que foi feito nesta rodada (em linguagem simples)
-Detalhes e medições em `docs/M2-especificacao.md`, "Correções do teste da `adf001ea`"; decisões em
-`docs/decisoes.md` ("2026-11-03 (segunda mensagem)"); defeitos em `docs/bugs.md`.
-1. **Regras novas** no CLAUDE.md: 15 (link da prévia no README e no "Website") e 16 (a qualidade não se
-   negocia). Direção visual registrada (diorama vivo de perto, pixel 2D de longe, plano B em sprites
-   pré-renderizados), a escala que muda, o portão do M3 (a–d) e a temperatura extrema (docs).
-2. **A travada de 7,7 s (B1)** era a pergunta do "Medir desempenho": a caixa do navegador congela a página
-   e o registro contava esse tempo. Não conta mais.
-3. **Meteoro gigante em 20× (B1):** a data esperava 0,3–1,1 s porque o frio do impacto refazia o clima e
-   repintava o planeta inteiro várias vezes por quadro. Agora repinta só o que muda e no máximo uma vez
-   por volta do relógio: 10 gigantes seguidos sem a data esperar. Os 10 desastres, em todas as forças, em
-   1× e 20×: nenhum quadro da tela acima de 50 ms (medido no Chromium com a GPU do notebook, 1080p).
-4. **Temperatura "no máximo" depois da era do gelo (B2):** não consegui reproduzir. Com 1 a 10 gigantes,
-   andando ou pausado, em 1× ou 20×, o clima volta ao normal célula por célula. Dois testes novos olham
-   agora o que você vê (não só o número). Preciso que você diga onde viu o "máximo" (item 5 da lista).
-5. **Tranco no clima (B4):** o clima anda em degraus de meio grau e cada degrau trocava uma faixa de
-   células de uma vez. Agora cada célula troca de cor aos poucos (0,6 s), na GPU, quase sem custo
-   (+0,07 a +0,22 ms). E o controle de temperatura passou a andar também com o jogo pausado.
-6. **Meteoro novo (B3, sua escolha):** rocha de cubos com a frente em brasa, sombra suave crescendo onde
-   vai cair, entulho em cubos e a fumacinha subindo e se desfazendo.
-7. **Propostas com imagem** (abaixo): limite das crateras, mesclas do B5 e do B8, regra do B7, tipo de
-   mundo na criação (B10) e alcance do tsunami.
-
-## Propostas esperando a sua escolha
-Todas em `docs/M2-especificacao.md`, "Correções do teste da `adf001ea`".
-1. **Limite das crateras** (`docs/img/m2-b3c-limite-crateras.png`): 1 teto no gigante · 2 teto de bacia ·
-   3 soma que cansa · 4 anéis depois do teto · 5 nova por cima, sem soma · 6 mista (1 + 5). Em todas, a
-   cratera passa a ter um "perfil-alvo" e para de cavar sem fim.
-2. **B5, mescla do degrau do terremoto** (`docs/img/m2-b5m-degrau-mescla.png`): sobe 300 · 450 · 750 · 900 m
-   e desce 150 · 150 · 300 · 300 m (M 8 a 9,5). Aprovar, ou mudar algo.
-3. **B8, mescla de avisos e ano** (`docs/img/m2-b8m-avisos-ano-mescla.png`): 4 + 2 + 6 + 5, sem o sinal de
-   toque; a 1 e a 3 não combinam com a 4 (mostrariam os mesmos botões duas vezes). Aprovar, ou trocar a 4
-   pela 1.
-4. **B7, regra dos pontos quentes** (`docs/img/m2-b7r-regra-pontos-quentes.png`): planalto de basalto ao
-   nascer, caldeiras em continente espesso, esparso + inchaço no comum, campo de cones em crosta fina,
-   ilhas no mar, velhos envelhecendo. Aprovar; e a pergunta: a erupção enorme das caldeiras entra?
-5. **B10, tipo de mundo** (`docs/img/m2-b10i-tipo-de-mundo.png`): interface 1 fileira · 2 cartões com
-   miniatura · 3 lista · 4 carrossel · 5 dois passos · 6 deslizador; e a pergunta do arquipélago: (a) só
-   nasce de ilhas · (b) ilhas para sempre · (c) ilhas por mais tempo.
-6. **Tsunami** (`docs/img/m2-tsunami-alcance.png`): 1 altura ×2 · 2 células e altura ×2 · 3 não perde altura
-   · 4 segue o terreno baixo · 5 tudo ×3 · 6 ×1,5 com piso.
-7. **A1 (metas na bateria):** aberta até a sua medição na bateria.
-
-## Lista de teste (no notebook, com o jogo sozinho)
-Chrome **maximizado** (o relatório deve dizer "desenho 1920×1080"), **na tomada** para medir. Enquanto você
-testa, o Claude Code não roda nada no notebook. Em cada item: o que fazer → o que deve aparecer → o que é
-defeito. Conferida contra `docs/decisoes.md` (B1–B4 e as escolhas de 2026-11-03, E6, C12, P8 b, B9, B10 iii).
-1. **Pergunta antes de medir, sem travada (B1, B10 iii):** Dados → Medir desempenho → a pergunta aparece;
-   espere ~10 s e cancele → nada muda e o rodapé do Dados **não** ganha uma travada de ~10 s. Defeito:
-   medir sem perguntar; travada nova com o tempo da pergunta.
-2. **Meteoro em 20× (B1):** 20×, Desastres → Meteoro → Gigante; 3 toques seguidos em continentes
-   diferentes → a data continua andando e a tela lisa; o rodapé do Dados sem travada nova. Defeito: a data
-   parando mais de ~0,3 s; tela engasgando.
-3. **Meteoro novo, os 4 tamanhos (B3, F5):** 1×, de perto e depois com o globo inteiro → uma rocha de cubos
-   escuros com a frente em brasa e rastro de fumaça cinza; no chão, uma sombra suave que cresce até a batida;
-   ao bater, clarão curto, entulho e brasas em cubos e uma fumacinha de cubos subindo e se desfazendo
-   (~2 s). Cada tamanho maior que o anterior. Defeito: o "mini sol" antigo; sombra de borda dura; dois
-   tamanhos iguais.
-4. **Meteoro pausado (B1):** pausado, jogue um Grande → a rocha fica parada no céu com a sombra no chão;
-   solte em 1× → em ~1 s ela bate e a cratera aparece. Defeito: cratera antes de bater; bater pausado.
-5. **Era do gelo de meteoros (B2):** 1×, 4 gigantes seguidos → a linha "clima" do Dados cai até ~−12 °C e
-   volta a ~0 em ~35–40 s (o gelo some aos poucos). **Se a temperatura for para o máximo, diga onde viu**
-   (linha "clima", controle do menu, toque numa célula ou a cor do mundo), em que velocidade e com quantos
-   meteoros. Defeito: clima acima de 0 depois do frio; o mundo mais quente que antes.
-6. **Clima sem tranco (B4):** 1×, Clima → Temperatura −6 → o gelo e os biomas mudam aos poucos, as cores
-   escorrendo de uma para outra, sem faixas piscando a cada meio segundo; volte a 0 → do mesmo jeito.
-   Defeito: blocos de células trocando de uma vez.
-7. **Clima pausado (B4):** pausado, Temperatura −8 → a data parada, a linha "clima" descendo até −8 em ~9 s
-   e o mundo esfriando aos poucos. Defeito: nada acontecer até soltar a pausa.
-8. **Medição inválida (B9, da rodada anterior):** comece o Medir desempenho, troque de aba por ~20 s, volte
-   e espere o fim → "MEDIÇÃO INVÁLIDA" no alto e nos cenários afetados. Defeito: 0 fps ou números absurdos
-   sem aviso.
-9. **Medir desempenho de verdade (A):** tela cheia, na tomada, só o jogo aberto; mande o relatório inteiro.
-   Metas: 60 fps e nenhum quadro > 50 ms em todos os cenários (os quadros lentos vêm explicados embaixo do
-   cenário); GPU ≤ 8 ms; memória ≤ 400 MB; geração ≤ 1,5 s; primeira abertura ≤ 2,5 s; pior recomposição
-   ≤ 1 s; "relógio esperou 0 ms"; "energia: na tomada". **Se puder, uma segunda medição na bateria** (A1).
-10. **Abrir a página (A):** feche a aba e abra de novo → no rodapé do Dados, 0 travadas logo depois de o
-    globo aparecer. Defeito: travadas "fora do código da tela" ao abrir.
-11. **5 min em 1× com placas 100%:** rodapé do Dados com 0 travadas da data. Se aparecer, mande as linhas.
-12. **Tsunamis seguidos (F3):** Tsunami 9,5, ~10 toques seguidos no mar em 1× e em 20× → a data continua
-    andando, cada onda recua o mar, avança e deixa lama (começa ~1 s depois do tremor).
-13. **Temperatura +10 (T7):** Clima → +10 → o gelo derrete aos poucos e o mar sobe, sem nada pular; volte a
-    0 → o gelo volta aos poucos. Defeito: o mundo congelando; o relevo pulando.
+## Rodada atual
+Modo de trabalho (usuário, 2026-11-04): o usuário só faz testes objetivos e decide design e mecânica; o resto
+é do Claude Code. Detalhes em `docs/M2-especificacao.md`, "Correções do teste da `9b5ba0d4`".
+- Feito: B1 meteoro, B2 limite das crateras.
+- Falta: B3, B4, decisões 5 e 6, T14, registro do portão do M3.
 
 ## Rodada de 2026-11-03, segunda (feito, com commit)
 Docs e regras `0ae298d` · B1/B2/B4 `592a427` · proposta das crateras `42f4d7d` ·

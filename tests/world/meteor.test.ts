@@ -7,7 +7,7 @@ import { SimulationCore } from '../../src/sim/core';
 import { createWorld } from '../../src/world/create';
 import { cellDistance, cellPoint, DisasterKind, Disasters } from '../../src/world/disasters';
 import { CellState, Ground } from '../../src/world/disasters/ground';
-import { CRATER_DEPTH, CRATER_RADIUS, ENTRY_TICKS, GIANT_WINTER, impact, NATURAL_PER_YEAR, sampleNaturalMeteor } from '../../src/world/disasters/meteor';
+import { BLAST_RADIUS, CRATER_DEPTH, CRATER_RADIUS, ENTRY_TICKS, GIANT_WINTER, impact, MAX_CRATER_DEPTH, MAX_CRATER_RADIUS, NATURAL_PER_YEAR, sampleNaturalMeteor, VREDEFORT_DIAMETER_KM } from '../../src/world/disasters/meteor';
 import type { WorldState } from '../../src/world/state';
 
 const worldOf = (seed = 'terra', n = 128) => createWorld({ seedText: seed, seed: seedFrom(seed), n, seaLevel: 0, landFraction: 0.3 });
@@ -245,16 +245,16 @@ describe('crateras sobrepostas somam (P8 b)', () => {
     const d = new Disasters(w);
     d.frequency = 0;
     const c = inland(w);
-    hitAt(d, w, c, 3, 0);
+    hitAt(d, w, c, 2, 0);
     expect(d.craters).toHaveLength(1);
-    const r0 = CRATER_RADIUS[3]!;
+    const r0 = CRATER_RADIUS[2]!;
     expect(d.craters[0]!.radius).toBe(r0);
     // A faixa que era a borda da primeira (r0 a 1,25·r0) antes do segundo:
     const band = ring(w, c, r0 * 1.05, Math.sqrt(r0 * r0 + r0 * r0) * 0.85);
     const before = band.map((x) => w.heightAboveSea(x));
     // Cai um pouco fora do centro, mas dentro da cratera.
-    const inside = ring(w, c, 2, 3)[0]!;
-    hitAt(d, w, inside, 3, 100);
+    const inside = ring(w, c, 1, 2)[0]!;
+    hitAt(d, w, inside, 2, 100);
     expect(d.craters).toHaveLength(1);
     expect(d.craters[0]!.radius).toBeCloseTo(Math.sqrt(2) * r0, 6);
     expect(d.craters[0]!.cell).toBe(c);
@@ -288,5 +288,95 @@ describe('crateras sobrepostas somam (P8 b)', () => {
     const n = w.cellCount;
     d.remap((x) => x, (x) => (x - 7 + n) % n);
     expect(d.craters[0]!.cell).toBe((c + 7) % n);
+  });
+
+  // Decisão do usuário (2026-11-04): a maior cratera conhecida, Vredefort, tinha 250–280 km de diâmetro.
+  // Os critérios abaixo vêm desse limite (km → células), não do que o código dá.
+  describe('limite real das crateras (Vredefort)', () => {
+    it('o limite em células é o de Vredefort numa grade do jogo (~4 células de raio em N = 256)', () => {
+      const km = ((Math.PI / 2) / 256) * 6371;
+      expect(Math.ceil(VREDEFORT_DIAMETER_KM / 2 / km)).toBe(MAX_CRATER_RADIUS);
+    });
+
+    for (const size of [1, 2, 3, 4]) {
+      it(`20 meteoros de tamanho ${size} no mesmo lugar: nunca passa do limite; depois dele o relevo não muda mais`, () => {
+        const w = worldOf();
+        const d = new Disasters(w);
+        d.frequency = 0;
+        const c = inland(w);
+        const original = w.elevation.slice();
+        const dug = () => {
+          let far = 0;
+          let deepest = 0;
+          for (let x = 0; x < w.cellCount; x++) {
+            const diff = (w.elevation[x] as number) - (original[x] as number);
+            if (diff < -1) {
+              far = Math.max(far, cellDistance(w, c, x));
+              deepest = Math.min(deepest, diff);
+            }
+          }
+          return { far, deepest };
+        };
+        let atLimit: Float32Array | null = null;
+        for (let k = 0; k < 20; k++) {
+          hitAt(d, w, c, size, k * 100);
+          expect(d.craters).toHaveLength(1);
+          const crater = d.craters[0]!;
+          expect(crater.radius).toBeLessThanOrEqual(MAX_CRATER_RADIUS);
+          expect(crater.depth).toBeLessThanOrEqual(MAX_CRATER_DEPTH);
+          const { far, deepest } = dug();
+          expect(far).toBeLessThanOrEqual(MAX_CRATER_RADIUS);
+          expect(deepest).toBeGreaterThanOrEqual(-MAX_CRATER_DEPTH - 1);
+          // Chegou ao limite do raio: a partir do impacto seguinte, nem uma célula muda.
+          if (atLimit) expect(Array.from(w.elevation)).toEqual(Array.from(atLimit));
+          else if (crater.radius === MAX_CRATER_RADIUS || k === 19) atLimit = w.elevation.slice();
+        }
+      });
+    }
+
+    it('meteoros caindo em volta, dentro da cratera, não alargam além do limite nem cavam de novo', () => {
+      const w = worldOf();
+      const d = new Disasters(w);
+      d.frequency = 0;
+      const c = inland(w);
+      hitAt(d, w, c, 4, 0);
+      const after = w.elevation.slice();
+      ring(w, c, 0.5, MAX_CRATER_RADIUS).slice(0, 25).forEach((x, k) => hitAt(d, w, x, 4, (k + 1) * 100));
+      expect(d.craters).toHaveLength(1);
+      expect(Array.from(w.elevation)).toEqual(Array.from(after));
+    });
+
+    it('cratera ao lado, encostando, não soma o fundo: o mais fundo continua o do gigante', () => {
+      const w = worldOf();
+      const d = new Disasters(w);
+      d.frequency = 0;
+      const c = inland(w);
+      const original = w.elevation.slice();
+      hitAt(d, w, c, 4, 0);
+      const beside = ring(w, c, MAX_CRATER_RADIUS + 1, MAX_CRATER_RADIUS + 2)[0]!;
+      for (let k = 1; k <= 6; k++) hitAt(d, w, beside, 4, k * 100);
+      let deepest = 0;
+      for (let x = 0; x < w.cellCount; x++) deepest = Math.min(deepest, (w.elevation[x] as number) - (original[x] as number));
+      expect(deepest).toBeGreaterThanOrEqual(-MAX_CRATER_DEPTH - 1);
+    });
+
+    it('a onda de choque continua maior que a cratera: o gigante derruba vegetação além do limite', () => {
+      expect(BLAST_RADIUS[4]).toBeGreaterThan(MAX_CRATER_RADIUS * 2);
+    });
+  });
+
+  it('em gelo a cratera aparece: rocha escura e entulho por cima do branco (B1, teste da `9b5ba0d4`)', () => {
+    const w = worldOf();
+    const c = inland(w);
+    w.ice.fill(1);
+    const ground = new Ground(w.cellCount);
+    const white = new Uint8Array(w.cellCount * 4);
+    buildColors(w, white, [c], undefined, ground);
+    ground.setState(c, CellState.Impact, 0, 200, TICKS_PER_YEAR);
+    const dark = new Uint8Array(w.cellCount * 4);
+    buildColors(w, dark, [c], undefined, ground);
+    // Critério da cor do estado (rocha escura, ~60–85): bem mais escura que o que estava ali.
+    expect(dark[c * 4]!).toBeLessThan(100);
+    expect(dark[c * 4]!).toBeLessThan(white[c * 4]! - 40);
   });
 });

@@ -1209,3 +1209,13 @@ O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e reve
   0,6 s por célula; o shader só lê a textura enquanto há troca; recomposição cancela as trocas (ela tem
   a transição dela). Alternativas descartadas: degraus menores (5× mais clima refeito no relógio) e
   misturar na CPU a cada quadro (custo na tela).
+- **2026-11-04 — Limite real das crateras (decisão do usuário):** maior cratera = Vredefort (250–280 km de
+  diâmetro), `MAX_CRATER_RADIUS` = 4 células em N = 256; fundo até 1.500 m. **Consequência para decidir:**
+  como o gigante abria 12 células, para cada tamanho continuar maior que o anterior (F5) os raios passaram
+  de 1 · 3 · 6 · 12 para **1 · 2 · 3 · 4**. O alcance da onda de choque e dos incêndios ficou o aprovado
+  (`BLAST_RADIUS`: 3 · 7,5 · 15 · 30), para o gigante continuar devastador. Decisão técnica junto: perfil
+  por célula em vez de somar relevo. Alternativa descartada: limitar só a soma e manter o gigante com 12
+  (já nasceria 3× acima do limite).
+- **2026-11-04 — Cenários "meteoros" no Medir desempenho:** gigante a cada 0,5 s por 20 s, em 1×, placas 25%,
+  no mesmo lugar e em 40 lugares fixos (`meteorSpots`). O relatório mostra as travadas da data no cenário.
+
