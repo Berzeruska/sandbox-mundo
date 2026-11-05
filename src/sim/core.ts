@@ -12,7 +12,8 @@ import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
 import { CONTINENTAL_DEPTH, Crust } from '../world/plates';
 import { REVEALED_BIT } from '../world/resources';
 import { CubeSphere, type Vec3 } from '../world/cubesphere';
-import type { WorldState } from '../world/state';
+import { archipelagoReached } from '../world/generation';
+import type { WorldKind, WorldState } from '../world/state';
 import { emptyWork, type WorkCounters } from '../ui/benchmark';
 import { makePatches, STORM_FLOATS, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
 
@@ -184,6 +185,8 @@ export class SimulationCore {
   private stats: GeologyStats | null = null;
   /** Desde quando o relógio está parado esperando o motor (0: não está). */
   private waitingSince = 0;
+  /** Mundo arquipélago que ainda não chegou ao desenho de ilhas. */
+  private archipelagoPending = false;
 
   constructor(
     private post: Post,
@@ -205,7 +208,7 @@ export class SimulationCore {
   handle(msg: ToWorker): void {
     switch (msg.type) {
       case 'newWorld':
-        this.newWorld(msg.seedText, msg.n);
+        this.newWorld(msg.seedText, msg.n, msg.kind);
         break;
       case 'brush':
         this.brush(msg);
@@ -250,7 +253,7 @@ export class SimulationCore {
     }
   }
 
-  private newWorld(seedText: string, n: number): void {
+  private newWorld(seedText: string, n: number, kind: WorldKind = 'standard'): void {
     const t0 = this.now();
     const stagesMs: Record<string, number> = {};
     let current = '';
@@ -282,7 +285,8 @@ export class SimulationCore {
     this.stats = null;
     stage('grade');
     if (!this.grid || this.grid.n !== n) this.grid = new CubeSphere(n);
-    const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3 }, this.grid, stage, this.geology.pool);
+    const world = createWorld({ seedText, seed: seedFrom(seedText), n, seaLevel: 0, landFraction: 0.3, kind }, this.grid, stage, this.geology.pool);
+    this.archipelagoPending = kind === 'archipelago';
     stage('cores');
     this.world = world;
     this.disasters = new Disasters(world);
@@ -319,6 +323,7 @@ export class SimulationCore {
         cellCount: world.cellCount,
         seedText,
         seed: world.params.seed,
+        kind,
         generationMs,
         stagesMs,
         helperShare: this.geology.pool?.helperShare ?? 0,
@@ -589,6 +594,7 @@ export class SimulationCore {
     // Fronteiras novas para a tensão; as marcas e a tensão por cima das cores novas.
     this.disasters?.onRecompose();
     this.overlayAll();
+    this.checkArchipelago(world);
     const n = world.params.n;
     const faces = [0, 1, 2, 3, 4, 5].map((face) => ({ face, x0: 0, y0: 0, x1: n - 1, y1: n - 1 }));
     this.send({ type: 'recomposed', patches: makePatches(this.colors, n, faces), plateCells: r.plateCells, angles: r.angles, plates: r.motion, deposits: world.deposit.slice() });
@@ -602,6 +608,18 @@ export class SimulationCore {
     this.geologyMs = r.platesMs + r.climateMs + r.colorsMs + applyMs;
     w.worstGeology = Math.max(w.worstGeology, this.geologyMs);
     this.stats = r.stats;
+  }
+
+  /**
+   * Arquipélago: chegou ao desenho de ilhas, as placas desligam sozinhas, uma vez (decisão do usuário,
+   * 2026-11-04). Se o jogador ligar de novo, elas andam: o jogo não desliga outra vez.
+   */
+  private checkArchipelago(world: WorldState): void {
+    if (!this.archipelagoPending || !archipelagoReached(world)) return;
+    this.archipelagoPending = false;
+    this.plateRate = 0;
+    this.geology.send({ type: 'rate', world: this.worldId, tick: this.clock.tick, rate: 0 });
+    this.send({ type: 'platesStopped' });
   }
 
   /** Pinceladas feitas depois da recomposição que acabou de aparecer: valem de novo sobre ela. */

@@ -301,3 +301,21 @@ export function landComponents(world: WorldState): number[] {
   }
   return sizes.sort((a, b) => b - a);
 }
+
+/**
+ * "Desenho de arquipélago" (decisão do usuário, 2026-11-04; proposta B10: pouca terra, muitas ilhas, nenhuma
+ * dominando): terra até ARCHIPELAGO_MAX_LAND do mundo, pelo menos ARCHIPELAGO_MIN_ISLANDS ilhas (com pelo
+ * menos 0,1% da terra cada) e nenhuma acima de ARCHIPELAGO_MAX_ISLAND da terra.
+ */
+export const ARCHIPELAGO_MAX_LAND = 0.18;
+export const ARCHIPELAGO_MIN_ISLANDS = 100;
+export const ARCHIPELAGO_MAX_ISLAND = 0.08;
+
+export function archipelagoReached(world: WorldState): boolean {
+  if (world.landFraction() > ARCHIPELAGO_MAX_LAND) return false;
+  const sizes = landComponents(world);
+  const land = sizes.reduce((a, b) => a + b, 0);
+  if (!land || (sizes[0] as number) > ARCHIPELAGO_MAX_ISLAND * land) return false;
+  return sizes.filter((s) => s >= 0.001 * land).length >= ARCHIPELAGO_MIN_ISLANDS;
+}
+

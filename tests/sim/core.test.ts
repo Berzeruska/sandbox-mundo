@@ -246,3 +246,29 @@ it('controle de temperatura: o clima atrasado do motor não desfaz a prévia na 
     last = now;
   }
 });
+
+describe('arquipélago: as placas desligam sozinhas (decisão do usuário, 2026-11-04)', () => {
+  it('avisa uma vez, para as placas e o jogador pode ligar de novo sem desligar outra vez', () => {
+    const msgs: FromWorker[] = [];
+    let clock = 0;
+    const core = new SimulationCore((m) => msgs.push(m), () => clock);
+    core.handle({ type: 'newWorld', seedText: 'terra', n: 128, kind: 'archipelago' });
+    core.handle({ type: 'plateRate', rate: 1 });
+    core.handle({ type: 'speed', speed: 20 });
+    const stops = () => msgs.filter((m) => m.type === 'platesStopped').length;
+    const maxTicks = 8 * 60 * 240 + 480;
+    for (let k = 0; k < maxTicks / 60 && !stops(); k++) {
+      clock += 250;
+      core.advance(0.25);
+    }
+    expect(stops()).toBe(1);
+    expect(core.plateRate).toBe(0);
+    core.handle({ type: 'plateRate', rate: 1 });
+    for (let k = 0; k < 400; k++) {
+      clock += 250;
+      core.advance(0.25);
+    }
+    expect(core.plateRate).toBe(1);
+    expect(stops()).toBe(1);
+  }, 180_000);
+});

@@ -1,3 +1,4 @@
+import type { WorldKind } from '../world/state';
 import type { InputMode } from '../input/pointer';
 import { Tool } from '../input/tools';
 import type { Speed } from '../core/time';
@@ -239,3 +240,11 @@ export function activeBrush(state: MenuState): Tool | null {
 export function inputModeOf(state: MenuState): InputMode {
   return activeBrush(state) === null ? 'move' : 'paint';
 }
+
+/** Os tipos de mundo na janela "Novo mundo" (decisão do usuário, 2026-11-04). */
+export const WORLD_KINDS: readonly { kind: WorldKind; label: string; about: string }[] = [
+  { kind: 'standard', label: 'Padrão', about: 'A Pangeia se parte em continentes grandes.' },
+  { kind: 'smaller', label: 'Continentes menores', about: 'A Pangeia se parte em mais pedaços, menores.' },
+  { kind: 'archipelago', label: 'Arquipélago', about: 'A Pangeia vai se partindo até virar ilhas; aí as placas desligam sozinhas, e ligar de novo é com você.' },
+];
+

@@ -1,3 +1,5 @@
+import { WORLD_KINDS } from './menu-state';
+import type { WorldKind } from '../world/state';
 /** Painéis da interface: depuração e "novo mundo". HTML simples, sem framework. */
 
 export interface DebugStats {
@@ -7,6 +9,7 @@ export interface DebugStats {
   n: number;
   seedText: string;
   seed: number;
+  kindLabel: string;
   generationMs: number;
   /** Do pedido até o globo aparecer (ms), medido na thread principal. */
   generationTotalMs: number;
@@ -136,7 +139,7 @@ export class DebugPanel {
     this.body.textContent = [
       `fps     ${s.fps.toFixed(0)} (tela ~${hz} Hz) · ${s.frameMs.toFixed(2)} ms/quadro`,
       `quadros ${s.minGapMs.toFixed(1)}–${s.maxGapMs.toFixed(1)} ms · zoom ${s.zoom.toFixed(2)}× · célula ${s.cellPixels.toFixed(1)} px`,
-      `mundo   ${s.seedText} (${s.seed}) · ${s.cells.toLocaleString('pt-BR')} células, N ${s.n}`,
+      `mundo   ${s.seedText} (${s.seed}) · ${s.kindLabel} · ${s.cells.toLocaleString('pt-BR')} células, N ${s.n}`,
       `geração ${s.generationTotalMs.toFixed(0)} ms (worker ${s.generationMs.toFixed(0)}): ${Object.entries(s.stagesMs).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(' · ')}`,
       `worker  ${s.ticksPerSecond.toFixed(0)} passos/s · pincel ${s.brushMs.toFixed(1)} ms · ~${s.memoryMb.toFixed(0)} MB`,
       `placas  ${s.recompositions} recomposições · última ${s.geologyMs.toFixed(0)} ms`,
@@ -152,8 +155,11 @@ export class DebugPanel {
 export class NewWorldDialog {
   readonly root: HTMLDivElement;
   private input: HTMLInputElement;
+  private kind: WorldKind = 'standard';
+  private cards!: HTMLDivElement;
+  private about!: HTMLDivElement;
 
-  constructor(parent: HTMLElement, onCreate: (seedText: string) => void) {
+  constructor(parent: HTMLElement, onCreate: (seedText: string, kind: WorldKind) => void) {
     this.root = document.createElement('div');
     this.root.className = 'panel world-panel hidden';
     const title = document.createElement('div');
@@ -185,7 +191,7 @@ export class NewWorldDialog {
     const submit = (): void => {
       const text = this.input.value.trim() || randomSeedText();
       this.hide();
-      onCreate(text);
+      onCreate(text, this.kind);
     };
     createBtn.addEventListener('click', submit);
     this.input.addEventListener('keydown', (e) => {
@@ -199,11 +205,40 @@ export class NewWorldDialog {
     cancelBtn.addEventListener('click', () => this.hide());
     row.append(randomBtn, cancelBtn, createBtn);
 
-    this.root.append(title, label, row);
+    // Tipo de mundo (decisão do usuário, 2026-11-04: opção 2, cartões com miniatura).
+    const cards = document.createElement('div');
+    cards.className = 'world-kinds';
+    const about = document.createElement('div');
+    about.className = 'world-kind-about';
+    for (const info of WORLD_KINDS) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'world-kind';
+      card.dataset.kind = info.kind;
+      const img = document.createElement('img');
+      img.src = `./tipos/${info.kind}.png`;
+      img.alt = '';
+      const name = document.createElement('span');
+      name.textContent = info.label;
+      card.append(img, name);
+      card.addEventListener('click', () => this.select(info.kind));
+      cards.append(card);
+    }
+    this.cards = cards;
+    this.about = about;
+    this.select('standard');
+    this.root.append(title, label, cards, about, row);
     parent.append(this.root);
   }
 
-  show(currentSeed: string): void {
+  private select(kind: WorldKind): void {
+    this.kind = kind;
+    for (const c of this.cards.children) c.classList.toggle('selected', (c as HTMLElement).dataset.kind === kind);
+    this.about.textContent = WORLD_KINDS.find((k) => k.kind === kind)?.about ?? '';
+  }
+
+  show(currentSeed: string, kind: WorldKind = 'standard'): void {
+    this.select(kind);
     this.input.value = currentSeed;
     this.root.classList.remove('hidden');
     this.input.focus();

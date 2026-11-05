@@ -185,6 +185,13 @@ export class Hud {
   }
 
   /** Controle de velocidade das placas (0 congela a geologia). */
+  /** As placas mudaram sem o jogador mexer (o arquipélago ficou pronto): o controle acompanha. */
+  setPlatePercent(percent: number): void {
+    this.platePercent = percent;
+    for (const r of this.root.querySelectorAll<HTMLInputElement>('.hud-plate-range')) r.value = String(percent);
+    for (const v of this.root.querySelectorAll<HTMLElement>('.hud-plate-value')) v.textContent = `${percent}%`;
+  }
+
   private plateSlider(): HTMLElement {
     const wrap = el('span', 'hud-brush');
     const range = el('input', 'hud-brush-range hud-plate-range');

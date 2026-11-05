@@ -10,6 +10,18 @@ export const IceMode = {
 } as const;
 export type IceMode = (typeof IceMode)[keyof typeof IceMode];
 
+/**
+ * Tipo de mundo escolhido na criação (decisão do usuário, 2026-11-04). A mesma semente com outro tipo dá
+ * outro mundo. `standard`: o de sempre; `smaller`: a Pangeia parte em pedaços menores; `archipelago`: a
+ * Pangeia vai se partindo até virar ilhas e, nesse ponto, as placas desligam sozinhas.
+ */
+export type WorldKind = 'standard' | 'smaller' | 'archipelago';
+
+/** O tipo de mundo de um texto (ex.: da URL); desconhecido vira o padrão. */
+export function parseWorldKind(text: string | null | undefined): WorldKind {
+  return text === 'smaller' || text === 'archipelago' ? text : 'standard';
+}
+
 export interface WorldParams {
   /** Texto digitado pelo jogador (ou o número) que originou a semente. */
   seedText: string;
@@ -20,6 +32,8 @@ export interface WorldParams {
   seaLevel: number;
   /** Fração alvo de terra na geração (0–1). */
   landFraction: number;
+  /** Tipo de mundo (sem isso, `standard`). */
+  kind?: WorldKind;
 }
 
 /**

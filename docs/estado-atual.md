@@ -9,7 +9,8 @@ estamos", vale este.
 Modo de trabalho (usuário, 2026-11-04): o usuário só faz testes objetivos e decide design e mecânica; o resto
 é do Claude Code. Detalhes em `docs/M2-especificacao.md`, "Correções do teste da `9b5ba0d4`".
 - Feito: B1 meteoro, B2 limite das crateras, B3 travadas e cenários de meteoros (a de 1,8 s não reproduzida).
-- Falta: B4, decisões 5 e 6, T14, registro do portão do M3.
+- Feito também: tipo de mundo na criação (decisão 5).
+- Falta: B4, decisão 6, T14, registro do portão do M3.
 
 ## Rodada de 2026-11-03, segunda (feito, com commit)
 Docs e regras `0ae298d` · B1/B2/B4 `592a427` · proposta das crateras `42f4d7d` ·

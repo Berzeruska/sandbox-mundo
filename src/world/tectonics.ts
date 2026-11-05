@@ -1,6 +1,6 @@
 import type { Vec3 } from './cubesphere';
 import { createRng, type Rng } from '../core/rng';
-import { Noise3D } from './noise';
+import { fbm, Noise3D } from './noise';
 import { Boundary, CONTINENTAL_DEPTH, Crust, DISPERSAL_STAGE, DISPERSAL_STAGE_MIN, MAX_PLATE_IDS, plateColor, POLAR_GUARD, rotateAbout, updateBoundaries } from './plates';
 import {
   FAILED_ARM_CHANCE,
@@ -50,6 +50,21 @@ const ANCIENT = -1_000_000;
  * nasce em ANCIENT.
  */
 export const RIFT_VALLEY_WIDTH = 3;
+/** "Continentes menores" (B10 v, opção 1): a fenda vira mar com 2 células. */
+export const RIFT_VALLEY_WIDTH_SMALLER = 2;
+/**
+ * Arquipélago (decisão do usuário, 2026-11-04): a Pangeia vai se partindo em placas e o interior dela
+ * afunda aos poucos, recomposição a recomposição, até sobrarem ilhas e mares rasos entre elas (como a
+ * Indonésia). Fica de pé esta fração da terra; o resto desce até a profundidade do mar raso, numa mancha
+ * de ruído presa à placa.
+ */
+export const ARCHIPELAGO_KEEP = 0.42;
+export const ARCHIPELAGO_SHALLOW = -180;
+/** Quanto do caminho até o mar raso a terra que afunda desce por recomposição, e o mínimo (m). */
+export const ARCHIPELAGO_SINK = 0.14;
+export const ARCHIPELAGO_SINK_MIN = 70;
+/** Frequência do ruído das ilhas no referencial da placa (quanto maior, ilhas menores). */
+export const ARCHIPELAGO_NOISE = 22;
 /** O fundo do vale fica entre estes metros abaixo das bordas (varia por célula, sem sorteio). */
 export const RIFT_DROP_MIN = 300;
 export const RIFT_DROP_MAX = 800;
@@ -346,6 +361,10 @@ export class Tectonics {
   private sPlate: Uint8Array;
   private sRef: Int32Array;
   private sElev: Float32Array;
+  /** Largura em que o vale de rifte vira mar (pelo tipo de mundo). */
+  private readonly valleyWidth: number;
+  /** Arquipélago: 1 nos pontos do referencial que afundam (null nos outros tipos de mundo). */
+  private readonly sinking: Uint8Array | null;
   private sCrust: Uint8Array;
   private sBirth: Int32Array;
   private sAlive: Uint8Array;
@@ -394,6 +413,8 @@ export class Tectonics {
     } = {},
   ) {
     this.world = world;
+    this.valleyWidth = world.params.kind === 'smaller' ? RIFT_VALLEY_WIDTH_SMALLER : RIFT_VALLEY_WIDTH;
+    this.sinking = world.params.kind === 'archipelago' ? sinkingMask(world) : null;
     this.reliefEnabled = options.relief ?? true;
     this.stagesEnabled = options.stages ?? true;
     this.erosionEnabled = options.erosion ?? true;
@@ -662,6 +683,19 @@ export class Tectonics {
     }
   }
 
+  /** Arquipélago: a terra fora das ilhas desce um pouco rumo ao mar raso. */
+  private sinkArchipelago(): void {
+    const mask = this.sinking;
+    if (!mask) return;
+    const count = this.sAlive.length;
+    for (let i = 0; i < count; i++) {
+      if (!this.sAlive[i] || this.sCrust[i] !== Crust.Continental || !mask[this.sRef[i] as number]) continue;
+      const e = this.sElev[i] as number;
+      if (e <= ARCHIPELAGO_SHALLOW) continue;
+      this.sElev[i] = Math.max(ARCHIPELAGO_SHALLOW, e - Math.max(ARCHIPELAGO_SINK_MIN, (e - ARCHIPELAGO_SHALLOW) * ARCHIPELAGO_SINK));
+    }
+  }
+
   /**
    * Um passo do relógio. `rate` é o controle "Placas" (0 a 1). Retorna true se o mapa foi recomposto.
    */
@@ -796,6 +830,7 @@ export class Tectonics {
   /** Recompõe o mapa do mundo a partir das amostras das placas. */
   recompose(): void {
     this.cellOfSampleMap = null;
+    this.sinkArchipelago();
     const world = this.world;
     const { positions, neighbors, cellAngle } = world.grid;
     const n = world.cellCount;
@@ -1306,7 +1341,7 @@ export class Tectonics {
     let elevA = 0;
     let distB = 0;
     let elevB = 0;
-    for (let dist = 1; dist < RIFT_VALLEY_WIDTH && !distB && ring.length; dist++) {
+    for (let dist = 1; dist < this.valleyWidth && !distB && ring.length; dist++) {
       const next: number[] = [];
       for (const k of ring) {
         for (let d = 0; d < 4; d++) {
@@ -1332,7 +1367,7 @@ export class Tectonics {
       }
       ring = next;
     }
-    if (!distB || distA + distB - 1 >= RIFT_VALLEY_WIDTH) return NaN;
+    if (!distB || distA + distB - 1 >= this.valleyWidth) return NaN;
     // Variação por célula do referencial da placa: determinística e presa à crosta.
     const h = (Math.imul(ref ^ Math.imul(owner + 1, 0x9e3779b1), 0x85ebca6b) >>> 0) / 4294967296;
     return (elevA + elevB) / 2 - (RIFT_DROP_MIN + (RIFT_DROP_MAX - RIFT_DROP_MIN) * h);
@@ -2971,4 +3006,26 @@ export class Tectonics {
       world.crust[c] = this.sCrust[i] as number;
     }
   }
+}
+
+/**
+ * Arquipélago: quais pontos do referencial afundam. Ruído preso ao ponto (anda com a placa); o limiar é
+ * tirado da própria terra para ficar de pé ARCHIPELAGO_KEEP dela, em qualquer semente.
+ */
+function sinkingMask(world: WorldState): Uint8Array {
+  const n = world.cellCount;
+  const { positions } = world.grid;
+  const noise = new Noise3D(createRng((world.params.seed ^ 0x51ed270b) >>> 0));
+  const value = new Float32Array(n);
+  const land: number[] = [];
+  for (let c = 0; c < n; c++) {
+    const f = ARCHIPELAGO_NOISE;
+    value[c] = fbm(noise, (positions[c * 3] as number) * f, (positions[c * 3 + 1] as number) * f, (positions[c * 3 + 2] as number) * f, 4, 0.5);
+    if (!world.isWater(c)) land.push(value[c] as number);
+  }
+  land.sort((a, b) => a - b);
+  const limit = land[Math.floor(land.length * (1 - ARCHIPELAGO_KEEP))] ?? 0;
+  const mask = new Uint8Array(n);
+  for (let c = 0; c < n; c++) mask[c] = (value[c] as number) < limit ? 1 : 0;
+  return mask;
 }

@@ -2,7 +2,7 @@ import { createRng, type Rng } from '../core/rng';
 import type { CubeSphere, Vec3 } from './cubesphere';
 import { fbm, Noise3D } from './noise';
 import { FAILED_ARM_CHANCE, MICROCONTINENT_CHANCE, MICRO_SHARE_MAX, MICRO_SHARE_MIN, MICRO_SHARE_FLOOR, retraceBorders, sliverAlong, traceArm } from './rifts';
-import type { WorldState } from './state';
+import type { WorldKind, WorldState } from './state';
 
 /**
  * Placas tectônicas (Marco 2, T3): divisão do planeta em placas, tipo de crosta e movimento.
@@ -22,6 +22,23 @@ export const LAND_SEEDS_MAX = 8;
 export const PANGEA_PLATE_SHARE = 0.03;
 /** Nenhuma placa com mais que esta fração da terra (senão ela ganha mais uma semente). */
 export const MAX_LAND_SHARE = 0.35;
+
+/** Como a Pangeia nasce repartida em cada tipo de mundo (B10). */
+export interface PlateTuning {
+  minPlates: number;
+  maxPlates: number;
+  landSeedsMin: number;
+  landSeedsMax: number;
+  maxLandShare: number;
+}
+
+export const PLATE_TUNING: Record<WorldKind, PlateTuning> = {
+  standard: { minPlates: MIN_PLATES, maxPlates: MAX_PLATES, landSeedsMin: LAND_SEEDS_MIN, landSeedsMax: LAND_SEEDS_MAX, maxLandShare: MAX_LAND_SHARE },
+  // B10 (v), opção 1: peça máxima 20% (medido: 16 de 20 sementes no critério de formas aos 3 min).
+  smaller: { minPlates: MIN_PLATES, maxPlates: MAX_PLATES, landSeedsMin: LAND_SEEDS_MIN, landSeedsMax: LAND_SEEDS_MAX, maxLandShare: 0.2 },
+  // O shader aceita até MAX_SHADER_PLATES; o arquipélago usa o máximo do jogo, quase tudo na terra.
+  archipelago: { minPlates: MAX_PLATES, maxPlates: MAX_PLATES, landSeedsMin: 11, landSeedsMax: 11, maxLandShare: 0.12 },
+};
 /**
  * Guarda polar (G1): nenhum rumo de placa (na dispersão da Pangeia ou num polo novo da tectônica)
  * pode levar o centro dela, ao fim de um estágio, além desta latitude ficando mais perto do polo.
@@ -159,8 +176,9 @@ export function generatePlates(world: WorldState): void {
   const landCells: number[] = [];
   for (let i = 0; i < n; i++) if (!world.isWater(i)) landCells.push(i);
   const cellPoint = (c: number): Vec3 => [positions[c * 3] as number, positions[c * 3 + 1] as number, positions[c * 3 + 2] as number];
-  const count = rng.int(MIN_PLATES, MAX_PLATES);
-  const onLand = Math.min(count - 3, rng.int(LAND_SEEDS_MIN, LAND_SEEDS_MAX));
+  const tuning = PLATE_TUNING[world.params.kind ?? 'standard'];
+  const count = rng.int(tuning.minPlates, tuning.maxPlates);
+  const onLand = Math.min(count - 3, rng.int(tuning.landSeedsMin, tuning.landSeedsMax));
   const landSeeds = landCells.length
     ? pickSeeds(onLand, () => cellPoint(landCells[rng.int(0, landCells.length - 1)] as number), [], 0.3)
     : [];
@@ -181,12 +199,12 @@ export function generatePlates(world: WorldState): void {
 
   // Nenhuma placa com mais que MAX_LAND_SHARE da terra: a que passar ganha mais uma semente na
   // terra dela (longe da semente atual) e as regiões crescem de novo.
-  for (let round = 0; round < 4 && seeds.length < MAX_PLATES; round++) {
+  for (let round = 0; round < 4 && seeds.length < tuning.maxPlates; round++) {
     const share = new Float64Array(seeds.length);
     for (const c of landCells) share[world.plate[c] as number] = (share[world.plate[c] as number] as number) + 1;
     let worst = 0;
     for (let p = 1; p < seeds.length; p++) if ((share[p] as number) > (share[worst] as number)) worst = p;
-    if ((share[worst] as number) <= MAX_LAND_SHARE * landCells.length) break;
+    if ((share[worst] as number) <= tuning.maxLandShare * landCells.length) break;
     const s0 = seeds[worst] as Vec3;
     let far = -1;
     let farDot = Infinity;
@@ -293,6 +311,7 @@ export function generatePlates(world: WorldState): void {
  */
 function splitPangea(world: WorldState, seeds: Vec3[]): { micro: { id: number; parent: number; across: number } | null } {
   const rng = createRng((world.params.seed ^ 0x3c6ef372) >>> 0);
+  const maxShare = PLATE_TUNING[world.params.kind ?? 'standard'].maxLandShare;
   const grid = world.grid;
   const n = world.cellCount;
   const region = new Uint8Array(n);
@@ -313,7 +332,7 @@ function splitPangea(world: WorldState, seeds: Vec3[]): { micro: { id: number; p
     height: (c) => world.heightAboveSea(c),
     rng,
     failChance: FAILED_ARM_CHANCE,
-    canKeep: (a, b) => (land[a] as number) + (land[b] as number) <= MAX_LAND_SHARE * totalLand,
+    canKeep: (a, b) => (land[a] as number) + (land[b] as number) <= maxShare * totalLand,
   });
   // Placas juntadas por braço que falhou: a placa inteira (também o oceano) fica com o número menor.
   const parent = new Map<number, number>();
@@ -337,7 +356,7 @@ function splitPangea(world: WorldState, seeds: Vec3[]): { micro: { id: number; p
   for (let c = 0; c < n; c++) if (!world.isWater(c)) landOf[world.plate[c] as number] = (landOf[world.plate[c] as number] as number) + 1;
   for (let round = 0; round < 3 && seeds.length < MAX_PLATE_IDS; round++) {
     let big = -1;
-    for (let p = 0; p < seeds.length; p++) if ((landOf[p] as number) > MAX_LAND_SHARE * totalLand && (big < 0 || (landOf[p] as number) > (landOf[big] as number))) big = p;
+    for (let p = 0; p < seeds.length; p++) if ((landOf[p] as number) > maxShare * totalLand && (big < 0 || (landOf[p] as number) > (landOf[big] as number))) big = p;
     if (big < 0 || !splitPlate(world, big, seeds, rng, landOf)) break;
   }
 

@@ -1812,6 +1812,10 @@ criação. Causas em `docs/bugs.md`, decisões em `docs/decisoes.md`.
   reproduzida (registro melhorado). Medição com os 2 cenários novos: 60 fps, nenhum quadro > 50 ms,
   relógio esperou 0, 0 travadas (Chromium, GPU real, 1080p, na tomada).
 
+- [x] **Tipo de mundo na criação (decisão 5).** Cartões com miniatura: Padrão, Continentes menores, Arquipélago.
+  Regras e números em `docs/decisoes.md`. Testes em `tests/world/world-kinds.test.ts` e `tests/sim/core.test.ts`.
+  Conferido no Chromium: janela, URL, aviso, controle das placas indo a 0% e ligando de novo.
+
 ## Bloco Final (depois do Bloco Desastres v2)
 
 - [x] **T13 — Teste longo de estabilidade**

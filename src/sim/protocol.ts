@@ -1,3 +1,4 @@
+import type { WorldKind } from '../world/state';
 import type { Speed } from '../core/time';
 import type { Tool } from '../input/tools';
 import type { Layers } from '../render/colors';
@@ -23,6 +24,7 @@ export interface WorldInfo {
   cellCount: number;
   seedText: string;
   seed: number;
+  kind: WorldKind;
   /** Tempo do worker para gerar (ms), por etapa e total. */
   generationMs: number;
   stagesMs: Record<string, number>;
@@ -45,7 +47,7 @@ export interface PlateMotionInfo {
 }
 
 export type ToWorker =
-  | { type: 'newWorld'; seedText: string; n: number }
+  | { type: 'newWorld'; seedText: string; n: number; kind?: WorldKind }
   | { type: 'brush'; tool: Tool; point: Vec3; radius: number; dt: number }
   | { type: 'speed'; speed: Speed }
   | { type: 'layers'; layers: Layers }
@@ -124,6 +126,8 @@ export type FromWorker =
    * x, y, z, raio (rad), força (no furacão, com o sinal do giro), tipo (0 furacão, 1 areia).
    */
   | { type: 'storms'; storms: Float32Array }
+  /** O arquipélago ficou pronto: as placas desligaram sozinhas (ligar de novo é com o jogador). */
+  | { type: 'platesStopped' }
   | { type: 'sharedProbe'; ok: boolean };
 
 export const STORM_FLOATS = 7;

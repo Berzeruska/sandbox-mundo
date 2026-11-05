@@ -15,6 +15,7 @@ import { STORM_FLOATS } from './sim/protocol';
 import { feltRadius } from './world/disasters/quakes';
 import { SHAKE_MAGNITUDE } from './world/disasters/meteor';
 import type { Vec3 } from './world/cubesphere';
+import type { WorldKind } from './world/state';
 import { PointerInput, type InputMode, type PaintPhase } from './input/pointer';
 import { Tool } from './input/tools';
 import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectonics';
@@ -31,7 +32,7 @@ import { Hud } from './ui/hud';
 import { BiomeLegend, DepositTip, ResourceLegend } from './ui/resource-legend';
 import { BIOME_LAYER_COLORS, NO_LAYERS, STRESS_COLORS, type Layers } from './render/colors';
 import { depositLabel, isHiddenOil } from './world/resources';
-import { activeBrush, activeDisaster, inputModeOf } from './ui/menu-state';
+import { activeBrush, activeDisaster, inputModeOf, WORLD_KINDS } from './ui/menu-state';
 import { DebugPanel, NewWorldDialog, type PanelMode } from './ui/panels';
 import { ErrorScreen } from './ui/error-screen';
 import { CYCLE_PHASES, emptyWork, FrameRecorder, formatReport, meteorSpots, powerLabel, scenarioInvalid, workDelta, type FirstLoad, type GenerationResult, type GpuSample, type ScenarioResult, type WorkCounters } from './ui/benchmark';
@@ -180,10 +181,15 @@ export class App {
   private fxShown = false;
   /** Nuvens ligadas no menu Clima (o desenho nasce depois do primeiro mundo). */
   private cloudsOn = true;
+  /** Tipo do mundo atual (mundo novo e "Medir desempenho" repetem o mesmo). */
+  private worldKind: WorldKind;
+  /** Velocidade das placas antes de o arquipélago desligá-las (null: ele não desligou). */
+  private plateRateBeforeStop: number | null = null;
   /** Setas do teclado: aproximar, afastar e girar (notebook). */
   private keys = new KeyControls(window, () => this.camera.stopSpin());
 
-  constructor(root: HTMLElement, seedText: string) {
+  constructor(root: HTMLElement, seedText: string, kind: WorldKind = 'standard') {
+    this.worldKind = kind;
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'globe';
     const overlayCanvas = document.createElement('canvas');
@@ -244,7 +250,7 @@ export class App {
         onSpeed: (speed) => this.setSpeed(speed),
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
-          if (action === 'newWorld') this.worldDialog.show(this.info?.seedText ?? '');
+          if (action === 'newWorld') this.worldDialog.show(this.info?.seedText ?? '', this.worldKind);
           if (action === 'debug') {
             this.debug.toggle();
             this.updateDebug();
@@ -286,7 +292,7 @@ export class App {
       },
       () => void this.runBenchmark(),
     );
-    this.worldDialog = new NewWorldDialog(this.hud.root, (text) => this.newWorld(text));
+    this.worldDialog = new NewWorldDialog(this.hud.root, (text, kind) => this.newWorld(text, kind));
     this.legend = new ResourceLegend(this.hud.root, (mask) => {
       this.layers = { ...this.layers, resourceMask: mask };
       this.sim.setLayers(this.layers);
@@ -338,6 +344,13 @@ export class App {
       },
       onPatch: (patches, brushMs, deposits, fade) => this.onPatch(patches, brushMs, deposits, fade),
       onDisasters: (events) => this.onDisasters(events),
+      onPlatesStopped: () => {
+        this.plateRateBeforeStop = this.plateRate;
+        this.plateRate = 0;
+        this.hud.setPlatePercent(0);
+        this.toasts.notice('🏝️', 'Arquipélago formado: as placas desligaram. Para ligar de novo: Geologia → Velocidade.');
+        this.requestDraw();
+      },
       onStorms: (storms) => this.onStorms(storms),
       onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
         this.climate = climate;
@@ -389,7 +402,16 @@ export class App {
   }
 
   /** Pede ao worker outro planeta. O globo atual continua na tela (e girável) enquanto ele nasce. */
-  newWorld(seedText: string): void {
+  newWorld(seedText: string, kind: WorldKind = this.worldKind): void {
+    this.worldKind = kind;
+    // As placas que o arquipélago desligou voltam no mundo novo (quem desligou foi o jogo, não o jogador).
+    if (this.plateRateBeforeStop !== null) {
+      if (this.plateRate === 0) {
+        this.setPlateRate(this.plateRateBeforeStop);
+        this.hud.setPlatePercent(Math.round(this.plateRateBeforeStop * 100));
+      }
+      this.plateRateBeforeStop = null;
+    }
     this.showProgress('', 0);
     this.loadingEl.hidden = false;
     this.worldRequestedAt = performance.now();
@@ -397,7 +419,7 @@ export class App {
     this.fx.clear();
     this.toasts?.clear();
     this.storms.clear();
-    this.sim.newWorld(seedText, DEFAULT_N);
+    this.sim.newWorld(seedText, DEFAULT_N, kind);
   }
 
   /**
@@ -461,7 +483,7 @@ export class App {
     this.camera.stopSpin();
     this.camera.zoom = 1;
     this.camera.lookAt(info.landCenter);
-    setSeedInUrl(info.seedText);
+    setSeedInUrl(info.seedText, info.kind);
     this.loadingEl.hidden = true;
     this.updateDebug();
     this.requestDraw();
@@ -890,6 +912,7 @@ export class App {
       n: this.info.n,
       seedText: this.info.seedText,
       seed: this.info.seed,
+      kindLabel: WORLD_KINDS.find((k) => k.kind === this.info?.kind)?.label ?? 'Padrão',
       generationMs: this.info.generationMs,
       generationTotalMs: this.worldTotalMs,
       stagesMs: this.info.stagesMs,
@@ -1181,9 +1204,11 @@ function clockTime(wall: number): string {
 }
 
 /** Guarda a semente na URL: o link compartilhado abre o mesmo mundo. */
-export function setSeedInUrl(seedText: string): void {
+export function setSeedInUrl(seedText: string, kind: WorldKind = 'standard'): void {
   const url = new URL(window.location.href);
   url.searchParams.set('seed', seedText);
+  if (kind === 'standard') url.searchParams.delete('tipo');
+  else url.searchParams.set('tipo', kind);
   window.history.replaceState(null, '', url);
 }
 

@@ -754,3 +754,43 @@ body {
     bottom: calc(var(--gap) + env(safe-area-inset-bottom));
   }
 }
+
+/* Tipo de mundo na janela "Novo mundo": cartões com miniatura. */
+.world-kinds {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+.world-kind {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.world-kind img {
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  border-radius: 6px;
+  image-rendering: pixelated;
+}
+.world-kind.selected {
+  box-shadow: 0 0 0 2px #4d8ef0;
+  background: rgba(77, 142, 240, 0.18);
+}
+.world-kind-about {
+  min-height: 2.6em;
+  font-size: 13px;
+  opacity: 0.8;
+}
+

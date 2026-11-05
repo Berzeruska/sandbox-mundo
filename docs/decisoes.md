@@ -1218,4 +1218,17 @@ O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e reve
   (já nasceria 3× acima do limite).
 - **2026-11-04 — Cenários "meteoros" no Medir desempenho:** gigante a cada 0,5 s por 20 s, em 1×, placas 25%,
   no mesmo lugar e em 40 lugares fixos (`meteorSpots`). O relatório mostra as travadas da data no cenário.
+- **2026-11-04 — Tipo de mundo na criação (decisão do usuário):** opção 2, cartões com miniatura: Padrão,
+  Continentes menores e Arquipélago. O tipo fica na URL (`tipo=`) e na linha "mundo" do Dados. Miniaturas:
+  mundos reais da semente `pangeia`, em `public/tipos/` (~30 KB cada).
+  - **Continentes menores:** peça máxima 20% ao nascer + vale de rifte vira mar com 2 células (B10 v, opção 1).
+  - **Arquipélago:** nasce Pangeia (30% de terra), partida em 14–16 placas. **Limite técnico:** o desenho
+    aceita no máximo 16 placas (4 bits), então só com placas sairiam no máximo ~13 pedaços, não ilhas. Por
+    isso, a cada recomposição, o interior afunda aos poucos até o mar raso (−180 m), numa mancha de ruído
+    presa à placa; ficam de pé 42% da terra. Não mudar para 32 placas: custaria reformar a textura de placas.
+  - **Desenho de arquipélago, quando as placas desligam:** terra ≤ 18%, ≥ 100 ilhas (com ≥ 0,1% da terra) e
+    nenhuma acima de 8% da terra. Medido em 6 sementes (N = 256, 20×, placas 100%): chega em ~3–4 min.
+    Com as placas em 25%, leva 4× mais. Desliga uma vez; se o jogador ligar de novo, não desliga mais. As
+    placas voltam à velocidade anterior no mundo novo. Depois de pronto, o afundamento termina o que falta
+    e não abre mais terra.
 

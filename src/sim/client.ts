@@ -1,3 +1,4 @@
+import type { WorldKind } from '../world/state';
 import type { Speed } from '../core/time';
 import type { Tool } from '../input/tools';
 import type { Layers } from '../render/colors';
@@ -28,6 +29,7 @@ export interface SimEvents {
   ): void;
   /** Desastres que aconteceram (T8–T12). */
   onDisasters?(events: DisasterEvent[]): void;
+  onPlatesStopped?(): void;
   /** Furacões andando (R8): STORM_FLOATS números por furacão (ver protocol.ts). */
   onStorms?(storms: Float32Array): void;
 }
@@ -88,9 +90,9 @@ export class SimClient {
     this.worker.postMessage(msg);
   }
 
-  newWorld(seedText: string, n: number): void {
+  newWorld(seedText: string, n: number, kind: WorldKind = 'standard'): void {
     this.pendingBrush = null;
-    this.send({ type: 'newWorld', seedText, n });
+    this.send({ type: 'newWorld', seedText, n, kind });
   }
 
   /** Controle "Placas": 0 congela a geologia, 1 é o máximo. */
@@ -189,6 +191,9 @@ export class SimClient {
         break;
       case 'storms':
         this.events.onStorms?.(msg.storms);
+        break;
+      case 'platesStopped':
+        this.events.onPlatesStopped?.();
         break;
       case 'disasters':
         this.events.onDisasters?.(msg.events);
