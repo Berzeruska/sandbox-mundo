@@ -25,8 +25,10 @@ tranco. O fogo em volta da cratera fica. Quadros "janela sem foco" não contam.
 - [x] 4. **Tsunami:** M 9,5 entra até ~1/5 da largura do continente atingido, pelo terreno baixo (imagem
   `docs/img/m2-tsunami-quinto.png`). Magnitudes menores: 1/20 · 1/12 · 1/8 · 1/6 da largura. Medido: 12 M 9,5 seguidos, 60 fps, pior
   quadro 23 ms, relógio esperou 0, 0 travadas. Isso muda a R6 e tira o alcance do tsunami do ajuste fino.
-- [ ] 5. Causa da travada de 3,5 s pausado.
-- [ ] 6–10. Registros em `docs/02-marcos.md`.
+- [ ] 5. **Travada de 3,5 s pausado: causa NÃO achada; nada corrigido.** Não reproduzida (ver `docs/bugs.md`). O registro agora
+  separa "tela ocupada" (e quanto) de "tela livre esperando o quadro": se voltar, a linha diz de que lado está.
+- [x] 6–10. **Registrados em `docs/02-marcos.md`:** ilhas estilo mar Egeu, formato dos continentes, modo econômico, B5, B7 e B8 no
+  ajuste fino depois do M3; camadas estranhas sobrepostas no portão do M3.
 - [ ] 11. Três testes do usuário e merge.
 
 ## Rodada de 2026-11-04 (feito, com commit)
@@ -196,7 +198,7 @@ meteoro `97f1211` · B5/B8 `ce37dc9` · B7 `135a67c` · B10 `13e1323` · tsunami
 - [ ] Teste do usuário e ok para o merge (acima).
 - [ ] A1, metas na bateria: aberta até a medição do usuário na bateria (na bateria a GPU passou de 8 ms em 2026-11-03).
 - [ ] Temperatura "no máximo" depois de uma era do gelo: não reproduzida; o usuário não voltou a relatar.
-- [ ] Travada de 1,8 s (tela, pausado): não reproduzida.
+- [ ] Travadas de 1,8 s e 3,5 s (tela, pausado): não reproduzidas; o registro agora separa a causa.
 - [ ] **Falha conhecida:** semente `42` com 33% da terra acima de 60° em N = 256 aos 10 min.
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
 - [x] T13 e T14. B10 (v) virou o tipo "Continentes menores" (o padrão fica como está: 12 de 20 sementes no critério).

@@ -40,6 +40,16 @@ export class StallLog {
   /** Fim e começo da última travada de tela (para explicar uma travada de data junto). */
   private lastScreenStall: [number, number] = [-1, -1];
   private lastRecompositionAt = -1;
+  /** Tarefas longas da thread da tela: [começo, duração] (quem mede é o navegador, inclusive limpeza de memória). */
+  private busy: [number, number][] = [];
+  /** Busca as tarefas longas que o navegador ainda não entregou (chamado ao achar um quadro longo). */
+  flushBusy: () => void = () => undefined;
+
+  /** A thread da tela ficou ocupada de `start` a `start + ms`. */
+  noteBusy(start: number, ms: number): void {
+    this.busy.push([start, ms]);
+    if (this.busy.length > 16) this.busy.shift();
+  }
 
   /** Recomeça a contagem dos intervalos (página escondida, mundo novo, pausa). Não apaga o registro. */
   restart(): void {
@@ -63,6 +73,7 @@ export class StallLog {
     const gap = this.lastFrame < 0 ? 0 : now - this.lastFrame;
     if (gap > FRAME_STALL_MS) {
       this.lastScreenStall = [now, this.lastFrame];
+      this.flushBusy();
       const cause = focused && this.wasFocused ? this.screenCause(now, gap) : 'janela sem foco (outro programa na frente): o navegador parou de desenhar';
       this.add({ kind: 'tela', wall, ms: gap, cause, context, sinceRecomposition: this.since(now) });
     }
@@ -95,9 +106,11 @@ export class StallLog {
     const receiving = got.reduce((sum, [, ms]) => sum + ms, 0);
     if (got.length && receiving >= 0.3 * gap) return `tela aplicando recomposição (${Math.round(receiving)} ms)`;
     if (this.lastWork >= 0.5 * gap) return `desenho do quadro (${Math.round(this.lastWork)} ms)`;
-    // A tela não trabalhou: o tempo foi para fora do código dela (GPU, outro trabalho no núcleo,
-    // limpeza de memória do navegador ou o sistema). "recomposição há" ajuda a ver se coincide.
-    return 'fora do código da tela (GPU, núcleo ocupado, limpeza de memória ou sistema)';
+    // O quadro não trabalhou: separa a thread ocupada com outra coisa da thread livre, esperando quem desenha
+    // (a travada de 3,5 s do teste da `2d9a2156` caiu num texto só para os dois casos e não deu para saber).
+    const held = this.busy.reduce((sum, [at, ms]) => sum + Math.max(0, Math.min(at + ms, now) - Math.max(at, start)), 0);
+    if (held >= 0.5 * gap) return `tela ocupada fora do quadro (${Math.round(held)} ms: mensagem do relógio, limpeza de memória ou navegador)`;
+    return 'tela livre esperando o quadro (GPU, navegador ou janelas do sistema)';
   }
 
   private dateCause(now: number, gap: number, waited: number, recomposed: number): string {

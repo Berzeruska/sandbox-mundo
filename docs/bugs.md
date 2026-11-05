@@ -403,3 +403,16 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **Correção:** `meteorEntry` anda em tempo real e o passo do jogo vira só um teto, com folga de 2 passos. Pausado, a rocha
   para no céu; o impacto continua esperando o jogo. Medido no Chromium: 60 quadros, passo igual em todos.
 
+## Travada da tela de 3.537 ms, pausado, placas 100% (teste da `2d9a2156`, 11:03:40) — ABERTO, causa não achada
+- **Relato:** "fora do código da tela", jogo pausado, com a janela em foco.
+- **Não reproduzida em (Chromium headless, GPU real):** medição completa partindo de pausado com placas 100%; 2 min de Máx seguidos da
+  medida de memória do navegador (que era a primeira suspeita: forçada no começo da medição, nos cenários pausados; pior quadro 17 ms);
+  45 s de Máx e depois, pausado: zoom, giro, as 4 visões, nuvens, temperatura −10/+10/0, pincel, meteoros, tsunami, painel Dados e
+  dois mundos novos (pior quadro 32 ms, 0 travadas). Pausado, o relógio dorme e a tela não recebe nada: não sobra trabalho do jogo para durar 3,5 s.
+- **Registros do notebook às 11:03:40:** nada do kernel, GPU, memória ou GNOME (só um aviso do Wi-Fi às 11:03:47). A CPU do período estava
+  84% livre. O Chrome registrou "The server has buggy presentation feedback" (janelas Wayland) às 11:05:55 e 11:06:00: perto, mas não na hora.
+- **Hipótese, sem prova:** o compositor ou a GPU segurou o quadro (a medição headless não passa por eles). Não é conclusão.
+- **O que mudou:** "fora do código da tela" era um texto só para duas coisas. Agora o navegador informa as tarefas longas e a linha diz "tela
+  ocupada fora do quadro (X ms…)" ou "tela livre esperando o quadro (GPU, navegador ou janelas do sistema)". Conferido com um bloqueio de 1,5 s.
+- **Próximo passo:** se reaparecer, a linha do rodapé decide de que lado procurar.
+

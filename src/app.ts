@@ -386,6 +386,7 @@ export class App {
         this.stalls.clock(performance.now(), Date.now(), speed !== 0 && this.loadingEl.hidden === true, work.waitMs, work.recompositions, this.stallContext());
       },
     });
+    this.watchLongTasks();
     // Página escondida (outro app por cima): o intervalo até voltar não é travada.
     document.addEventListener('visibilitychange', () => this.stalls.restart());
     // Abrindo sem pedir um mundo certo, o jogador escolhe antes de o primeiro nascer (nada é gerado à toa).
@@ -395,6 +396,17 @@ export class App {
       this.worldDialog.showFirst(seedText, kind);
     } else this.newWorld(seedText);
     this.warmRenderer();
+  }
+
+  /** Tarefas longas da thread da tela, para o registro de travadas separar causa (nem todo navegador informa). */
+  private watchLongTasks(): void {
+    if (!PerformanceObserver.supportedEntryTypes?.includes('longtask')) return;
+    const take = (list: readonly PerformanceEntry[]): void => {
+      for (const e of list) this.stalls.noteBusy(e.startTime, e.duration);
+    };
+    const observer = new PerformanceObserver((l) => take(l.getEntries()));
+    observer.observe({ type: 'longtask' });
+    this.stalls.flushBusy = () => take(observer.takeRecords());
   }
 
   /**

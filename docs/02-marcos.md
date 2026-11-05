@@ -56,6 +56,12 @@ balanceamento dos desastres, **depois do M3**; não aprovados, o jogo fica como 
 
 (O alcance do tsunami saiu daqui: decidido em 2026-11-05, até ~1/5 da largura do continente.)
 
+Entram na mesma rodada de ajuste fino, depois do M3 (usuário, 2026-11-05; não fazer antes):
+- **Ilhas do arquipélago com mais formato**, estilo Europa antiga (como o mar Egeu);
+- **Formato dos continentes** mais parecido com o da Terra (hoje estão feios);
+- **Modo econômico:** menos fps com o jogo parado ou pausado (o notebook faz barulho com o jogo aberto);
+- **B8** (tocar no ano muda a velocidade), **B5** e **B7**, que continuam na lista acima.
+
 ## Marco 3 — Ecologia
 Plantas e animais em nível agregado e individual, cadeia alimentar, migração, dragão como predador
 de topo, avisos de espécie em risco e de último indivíduo. Ver `docs/04-ecologia.md`.
@@ -94,7 +100,9 @@ cubos" da primeira; detalhes em `docs/decisoes.md`):**
   zoom), com o custo de cada uma; texturas dos biomas e plano B com sprites pré-renderizados, como
   registrado; **(e) (acrescentado pelo usuário em 2026-11-04) comparar o globo atual com um mapa plano,
   com e sem as bordas se ligando**, com imagem e custo de cada um, e o que cada um muda no diorama, nas
-  cidades e nas placas. **A decisão é do usuário.** O M3 só começa depois do merge do M2.
+  cidades e nas placas; **(f) (acrescentado pelo usuário em 2026-11-05) as camadas estranhas sobrepostas
+  em alguns pontos do globo**: entram junto com o novo desenho do mundo. **A decisão é do usuário.** O M3 só
+  começa depois do merge do M2.
 - **Simulação:** de longe números, de perto indivíduos; exércitos em marcha, generais, aviões em missão
   e figuras da Crônica são sempre indivíduos (detalhe em `docs/06-guerra.md`).
 Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a

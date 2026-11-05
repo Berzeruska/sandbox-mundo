@@ -2713,4 +2713,5 @@ muda" ficam para quando houver cidades, no M4), crônica permanente (M5), som, s
 ## Última rodada: teste da `2d9a2156` (2026-11-05)
 1. **Modo de tempo geológico** (`src/core/geologic-time.ts`): regras e ritmo do Máx em `docs/decisoes.md`.
 4. **Tsunami, muda a R6:** alcance em terra pela largura do continente atingido (até ~1/5 no M 9,5) e pelo terreno baixo; regras em `docs/decisoes.md`.
-
+5. **Travada de 3,5 s:** aberta, não reproduzida (`docs/bugs.md`); registro de travadas separa tela ocupada de tela livre.
+6–10. **Registrados para depois** (`docs/02-marcos.md`, não feitos agora): ilhas estilo mar Egeu, formato dos continentes, modo econômico, B5, B7 e B8 no ajuste fino depois do M3; camadas estranhas sobrepostas no portão do M3.

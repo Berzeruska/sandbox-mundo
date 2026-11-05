@@ -20,6 +20,22 @@ describe('registro de travadas', () => {
     expect(log.counts).toEqual({ tela: 0, data: 0 });
   });
 
+  it('quadro longo com a thread da tela ocupada: separa da espera, e pega a tarefa que o navegador ainda não entregou', () => {
+    const log = new StallLog();
+    frames(log, 0, 100);
+    log.flushBusy = () => log.noteBusy(110, 3400);
+    log.frame(3637, 3637, ctx);
+    expect(log.entries[0]?.cause).toContain('tela ocupada fora do quadro (3400 ms');
+  });
+
+  it('tarefa longa de outra hora não explica a travada', () => {
+    const log = new StallLog();
+    log.noteBusy(0, 90);
+    frames(log, 200, 300);
+    log.frame(800, 800, ctx);
+    expect(log.entries[0]?.cause).toContain('tela livre');
+  });
+
   it('quadro longo enquanto a tela aplica uma recomposição: travada da tela com a causa', () => {
     const log = new StallLog();
     frames(log, 0, 100);
@@ -30,11 +46,11 @@ describe('registro de travadas', () => {
     expect(log.entries[0]?.cause).toContain('recomposição');
   });
 
-  it('quadro longo sem nada do jogo: fora do código da tela, com o tempo desde a recomposição', () => {
+  it('quadro longo com a tela livre: esperando o quadro, com o tempo desde a recomposição', () => {
     const log = new StallLog();
     frames(log, 0, 100);
     log.frame(400, 400, ctx);
-    expect(log.entries[0]?.cause).toContain('fora do código da tela');
+    expect(log.entries[0]?.cause).toContain('tela livre esperando o quadro');
     expect(log.entries[0]?.sinceRecomposition).toBe(-1);
     log.noteRecomposition(450, 2);
     frames(log, 410, 600);
