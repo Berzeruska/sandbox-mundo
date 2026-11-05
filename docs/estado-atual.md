@@ -1,50 +1,28 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-04**, branch `marco-2`. **M2 terminado do lado do Claude Code; esperando o teste do
-usuário e o ok para o merge no `main`.** O M3 só começa depois do merge.
-Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/marco-2/** (também no README e no "Website"). A linha
-"versão" do Dados tem que mostrar o último commit do `marco-2` com mudança no jogo.
+Atualizado em: **2026-11-05**, branch `marco-2`. **Última rodada do M2 em andamento.** Com os 3 testes do usuário
+passando, merge no `main` sem nova rodada, tag, link do README no `main` e começo do portão do M3.
+Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/marco-2/** (também no README e no "Website").
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
 estamos", vale este.
 
 ## Modo de trabalho (usuário, 2026-11-04)
-O usuário só faz testes objetivos e decide design e mecânica; o resto é do Claude Code, que para só no fim, com
-até 6 itens de teste e até 3 decisões, com recomendação.
+O usuário só faz testes objetivos e decide design e mecânica; o resto é do Claude Code, que para só no fim.
 
-## O que foi feito nesta rodada (em linguagem simples)
-Detalhes em `docs/M2-especificacao.md`, "Correções do teste da `9b5ba0d4`"; causas em `docs/bugs.md`.
-1. **Meteoro sumindo:** o desenho por cima do globo estava preso em 300×150 pixels desde a rodada anterior;
-   só voltava ao normal se a janela mudasse de tamanho. Também: rocha sempre dentro da tela, tamanho mínimo
-   maior e cratera visível em gelo. Rocha visível nas 36 combinações medidas.
-2. **Limite das crateras:** raio ≤ 4 células (Vredefort), fundo ≤ 1.500 m; depois disso o relevo não muda.
-   Tamanhos agora 1 · 2 · 3 · 4 células (antes 1 · 3 · 6 · 12); a onda de choque continua do tamanho aprovado.
-3. **As 28 travadas:** vinham da cratera sem limite. Com 150 gigantes no mesmo lugar: 79 travadas antes, 0 depois.
-   **A de 1,8 s não foi reproduzida**; o registro agora separa "janela sem foco". "Medir desempenho" ganhou 2
-   cenários de meteoros.
-4. **README:** todo link do jogo leva à prévia.
-5. **Tipo de mundo:** cartões Padrão, Continentes menores e Arquipélago. Limite técnico: até 16 placas; por isso,
-   além de se partir, o interior do arquipélago afunda até o mar raso (imagem `docs/img/m2-arquipelago-pronto.png`).
-6. **Registrados:** B5, B7, B8 e alcance do tsunami para o ajuste fino depois do M3; portão do M3 com globo × mapa
-   plano (`docs/02-marcos.md`).
-7. **T14 feita:** tabela em `docs/decisoes.md`, relatório em `docs/medicao-t14.txt`.
-
-## Lista de teste do usuário (só o que o Claude Code não verifica sozinho)
-1. **Medir desempenho no Chrome, na tomada, tela cheia:** todos os cenários, com os 2 de meteoros, em 60 fps, nenhum
-   quadro > 50 ms, relógio esperou 0, "travadas da data no cenário: 0".
-2. **Jogar como de costume, ~3 min em 1×, com gigantes seguidos:** ainda parece travado? Rodapé do Dados com 0
-   travadas; se aparecer alguma, mande as linhas (principalmente uma como a de 1,8 s, com a causa).
-3. **Meteoro de olho:** abra a página sem mexer na janela; os 4 tamanhos, de longe e de perto, em terra, mar e gelo.
-4. **Tamanho das crateras:** as de 1 · 2 · 3 · 4 células ficaram boas de ver? (decisão 1)
-5. **Arquipélago:** Novo mundo → Arquipélago, 20×, placas 100%, ~3 min: aviso, controle das placas em 0%, e a cara das
-   ilhas (decisão 2). Ligue as placas de novo: elas andam e não desligam mais.
-6. **Cartões pelo toque:** tocar nos 3 cartões e criar um mundo pela tela de toque.
-
-## Decisões abertas do usuário
-1. **Tamanhos das crateras:** manter 1 · 2 · 3 · 4 células (recomendado; é o que cabe no limite de Vredefort), ou
-   deixar o limite só para a soma, com o gigante nascendo com 12.
-2. **Cara do arquipélago:** manter ilhas em mares rasos, nos pedaços das placas (recomendado), ou pedir ajuste. Com
-   placas em 25% ele leva ~4× mais tempo; o jogo não muda a velocidade sozinho.
-3. **Merge no `main`:** com o teste bom, ok para o merge e a tag (recomendado).
+## Última rodada (mensagem do usuário, 2026-11-05)
+Aprovados no teste da `2d9a2156`: crateras com limite, arquipélago, cartões, desenho novo do meteoro, clima sem
+tranco. O fogo em volta da cratera fica. Quadros "janela sem foco" não contam.
+- [x] 1. **Modo de tempo geológico:** em 20× ou Máx com placas andando, planeta inteiro, zoom travado, data de 500 em
+  500 anos (20×) ou de 1.000 em 1.000 (Máx), com aviso. Voltando a 1×–5× (ou parando as placas), o zoom de antes volta.
+  Pausado, o zoom destrava. **O Máx agora freia conforme o ajudante trabalha, em vez de correr até o limite e parar:**
+  medido 40 s com placas 100%: relógio esperou 0, 0 travadas, 60 fps, pior quadro 24 ms, 1.407 passos/s (117 anos/s; antes
+  ~1.930 passos/s, 160 anos/s, com 41 s parados em 60 s). Saltos: ~8,5 s no Máx e 25 s em 20× (20 anos/s).
+- [ ] 2. Movimento do meteoro em 1×.
+- [ ] 3. Cartões do tipo de mundo na primeira abertura.
+- [ ] 4. Tsunami até ~1/5 da largura do continente.
+- [ ] 5. Causa da travada de 3,5 s pausado.
+- [ ] 6–10. Registros em `docs/02-marcos.md`.
+- [ ] 11. Três testes do usuário e merge.
 
 ## Rodada de 2026-11-04 (feito, com commit)
 B1 + B2 `5da8db9` · B3 `40211f6` · tipo de mundo `1c7c43e` · README, ajuste fino e portão `0c6dce7` · T14 e este arquivo.

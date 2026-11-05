@@ -30,6 +30,8 @@ export class Camera {
   height = 1;
   minZoom = 0.6;
   maxZoom = 64;
+  /** Modo de tempo geológico: o jogador não muda o zoom (gesto, roda, teclado). */
+  zoomLocked = false;
   /** Ângulo entre células vizinhas do planeta (define o zoom máximo). */
   cellAngle = Math.PI / 2 / 256;
   /** Giro por inércia: eixo (coordenadas de visão) e velocidade em rad/s. */
@@ -71,6 +73,7 @@ export class Camera {
 
   /** Multiplica o zoom mantendo parado o ponto do planeta sob (sx, sy). */
   zoomAt(sx: number, sy: number, factor: number): void {
+    if (this.zoomLocked) return;
     const before = this.screenToView(sx, sy);
     this.zoom = Math.min(this.maxZoom, Math.max(this.minZoom, this.zoom * factor));
     if (!before) return;

@@ -1,5 +1,6 @@
 import { isolationReloads } from './ui/isolation';
 import { quatFromAxisAngle, quatMultiply, quatNormalize } from './core/quat';
+import { formatJumpDate, geologicJump } from './core/geologic-time';
 import { Clock, formatDate, type Speed } from './core/time';
 import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
@@ -49,6 +50,8 @@ const VERSION_RELOAD_KEY = 'sandbox-mundo:recarga-por-versao';
 const FADE_MS = 350;
 /** Duração do voo da câmera até um desastre (ms). */
 const FLY_MS = 800;
+/** Duração da ida e da volta do zoom no modo de tempo geológico (ms). */
+const GEOLOGIC_ZOOM_MS = 700;
 
 /**
  * Thread principal: câmera, entrada, interface e desenho. O mundo vive no Web Worker
@@ -134,6 +137,11 @@ export class App {
   /** Lista e avisos de desastres (T12) e o voo da câmera até um deles. */
   private toasts!: DisasterToasts;
   private flight: { from: Vec3; to: Vec3; start: number } | null = null;
+  /**
+   * Modo de tempo geológico: salto da data em anos (0: desligado), o zoom que o jogador usava antes
+   * (volta com ele), a animação do zoom e o salto já avisado na tela.
+   */
+  private geologic = { jump: 0, zoomBack: null as number | null, noticed: 0, flight: null as { from: number; to: number; start: number } | null };
   /** Ferramenta de desastre ativa (tocar no globo provoca), ou null. */
   private disasterTool: DisasterKind | null = null;
   private tip!: DepositTip;
@@ -348,6 +356,7 @@ export class App {
         this.plateRateBeforeStop = this.plateRate;
         this.plateRate = 0;
         this.hud.setPlatePercent(0);
+        this.updateGeologic();
         this.toasts.notice('🏝️', 'Arquipélago formado: as placas desligaram. Para ligar de novo: Geologia → Velocidade.');
         this.requestDraw();
       },
@@ -368,8 +377,9 @@ export class App {
         if (speed !== this.clock.speed) {
           this.clock.speed = speed;
           this.hud.setSpeed(speed);
+          this.updateGeologic();
         }
-        this.hud.setDate(formatDate(this.clock));
+        this.showDate();
         this.stalls.clock(performance.now(), Date.now(), speed !== 0 && this.loadingEl.hidden === true, work.waitMs, work.recompositions, this.stallContext());
       },
     });
@@ -482,6 +492,8 @@ export class App {
     this.camera.setCellAngle(Math.PI / 2 / info.n);
     this.camera.stopSpin();
     this.camera.zoom = 1;
+    this.geologic.flight = null;
+    this.geologic.zoomBack = null;
     this.camera.lookAt(info.landCenter);
     setSeedInUrl(info.seedText, info.kind);
     this.loadingEl.hidden = true;
@@ -721,12 +733,69 @@ export class App {
     this.clock.speed = speed;
     this.hud.setSpeed(speed);
     this.sim.setSpeed(speed);
+    this.updateGeologic();
+  }
+
+  /** A data na tela: ano e mês, ou em saltos no modo de tempo geológico. */
+  private showDate(): void {
+    this.hud.setDate(this.geologic.jump ? formatJumpDate(this.clock, this.geologic.jump) : formatDate(this.clock));
+  }
+
+  /**
+   * Liga, atualiza ou desliga o modo de tempo geológico pela velocidade e pelas placas atuais. Ligando, a
+   * câmera vai para o planeta inteiro e o zoom trava. Pausar só destrava (dá para olhar de perto com o tempo
+   * parado); voltar para 1×–5× ou parar as placas devolve o zoom que o jogador usava. A velocidade alta é
+   * escolha do jogador: nada aqui muda a velocidade nem as placas.
+   */
+  private updateGeologic(): void {
+    const g = this.geologic;
+    const jump = geologicJump(this.clock.speed, this.plateRate);
+    const was = g.jump;
+    g.jump = jump;
+    this.showDate();
+    // O "Medir desempenho" põe a câmera onde cada cenário manda.
+    if (this.bench) return;
+    this.camera.zoomLocked = jump > 0;
+    if (jump > 0) {
+      if (!was) {
+        if (g.zoomBack === null) g.zoomBack = this.camera.zoom;
+        this.flyZoom(1);
+      }
+      if (jump !== g.noticed) this.toasts.notice('⏩', `Tempo geológico: planeta inteiro, zoom travado e data de ${jump.toLocaleString('pt-BR')} em ${jump.toLocaleString('pt-BR')} anos.`);
+      g.noticed = jump;
+      return;
+    }
+    if (this.clock.speed === 0) return;
+    g.noticed = 0;
+    if (g.zoomBack !== null && this.camera.zoom === 1) this.flyZoom(g.zoomBack);
+    g.zoomBack = null;
+  }
+
+  private flyZoom(to: number): void {
+    this.camera.stopSpin();
+    this.geologic.flight = { from: this.camera.zoom, to, start: performance.now() };
+    this.requestDraw();
+  }
+
+  /** Um quadro da animação do zoom (interpolação geométrica: a mesma sensação em qualquer zoom). */
+  private updateGeologicZoom(): boolean {
+    const f = this.geologic.flight;
+    if (!f) return false;
+    const u = Math.min(1, (performance.now() - f.start) / GEOLOGIC_ZOOM_MS);
+    const t = u * u * (3 - 2 * u);
+    this.camera.zoom = f.from * Math.pow(f.to / f.from, t);
+    if (u >= 1) {
+      this.camera.zoom = f.to;
+      this.geologic.flight = null;
+    }
+    return true;
   }
 
   /** Controle "Placas" (0 a 1): a tela guarda uma cópia para o desenho suave do movimento. */
   setPlateRate(rate: number): void {
     this.plateRate = rate;
     this.sim.setPlateRate(rate);
+    this.updateGeologic();
     this.requestDraw();
   }
 
@@ -826,6 +895,7 @@ export class App {
     if (this.camera.update(dt)) this.needsDraw = true;
     if (this.keys.update(this.camera, dt)) this.needsDraw = true;
     if (this.updateFlight()) this.needsDraw = true;
+    if (this.updateGeologicZoom()) this.needsDraw = true;
     if (this.updateShake(performance.now())) this.needsDraw = true;
     if (this.input.update(dt)) this.needsDraw = true;
     if (this.updateMotion()) this.needsDraw = true;
@@ -899,7 +969,7 @@ export class App {
   private stallContext(): string {
     const speed = this.clock.speed;
     const time = speed === 0 ? 'pausado' : speed === 'max' ? 'máx' : `${speed}×`;
-    return `${time} · placas ${Math.round(this.plateRate * 100)}%${this.mode === 'paint' ? ' · pincel' : ''}`;
+    return `${time} · placas ${Math.round(this.plateRate * 100)}%${this.mode === 'paint' ? ' · pincel' : ''}${this.geologic.jump ? ' · tempo geológico' : ''}`;
   }
 
   private updateDebug(): void {
@@ -953,7 +1023,7 @@ export class App {
     this.bench = bench;
     this.hud.closeMenu();
     const startedAt = performance.now();
-    const steps = 16;
+    const steps = 17;
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
       this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
@@ -978,7 +1048,7 @@ export class App {
       const r = this.renderer;
       if (!r) return;
       const u = this.motion.uniforms;
-      const until = performance.now() + 8000;
+      const until = performance.now() + 20_000;
       while (!(u.fade > 0.02 && u.fade < 0.5) && performance.now() < until) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!(u.fade < 1)) return;
       this.gpuMeasuring = true;
@@ -1070,7 +1140,10 @@ export class App {
       await scenario(7, 'tempo 20×, placas 100%', 12_000, () => this.setPlateRate(1));
       await scenario(8, '  idem, painel c/ desfoque', 10_000, () => undefined, 'blur');
       await scenario(9, '  idem, painel s/ desfoque', 10_000, () => undefined, 'plain');
-      await scenario(10, '  idem, de perto', 10_000, () => {
+      // De perto com as placas andando só existe até 5× (em 20× o modo de tempo geológico trava no planeta
+      // inteiro): 20 s dão pelo menos uma recomposição a 5×.
+      await scenario(10, 'tempo 5×, placas 100%, de perto', 20_000, () => {
+        this.setSpeed(5);
         this.camera.zoom = this.camera.maxZoom;
       });
       await measureGpu('de perto com placas andando');
@@ -1084,6 +1157,7 @@ export class App {
       // a 20×, quando os continentes começam a colidir e se soldar).
       await scenario(11, 'deriva longa c/ colisões', 60_000, () => {
         this.camera.zoom = 1;
+        this.setSpeed(20);
       });
       // Ruptura forçada (G2): o maior bloco soldado racha agora; mede a recomposição que vem junto.
       await scenario(12, 'ruptura forçada', 10_000, () => this.sim.forceRupture());
@@ -1093,6 +1167,8 @@ export class App {
       this.camera.zoom = 1;
       await measureGpu('longe com desastres "Muitos"');
       this.sim.setDisasterFrequency(this.disasterFrequency);
+      // Tempo geológico no Máx: o relógio não pode esperar o ajudante nem a data travar (teste da `2d9a2156`).
+      await scenario(14, 'tempo Máx, placas 100%', 30_000, () => this.setSpeed('max'), 'hidden', () => () => undefined);
       // O que o jogador faz (teste da `9b5ba0d4`): meteoros gigantes seguidos em 1×, placas 25%, no mesmo
       // lugar e em lugares diferentes, com o globo à vista.
       const center = this.info.landCenter;
@@ -1106,12 +1182,12 @@ export class App {
         this.setPlateRate(0.25);
         this.setSpeed(1);
       };
-      await scenario(14, 'meteoros, mesmo lugar', METEOR_BENCH_MS, atOneX, 'hidden', meteors(() => center));
+      await scenario(15, 'meteoros, mesmo lugar', METEOR_BENCH_MS, atOneX, 'hidden', meteors(() => center));
       const spots = meteorSpots(center, METEOR_BENCH_MS / METEOR_BENCH_EVERY_MS, METEOR_BENCH_SPREAD);
-      await scenario(15, 'meteoros, lugares variados', METEOR_BENCH_MS, atOneX, 'hidden', meteors((k) => spots[k % spots.length] as Vec3));
+      await scenario(16, 'meteoros, lugares variados', METEOR_BENCH_MS, atOneX, 'hidden', meteors((k) => spots[k % spots.length] as Vec3));
       bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(16, 'geração de mundo');
+      status(17, 'geração de mundo');
       this.setSpeed(0);
       this.setPlateRate(before.plateRate);
       await wait(500);
@@ -1127,6 +1203,7 @@ export class App {
       this.setPlateRate(before.plateRate);
       this.setSpeed(before.speed);
       this.bench = null;
+      this.updateGeologic();
       this.debug.setBenchmarkRunning(null);
     }
     const renderer = this.renderer;

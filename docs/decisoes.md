@@ -1257,3 +1257,17 @@ O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e reve
     ajudante da geologia, então o relógio esperou 41 s em 60 s e a data parou 74 vezes, com a tela a 60 fps.
     É o esperado do "Máx" (o resultado não muda, só o ritmo); nos cenários de até 20× a espera é 0.
 
+- **2026-11-05 — Modo de tempo geológico (decisão do usuário, item 1 da última rodada):** em 20× ou Máx com as placas
+  andando, a câmera vai para o planeta inteiro (zoom 1), o zoom trava e a data salta (500 anos em 20×, 1.000 no Máx). Só
+  a data na tela salta; a simulação anda igual, passo a passo. Detalhes técnicos decididos: girar o globo, tocar e provocar
+  desastres continuam; pausado o zoom destrava sem mexer na câmera; voltando a 1×–5× ou parando as placas, volta o zoom
+  que o jogador usava (se ele não mexeu no zoom enquanto estava pausado); o aviso aparece ao ligar e ao trocar o salto, não a
+  cada pausa. O "Medir desempenho" trocou o cenário "20× de perto" por "5× de perto" (o outro não existe mais no jogo) e
+  ganhou "tempo Máx, placas 100%".
+- **2026-11-05 — Ritmo do Máx (`maxSpeedQuota`):** a espera vinha de o relógio correr até 480 passos à frente do motor e
+  ficar parado o resto da recomposição (~500 ms). Agora a velocidade é (440 − folga usada) / 0,2 s: 2.200 passos/s com o
+  motor livre, freando até quase zero sem chegar ao limite. **Custo: o Máx caiu de ~1.930 para ~1.400 passos/s** com placas
+  100%. O mundo não muda (o ritmo só decide quantos passos andam por segundo real). Alternativas descartadas: passo fixo de
+  ~800 passos/s (mais lento); aumentar os 480 passos (as placas deslizariam além do alcance do desenho perto da recomposição e
+  o mundo passaria a depender da velocidade); esconder a espera só com a data em saltos (a espera continuaria lá).
+

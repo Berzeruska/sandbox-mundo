@@ -1,4 +1,5 @@
 import { seedFrom } from '../core/rng';
+import { maxSpeedQuota } from '../core/geologic-time';
 import { Clock, TICKS_PER_YEAR } from '../core/time';
 import { applyBrush, applyTerrainDeltas, RAISE_RATE } from '../input/tools';
 import { buildColors, colorCacheBytes, forgetResourceHalo, NO_LAYERS, tintStress, withRing, type Layers } from '../render/colors';
@@ -185,6 +186,8 @@ export class SimulationCore {
   private stats: GeologyStats | null = null;
   /** Desde quando o relógio está parado esperando o motor (0: não está). */
   private waitingSince = 0;
+  /** Fração de passo que sobrou do ritmo do Máx (`maxSpeedQuota`). */
+  private paceCarry = 0;
   /** Mundo arquipélago que ainda não chegou ao desenho de ilhas. */
   private archipelagoPending = false;
 
@@ -765,6 +768,15 @@ export class SimulationCore {
     this.glideClimate(dt);
     const start = this.now();
     let blocked = false;
+    // Máx com o motor no ajudante: o relógio freia conforme a folga acaba, em vez de correr até o limite e
+    // ficar parado esperando (não muda o mundo: só quantos passos andam por segundo real).
+    let quota = Infinity;
+    if (this.clock.speed === 'max' && !this.geology.perTick) {
+      const pace = maxSpeedQuota(this.clock.tick - this.engineTick, dt, this.paceCarry);
+      quota = pace.quota;
+      this.paceCarry = pace.carry;
+    }
+    const firstTick = this.clock.tick;
     const ran = this.clock.advance(
       dt,
       (tick) => this.stepTick(tick),
@@ -772,6 +784,7 @@ export class SimulationCore {
       // Nunca mais que APPLY_DELAY_TICKS passos à frente do motor: assim toda recomposição que
       // deve aparecer já chegou. Se o motor atrasar, o relógio espera (o resultado não muda).
       (next) => {
+        if (next - firstTick > quota) return false;
         const ok = !this.world || next <= this.engineTick + APPLY_DELAY_TICKS;
         if (!ok) blocked = true;
         return ok;

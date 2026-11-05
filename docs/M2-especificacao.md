@@ -2709,3 +2709,7 @@ muda" ficam para quando houver cidades, no M4), crônica permanente (M5), som, s
    só o aviso, no canto inferior esquerdo.)
 6. **Interface:** substituída pela T1 — menu de ferramentas por categorias (Tempo, Relevo, Desastres,
    Geologia, Clima), com só a ferramenta escolhida e a pausa na tela; esboço aprovado antes de codar.
+
+## Última rodada: teste da `2d9a2156` (2026-11-05)
+1. **Modo de tempo geológico** (`src/core/geologic-time.ts`): regras e ritmo do Máx em `docs/decisoes.md`.
+
