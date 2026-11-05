@@ -1237,4 +1237,23 @@ O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e reve
   B8 e alcance do tsunami: não aprovados, vão para o ajuste fino depois do M3 (`docs/02-marcos.md`). T14 e, com
   o ok do usuário, merge no `main`. Portão do M3 ganha a comparação globo × mapa plano. Todo link do README
   para o jogo leva à prévia até o M2 ir para o `main`.
+- **2026-11-04 — T14, medição final do M2 contra a linha de base da v1.1** (`0c6dce7b`, build de produção,
+  Chromium com GPU real, 1920×1080, na tomada, pelo Claude Code; relatório em `docs/medicao-t14.txt`).
+  | Medida | v1.1 | M2 | Meta |
+  |---|---|---|---|
+  | Globo inteiro, sem limite de tela | 727 fps | 345 fps | — |
+  | Zoom máximo, sem limite de tela | 619 fps | 249 fps | — |
+  | Todos os 15 cenários, tela a 60 Hz | — | 60 fps, pior quadro 17 ms | 60 fps, ≤ 50 ms |
+  | Placas 100% + tempo Máx, 60 s | — | 60 fps, pior quadro 35 ms | ≥ 60 fps |
+  | GPU do globo, pior média | — | 6,2 ms | ≤ 8 ms |
+  | Memória da página | — | 215 MB | ≤ 400 MB |
+  | Geração / primeira abertura | — | 0,95 s / 1,46 s | ≤ 1,5 s / ≤ 2,5 s |
+  | Pior recomposição | — | 743 ms | ≤ 1 s |
+  | Relógio esperou, nos 15 cenários | — | 0 ms | 0 |
+  - O globo ficou ~2,1× a 2,5× mais caro que na v1.1 (placas andando, nuvens, relevo em degraus, desastres),
+    dentro da meta: a folga é de 2 a 3 vezes o quadro de 60 Hz.
+  - **O celular não foi medido:** saiu do projeto em 2026-10-17.
+  - **Tempo Máx com placas 100%:** o relógio chega a ~1.930 passos/s (8× o 20×); o limite passa a ser o
+    ajudante da geologia, então o relógio esperou 41 s em 60 s e a data parou 74 vezes, com a tela a 60 fps.
+    É o esperado do "Máx" (o resultado não muda, só o ritmo); nos cenários de até 20× a espera é 0.
 

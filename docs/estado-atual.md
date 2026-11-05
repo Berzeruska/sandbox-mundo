@@ -1,17 +1,53 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-04**, branch `marco-2`. **Rodada do teste da `9b5ba0d4` em andamento** (fim do M2).
-Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/marco-2/**
+Atualizado em: **2026-11-04**, branch `marco-2`. **M2 terminado do lado do Claude Code; esperando o teste do
+usuário e o ok para o merge no `main`.** O M3 só começa depois do merge.
+Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/marco-2/** (também no README e no "Website"). A linha
+"versão" do Dados tem que mostrar o último commit do `marco-2` com mudança no jogo.
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
 estamos", vale este.
 
-## Rodada atual
-Modo de trabalho (usuário, 2026-11-04): o usuário só faz testes objetivos e decide design e mecânica; o resto
-é do Claude Code. Detalhes em `docs/M2-especificacao.md`, "Correções do teste da `9b5ba0d4`".
-- Feito: B1 meteoro, B2 limite das crateras, B3 travadas e cenários de meteoros (a de 1,8 s não reproduzida).
-- Feito também: tipo de mundo na criação (decisão 5).
-- Feito também: B4 link do README, decisão 6 e portão do M3 registrados (`docs/02-marcos.md`).
-- Falta: T14.
+## Modo de trabalho (usuário, 2026-11-04)
+O usuário só faz testes objetivos e decide design e mecânica; o resto é do Claude Code, que para só no fim, com
+até 6 itens de teste e até 3 decisões, com recomendação.
+
+## O que foi feito nesta rodada (em linguagem simples)
+Detalhes em `docs/M2-especificacao.md`, "Correções do teste da `9b5ba0d4`"; causas em `docs/bugs.md`.
+1. **Meteoro sumindo:** o desenho por cima do globo estava preso em 300×150 pixels desde a rodada anterior;
+   só voltava ao normal se a janela mudasse de tamanho. Também: rocha sempre dentro da tela, tamanho mínimo
+   maior e cratera visível em gelo. Rocha visível nas 36 combinações medidas.
+2. **Limite das crateras:** raio ≤ 4 células (Vredefort), fundo ≤ 1.500 m; depois disso o relevo não muda.
+   Tamanhos agora 1 · 2 · 3 · 4 células (antes 1 · 3 · 6 · 12); a onda de choque continua do tamanho aprovado.
+3. **As 28 travadas:** vinham da cratera sem limite. Com 150 gigantes no mesmo lugar: 79 travadas antes, 0 depois.
+   **A de 1,8 s não foi reproduzida**; o registro agora separa "janela sem foco". "Medir desempenho" ganhou 2
+   cenários de meteoros.
+4. **README:** todo link do jogo leva à prévia.
+5. **Tipo de mundo:** cartões Padrão, Continentes menores e Arquipélago. Limite técnico: até 16 placas; por isso,
+   além de se partir, o interior do arquipélago afunda até o mar raso (imagem `docs/img/m2-arquipelago-pronto.png`).
+6. **Registrados:** B5, B7, B8 e alcance do tsunami para o ajuste fino depois do M3; portão do M3 com globo × mapa
+   plano (`docs/02-marcos.md`).
+7. **T14 feita:** tabela em `docs/decisoes.md`, relatório em `docs/medicao-t14.txt`.
+
+## Lista de teste do usuário (só o que o Claude Code não verifica sozinho)
+1. **Medir desempenho no Chrome, na tomada, tela cheia:** todos os cenários, com os 2 de meteoros, em 60 fps, nenhum
+   quadro > 50 ms, relógio esperou 0, "travadas da data no cenário: 0".
+2. **Jogar como de costume, ~3 min em 1×, com gigantes seguidos:** ainda parece travado? Rodapé do Dados com 0
+   travadas; se aparecer alguma, mande as linhas (principalmente uma como a de 1,8 s, com a causa).
+3. **Meteoro de olho:** abra a página sem mexer na janela; os 4 tamanhos, de longe e de perto, em terra, mar e gelo.
+4. **Tamanho das crateras:** as de 1 · 2 · 3 · 4 células ficaram boas de ver? (decisão 1)
+5. **Arquipélago:** Novo mundo → Arquipélago, 20×, placas 100%, ~3 min: aviso, controle das placas em 0%, e a cara das
+   ilhas (decisão 2). Ligue as placas de novo: elas andam e não desligam mais.
+6. **Cartões pelo toque:** tocar nos 3 cartões e criar um mundo pela tela de toque.
+
+## Decisões abertas do usuário
+1. **Tamanhos das crateras:** manter 1 · 2 · 3 · 4 células (recomendado; é o que cabe no limite de Vredefort), ou
+   deixar o limite só para a soma, com o gigante nascendo com 12.
+2. **Cara do arquipélago:** manter ilhas em mares rasos, nos pedaços das placas (recomendado), ou pedir ajuste. Com
+   placas em 25% ele leva ~4× mais tempo; o jogo não muda a velocidade sozinho.
+3. **Merge no `main`:** com o teste bom, ok para o merge e a tag (recomendado).
+
+## Rodada de 2026-11-04 (feito, com commit)
+B1 + B2 `5da8db9` · B3 `40211f6` · tipo de mundo `1c7c43e` · README, ajuste fino e portão `0c6dce7` · T14 e este arquivo.
 
 ## Rodada de 2026-11-03, segunda (feito, com commit)
 Docs e regras `0ae298d` · B1/B2/B4 `592a427` · proposta das crateras `42f4d7d` ·
@@ -174,17 +210,21 @@ meteoro `97f1211` · B5/B8 `ce37dc9` · B7 `135a67c` · B10 `13e1323` · tsunami
   vira mar; rifte parado fica como vale em terra (aulacógeno, opção 1 do usuário).
 
 ## Pendente no M2
-- [ ] Confirmar no notebook: vale de rifte sem neve (`docs/bugs.md`), fronteiras de placa.
+- [ ] Teste do usuário e ok para o merge (acima).
+- [ ] A1, metas na bateria: aberta até a medição do usuário na bateria (na bateria a GPU passou de 8 ms em 2026-11-03).
+- [ ] Temperatura "no máximo" depois de uma era do gelo: não reproduzida; o usuário não voltou a relatar.
+- [ ] Travada de 1,8 s (tela, pausado): não reproduzida.
 - [ ] **Falha conhecida:** semente `42` com 33% da terra acima de 60° em N = 256 aos 10 min.
-- [ ] **B10 (v):** 8 de 20 sementes fora do critério de formas aos 3 min; parado no custo (proposta).
 - [ ] Opção (a), recomposição mais barata e clima só onde mudou (complemento da correção 2).
-- [ ] Teste do usuário da rodada de 2026-11-03 (lista acima).
-- [ ] Escolhas do usuário: B3, B5, B7, B8, B10 (v), A1.
-- [x] T13 (teste longo).
-- [ ] T14 (medição final contra a linha de base da v1.1).
-- [ ] Fim do marco: medir de novo nas condições da linha de base da v1.1 (`docs/decisoes.md`).
+- [x] T13 e T14. B10 (v) virou o tipo "Continentes menores" (o padrão fica como está: 12 de 20 sementes no critério).
+- Depois do M3: ajuste fino dos desastres (B5, B7, B8, alcance do tsunami; `docs/02-marcos.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
+- 2026-11-04, T14 (`0c6dce7b`, Claude Code, build de produção, Chromium com GPU real, 1080p, na tomada): 60 fps nos 15
+  cenários, pior quadro 17 ms, GPU ≤ 6,2 ms, memória 215 MB, geração 0,95 s, abertura 1,46 s, pior recomposição 743 ms,
+  relógio esperou 0, 0 travadas. Falta o relatório no Chrome do usuário.
+- `9b5ba0d4`, medido pelo usuário (Chrome, na tomada): 60 fps, GPU ≤ 5,7 ms, 246 MB, abertura 1,7 s, recomposição ≤ 631 ms;
+  28 travadas da data e uma de tela de 1,8 s no rodapé.
 - 2026-11-03 (Claude Code, build de produção, Chromium com GPU real, **na bateria** 57%, perfil
   "balanced"): 854×407 → 60 fps, nenhum quadro > 50 ms, relógio esperou 0, 0 travadas, geração 1,41 s,
   primeira abertura 1,65 s, pior recomposição 924 ms. 1920×1080 depois das correções → 60 fps, nenhum
@@ -260,12 +300,6 @@ meteoro `97f1211` · B5/B8 `ce37dc9` · B7 `135a67c` · B10 `13e1323` · tsunami
 - Nas sementes `mundo` e `42`, às vezes o supercontinente volta em ~2 min; em geral, quando o critério
   de formas falha, é porque dois continentes colidiram e se soldaram logo depois da quebra (12 de 20
   sementes passam aos 3 min).
-
-## Decisões abertas (do usuário)
-- As propostas da lista acima (B3, B5, B7, B8, B10 v, A1).
-- As 5 perguntas de antes foram respondidas em 2026-11-03 (`docs/decisoes.md`): meteoro sem mexer no mar
-  (sim), controles não desligam a visão (confirmado), perguntar antes de medir (feito), tamanho fixo das
-  placas (sim), 8 sementes (diagnosticado, proposta).
 
 ## Ideias registradas para marcos futuros (não fazer agora)
 - 2026-10-18: M8 com lua (bolinha cinza orbitando) e sol (bola amarela ao fundo); furacão com cara de

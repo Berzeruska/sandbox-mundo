@@ -1831,10 +1831,12 @@ criação. Causas em `docs/bugs.md`, decisões em `docs/decisoes.md`.
   em 1×) e menos de 100 desastres andando. ~40 s no CI. Medido em N = 256 (`terra`): terra 28–32%,
   207 avisos em 12.000 anos (1 a cada ~58 anos).
 
-- [ ] **T14 — Medição de desempenho e comparação com a linha de base**
+- [x] **T14 — Medição de desempenho e comparação com a linha de base**
   Placas no máximo + tempo no máximo: tela ≥ 30 fps no celular (≥ 60 no notebook). Medir nas mesmas
   condições da linha de base da v1.1 (`docs/decisoes.md`) e comparar. Medir também quantos passos por
   segundo o worker aguenta. Registrar em `docs/decisoes.md`.
+  **Feita (2026-11-04):** resultado em `docs/decisoes.md`; relatório inteiro em `docs/medicao-t14.txt`. O
+  relatório no Chrome do usuário continua sendo a palavra final (CLAUDE.md, regra 6).
 
 ## Bloco G — Deriva viva, latitude e formas (pedido do usuário em 2026-10-15, noite)
 Teste da `d36c156b` no celular: a oscilação sumiu, mas sobraram três problemas de design. Pedido:
