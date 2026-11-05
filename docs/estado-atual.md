@@ -1,6 +1,6 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-05**, branch `marco-2`. **Última rodada do M2 em andamento.** Com os 3 testes do usuário
+Atualizado em: **2026-11-05**, branch `marco-2`. **Última rodada do M2 pronta, esperando os 3 testes do usuário.** Com os 3
 passando, merge no `main` sem nova rodada, tag, link do README no `main` e começo do portão do M3.
 Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/marco-2/** (também no README e no "Website").
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
@@ -30,6 +30,20 @@ tranco. O fogo em volta da cratera fica. Quadros "janela sem foco" não contam.
 - [x] 6–10. **Registrados em `docs/02-marcos.md`:** ilhas estilo mar Egeu, formato dos continentes, modo econômico, B5, B7 e B8 no
   ajuste fino depois do M3; camadas estranhas sobrepostas no portão do M3.
 - [ ] 11. Três testes do usuário e merge.
+
+## Os 3 testes do usuário
+1. **Modo de tempo geológico:** placas ligadas, 20× e depois Máx: planeta inteiro, zoom travado, aviso de uma linha, data de 500 em 500
+   e de 1.000 em 1.000 anos. Voltando a 1×–5×, tudo normal, com o zoom de antes.
+2. **Meteoro em 1×:** a queda lisa, sem degraus.
+3. **"Medir desempenho"** sem trocar de janela: 60 fps, relógio esperou 0, "travadas da data no cenário: 0".
+
+Passando os 3: merge do M2 no `main`, tag, link do README no `main` e começo do portão do M3, sem nova rodada.
+
+## Medição do Claude Code nesta rodada
+`docs/medicao-2026-11-05.txt` (`cd49610`, build de produção, Chromium headless com GPU real, 1080p, na tomada): 15 cenários a 60 fps, pior
+quadro 17 ms, nenhum > 50 ms, GPU pior média 6,2 ms, memória 202 MB, geração 0,96 s, abertura 1,48 s, pior recomposição 780 ms, relógio
+esperou 0, 0 travadas. **Máx com placas 100%: 1.562 passos/s, relógio esperou 0, 0 travadas da data, 60 fps** (antes 1.930 passos/s, 41 s
+parados em 60 s, 74 travadas). O relatório do Chrome do usuário é a palavra final.
 
 ## Rodada de 2026-11-04 (feito, com commit)
 B1 + B2 `5da8db9` · B3 `40211f6` · tipo de mundo `1c7c43e` · README, ajuste fino e portão `0c6dce7` · T14 e este arquivo.
@@ -205,6 +219,7 @@ meteoro `97f1211` · B5/B8 `ce37dc9` · B7 `135a67c` · B10 `13e1323` · tsunami
 - Depois do M3: ajuste fino dos desastres (B5, B7, B8; `docs/02-marcos.md`).
 
 ## Últimas medições no notebook (aparelho-alvo desde 2026-10-17)
+- 2026-11-05, última rodada: ver "Medição do Claude Code nesta rodada", acima.
 - 2026-11-04, T14 (`0c6dce7b`, Claude Code, build de produção, Chromium com GPU real, 1080p, na tomada): 60 fps nos 15
   cenários, pior quadro 17 ms, GPU ≤ 6,2 ms, memória 215 MB, geração 0,95 s, abertura 1,46 s, pior recomposição 743 ms,
   relógio esperou 0, 0 travadas. Falta o relatório no Chrome do usuário.
