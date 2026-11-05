@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Camera } from '../../src/render/camera';
 import { DisasterFx, METEOR_AFTER_MS, meteorEntry, METEOR_ENTRY_MS, meteorFall, meteorHead, METEOR_HEAD } from '../../src/render/disaster-fx';
-import { CRATER_RADIUS, ENTRY_TICKS } from '../../src/world/disasters/meteor';
+import { BASE_TICKS_PER_SECOND } from '../../src/core/time';
+import { CLOCK_POST_MS } from '../../src/sim/core';
+import { CRATER_RADIUS } from '../../src/world/disasters/meteor';
 import { DisasterKind, type DisasterEvent } from '../../src/world/disasters/types';
 
 // F5 (teste da `58f53e7`): "meteoros pequeno, médio e grande parecem do mesmo tamanho". Pelo desenho
@@ -30,19 +32,38 @@ describe('tamanho do meteoro na tela (E12, F5)', () => {
 // meteoro ENTRY_TICKS passos depois de ele entrar; a animação batia sempre em 1 s de tempo real. Pelo
 // desenho (C12), a bola bate quando o meteoro bate: pausado ela não pode chegar ao chão.
 describe('a bola do meteoro bate junto com o impacto do jogo (B1)', () => {
-  it('pausado, a bola nunca chega ao chão', () => {
-    for (const ms of [0, 500, 1000, 5000, 60_000]) expect(meteorEntry(ms, 0)).toBeLessThan(1);
-  });
+  /** Quadros de 60 Hz, com o passo do jogo vindo de `ticksAt(ms)`; devolve a entrada em cada quadro. */
+  function fall(ms: number, ticksAt: (ms: number) => number): number[] {
+    const out: number[] = [];
+    let entry = 0;
+    for (let t = 1000 / 60; t <= ms; t += 1000 / 60) {
+      entry = meteorEntry(entry, 1000 / 60, ticksAt(t));
+      out.push(entry);
+    }
+    return out;
+  }
 
-  it('em 1× chega em ~1 s, quando o jogo chega ao impacto', () => {
-    const ticksAt = (ms: number) => Math.floor((ms / 1000) * ENTRY_TICKS);
-    expect(meteorEntry(500, ticksAt(500))).toBeLessThan(1);
-    expect(meteorEntry(METEOR_ENTRY_MS, ENTRY_TICKS)).toBe(1);
+  it('pausado, a bola nunca chega ao chão', () => {
+    expect(fall(60_000, () => 0).at(-1)).toBeLessThan(1);
   });
 
   it('em 20× não bate antes de 1 s (senão nem seria vista)', () => {
-    expect(meteorEntry(100, ENTRY_TICKS * 2)).toBeLessThan(1);
-    expect(meteorEntry(METEOR_ENTRY_MS, ENTRY_TICKS * 20)).toBe(1);
+    const frames = fall(METEOR_ENTRY_MS * 0.9, (ms) => (ms / 1000) * 240);
+    expect(frames.at(-1)).toBeLessThan(1);
+    expect(fall(METEOR_ENTRY_MS + 50, (ms) => (ms / 1000) * 240).at(-1)).toBe(1);
+  });
+
+  // Item 2 do teste da `2d9a2156`. Em 1× a tela só sabe o passo a cada ~100 ms: a rocha tem que andar o mesmo
+  // tanto em todo quadro, sem degraus, e chegar em ~1 s.
+  it('em 1× o movimento é liso: passo igual em todo quadro, mesmo com o relógio chegando aos degraus', () => {
+    const lastMessage = (ms: number) => Math.floor(ms / CLOCK_POST_MS) * CLOCK_POST_MS;
+    const frames = fall(METEOR_ENTRY_MS, (ms) => Math.floor((lastMessage(ms) / 1000) * BASE_TICKS_PER_SECOND));
+    const step = 1000 / 60 / METEOR_ENTRY_MS;
+    for (let k = 1; k < frames.length - 1; k++) expect((frames[k] as number) - (frames[k - 1] as number)).toBeCloseTo(step, 6);
+  });
+
+  it('nunca anda para trás', () => {
+    expect(meteorEntry(0.5, 16, 0)).toBe(0.5);
   });
 
   it('o clarão só vem depois da batida no jogo: pausar no meio deixa a bola parada', () => {

@@ -396,3 +396,10 @@ Formato: data — como reproduzir — causa — correção — commit.
   sem esconder a página). O registro agora diz "janela sem foco" quando for isso; se voltar com outra causa,
   a linha do rodapé mostra qual.
 
+## Queda do meteoro engasgada em 1× (teste da `2d9a2156`)
+- **Como reproduzir:** provocar um meteoro em 1× e olhar a rocha caindo.
+- **Causa:** a posição era o menor entre o tempo real e o passo do jogo. Em 1× o passo manda, e a tela só o conhece pelas
+  mensagens do relógio (a cada ~100 ms): a rocha andava em ~10 degraus por segundo com a tela a 60 quadros.
+- **Correção:** `meteorEntry` anda em tempo real e o passo do jogo vira só um teto, com folga de 2 passos. Pausado, a rocha
+  para no céu; o impacto continua esperando o jogo. Medido no Chromium: 60 quadros, passo igual em todos.
+

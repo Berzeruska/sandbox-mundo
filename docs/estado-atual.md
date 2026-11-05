@@ -17,7 +17,8 @@ tranco. O fogo em volta da cratera fica. Quadros "janela sem foco" não contam.
   Pausado, o zoom destrava. **O Máx agora freia conforme o ajudante trabalha, em vez de correr até o limite e parar:**
   medido 40 s com placas 100%: relógio esperou 0, 0 travadas, 60 fps, pior quadro 24 ms, 1.407 passos/s (117 anos/s; antes
   ~1.930 passos/s, 160 anos/s, com 41 s parados em 60 s). Saltos: ~8,5 s no Máx e 25 s em 20× (20 anos/s).
-- [ ] 2. Movimento do meteoro em 1×.
+- [x] 2. **Meteoro liso em 1×:** a posição vinha do passo do jogo, que a tela conhece em degraus (10 por segundo). Agora
+  anda em tempo real e só para se o jogo parar. Medido quadro a quadro: 60 quadros em 1 s, passo igual (0,015–0,018), nenhum parado.
 - [ ] 3. Cartões do tipo de mundo na primeira abertura.
 - [ ] 4. Tsunami até ~1/5 da largura do continente.
 - [ ] 5. Causa da travada de 3,5 s pausado.
