@@ -163,6 +163,9 @@ export class App {
   private firstLoad: FirstLoad | null = null;
   /** Últimos contadores de trabalho do worker (chegam com o relógio). */
   private work: WorkCounters = emptyWork();
+  /** Escolha do mundo na primeira abertura: desde quando está aberta, e quanto o jogador levou (fora da medida). */
+  private choosingSince: number | null = null;
+  private choosingMs = 0;
   /** Momento do pedido de mundo novo, para medir o tempo total até o globo aparecer. */
   private worldRequestedAt = 0;
   private worldTotalMs = 0;
@@ -196,7 +199,7 @@ export class App {
   /** Setas do teclado: aproximar, afastar e girar (notebook). */
   private keys = new KeyControls(window, () => this.camera.stopSpin());
 
-  constructor(root: HTMLElement, seedText: string, kind: WorldKind = 'standard') {
+  constructor(root: HTMLElement, seedText: string, kind: WorldKind = 'standard', chooseFirst = false) {
     this.worldKind = kind;
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'globe';
@@ -385,7 +388,12 @@ export class App {
     });
     // Página escondida (outro app por cima): o intervalo até voltar não é travada.
     document.addEventListener('visibilitychange', () => this.stalls.restart());
-    this.newWorld(seedText);
+    // Abrindo sem pedir um mundo certo, o jogador escolhe antes de o primeiro nascer (nada é gerado à toa).
+    if (chooseFirst) {
+      this.choosingSince = performance.now();
+      this.loadingEl.hidden = true;
+      this.worldDialog.showFirst(seedText, kind);
+    } else this.newWorld(seedText);
     this.warmRenderer();
   }
 
@@ -414,6 +422,10 @@ export class App {
   /** Pede ao worker outro planeta. O globo atual continua na tela (e girável) enquanto ele nasce. */
   newWorld(seedText: string, kind: WorldKind = this.worldKind): void {
     this.worldKind = kind;
+    if (this.choosingSince !== null) {
+      this.choosingMs = performance.now() - this.choosingSince;
+      this.choosingSince = null;
+    }
     // As placas que o arquipélago desligou voltam no mundo novo (quem desligou foi o jogo, não o jogador).
     if (this.plateRateBeforeStop !== null) {
       if (this.plateRate === 0) {
@@ -465,7 +477,7 @@ export class App {
   private onWorld(info: WorldInfo, colors: Uint8Array, plateCells: Uint8Array, deposits: Uint8Array): void {
     const receiveStart = performance.now();
     this.worldTotalMs = receiveStart - this.worldRequestedAt;
-    this.firstLoad ??= { pageToGlobeMs: receiveStart, requestToGlobeMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs };
+    this.firstLoad ??= { pageToGlobeMs: receiveStart - this.choosingMs, requestToGlobeMs: this.worldTotalMs, workerMs: info.generationMs, stagesMs: info.stagesMs };
     this.lastGenerationSignal = performance.now();
     this.info = info;
     this.colors = colors;

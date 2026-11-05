@@ -158,6 +158,10 @@ export class NewWorldDialog {
   private kind: WorldKind = 'standard';
   private cards!: HTMLDivElement;
   private about!: HTMLDivElement;
+  private title!: HTMLDivElement;
+  private cancelBtn!: HTMLButtonElement;
+  /** Primeira abertura: ainda não há mundo, então a escolha é obrigatória (sem cancelar). */
+  private required = false;
 
   constructor(parent: HTMLElement, onCreate: (seedText: string, kind: WorldKind) => void) {
     this.root = document.createElement('div');
@@ -165,6 +169,7 @@ export class NewWorldDialog {
     const title = document.createElement('div');
     title.className = 'panel-title';
     title.textContent = 'Novo mundo';
+    this.title = title;
     const label = document.createElement('label');
     label.className = 'panel-label';
     label.textContent = 'Semente (número ou palavra)';
@@ -196,13 +201,14 @@ export class NewWorldDialog {
     createBtn.addEventListener('click', submit);
     this.input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') submit();
-      if (e.key === 'Escape') this.hide();
+      if (e.key === 'Escape' && !this.required) this.hide();
     });
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'panel-btn';
     cancelBtn.textContent = 'Cancelar';
     cancelBtn.addEventListener('click', () => this.hide());
+    this.cancelBtn = cancelBtn;
     row.append(randomBtn, cancelBtn, createBtn);
 
     // Tipo de mundo (decisão do usuário, 2026-11-04: opção 2, cartões com miniatura).
@@ -245,7 +251,27 @@ export class NewWorldDialog {
     this.input.select();
   }
 
+  /**
+   * Primeira abertura (item 3 do teste da `2d9a2156`): a mesma tela, à frente de tudo, antes de nascer o
+   * primeiro mundo. Sem foco no campo da semente, para o teclado de toque não subir por cima dos cartões.
+   */
+  showFirst(seed: string, kind: WorldKind): void {
+    this.required = true;
+    this.title.textContent = 'Escolha o seu mundo';
+    this.cancelBtn.hidden = true;
+    this.root.parentElement?.classList.add('choosing-world');
+    this.select(kind);
+    this.input.value = seed;
+    this.root.classList.remove('hidden');
+  }
+
   hide(): void {
+    if (this.required) {
+      this.required = false;
+      this.title.textContent = 'Novo mundo';
+      this.cancelBtn.hidden = false;
+      this.root.parentElement?.classList.remove('choosing-world');
+    }
     this.root.classList.add('hidden');
     this.input.blur();
   }

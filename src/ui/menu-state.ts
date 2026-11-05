@@ -248,3 +248,7 @@ export const WORLD_KINDS: readonly { kind: WorldKind; label: string; about: stri
   { kind: 'archipelago', label: 'Arquipélago', about: 'A Pangeia vai se partindo até virar ilhas; aí as placas desligam sozinhas, e ligar de novo é com você.' },
 ];
 
+/** A página abre na escolha do mundo? Sim, se o link não pede um mundo certo (semente ou tipo). */
+export function opensOnWorldChoice(search: URLSearchParams): boolean {
+  return !search.get('seed')?.trim() && !search.has('tipo');
+}

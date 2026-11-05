@@ -19,7 +19,9 @@ tranco. O fogo em volta da cratera fica. Quadros "janela sem foco" não contam.
   ~1.930 passos/s, 160 anos/s, com 41 s parados em 60 s). Saltos: ~8,5 s no Máx e 25 s em 20× (20 anos/s).
 - [x] 2. **Meteoro liso em 1×:** a posição vinha do passo do jogo, que a tela conhece em degraus (10 por segundo). Agora
   anda em tempo real e só para se o jogo parar. Medido quadro a quadro: 60 quadros em 1 s, passo igual (0,015–0,018), nenhum parado.
-- [ ] 3. Cartões do tipo de mundo na primeira abertura.
+- [x] 3. **Cartões na primeira abertura:** link sem semente abre em "Escolha o seu mundo" e o mundo só nasce depois de
+  Criar (sem cancelar). Link com semente ou tipo, ou recarregar depois de criar, vai direto para o mundo. A medida "primeira
+  abertura" desconta o tempo do jogador escolhendo. Conferido no Chromium, por toque.
 - [ ] 4. Tsunami até ~1/5 da largura do continente.
 - [ ] 5. Causa da travada de 3,5 s pausado.
 - [ ] 6–10. Registros em `docs/02-marcos.md`.

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Tool } from '../../src/input/tools';
 import { DisasterKind } from '../../src/world/disasters/types';
 import {
+  opensOnWorldChoice,
   activeBrush,
   activeDisaster,
   CATEGORIES,
@@ -186,3 +187,16 @@ it('tocar de novo na ferramenta em uso desliga ela (volta para Mover)', () => {
   // Mover continua Mover.
   expect(selectItem(openMenu(INITIAL_MENU, 'relevo'), 'move').state.active).toBe('move');
 });
+
+describe('escolha do mundo ao abrir (item 3 do teste da `2d9a2156`)', () => {
+  const opens = (query: string) => opensOnWorldChoice(new URLSearchParams(query));
+  it('abre nos cartões quando o link não pede um mundo certo', () => {
+    expect(opens('')).toBe(true);
+    expect(opens('seed=')).toBe(true);
+  });
+  it('link com semente ou tipo vai direto para o mundo', () => {
+    expect(opens('seed=terra')).toBe(false);
+    expect(opens('tipo=archipelago')).toBe(false);
+  });
+});
+

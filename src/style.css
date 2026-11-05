@@ -794,3 +794,7 @@ body {
   opacity: 0.8;
 }
 
+/* Primeira abertura: só a escolha do mundo na tela (ainda não há mundo para os outros controles). */
+.choosing-world > :not(.world-panel) {
+  visibility: hidden;
+}

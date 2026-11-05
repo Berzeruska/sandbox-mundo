@@ -1,5 +1,6 @@
 import { parseWorldKind } from './world/state';
 import { countIsolationReload } from './ui/isolation';
+import { opensOnWorldChoice } from './ui/menu-state';
 import { App } from './app';
 import { GAME_NAME } from './core/version';
 
@@ -21,7 +22,7 @@ if (previewLabel) {
 // A geração roda no Web Worker: a página já abre e mostra "Gerando mundo…" sem travar.
 const search = new URLSearchParams(window.location.search);
 const seed = search.get('seed')?.trim() || 'pangeia';
-const app = new App(root, seed, parseWorldKind(search.get('tipo')));
+const app = new App(root, seed, parseWorldKind(search.get('tipo')), opensOnWorldChoice(search));
 app.start();
 if (import.meta.env.DEV) (window as unknown as { game: App }).game = app;
 

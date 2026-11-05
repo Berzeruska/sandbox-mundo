@@ -1270,4 +1270,7 @@ O usuário descartou a mensagem anterior a esta (a que cravava o pixel 2D e reve
   100%. O mundo não muda (o ritmo só decide quantos passos andam por segundo real). Alternativas descartadas: passo fixo de
   ~800 passos/s (mais lento); aumentar os 480 passos (as placas deslizariam além do alcance do desenho perto da recomposição e
   o mundo passaria a depender da velocidade); esconder a espera só com a data em saltos (a espera continuaria lá).
+- **2026-11-05 — Cartões na primeira abertura (item 3):** decidido o detalhe técnico: o primeiro mundo só nasce depois da
+  escolha (gerar um Padrão atrás da tela seria 1 s de trabalho jogado fora a cada outra escolha). Vale para todo link sem semente
+  nem tipo, não só para a primeira vez da vida do navegador; a semente entra na URL ao criar, então recarregar não pergunta de novo.
 
