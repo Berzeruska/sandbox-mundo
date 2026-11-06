@@ -20,6 +20,8 @@ export interface MaqueteChunkData {
   terrain: ArrayBuffer;
   water: ArrayBuffer;
   props: ArrayBuffer;
+  /** Mesmas plantas, simplificadas (sem isso, usa `props`). */
+  propsFar?: ArrayBuffer;
   skirts: ArrayBuffer;
   skirtRanges: readonly (readonly [number, number])[];
 }
@@ -29,11 +31,14 @@ interface GpuChunk {
   terrain: Buffers | null;
   water: Buffers | null;
   props: Buffers | null;
+  propsFar: Buffers | null;
   skirts: Buffers | null;
   ranges: readonly (readonly [number, number])[];
   /** Lados com borda à mostra: +x, -x, +z, -z. */
   open: boolean[];
   place: [number, number, number, number];
+  /** Centro do pedaço, nas coordenadas dele. */
+  center: [number, number];
   bytes: number;
 }
 
@@ -68,11 +73,13 @@ uniform float uTime;
 out vec4 frag;
 float shadow(){
   if (any(lessThan(vShadow, vec3(0.0))) || any(greaterThan(vShadow, vec3(1.0)))) return 1.0;
+  // De longe, uma amostra basta: um texel do mapa já é menor que um pixel da sombra.
+  if (uShadowTexel.w > 0.5) return texture(uShadow, vec3(vShadow.xy, vShadow.z - uShadowTexel.z));
   vec2 t = uShadowTexel.xy;
   float b = uShadowTexel.z, s = 0.0;
-  const vec2 taps[6] = vec2[6](vec2(-0.5,-1.4), vec2(1.3,-0.7), vec2(-1.4,0.4), vec2(0.6,0.5), vec2(-0.3,1.5), vec2(1.5,1.2));
-  for (int i = 0; i < 6; i++) s += texture(uShadow, vec3(vShadow.xy + taps[i] * t, vShadow.z - b));
-  return s / 6.0;
+  const vec2 taps[4] = vec2[4](vec2(-0.7,-1.3), vec2(1.3,-0.7), vec2(-1.3,0.7), vec2(0.7,1.3));
+  for (int i = 0; i < 4; i++) s += texture(uShadow, vec3(vShadow.xy + taps[i] * t, vShadow.z - b));
+  return s / 4.0;
 }
 void main(){
   vec3 n = normalize(vNormal);
@@ -132,6 +139,8 @@ layout(location=0) in vec3 aPos;
 uniform mat4 uSun;
 uniform vec4 uPlace;
 void main(){ gl_Position = uSun * vec4(uPlace.z * aPos.x + uPlace.w * aPos.z + uPlace.x, aPos.y, -uPlace.w * aPos.x + uPlace.z * aPos.z + uPlace.y, 1.0); }`;
+/** Distância da câmera em que as plantas passam para o modelo simples. */
+const LOD_FAR = 170;
 const SHADOW_FS = `#version 300 es
 precision lowp float; void main(){}`;
 const FXAA_VS = `#version 300 es
@@ -142,10 +151,12 @@ precision mediump float;
 in vec2 vUv;
 uniform sampler2D uImage;
 uniform vec2 uTexel;
+uniform float uCopy;
 out vec4 frag;
 float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
 void main(){
   vec3 m = texture(uImage, vUv).rgb;
+  if (uCopy > 0.5) { frag = vec4(m, 1.0); return; }
   float lm = luma(m);
   float nw = luma(textureOffset(uImage, vUv, ivec2(-1, 1)).rgb), ne = luma(textureOffset(uImage, vUv, ivec2(1, 1)).rgb);
   float sw = luma(textureOffset(uImage, vUv, ivec2(-1, -1)).rgb), se = luma(textureOffset(uImage, vUv, ivec2(1, -1)).rgb);
@@ -223,8 +234,8 @@ export function eyeOf(v: MaqueteCamera): [number, number, number] {
 /** Luz: meio-dia suave, sombra azulada e nada de preto. No chão plano ao sol, luz ≈ 1: a cor fica a do globo. */
 export const MAQUETE_LIGHT = {
   sunDir: [-0.52, 0.72, -0.46] as const,
-  sunColor: [0.5, 0.48, 0.42] as const,
-  sky: [0.72, 0.74, 0.8] as const,
+  sunColor: [0.4, 0.39, 0.35] as const,
+  sky: [0.72, 0.72, 0.74] as const,
   ground: [0.42, 0.38, 0.36] as const,
 };
 
@@ -236,6 +247,7 @@ export class MaqueteRenderer {
   private us: Record<string, WebGLUniformLocation | null> = {};
   private fxaaImage: WebGLUniformLocation | null;
   private fxaaTexel: WebGLUniformLocation | null;
+  private fxaaOff: WebGLUniformLocation | null;
   private chunks = new Map<number, GpuChunk>();
   private animalProgram: WebGLProgram;
   private blobProgram: WebGLProgram;
@@ -247,12 +259,18 @@ export class MaqueteRenderer {
   /** O que desenhar no próximo quadro. */
   batches: InstanceBatch[] = [];
   blobs: { data: Float32Array; count: number } | null = null;
-  private shadowTex: WebGLTexture;
-  private shadowFbo: WebGLFramebuffer;
+  /** Dois mapas de sombra: um na tela, outro sendo desenhado aos poucos. */
+  private shadowTex: WebGLTexture[] = [];
+  private shadowFbo: WebGLFramebuffer[] = [];
+  private shadowFront = 0;
+  private shadowJob: { matrix: Float32Array; left: GpuChunk[] } | null = null;
   private shadowSize = 2048;
   private sceneFbo: WebGLFramebuffer;
   private sceneColor: WebGLTexture;
   private sceneDepth: WebGLRenderbuffer;
+  private msaaFbo: WebGLFramebuffer | null = null;
+  private msaaColor: WebGLRenderbuffer | null = null;
+  private resolveFbo: WebGLFramebuffer | null = null;
   private sceneW = 0;
   private sceneH = 0;
   private emptyVao: WebGLVertexArrayObject;
@@ -266,7 +284,8 @@ export class MaqueteRenderer {
   shadowCenter: readonly [number, number, number] = [0, 0, 0];
   stats = { triangles: 0, drawCalls: 0, gpuBytes: 0 };
 
-  constructor(private gl: WebGL2RenderingContext) {
+  /** Suavização: `fxaa` no quadro final (padrão), `msaa4` com 4 amostras, `off` sem. Decisão do usuário nas capturas (`?aa=`). */
+  constructor(private gl: WebGL2RenderingContext, private aa: 'fxaa' | 'msaa4' | 'off' = 'fxaa') {
     this.main = compile(gl, VS, FS);
     for (const n of ['uVP', 'uSun', 'uPlace', 'uShadow', 'uSunDir', 'uSunColor', 'uSky', 'uGround', 'uSand', 'uShadowTexel', 'uMode', 'uTime']) this.u[n] = gl.getUniformLocation(this.main, n);
     this.shadowProgram = compile(gl, SHADOW_VS, SHADOW_FS);
@@ -274,6 +293,7 @@ export class MaqueteRenderer {
     this.fxaa = compile(gl, FXAA_VS, FXAA_FS);
     this.fxaaImage = gl.getUniformLocation(this.fxaa, 'uImage');
     this.fxaaTexel = gl.getUniformLocation(this.fxaa, 'uTexel');
+    this.fxaaOff = gl.getUniformLocation(this.fxaa, 'uCopy');
     this.emptyVao = gl.createVertexArray() as WebGLVertexArrayObject;
     this.animalProgram = compile(gl, ANIMAL_VS, FS);
     for (const n of ['uVP', 'uSun', 'uShadow', 'uSunDir', 'uSunColor', 'uSky', 'uGround', 'uSand', 'uShadowTexel', 'uMode', 'uTime']) this.ua[n] = gl.getUniformLocation(this.animalProgram, n);
@@ -281,19 +301,23 @@ export class MaqueteRenderer {
     this.blobVP = gl.getUniformLocation(this.blobProgram, 'uVP');
     this.instanceBuffer = gl.createBuffer() as WebGLBuffer;
     gl.activeTexture(gl.TEXTURE9);
-    this.shadowTex = gl.createTexture() as WebGLTexture;
-    gl.bindTexture(gl.TEXTURE_2D, this.shadowTex);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, this.shadowSize, this.shadowSize);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    this.shadowFbo = gl.createFramebuffer() as WebGLFramebuffer;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadowTex, 0);
-    gl.drawBuffers([gl.NONE]);
-    gl.readBuffer(gl.NONE);
+    for (let k = 0; k < 2; k++) {
+      const tex = gl.createTexture() as WebGLTexture;
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, this.shadowSize, this.shadowSize);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const fbo = gl.createFramebuffer() as WebGLFramebuffer;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, tex, 0);
+      gl.drawBuffers([gl.NONE]);
+      gl.readBuffer(gl.NONE);
+      this.shadowTex.push(tex);
+      this.shadowFbo.push(fbo);
+    }
     this.sceneFbo = gl.createFramebuffer() as WebGLFramebuffer;
     this.sceneColor = gl.createTexture() as WebGLTexture;
     this.sceneDepth = gl.createRenderbuffer() as WebGLRenderbuffer;
@@ -352,12 +376,13 @@ export class MaqueteRenderer {
   }
 
   /** Sobe um pedaço. `place`: x, z, cos e sin do giro no plano. */
-  setChunk(key: number, data: MaqueteChunkData, place: readonly [number, number, number, number], open: readonly boolean[]): void {
+  setChunk(key: number, data: MaqueteChunkData, place: readonly [number, number, number, number], open: readonly boolean[], center: readonly [number, number] = [16, 16]): void {
     this.removeChunk(key);
     const c: GpuChunk = {
-      terrain: this.upload(data.terrain), water: this.upload(data.water), props: this.upload(data.props), skirts: this.upload(data.skirts),
+      terrain: this.upload(data.terrain), water: this.upload(data.water), props: this.upload(data.props), propsFar: data.propsFar ? this.upload(data.propsFar) : null, skirts: this.upload(data.skirts),
       ranges: data.skirtRanges, open: [...open], place: [place[0], place[1], place[2], place[3]],
-      bytes: data.terrain.byteLength + data.water.byteLength + data.props.byteLength + data.skirts.byteLength,
+      center: [center[0], center[1]],
+      bytes: data.terrain.byteLength + data.water.byteLength + data.props.byteLength + (data.propsFar?.byteLength ?? 0) + data.skirts.byteLength,
     };
     this.chunks.set(key, c);
     this.stats.gpuBytes += c.bytes;
@@ -367,7 +392,7 @@ export class MaqueteRenderer {
   removeChunk(key: number): void {
     const c = this.chunks.get(key);
     if (!c) return;
-    for (const b of [c.terrain, c.water, c.props, c.skirts]) this.free(b);
+    for (const b of [c.terrain, c.water, c.props, c.propsFar, c.skirts]) this.free(b);
     this.stats.gpuBytes -= c.bytes;
     this.chunks.delete(key);
     this.shadowDirty = true;
@@ -380,32 +405,47 @@ export class MaqueteRenderer {
   keys(): IterableIterator<number> { return this.chunks.keys(); }
   markShadowDirty(): void { this.shadowDirty = true; }
 
-  private updateShadow(): void {
+  /**
+   * A sombra é desenhada em partes (regra 16): alguns pedaços por quadro no mapa de trás, sempre com as plantas simples, e os mapas trocam quando termina.
+   * Assim carregar pedaços não dá pico. `budget` = quantos pedaços neste quadro.
+   */
+  stepShadow(budget: number): void {
     const gl = this.gl;
-    const [cx, cy, cz] = this.shadowCenter;
-    const d = this.sunDir;
-    const eye = [cx + (d[0] as number) * 200, cy + (d[1] as number) * 200, cz + (d[2] as number) * 200];
-    const r = this.shadowRadius;
-    this.sunMatrix = multiply(ortho(-r, r, -r, r, 1, 400), lookAt(eye, [cx, cy, cz], [0, 1, 0]));
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo);
+    if (!this.shadowJob) {
+      if (!this.shadowDirty) return;
+      const [cx, cy, cz] = this.shadowCenter, d = this.sunDir;
+      const eye = [cx + (d[0] as number) * 200, cy + (d[1] as number) * 200, cz + (d[2] as number) * 200];
+      const r = this.shadowRadius;
+      this.shadowJob = { matrix: multiply(ortho(-r, r, -r, r, 1, 400), lookAt(eye, [cx, cy, cz], [0, 1, 0])), left: [...this.chunks.values()] };
+      this.shadowDirty = false;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo[1 - this.shadowFront] as WebGLFramebuffer);
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+    }
+    const job = this.shadowJob;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo[1 - this.shadowFront] as WebGLFramebuffer);
     gl.viewport(0, 0, this.shadowSize, this.shadowSize);
-    gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LESS);
     gl.depthMask(true);
     gl.disable(gl.CULL_FACE);
+    gl.disable(gl.BLEND);
     gl.useProgram(this.shadowProgram);
-    gl.uniformMatrix4fv(this.us.uSun as WebGLUniformLocation, false, this.sunMatrix);
-    for (const c of this.chunks.values()) {
+    gl.uniformMatrix4fv(this.us.uSun as WebGLUniformLocation, false, job.matrix);
+    for (let n = 0; n < budget && job.left.length; n++) {
+      const c = job.left.pop() as GpuChunk;
       gl.uniform4f(this.us.uPlace as WebGLUniformLocation, c.place[0], c.place[1], c.place[2], c.place[3]);
-      for (const b of [c.terrain, c.props]) {
+      for (const b of [c.terrain, c.propsFar ?? c.props]) {
         if (!b) continue;
         gl.bindVertexArray(b.vao);
         gl.drawArrays(gl.TRIANGLES, 0, b.vertices);
       }
     }
     gl.bindVertexArray(null);
-    this.shadowDirty = false;
+    if (!job.left.length) {
+      this.shadowFront = 1 - this.shadowFront;
+      this.sunMatrix = job.matrix;
+      this.shadowJob = null;
+    }
   }
 
   private ensureScene(w: number, h: number): void {
@@ -421,17 +461,65 @@ export class MaqueteRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.bindRenderbuffer(gl.RENDERBUFFER, this.sceneDepth);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.sceneColor, 0);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.sceneDepth);
+    if (this.aa === 'msaa4') {
+      // Quatro amostras num quadro à parte; no fim copia para a textura e dela para a tela, sem FXAA.
+      gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 4, gl.DEPTH_COMPONENT24, w, h);
+      this.msaaColor ??= gl.createRenderbuffer() as WebGLRenderbuffer;
+      this.msaaFbo ??= gl.createFramebuffer() as WebGLFramebuffer;
+      this.resolveFbo ??= gl.createFramebuffer() as WebGLFramebuffer;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.resolveFbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.sceneColor, 0);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, this.msaaColor);
+      gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 4, gl.RGBA8, w, h);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.msaaFbo);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, this.msaaColor);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.sceneDepth);
+    } else {
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.sceneColor, 0);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.sceneDepth);
+    }
+  }
+
+  /** GPU da maquete para o "Medir desempenho": `frames` desenhos seguidos. */
+  async measureDraw(view: MaqueteCamera, width: number, height: number, time: number, frames: number): Promise<{ ms: number[]; method: string }> {
+    const gl = this.gl;
+    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null;
+    const px = new Uint8Array(4);
+    if (!ext) {
+      const sync: number[] = [];
+      for (let k = 0; k < frames; k++) {
+        const t0 = performance.now();
+        this.draw(view, width, height, time);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        sync.push(performance.now() - t0);
+      }
+      return { ms: sync, method: 'quadro esperando a GPU' };
+    }
+    const queries: WebGLQuery[] = [];
+    for (let k = 0; k < frames; k++) {
+      const q = gl.createQuery() as WebGLQuery;
+      gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+      this.draw(view, width, height, time);
+      gl.endQuery(ext.TIME_ELAPSED_EXT);
+      queries.push(q);
+    }
+    const last = queries[queries.length - 1] as WebGLQuery;
+    for (let tries = 0; tries < 40 && !gl.getQueryParameter(last, gl.QUERY_RESULT_AVAILABLE); tries++) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const disjoint = !!gl.getParameter(ext.GPU_DISJOINT_EXT), ms: number[] = [];
+    for (const q of queries) {
+      if (!disjoint && gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) ms.push((gl.getQueryParameter(q, gl.QUERY_RESULT) as number) / 1e6);
+      gl.deleteQuery(q);
+    }
+    return { ms, method: 'consulta de tempo da GPU' };
   }
 
   draw(view: MaqueteCamera, width: number, height: number, time: number): void {
     const gl = this.gl;
-    if (this.shadowDirty) this.updateShadow();
+    this.stepShadow(10);
     this.ensureScene(width, height);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFbo);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.msaaFbo ?? this.sceneFbo);
     gl.viewport(0, 0, width, height);
     const bg = this.background;
     gl.clearColor(bg[0], bg[1], bg[2], 1);
@@ -454,15 +542,28 @@ export class MaqueteRenderer {
     gl.uniform3fv(u.uSky as WebGLUniformLocation, MAQUETE_LIGHT.sky);
     gl.uniform3fv(u.uGround as WebGLUniformLocation, MAQUETE_LIGHT.ground);
     gl.uniform3f(u.uSand as WebGLUniformLocation, 226 / 255, 200 / 255, 138 / 255);
-    gl.uniform4f(u.uShadowTexel as WebGLUniformLocation, 1.2 / this.shadowSize, 1.2 / this.shadowSize, 0.0016, 0);
+    gl.uniform4f(u.uShadowTexel as WebGLUniformLocation, 1.2 / this.shadowSize, 1.2 / this.shadowSize, 0.0016, view.distance > 200 ? 1 : 0);
     gl.uniform1f(u.uTime as WebGLUniformLocation, time);
     gl.activeTexture(gl.TEXTURE9);
-    gl.bindTexture(gl.TEXTURE_2D, this.shadowTex);
+    gl.bindTexture(gl.TEXTURE_2D, this.shadowTex[this.shadowFront] as WebGLTexture);
     gl.uniform1i(u.uShadow as WebGLUniformLocation, 9);
     let tris = 0, calls = 0;
+    // Recorte: pedaço fora da vista não é desenhado. E as plantas têm modelo simples a partir de LOD_FAR da câmera.
+    const seen: GpuChunk[] = [], farAway = new Set<GpuChunk>();
+    for (const c of this.chunks.values()) {
+      const X = c.place[0] + c.center[0] * c.place[2] + c.center[1] * c.place[3], Z = c.place[1] - c.center[0] * c.place[3] + c.center[1] * c.place[2], Y = 3;
+      const w = (vp[3] as number) * X + (vp[7] as number) * Y + (vp[11] as number) * Z + (vp[15] as number);
+      const x = (vp[0] as number) * X + (vp[4] as number) * Y + (vp[8] as number) * Z + (vp[12] as number);
+      const y = (vp[1] as number) * X + (vp[5] as number) * Y + (vp[9] as number) * Z + (vp[13] as number);
+      // Raio do pedaço em volta do centro, com folga para altura.
+      const pad = 30 * Math.max(Math.abs(vp[0] as number), Math.abs(vp[5] as number));
+      if (w + pad < 0 || x < -w - pad || x > w + pad || y < -w - pad - pad || y > w + pad + pad) continue;
+      seen.push(c);
+      if (Math.hypot(X - eye[0], Y - eye[1], Z - eye[2]) > LOD_FAR) farAway.add(c);
+    }
     const drawSet = (mode: number, pick: (c: GpuChunk) => Buffers | null): void => {
       gl.uniform1i(u.uMode as WebGLUniformLocation, mode);
-      for (const c of this.chunks.values()) {
+      for (const c of seen) {
         const b = pick(c);
         if (!b) continue;
         gl.uniform4f(u.uPlace as WebGLUniformLocation, c.place[0], c.place[1], c.place[2], c.place[3]);
@@ -472,12 +573,15 @@ export class MaqueteRenderer {
         calls++;
       }
     };
+    // Plantas primeiro: o chão atrás delas nem é pintado.
+    gl.disable(gl.CULL_FACE);
+    drawSet(2, (c) => (farAway.has(c) ? c.propsFar ?? c.props : c.props));
+    gl.enable(gl.CULL_FACE);
     drawSet(0, (c) => c.terrain);
     gl.disable(gl.CULL_FACE);
-    drawSet(2, (c) => c.props);
     // Borda: só os lados que dão para fora do que está carregado.
     gl.uniform1i(u.uMode as WebGLUniformLocation, 2);
-    for (const c of this.chunks.values()) {
+    for (const c of seen) {
       if (!c.skirts || !c.open.some((o) => o)) continue;
       gl.uniform4f(u.uPlace as WebGLUniformLocation, c.place[0], c.place[1], c.place[2], c.place[3]);
       gl.bindVertexArray(c.skirts.vao);
@@ -509,7 +613,7 @@ export class MaqueteRenderer {
       gl.uniform3fv(a.uSky as WebGLUniformLocation, MAQUETE_LIGHT.sky);
       gl.uniform3fv(a.uGround as WebGLUniformLocation, MAQUETE_LIGHT.ground);
       gl.uniform3f(a.uSand as WebGLUniformLocation, 0, 0, 0);
-      gl.uniform4f(a.uShadowTexel as WebGLUniformLocation, 1.2 / this.shadowSize, 1.2 / this.shadowSize, 0.0016, 0);
+      gl.uniform4f(a.uShadowTexel as WebGLUniformLocation, 1.2 / this.shadowSize, 1.2 / this.shadowSize, 0.0016, view.distance > 200 ? 1 : 0);
       gl.uniform1i(a.uMode as WebGLUniformLocation, 2);
       gl.uniform1f(a.uTime as WebGLUniformLocation, time);
       gl.uniform1i(a.uShadow as WebGLUniformLocation, 9);
@@ -520,6 +624,11 @@ export class MaqueteRenderer {
       }
     }
     // Quadro final com suavização.
+    if (this.msaaFbo) {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msaaFbo);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.resolveFbo);
+      gl.blitFramebuffer(0, 0, width, height, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    }
     gl.bindVertexArray(this.emptyVao);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
@@ -529,7 +638,9 @@ export class MaqueteRenderer {
     gl.activeTexture(gl.TEXTURE9);
     gl.bindTexture(gl.TEXTURE_2D, this.sceneColor);
     gl.uniform1i(this.fxaaImage, 9);
+    // Passe só copiando quando não é FXAA: limite de contraste impossível.
     gl.uniform2f(this.fxaaTexel, 1 / width, 1 / height);
+    gl.uniform1f(this.fxaaOff, this.aa === 'fxaa' ? 0 : 1);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.bindVertexArray(null);
     gl.activeTexture(gl.TEXTURE0);

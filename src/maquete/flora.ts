@@ -1,5 +1,5 @@
 import { Biome, BIOME_INFO } from '../world/biomes';
-import { broadTree, bushClump, floe, smokeCube, cactus, flatTree, grassTuft, mixRgb, pine, reed, rgb, rock, roundTree, type Rgb } from './models';
+import { broadTree, bushClump, floe, setFarModels, smokeCube, cactus, flatTree, grassTuft, mixRgb, pine, reed, rgb, rock, roundTree, type Rgb } from './models';
 
 /** Os modelos em uso, com a cor vinda do globo do M2 (decisão 2 de 2026-11-06): o verde do bioma fica nas copas. */
 export const biomeRgb = (b: number): Rgb => { const c = BIOME_INFO[b]?.color ?? [255, 0, 255]; return rgb(c[0], c[1], c[2]); };
@@ -24,6 +24,20 @@ export const MODELS = {
   smoke: variants(3, (k) => smokeCube(k + 1)),
 };
 export type ModelName = keyof typeof MODELS;
+
+const FAR_ROCK = new Map<string, Float32Array>();
+/** Pedra simples de longe. */
+export function pickModelFar(name: ModelName, h: number): Float32Array {
+  const list = MODELS[name], i = Math.floor(h * list.length) % list.length, key = `${name}:${i}`;
+  let out = FAR_ROCK.get(key);
+  if (!out) {
+    setFarModels(true);
+    out = name === 'rock' ? rock(i + 1, rgb(150, 148, 146)) : name === 'sandRock' ? rock(i + 11, rgb(140, 126, 110)) : (list[i] as Float32Array);
+    setFarModels(false);
+    FAR_ROCK.set(key, out);
+  }
+  return out;
+}
 
 export function pickModel(name: ModelName, h: number): Float32Array {
   const list = MODELS[name];

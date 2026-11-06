@@ -60,3 +60,42 @@ As 19 jazidas de `recursos/jazidas.png`, como amontoados de pedras facetadas com
 As 26 espécies aprovadas, nos biomas certos, com 5 poses (parado, 2 quadros de andar, comendo, morto), em `src/maquete/animals.ts`. Andam ao acaso e não saem do pedaço onde nasceram (`src/render/maquete-animals.ts`). Cerca de 2,5% aparecem deitados, só para a pose existir. Sem fome, caça, nascimento ou morte de verdade: isso vem com a especificação do M3. Kraken, baleia branca e dragão são da classe mítica e não aparecem sozinhos.
 
 **O que difere das folhas:** os corpos são mais simples, as listras da zebra e as pintas da onça saem por faceta, sem o desenho fino. A água é opaca: os animais do mar aparecem só com a parte que passa da superfície, por isso a lula e o cardume quase não se veem.
+
+## Desempenho (T9)
+Build de produção, navegador com a GPU do notebook, 1080p, na tomada. Relatório inteiro em `docs/medicao-m3-maquete.txt`. **A verdade é o "Medir desempenho" no Chrome do usuário.**
+
+| Medida (meta) | Antes das técnicas | Depois |
+|---|---:|---:|
+| GPU na entrada da maquete (≤ 8 ms) | 10,4 ms | 4,4 ms no cenário do relatório |
+| GPU na mata mais densa do planeta, de 1× a 5,6× de zoom (≤ 8 ms) | | 4,5–8,0 ms de média; quadros isolados até 9,8 ms na taiga |
+| Triângulos na entrada | 1,22 milhão | ~660 mil |
+| Pior quadro andando e correndo (nenhum > 50 ms) | 298 ms | 17 ms |
+| fps nos 23 cenários (60) | 52–56 | 60, mínimo 60 |
+| Montar um pedaço no ajudante, pior | 355 ms | 29 ms (média 5,8 ms) |
+| Memória da página (≤ 400 MB) | | 218 MB |
+| Geração (≤ 1,5 s) / abertura (≤ 2,5 s) | | 0,92 s / 1,46 s |
+| Recomposição à vista na maquete (≤ 1 s) | | 793 ms em segundo plano, pior quadro 17 ms |
+| Relógio esperou (0) | | 0; travadas 0 |
+
+**Técnicas (regra 16, nada some da tela):** modelos de longe com a mesma silhueta e menos faces, a partir de 170 unidades da câmera; sombra desenhada em partes em 2 mapas, com os modelos de longe; fundo do mar coberto não é desenhado; mar aberto em blocos de 4 células; recorte do que está fora da vista; plantas antes do chão; uma amostra de sombra de longe; programas compilados atrás da tela de carregamento; e a sombra já começa a ser feita antes do corte.
+
+**Janela real e medição:** o quadro em janela no compositor sem tela oscila (o relógio dele não é o da tela). As imagens saem da janela; os números de fps saem do navegador com GPU real sem janela, como em todas as medições anteriores.
+
+## Cor no corte (decisão 2)
+Média de uma faixa no centro da tela, mesmo lugar, 1 quadro de globo a 31 px e maquete a 33 px, com as nuvens desligadas. Diferença em 0–255:
+
+| Bioma | Globo | Maquete | Maior diferença |
+|---|---|---|---:|
+| taiga | [49, 91, 63] | [44, 74, 46] | 18 |
+| floresta | [38, 110, 38] | [45, 102, 39] | 8 |
+| campo | [111, 157, 54] | [109, 153, 62] | 8 |
+| estepe | [159, 153, 85] | [150, 159, 76] | 9 |
+| deserto | [197, 167, 99] | [186, 176, 91] | 11 |
+| savana | [172, 146, 44] | [163, 144, 58] | 14 |
+| tropical | [12, 90, 33] | [38, 97, 46] | 25 |
+| pântano | [48, 98, 76] | [59, 107, 89] | 13 |
+| montanha | [130, 117, 103] | [120, 100, 89] | 17 |
+| tundra | [122, 130, 100] | [111, 133, 90] | 11 |
+| mar raso | [34, 103, 183] | [43, 118, 196] | 15 |
+
+A cor vem da célula do globo (com estado, vegetação e clima). A calibração está em `src/maquete/world-fields.ts` (`globeR/G/B`, `BIOME_FIX`). Variam de um lado do corte: a luz e a sombra, que a maquete acrescenta. **Limite:** floresta tropical e taiga ainda têm a maior diferença.

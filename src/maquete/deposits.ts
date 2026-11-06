@@ -1,6 +1,6 @@
 import { Resource } from '../world/resources';
 import { sequence } from './hash';
-import { lump, Model, rgb, type Rgb, type V3 } from './models';
+import { lump, Model, rgb, setFarModels, type Rgb, type V3 } from './models';
 
 /**
  * Jazidas como amontoados de pedras facetadas da cor do minério (`recursos/jazidas.png`). Cada tipo tem a pedra, o veio e o que há por cima (cristais, cubos).
@@ -123,9 +123,14 @@ function build(type: number, seed: number): Float32Array {
 }
 
 const cache = new Map<number, Float32Array>();
-export function depositModel(type: number, variant: number): Float32Array {
-  const key = type * 2 + (variant & 1);
+export function depositModel(type: number, variant: number, lod = false): Float32Array {
+  const key = (type * 2 + (variant & 1)) * 2 + (lod ? 1 : 0);
   let out = cache.get(key);
-  if (!out) { out = build(type, (variant & 1) + 1 + type * 3); cache.set(key, out); }
+  if (!out) {
+    setFarModels(lod);
+    out = build(type, (variant & 1) + 1 + type * 3);
+    setFarModels(false);
+    cache.set(key, out);
+  }
   return out;
 }

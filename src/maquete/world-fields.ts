@@ -2,7 +2,7 @@ import { Biome } from '../world/biomes';
 import { bakeProps, buildSkirts, buildTerrain, buildWater, newFields, reliefShade, stampShade, type Facet, type Fields, type Placement } from './chunk-build';
 import { CHUNK_CELLS, CHUNK_COARSE, coarseIndex, DETAIL, finePoint, resolveFine } from './chart';
 import { CellState } from '../world/disasters/ground';
-import { biomeRgb, pickModel } from './flora';
+import { biomeRgb, pickModel, pickModelFar } from './flora';
 import { plant, type PlantState, type Species } from './plants';
 import { hash3, noise3, smoothstep } from './hash';
 import { ANIMALS, FAUNA, SWIMMERS } from './animals';
@@ -30,6 +30,7 @@ export interface MaqueteChunkOut {
   terrain: ArrayBuffer;
   water: ArrayBuffer;
   props: ArrayBuffer;
+  propsFar: ArrayBuffer;
   skirts: ArrayBuffer;
   skirtRanges: [number, number][];
   /** Grupos de animais: espécie, x, z (na face), sorteio. */
@@ -49,7 +50,10 @@ const ROCK_LIGHT: Rgb = rgb(150, 122, 106);
 const ICE_WATER: Rgb = rgb(186, 218, 236);
 const CRATER: Rgb = rgb(62, 50, 48), LAVA: Rgb = rgb(250, 128, 30), ROCK_DARK: Rgb = rgb(108, 82, 70), DUNE: Rgb = rgb(226, 156, 72);
 /** Chão de floresta: o verde do bioma fica nas copas, o chão clareia para o conjunto dar a cor do globo. */
-const GROUND_MIX: Record<number, number> = { [Biome.Taiga]: 0.62, [Biome.TemperateForest]: 0.72, [Biome.TropicalForest]: 0.66, [Biome.Swamp]: 0.35, [Biome.Mountain]: 0.5 };
+const GROUND_MIX: Record<number, number> = { [Biome.Taiga]: 0.42, [Biome.TemperateForest]: 0.36, [Biome.TropicalForest]: 0.1, [Biome.Swamp]: 0.08, [Biome.Mountain]: 0.42 };
+const BIOME_FIX: Partial<Record<number, readonly [number, number, number]>> = { [Biome.Savanna]: [1.14, 0.98, 0.92], [Biome.TropicalForest]: [0.45, 1.02, 0.8], [Biome.Taiga]: [1.05, 1.15, 1.45], [Biome.TemperateForest]: [0.72, 1.12, 1.02], [Biome.Mountain]: [1.1, 1.18, 1.18], [Biome.Swamp]: [0.82, 0.96, 0.9] };
+/** Como a cor do bioma aparece no globo: medido no corte, por canal (o relevo e a luz do globo tiram mais azul). */
+const globeR = (c: number): number => Math.max(0, c * 0.95 - 0.03), globeG = (c: number): number => Math.max(0, c * 1.06 - 0.04), globeB = (c: number): number => Math.max(0, c * 1.05 - 0.125);
 
 
 /** Altura em metros → altura na maquete: costa suave, montanha sem exagero. */
@@ -82,8 +86,11 @@ function peakLift(X: number, Z: number, face: number, metersAt: (x: number, z: n
 const TERRACE = 0.62;
 export type ReliefMode = 'terraco' | 'lisa' | 'rampa' | 'degrau';
 let relief: ReliefMode = 'terraco';
-/** Opção de relevo (decisão do usuário, nas capturas; `?relevo=` na URL). */
+let stones: 'pilhas' | 'miudas' = 'pilhas';
+let oil: 'pocas' | 'unica' = 'pocas';
+/** Opções para o usuário decidir nas capturas (`?relevo=`, `?pedras=`, `?oleo=` na URL). */
 export function setRelief(mode: ReliefMode): void { relief = mode; }
+export function setDepositLook(s: string, o: string): void { stones = s === 'miudas' ? 'miudas' : 'pilhas'; oil = o === 'unica' ? 'unica' : 'pocas'; }
 
 /** Terraços ligados (padrão): patamares planos e encosta curta entre eles. As outras opções mudam só a encosta. */
 function terrace(y: number, wobble: number, step = TERRACE): number {
@@ -147,16 +154,20 @@ class Patch {
       this.ice[k] = ice;
       this.temp[k] = w.temp[c] as number;
       if (m > this.highest) this.highest = m;
-      let r = (w.rgba[c * 4] as number) / 255, g = (w.rgba[c * 4 + 1] as number) / 255, b = (w.rgba[c * 4 + 2] as number) / 255;
+      const r0 = (w.rgba[c * 4] as number) / 255, g0 = (w.rgba[c * 4 + 1] as number) / 255, b0 = (w.rgba[c * 4 + 2] as number) / 255;
+      let r = globeR(r0), g = globeG(g0), b = globeB(b0);
       if (m <= 0) {
         this.sea[k] = ice ? 0 : 1;
         // Mar congelado: água clara e placas de gelo por cima (`bioma/agua.png`).
-        if (ice) { this.wr[k] = ICE_WATER[0]; this.wg[k] = ICE_WATER[1]; this.wb[k] = ICE_WATER[2]; } else { this.wr[k] = r; this.wg[k] = g; this.wb[k] = b; }
+        if (ice) { this.wr[k] = ICE_WATER[0]; this.wg[k] = ICE_WATER[1]; this.wb[k] = ICE_WATER[2]; } else { this.wr[k] = r0 * 0.8; this.wg[k] = g0 * 1.05; this.wb[k] = b0 * 1.14; }
         r = BEACH[0]; g = BEACH[1]; b = BEACH[2];
       } else {
         this.wr[k] = sea[0]; this.wg[k] = sea[1]; this.wb[k] = sea[2];
         const t = state === 0 ? (GROUND_MIX[biome] ?? 0) : 0;
         if (t > 0) { r += (GRASS[0] - r) * t; g += (GRASS[1] - g) * t; b += (GRASS[2] - b) * t; }
+        // Acerto fino por bioma, medido no corte (decisão 2: sem salto de cor).
+        const fix = state === 0 ? BIOME_FIX[biome] : undefined;
+        if (fix) { r *= fix[0]; g *= fix[1]; b *= fix[2]; }
       }
       this.r[k] = r; this.g[k] = g; this.b[k] = b;
     }
@@ -478,8 +489,8 @@ interface Canopy { species: Species; chance: number; scale: number; spread: numb
 /** Copas por bioma: `chance` por ponto da grade; `cluster` aperta em matas (0 = espalhado). */
 const CANOPY: Partial<Record<number, readonly Canopy[]>> = {
   [Biome.Taiga]: [{ species: 'pine', chance: 0.92, scale: 1.08, spread: 0.72, cluster: 0.55 }],
-  [Biome.TemperateForest]: [{ species: 'oak', chance: 0.2, scale: 0.86, spread: 0.55, cluster: 0.45 }, { species: 'midTree', chance: 0.26, scale: 0.86, spread: 0.55, cluster: 0.45 }],
-  [Biome.TropicalForest]: [{ species: 'tropical', chance: 0.36, scale: 1, spread: 0.55, cluster: 0.3 }, { species: 'midTree', chance: 0.1, scale: 0.9, spread: 0.5, cluster: 0.3 }, { species: 'palm', chance: 0.04, scale: 0.85, spread: 0.4, cluster: 0 }],
+  [Biome.TemperateForest]: [{ species: 'oak', chance: 0.3, scale: 0.9, spread: 0.55, cluster: 0.3 }, { species: 'midTree', chance: 0.32, scale: 0.9, spread: 0.55, cluster: 0.3 }],
+  [Biome.TropicalForest]: [{ species: 'tropical', chance: 0.58, scale: 1.05, spread: 0.55, cluster: 0.15 }, { species: 'midTree', chance: 0.18, scale: 0.95, spread: 0.5, cluster: 0.15 }, { species: 'palm', chance: 0.04, scale: 0.85, spread: 0.4, cluster: 0 }],
   [Biome.Grassland]: [{ species: 'midTree', chance: 0.012, scale: 0.8, spread: 0.5, cluster: 0.2 }, { species: 'oak', chance: 0.005, scale: 0.8, spread: 0.4, cluster: 0.2 }],
   [Biome.Savanna]: [{ species: 'acacia', chance: 0.03, scale: 1.05, spread: 0.55, cluster: 0.2 }, { species: 'baobab', chance: 0.003, scale: 0.8, spread: 0.3, cluster: 0 }],
   [Biome.Swamp]: [{ species: 'mangrove', chance: 0.09, scale: 1.05, spread: 0.4, cluster: 0 }],
@@ -511,10 +522,11 @@ function depositsOf(w: CoarseWorld, patch: Patch): DepositSpot[] {
     if (type === Resource.None || (isHiddenOil(code) && !surfaceOil(w.n, c)) || (w.ice[c] as number)) continue;
     const big = depositSize(code);
     // Duas pedras por célula, um pouco afastadas: a mancha do minério é vista de longe.
-    if (type === Resource.Oil && hash3(c, 3, 79) > 0.34) continue;
-    for (let k = 0; k < (type === Resource.Oil ? 1 : 2); k++) {
+    if (type === Resource.Oil && hash3(c, 3, 79) > (oil === 'unica' ? 0.12 : 0.34)) continue;
+    const small = stones === 'miudas' && type !== Resource.Oil;
+    for (let k = 0; k < (type === Resource.Oil ? 1 : small ? 4 : 2); k++) {
       const h = hash3(c, k, 83), h2 = hash3(c, k, 89), h3 = hash3(c, k, 97);
-      out.push({ x: (patch.x0 + i) * DETAIL + 0.7 + h * 2.6, z: (patch.z0 + j) * DETAIL + 0.7 + h2 * 2.6, type, variant: k, scale: (type === Resource.Oil ? 1.5 : 1) * (0.8 + big * 0.28 + h3 * 0.3), yaw: h3 * 6.283 });
+      out.push({ x: (patch.x0 + i) * DETAIL + 0.7 + h * 2.6, z: (patch.z0 + j) * DETAIL + 0.7 + h2 * 2.6, type, variant: k, scale: (type === Resource.Oil ? (oil === 'unica' ? 3 : 1.5) : small ? 0.55 : 1) * (0.8 + big * 0.28 + h3 * 0.3), yaw: h3 * 6.283 });
     }
   }
   return out;
@@ -546,10 +558,10 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
     return k;
   };
   const seed = face * 131 + ox * 3 + oz * 7;
-  const put = (model: Float32Array, lx: number, lz: number, scale: number, radius: number, strength: number, tinted: boolean): void => {
+  const put = (model: Float32Array, modelFar: Float32Array, lx: number, lz: number, scale: number, radius: number, strength: number, tinted: boolean): void => {
     const h = hash3(seed, Math.round(lx * 7), Math.round(lz * 7));
     const warm = tinted ? (hash3(Math.round(lx * 3), Math.round(lz * 3), seed) - 0.5) * 0.16 : 0;
-    out.push({ model, x: lx + ox, y: yAt(lx, lz) - 0.04, z: lz + oz, scale, stretch: 1, yaw: h * 6.283, tint: [1 + warm, 1, 1 - warm] });
+    out.push({ model, far: modelFar, x: lx + ox, y: yAt(lx, lz) - 0.04, z: lz + oz, scale, stretch: 1, yaw: h * 6.283, tint: [1 + warm, 1, 1 - warm] });
     if (radius > 0) stampShade(f, lx + ox, lz + oz, radius, strength, ox, oz);
   };
   // Mar congelado: placas de gelo brancas.
@@ -591,7 +603,7 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
         const state = plantStateOf(cell, coverGrid[k] as number, h2);
         if (!state) break;
         const species: Species = c.species === 'pine' && (tempGrid[k] as number) < -7 ? 'snowPine' : c.species;
-        put(plant(species, state, Math.floor(h2 * 17)), lx, lz, (c.scale + size2 * size2 * c.spread) * (0.82 + inside * 0.28), state === 'adult' ? 2 : 0.9, 0.3, state === 'adult' || state === 'young');
+        put(plant(species, state, Math.floor(h2 * 17)), plant(species, state, Math.floor(h2 * 17), true), lx, lz, (c.scale + size2 * size2 * c.spread) * (0.82 + inside * 0.28), state === 'adult' ? 2.4 : 0.9, 0.34, state === 'adult' || state === 'young');
         break;
       }
     }
@@ -614,9 +626,9 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
       edge += c.chance * (burned ? 1 : Math.max(0.55, coverGrid[k] as number));
       if (r < edge) {
         const size2 = hash3(seed, gx, gz * 3 + 8), h2 = hash3(seed, gx * 5, gz + 11);
-        if (c.species === 'rock' || c.species === 'sandRock') { put(pickModel(c.species, h2), lx, lz, c.scale + size2 * c.spread, 0.8, 0.14, false); break; }
+        if (c.species === 'rock' || c.species === 'sandRock') { put(pickModel(c.species, h2), pickModelFar(c.species, h2), lx, lz, c.scale + size2 * c.spread, 0.8, 0.14, false); break; }
         const state = plantStateOf(cell, coverGrid[k] as number, h2);
-        if (state) put(plant(c.species, state, Math.floor(h2 * 17)), lx, lz, c.scale + size2 * c.spread, state === 'adult' ? 0.7 : 0, 0.12, state === 'adult' || state === 'young');
+        if (state) put(plant(c.species, state, Math.floor(h2 * 17)), plant(c.species, state, Math.floor(h2 * 17), true), lx, lz, c.scale + size2 * c.spread, state === 'adult' ? 0.7 : 0, 0.12, state === 'adult' || state === 'young');
         break;
       }
     }
@@ -629,7 +641,7 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
     if ((f.peak[k] as number) > 0.5) continue;
     const water = f.water[k] as number, y = f.y[k] as number;
     if (water > y + 0.05) continue;
-    out.push({ model: depositModel(d.type, d.variant), x: d.x, y: yAt(lx, lz) - 0.02, z: d.z, scale: d.scale, stretch: 1, yaw: d.yaw, tint: [1, 1, 1] });
+    out.push({ model: depositModel(d.type, d.variant), far: depositModel(d.type, d.variant, true), x: d.x, y: yAt(lx, lz) - 0.02, z: d.z, scale: d.scale, stretch: 1, yaw: d.yaw, tint: [1, 1, 1] });
     stampShade(f, d.x, d.z, 1.6 * d.scale, 0.22, ox, oz);
   }
   // Fumaça dos vulcões em erupção: cubos cinzentos subindo (`bioma/montanhas-vulcao.png`).
@@ -683,5 +695,5 @@ export function buildWorldChunk(w: CoarseWorld, hydro: Hydro | null, face: numbe
     }
   }
   const skirts = buildSkirts(f, ox, oz, 3);
-  return { terrain: buildTerrain(f, ox, oz, face + 7, facets), water: buildWater(f, ox, oz, {}), props: bakeProps(places), skirts: skirts.data, skirtRanges: skirts.ranges, animals: new Float32Array(herd), walkY, walkMask };
+  return { terrain: buildTerrain(f, ox, oz, face + 7, facets), water: buildWater(f, ox, oz, {}), props: bakeProps(places), propsFar: bakeProps(places, true), skirts: skirts.data, skirtRanges: skirts.ranges, animals: new Float32Array(herd), walkY, walkMask };
 }

@@ -132,6 +132,9 @@ export function buildTerrain(f: Fields, ox: number, oz: number, seed: number, fa
   const s = f.stride, m = f.margin;
   for (let j = 0; j < f.size; j++) for (let i = 0; i < f.size; i++) {
     const a = (j + m) * s + i + m, b = a + 1, d = a + s, c = d + 1;
+    // Fundo do mar coberto de água: ninguém vê.
+    const hide = (q: number): boolean => (f.water[q] as number) > (f.y[q] as number) + 0.35;
+    if (hide(a) && hide(b) && hide(c) && hide(d) && !(f.marsh[a] as number)) continue;
     const hx = seed * 31 + ox + i, hz = oz + j;
     // A diagonal segue a curva de nível: costa e barranco sem serra.
     const ac = Math.abs((f.y[a] as number) - (f.y[c] as number)), bd = Math.abs((f.y[b] as number) - (f.y[d] as number));
@@ -170,7 +173,7 @@ export function buildWater(f: Fields, ox: number, oz: number, style: TerrainStyl
     if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
     const fall = ny < 0.85;
     for (const [i, w] of [[a, wa], [b, wb], [c, wc]] as const) {
-      const depth = Math.max(0, Math.min(1, (w - (f.y[i] as number)) / 1.1));
+      const depth = Math.max(0, Math.min(1, (w - (f.y[i] as number)) / 0.55));
       const mk = f.marsh[i] as number;
       const r = fall ? FALL[0] : (shallow[0] + ((f.wr[i] as number) - shallow[0]) * depth) * (1 - mk) + MARSH[0] * mk;
       const g = fall ? FALL[1] : (shallow[1] + ((f.wg[i] as number) - shallow[1]) * depth) * (1 - mk) + MARSH[1] * mk;
@@ -178,7 +181,23 @@ export function buildWater(f: Fields, ox: number, oz: number, style: TerrainStyl
       out.push(px(i), w, pz(i), nx, ny, nz, fall ? 1 : 0, r, g, b2, 1);
     }
   };
+  // Mar aberto: blocos de 4 células num só par de triângulos, com a mesma cor nos cantos.
+  const block = 4, flat = new Uint8Array(f.size * f.size);
+  for (let bj = 0; bj + block <= f.size; bj += block) for (let bi = 0; bi + block <= f.size; bi += block) {
+    let ok = true;
+    const w0 = f.water[(bj + m) * s + bi + m] as number;
+    for (let j = bj; j <= bj + block && ok; j++) for (let i = bi; i <= bi + block; i++) {
+      const q = (j + m) * s + i + m, w = f.water[q] as number;
+      if (w !== w0 || w === -Infinity || w - (f.y[q] as number) < 1.15 || (f.marsh[q] as number) > 0) { ok = false; break; }
+    }
+    if (!ok) continue;
+    for (let j = bj; j < bj + block; j++) for (let i = bi; i < bi + block; i++) flat[j * f.size + i] = 1;
+    const a = (bj + m) * s + bi + m, b = a + block, d = a + block * s, c = d + block;
+    tri(a, c, b, w0, w0, w0);
+    tri(a, d, c, w0, w0, w0);
+  }
   for (let j = 0; j < f.size; j++) for (let i = 0; i < f.size; i++) {
+    if (flat[j * f.size + i]) continue;
     const a = (j + m) * s + i + m, b = a + 1, d = a + s, c = d + 1;
     const wa = level(a, [b, c, d]), wb = level(b, [a, c, d]), wc = level(c, [a, b, d]), wd = level(d, [a, b, c]);
     if (wa === -Infinity && wb === -Infinity && wc === -Infinity && wd === -Infinity) continue;
@@ -256,6 +275,8 @@ export function buildSkirts(f: Fields, ox: number, oz: number, seed: number): { 
 
 export interface Placement {
   model: Float32Array;
+  /** O mesmo modelo, simplificado, para ver de longe. */
+  far?: Float32Array;
   x: number;
   y: number;
   z: number;
@@ -267,12 +288,12 @@ export interface Placement {
 }
 
 /** Embute as plantas numa malha só: um desenho por pedaço, sem lista por modelo. */
-export function bakeProps(list: readonly Placement[]): ArrayBuffer {
+export function bakeProps(list: readonly Placement[], lod = false): ArrayBuffer {
   let total = 0;
-  for (const p of list) total += p.model.length / MODEL_FLOATS;
+  for (const p of list) total += (lod ? p.far ?? p.model : p.model).length / MODEL_FLOATS;
   const out = new VertexOut(Math.max(1, total));
   for (const p of list) {
-    const m = p.model, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const m = lod ? p.far ?? p.model : p.model, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
     for (let o = 0; o < m.length; o += MODEL_FLOATS) {
       const x = (m[o] as number) * p.scale, y = (m[o + 1] as number) * p.scale * p.stretch, z = (m[o + 2] as number) * p.scale;
       const nx = m[o + 3] as number, ny = m[o + 4] as number, nz = m[o + 5] as number;

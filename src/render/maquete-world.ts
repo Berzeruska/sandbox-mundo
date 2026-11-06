@@ -29,12 +29,14 @@ export class MaqueteWorld {
   private lastKeyZ = NaN;
   private lastDistance = 0;
   private openDirty = true;
+  private rebuilding = new Set<number>();
   readonly animals: AnimalHerds;
   buildMs: number[] = [];
   uploadMs: number[] = [];
 
   constructor(gl: WebGL2RenderingContext) {
-    this.renderer = new MaqueteRenderer(gl);
+    const aa = new URLSearchParams(location.search).get('aa');
+    this.renderer = new MaqueteRenderer(gl, aa === 'msaa4' || aa === 'off' ? aa : 'fxaa');
     this.animals = new AnimalHerds(this.renderer);
     this.worker = new Worker(new URL('../maquete/worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<FromMaqueteWorker>) => {
@@ -63,12 +65,24 @@ export class MaqueteWorld {
     }
     this.hasWorld = true;
     this.worldId++;
-    const relief = new URLSearchParams(location.search).get('relevo');
-    const msg: ToMaqueteWorker = { type: 'world', world, id: this.worldId, relief: relief === 'lisa' || relief === 'rampa' || relief === 'degrau' ? relief : 'terraco' };
+    const q = new URLSearchParams(location.search), relief = q.get('relevo');
+    const msg: ToMaqueteWorker = { type: 'world', world, id: this.worldId, relief: relief === 'lisa' || relief === 'rampa' || relief === 'degrau' ? relief : 'terraco', stones: q.get('pedras') ?? '', oil: q.get('oleo') ?? '' };
     this.worker.postMessage(msg, [world.height.buffer, world.rgba.buffer, world.cover.buffer, world.state.buffer, world.deposit.buffer, world.ice.buffer, world.temp.buffer, world.volcano.buffer] as ArrayBuffer[]);
   }
 
+  /** Um desenho escondido para o navegador terminar de preparar os programas. */
+  warm(width: number, height: number): void {
+    this.renderer.draw({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0.8, distance: 100, fov: 25 }, Math.max(1, width), Math.max(1, height), 0);
+  }
+
   get ready(): boolean { return this.hasWorld; }
+
+  /** Marca tudo à vista para refazer (medição da recomposição). */
+  rebuildAll(): void {
+    for (const k of this.renderer.keys()) { this.stale.add(k); this.asked.delete(k); }
+    this.rebuilding = new Set(this.stale);
+  }
+  get pendingRebuild(): number { return this.rebuilding.size; }
 
   /** Quantos dos pedaços no raio de `radius` da câmera ainda faltam (e os que estão na vista). */
   missing(camera: ViewCamera): number {
@@ -99,15 +113,29 @@ export class MaqueteWorld {
     while (n < uploads && this.arrived.length) {
       const m = this.arrived.shift() as Arrived;
       const w = this.wanted.get(m.key);
-      if (!w) continue;
+      if (!w) { this.rebuilding.delete(m.key); continue; }
       const t0 = performance.now();
-      this.renderer.setChunk(m.key, m, w.chunk.place, [true, true, true, true]);
+      this.rebuilding.delete(m.key);
+      this.renderer.setChunk(m.key, m, w.chunk.place, [true, true, true, true], [(w.chunk.cx + 0.5) * CHUNK_CELLS, (w.chunk.cz + 0.5) * CHUNK_CELLS]);
       this.animals.setChunk(m.key, m.animals, m.walkY, m.walkMask);
       this.uploadMs.push(performance.now() - t0);
       this.openDirty = true;
       n++;
     }
     if (this.openDirty) this.updateOpenSides();
+    // Com o globo na tela, a sombra já vai sendo desenhada: a maquete crava pronta.
+    if (!camera.inMaquete) { this.placeShadow(camera); this.renderer.stepShadow(12); }
+  }
+
+  private placeShadow(camera: ViewCamera): void {
+    const r = this.renderer, v = camera.view;
+    const radius = Math.min(150, v.distance * 0.72 + 20), step = radius * 0.2;
+    const cx = Math.round(v.x / step) * step, cz = Math.round(v.z / step) * step;
+    if (Math.abs(cx - r.shadowCenter[0]) > 0.5 || Math.abs(cz - r.shadowCenter[2]) > 0.5 || Math.abs(radius - r.shadowRadius) > radius * 0.1) {
+      r.shadowCenter = [cx, 2, cz];
+      r.shadowRadius = radius;
+      r.markShadowDirty();
+    }
   }
 
   private replaceAll(camera: ViewCamera): void {
@@ -188,13 +216,7 @@ export class MaqueteWorld {
     const r = this.renderer, v = camera.view;
     this.animals.update(time);
     // A sombra anda em passos, para não tremer.
-    const radius = Math.min(150, v.distance * 0.72 + 20), step = radius * 0.2;
-    const cx = Math.round(v.x / step) * step, cz = Math.round(v.z / step) * step;
-    if (Math.abs(cx - r.shadowCenter[0]) > 0.5 || Math.abs(cz - r.shadowCenter[2]) > 0.5 || Math.abs(radius - r.shadowRadius) > radius * 0.1) {
-      r.shadowCenter = [cx, 2, cz];
-      r.shadowRadius = radius;
-      r.markShadowDirty();
-    }
+    this.placeShadow(camera);
     // Tremor do terremoto: a câmera balança um pouco, como no globo.
     if (camera.shakeX || camera.shakeY) {
       const k = v.distance / height;

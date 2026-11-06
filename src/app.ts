@@ -169,6 +169,8 @@ export class App {
     onWorld: ((receiveMs: number) => void) | null;
     /** Cenário com o painel Dados aberto (ele se atualiza como no jogo normal). */
     panelOpen: boolean;
+    /** Cenários da maquete: o corte fica liberado. */
+    maquete?: boolean;
   } | null = null;
   /** Primeira abertura: da navegação até o primeiro globo na tela (ms), e a geração dentro disso. */
   private firstLoad: FirstLoad | null = null;
@@ -513,6 +515,12 @@ export class App {
     } else this.renderer.setWorld(info.n, colors);
     this.renderer.setPlates(plateCells);
     this.renderer.setDeposits(deposits);
+    // Os programas da maquete compilam aqui, atrás da tela de carregamento: o primeiro corte não engasga.
+    if (!this.maquete) {
+      this.maquete = new MaqueteWorld(this.renderer.context);
+      this.maquete.warm(this.canvas.width, this.canvas.height);
+      this.restoreGlobeState(this.renderer.context);
+    }
     this.renderer.resourcesLayer = this.layers.resources;
     this.renderer.ridgeColor = ridgeColor();
     // Mundo novo: placas nos ângulos 0.
@@ -933,7 +941,7 @@ export class App {
   private updateMaquete(now: number): void {
     const cam = this.camera, renderer = this.renderer, info = this.info;
     if (!renderer || !info) return;
-    const blocked = cam.zoomLocked || this.bench !== null;
+    const blocked = cam.zoomLocked || (this.bench !== null && !this.bench.maquete);
     if (cam.inMaquete && (blocked || cam.wantsExit)) {
       cam.exit();
       this.needsDraw = true;
@@ -1131,6 +1139,7 @@ export class App {
     const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
       this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
     const scenarios: ScenarioResult[] = [];
+    const maqueteLines: string[] = [];
     // Memória da página inteira: o navegador só responde depois de uma limpeza de memória (até ~20 s).
     const pageMemory = measurePageMemory();
     const gpu: GpuSample[] = [];
@@ -1289,8 +1298,82 @@ export class App {
       const spots = meteorSpots(center, METEOR_BENCH_MS / METEOR_BENCH_EVERY_MS, METEOR_BENCH_SPREAD);
       await scenario(16, 'meteoros, lugares variados', METEOR_BENCH_MS, atOneX, 'hidden', meteors((k) => spots[k % spots.length] as Vec3));
       bench.panelOpen = false;
+      // A maquete: entra de verdade pelo corte e mede parada, girando, de perto, andando e cruzando o corte.
+      bench.maquete = true;
+      this.setPlateRate(0);
+      const cam = this.camera;
+      const enter = async (distance = 1): Promise<void> => {
+        if (!cam.inMaquete) {
+          cam.lookAt((this.info as WorldInfo).landCenter);
+          cam.zoom = (CUT_PIXELS + 1) / (cam.baseRadius() * cam.cellAngle);
+          this.requestDraw();
+          for (let k = 0; k < 2000 && !cam.inMaquete; k++) await wait(10);
+        }
+        if (distance !== 1) cam.zoomAt(cam.width / 2, cam.height / 2, 1 / distance);
+        for (let k = 0; k < 2000 && (this.maquete?.pendingCount ?? 0) > 0; k++) await wait(10);
+      };
+      const moving = (f: (dt: number, t: number) => void) => (): (() => void) => {
+        let on = true, last = performance.now();
+        const start = last;
+        const step = (now: number): void => {
+          if (!on) return;
+          f(Math.min(0.05, (now - last) / 1000), now - start);
+          last = now;
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+        return () => { on = false; };
+      };
+      const measureMaquete = async (label: string): Promise<void> => {
+        await wait(300);
+        this.gpuMeasuring = true;
+        const m = await (this.maquete as MaqueteWorld).renderer.measureDraw(cam.view, this.canvas.width, this.canvas.height, performance.now() / 1000, 30);
+        this.gpuMeasuring = false;
+        gpu.push({ label, ms: m.ms, method: m.method });
+        this.stalls.restart();
+      };
+      const walk = (speed: number) => moving((dt, t) => {
+        const a = Math.floor(t / 5000) % 4, d = [[1, 0], [0, 1], [-1, 0], [0, -1]][a] as number[];
+        cam.view.x += (d[0] as number) * speed * dt;
+        cam.view.z += (d[1] as number) * speed * dt;
+      });
+      await scenario(17, 'maquete, parada', 6000, () => { this.setSpeed(0); void enter(); }, 'hidden');
+      await measureMaquete('maquete, parada');
+      await scenario(18, 'maquete, girando', 6000, () => undefined, 'hidden', moving((dt) => { cam.turnView(dt * 0.5); }));
+      await measureMaquete('maquete, girando');
+      await enter(0.45);
+      await scenario(19, 'maquete de perto, girando', 6000, () => undefined, 'hidden', moving((dt) => { cam.turnView(dt * 0.5); }));
+      await measureMaquete('maquete de perto');
+      await enter(1 / 0.45);
+      await scenario(20, 'maquete, andando', 10_000, () => undefined, 'hidden', walk(26));
+      await measureMaquete('maquete, andando');
+      await scenario(21, 'maquete, correndo', 10_000, () => undefined, 'hidden', walk(70));
+      await measureMaquete('maquete, correndo');
+      await scenario(22, 'cruzando o corte, ida e volta', 8000, () => undefined, 'hidden', moving((_dt, t) => {
+        const phase = Math.floor(t / 2000) % 2;
+        if (phase === 0 && !cam.inMaquete) { cam.zoom = (CUT_PIXELS + 1) / (cam.baseRadius() * cam.cellAngle); this.requestDraw(); }
+        if (phase === 1 && cam.inMaquete) cam.wantsExit = true;
+      }));
+      await enter();
+      await scenario(23, 'maquete, 5×, placas 100%', 15_000, () => { this.setPlateRate(1); this.setSpeed(5); }, 'hidden');
+      this.setPlateRate(0);
+      this.setSpeed(0);
+      // Recomposição: refazer tudo à vista no ajudante, com a maquete na tela.
+      const m = this.maquete as MaqueteWorld;
+      const t0 = performance.now();
+      m.rebuildAll();
+      const recRecorder = new FrameRecorder();
+      bench.recorder = recRecorder;
+      for (let k = 0; k < 3000 && m.pendingRebuild > 0; k++) await wait(10);
+      maqueteLines.push(`recomposição da maquete (refazer tudo à vista): ${(performance.now() - t0).toFixed(0)} ms em segundo plano, pior quadro ${recRecorder.summary().worstFrameMs.toFixed(0)} ms`);
+      bench.recorder = null;
+      const b = m.buildMs, u = m.uploadMs, mean = (a: readonly number[]) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
+      maqueteLines.push(`pedaços: ${b.length} montados no ajudante, média ${mean(b).toFixed(1)} ms, pior ${Math.max(0, ...b).toFixed(0)} ms · subir para a GPU, média ${mean(u).toFixed(2)} ms, pior ${Math.max(0, ...u).toFixed(1)} ms`);
+      maqueteLines.push(`na tela: ${Math.round(m.renderer.stats.triangles / 1000)} mil triângulos · ${m.renderer.stats.drawCalls} desenhos · ${(m.renderer.stats.gpuBytes / 1048576).toFixed(0)} MB de pedaços na GPU · ${m.animals.count} animais`);
+      if (cam.inMaquete) cam.exit();
+      bench.maquete = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(17, 'geração de mundo');
+      status(24, 'geração de mundo');
       this.setSpeed(0);
       this.setPlateRate(before.plateRate);
       await wait(500);
@@ -1330,7 +1413,7 @@ export class App {
       gpu,
       { dataMb: this.stats.memoryMb, ...(await pageMemory) },
     );
-    this.debug.showReport(report);
+    this.debug.showReport(`${report}\n\nMaquete:\n${maqueteLines.join('\n')}`);
     this.updateDebug();
   }
 

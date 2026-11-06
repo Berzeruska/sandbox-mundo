@@ -11,6 +11,11 @@ export type V3 = readonly [number, number, number];
 /** x, y, z, nx, ny, nz, r, g, b, luz (0–1) por vértice. */
 export const MODEL_FLOATS = 10;
 
+/** Modelos de longe (regra 16): a mesma silhueta com menos faces. Vale enquanto um modelo é montado. */
+let far = false;
+export function setFarModels(on: boolean): void { far = on; }
+export function farModels(): boolean { return far; }
+
 export class Model {
   private out: number[] = [];
 
@@ -57,6 +62,7 @@ export const rgb = (r: number, g: number, b: number): Rgb => [r / 255, g / 255, 
 /** Bola facetada e irregular (copa, arbusto, pedra). `detail` 1 divide cada face em 4. `foot` corta a parte de baixo. */
 export function lump(m: Model, c: V3, r: V3, color: Rgb, seed: number, opts: { detail?: 0 | 1; rough?: number; tone?: number; low?: number; foot?: number } = {}): void {
   const rand = sequence(seed);
+  if (far) opts = { ...opts, detail: 0 };
   const rough = opts.rough ?? 0.14, tone = opts.tone ?? 0.1, low = opts.low ?? 0.6, foot = opts.foot ?? -Infinity;
   const pts = new Map<string, V3>();
   const unit = (p: V3): V3 => {
@@ -77,6 +83,13 @@ export function lump(m: Model, c: V3, r: V3, color: Rgb, seed: number, opts: { d
     const tint = shade(color, 1 + (rand() * 2 - 1) * tone + up * 0.08);
     m.tri(pa, pb, pd, tint, c, [lightOf(a[1]), lightOf(b[1]), lightOf(d[1])]);
   };
+  // De longe, bola pequena vira octaedro: 8 faces em vez de 20; a silhueta é a mesma nesse tamanho.
+  if (far && Math.max(r[0], r[1], r[2]) < 0.72) {
+    const p = (x: number, y: number, z: number): V3 => unit([x, y, z]);
+    const top = p(0, 1, 0), low = p(0, -1, 0), ring = [p(1, 0, 0), p(0, 0, 1), p(-1, 0, 0), p(0, 0, -1)] as const;
+    for (let i = 0; i < 4; i++) { const q = ring[i] as V3, n = ring[(i + 1) % 4] as V3; emit(top, q, n); emit(low, q, n); }
+    return;
+  }
   for (const f of ICO_F) {
     const a = ICO_V[f[0]] as V3, b = ICO_V[f[1]] as V3, d = ICO_V[f[2]] as V3;
     if (!opts.detail) { emit(unit(a), unit(b), unit(d)); continue; }
@@ -88,6 +101,11 @@ export function lump(m: Model, c: V3, r: V3, color: Rgb, seed: number, opts: { d
 
 /** Haste de seção poligonal entre dois pontos. */
 export function limb(m: Model, a: V3, b: V3, ra: number, rb: number, color: Rgb, sides = 5, lightA = 0.7, lightB = 1): void {
+  if (far) {
+    // De longe, galho fino some e o resto fica com 3 lados.
+    if (ra < 0.05) return;
+    sides = 3;
+  }
   const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
   const len = Math.hypot(dx, dy, dz) || 1;
   const d: V3 = [dx / len, dy / len, dz / len];
