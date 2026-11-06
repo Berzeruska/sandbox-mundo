@@ -1,9 +1,10 @@
 import { CHUNK_COARSE, chunkKey } from './chart';
-import { buildWorldChunk, type CoarseWorld } from './world-fields';
+import { computeHydro, neighborTable, type Hydro } from './rivers';
+import { buildWorldChunk, setRelief, type CoarseWorld, type ReliefMode } from './world-fields';
 
 /** Ajudante da maquete: monta os pedaços fora da tela. */
 export type ToMaqueteWorker =
-  | { type: 'world'; world: CoarseWorld; id: number }
+  | { type: 'world'; world: CoarseWorld; id: number; relief: ReliefMode }
   | { type: 'build'; key: number; face: number; cx: number; cz: number; gen: number };
 
 export type FromMaqueteWorker =
@@ -12,6 +13,8 @@ export type FromMaqueteWorker =
   | { type: 'changed'; keys: number[]; id: number };
 
 let world: CoarseWorld | null = null;
+let hydro: Hydro | null = null;
+let neighbors: Int32Array | null = null;
 const scope = self as unknown as { postMessage(m: FromMaqueteWorker, t?: Transferable[]): void; onmessage: (e: MessageEvent<ToMaqueteWorker>) => void };
 
 /** Compara duas cópias e devolve os pedaços afetados (a borda de um pedaço enxerga 3 células de fora). */
@@ -20,7 +23,7 @@ function diff(a: CoarseWorld, b: CoarseWorld): number[] {
   const count = 6 * n * n;
   for (let c = 0; c < count; c++) {
     const o = c * 4;
-    if (a.height[c] === b.height[c] && a.state[c] === b.state[c] && a.ice[c] === b.ice[c] && a.deposit[c] === b.deposit[c] && a.rgba[o] === b.rgba[o] && a.rgba[o + 1] === b.rgba[o + 1] && a.rgba[o + 2] === b.rgba[o + 2] && Math.abs((a.cover[c] as number) - (b.cover[c] as number)) < 8) continue;
+    if (a.height[c] === b.height[c] && a.state[c] === b.state[c] && a.volcano[c] === b.volcano[c] && a.ice[c] === b.ice[c] && a.deposit[c] === b.deposit[c] && a.rgba[o] === b.rgba[o] && a.rgba[o + 1] === b.rgba[o + 1] && a.rgba[o + 2] === b.rgba[o + 2] && Math.abs((a.cover[c] as number) - (b.cover[c] as number)) < 8) continue;
     const face = Math.floor(c / (n * n)), rest = c - face * n * n, x = rest % n, zc = n - 1 - Math.floor(rest / n);
     for (const dz of [-3, 3]) for (const dx of [-3, 3]) {
       const px = x + dx, pz = zc + dz;
@@ -34,6 +37,13 @@ function diff(a: CoarseWorld, b: CoarseWorld): number[] {
 scope.onmessage = (e) => {
   const m = e.data;
   if (m.type === 'world') {
+    setRelief(m.relief);
+    // Os rios só mudam quando o relevo muda.
+    const sameHeight = world && world.n === m.world.n && world.height.every((h, i) => h === m.world.height[i]);
+    if (!sameHeight || !hydro) {
+      neighbors ??= neighborTable(m.world.n);
+      hydro = computeHydro(m.world.n, m.world.height, m.world.rgba, m.world.ice, neighbors);
+    }
     if (world && world.n === m.world.n) {
       const keys = diff(world, m.world);
       if (keys.length) scope.postMessage({ type: 'changed', keys, id: m.id });
@@ -43,6 +53,6 @@ scope.onmessage = (e) => {
   }
   if (!world) return;
   const t0 = performance.now();
-  const c = buildWorldChunk(world, m.face, m.cx, m.cz);
+  const c = buildWorldChunk(world, hydro, m.face, m.cx, m.cz);
   scope.postMessage({ type: 'chunk', key: m.key, gen: m.gen, ms: performance.now() - t0, terrain: c.terrain, water: c.water, props: c.props, skirts: c.skirts, skirtRanges: c.skirtRanges }, [c.terrain, c.water, c.props, c.skirts]);
 };

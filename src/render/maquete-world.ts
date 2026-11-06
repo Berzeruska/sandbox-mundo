@@ -60,8 +60,9 @@ export class MaqueteWorld {
     }
     this.hasWorld = true;
     this.worldId++;
-    const msg: ToMaqueteWorker = { type: 'world', world, id: this.worldId };
-    this.worker.postMessage(msg, [world.height.buffer, world.rgba.buffer, world.cover.buffer, world.state.buffer, world.deposit.buffer, world.ice.buffer, world.temp.buffer] as ArrayBuffer[]);
+    const relief = new URLSearchParams(location.search).get('relevo');
+    const msg: ToMaqueteWorker = { type: 'world', world, id: this.worldId, relief: relief === 'lisa' || relief === 'rampa' || relief === 'degrau' ? relief : 'terraco' };
+    this.worker.postMessage(msg, [world.height.buffer, world.rgba.buffer, world.cover.buffer, world.state.buffer, world.deposit.buffer, world.ice.buffer, world.temp.buffer, world.volcano.buffer] as ArrayBuffer[]);
   }
 
   get ready(): boolean { return this.hasWorld; }

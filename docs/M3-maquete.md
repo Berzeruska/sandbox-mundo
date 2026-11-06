@@ -38,3 +38,13 @@ Cada bioma tem as próprias espécies, com matas agrupadas. Taiga muito fria usa
 **O fogo do M2 deixa as árvores queimadas:** a célula em chamas, queimada ou com cinza usa o modelo queimado. A cópia do mundo chega a cada segundo e só os pedaços mudados são refeitos.
 
 ![fogo](img/m3/fogo-maquete.png)
+
+## Água, relevo e vulcões (T5)
+![água e relevo](img/m3/agua-relevo.png)
+
+- **Rios e lagos (`src/maquete/rivers.ts`):** só para o desenho; a simulação não sabe deles. As bacias enchem a partir do mar, a chuva de cada bioma desce e o que junta água bastante vira rio. Bacia funda vira lago. Os rios são refeitos quando o relevo muda.
+- **Cachoeira:** degrau no nível da água, com espuma no pé. **Costa:** areia com contorno nítido, só perto do mar e dos rios.
+- **Mar congelado:** água clara com placas de gelo. **Deserto:** patamares muito mais largos, com dunas facetadas de vez em quando.
+- **Montanhas:** picos separados, da altura que o mundo tem ali, com chapéu de neve. **Vulcões:** os do M2, com cratera. Em erupção, lava na cratera e nos canais, e fumaça em cubos.
+
+**Limite:** o nível dos rios sobe e desce em patamares; os rios não passam acima de 1.900 m.

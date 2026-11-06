@@ -249,3 +249,33 @@ export function reed(seed: number, color: Rgb): Float32Array {
   }
   return m.build();
 }
+
+/** Placa de gelo: laje branca, plana e irregular (`bioma/agua.png`, mar congelado). */
+export function floe(seed: number): Float32Array {
+  const m = new Model(), rand = sequence(seed * 113 + 5), sides = 8, ring: V3[] = [], top: V3[] = [];
+  for (let i = 0; i < sides; i++) {
+    const t = (i / sides) * 6.283, r = 0.62 + rand() * 0.42, x = Math.cos(t) * r, z = Math.sin(t) * r;
+    ring.push([x, -0.12, z]);
+    top.push([x * 0.93, 0.16, z * 0.93]);
+  }
+  const c: V3 = [0, 0.17, 0], white = rgb(244, 248, 252), side = rgb(206, 226, 240);
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides;
+    m.tri(top[i] as V3, top[j] as V3, c, shade(white, 0.97 + rand() * 0.04), [0, -1, 0]);
+    m.tri(ring[i] as V3, ring[j] as V3, top[j] as V3, side, [0, 0, 0], [0.9, 0.9, 1]);
+    m.tri(ring[i] as V3, top[j] as V3, top[i] as V3, side, [0, 0, 0], [0.9, 1, 1]);
+  }
+  return m.build();
+}
+
+/** Bloco de fumaça do vulcão: cubo cinza facetado. */
+export function smokeCube(seed: number): Float32Array {
+  const m = new Model(), rand = sequence(seed * 127 + 3), k = 0.42, base = rgb(112, 110, 110);
+  const v: V3[] = [[-k, -k, -k], [k, -k, -k], [k, k, -k], [-k, k, -k], [-k, -k, k], [k, -k, k], [k, k, k], [-k, k, k]];
+  for (const [a, b, c, d] of [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [3, 2, 6, 7], [0, 3, 7, 4], [1, 2, 6, 5]] as const) {
+    const col = shade(base, 0.86 + rand() * 0.3);
+    m.tri(v[a] as V3, v[b] as V3, v[c] as V3, col, [0, 0, 0]);
+    m.tri(v[a] as V3, v[c] as V3, v[d] as V3, col, [0, 0, 0]);
+  }
+  return m.build();
+}

@@ -214,7 +214,7 @@ export class SimulationCore {
     const world = this.world;
     if (!world) return;
     const count = world.cellCount;
-    const height = new Int16Array(count), cover = new Uint8Array(count), state = new Uint8Array(count), deposit = new Uint8Array(count), ice = new Uint8Array(count), temp = new Int8Array(count);
+    const height = new Int16Array(count), cover = new Uint8Array(count), state = new Uint8Array(count), deposit = new Uint8Array(count), ice = new Uint8Array(count), temp = new Int8Array(count), volcano = new Uint8Array(count);
     const ground = this.disasters?.ground;
     for (let c = 0; c < count; c++) {
       height[c] = Math.max(-32000, Math.min(32000, Math.round(world.heightAboveSea(c))));
@@ -224,7 +224,8 @@ export class SimulationCore {
     }
     deposit.set(world.deposit);
     ice.set(world.ice);
-    this.send({ type: 'maqueteSnapshot', id, seedText: world.params.seedText, height, cover, state, deposit, ice, temp });
+    for (const v of this.disasters?.volcanoes ?? []) if (!v.extinct) volcano[v.cell] = v.awake ? 2 : 1;
+    this.send({ type: 'maqueteSnapshot', id, seedText: world.params.seedText, height, cover, state, deposit, ice, temp, volcano });
   }
 
   handle(msg: ToWorker): void {

@@ -1,5 +1,5 @@
 import { Biome, BIOME_INFO } from '../world/biomes';
-import { broadTree, bushClump, cactus, flatTree, grassTuft, mixRgb, pine, reed, rgb, rock, roundTree, type Rgb } from './models';
+import { broadTree, bushClump, floe, smokeCube, cactus, flatTree, grassTuft, mixRgb, pine, reed, rgb, rock, roundTree, type Rgb } from './models';
 
 /** Os modelos em uso, com a cor vinda do globo do M2 (decisão 2 de 2026-11-06): o verde do bioma fica nas copas. */
 export const biomeRgb = (b: number): Rgb => { const c = BIOME_INFO[b]?.color ?? [255, 0, 255]; return rgb(c[0], c[1], c[2]); };
@@ -20,6 +20,8 @@ export const MODELS = {
   cactus: variants(3, (k) => cactus(k + 1, rgb(84, 142, 72), 2.1 + k * 0.25)),
   reed: variants(2, (k) => reed(k + 1, mixRgb(FOREST_C, GRASS, 0.2))),
   foam: variants(2, (k) => bushClump(k + 31, rgb(236, 244, 250), 3)),
+  floe: variants(4, (k) => floe(k + 1)),
+  smoke: variants(3, (k) => smokeCube(k + 1)),
 };
 export type ModelName = keyof typeof MODELS;
 

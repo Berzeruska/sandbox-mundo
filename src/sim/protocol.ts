@@ -105,7 +105,7 @@ export type FromWorker =
   /** As placas andaram: mundo todo repintado, placa de cada célula, ângulos e jazidas desta composição. */
   | { type: 'recomposed'; patches: Patch[]; plateCells: Uint8Array; angles: number[]; plates: PlateMotionInfo[]; deposits: Uint8Array }
   | { type: 'progress'; stage: string; fraction: number }
-  | { type: 'maqueteSnapshot'; id: number; seedText: string; height: Int16Array; cover: Uint8Array; state: Uint8Array; deposit: Uint8Array; ice: Uint8Array; temp: Int8Array }
+  | { type: 'maqueteSnapshot'; id: number; seedText: string; height: Int16Array; cover: Uint8Array; state: Uint8Array; deposit: Uint8Array; ice: Uint8Array; temp: Int8Array; volcano: Uint8Array }
   /** `deposits`: todas as jazidas, só quando uma pincelada revelou petróleo (T6). */
   /** `fade`: cores mudadas pelo clima, que a tela troca aos poucos (B4). */
   | { type: 'patch'; patches: Patch[]; brushMs: number; deposits?: Uint8Array; fade?: boolean }
@@ -153,7 +153,7 @@ export function applyPatch(colors: Uint8Array, n: number, p: Patch): void {
 
 /** Buffers de uma mensagem que podem ser transferidos em vez de copiados. */
 export function transferables(msg: FromWorker): ArrayBuffer[] {
-  if (msg.type === 'maqueteSnapshot') return [msg.height.buffer as ArrayBuffer, msg.cover.buffer as ArrayBuffer, msg.state.buffer as ArrayBuffer, msg.deposit.buffer as ArrayBuffer, msg.ice.buffer as ArrayBuffer, msg.temp.buffer as ArrayBuffer];
+  if (msg.type === 'maqueteSnapshot') return [msg.height.buffer as ArrayBuffer, msg.cover.buffer as ArrayBuffer, msg.state.buffer as ArrayBuffer, msg.deposit.buffer as ArrayBuffer, msg.ice.buffer as ArrayBuffer, msg.temp.buffer as ArrayBuffer, msg.volcano.buffer as ArrayBuffer];
   if (msg.type === 'world') return [msg.colors.buffer as ArrayBuffer, msg.plateCells.buffer as ArrayBuffer, msg.deposits.buffer as ArrayBuffer];
   if (msg.type === 'patch') {
     const out = msg.patches.map((p) => p.data.buffer as ArrayBuffer);

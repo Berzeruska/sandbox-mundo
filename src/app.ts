@@ -951,7 +951,7 @@ export class App {
         this.maqueteWaiting = false;
         const fresh = s.seedText !== this.maqueteSeed;
         this.maqueteSeed = s.seedText;
-        m.setWorld({ n: info.n, height: s.height, rgba: this.colors.slice(), cover: s.cover, state: s.state, deposit: s.deposit, ice: s.ice, temp: s.temp }, fresh);
+        m.setWorld({ n: info.n, height: s.height, rgba: this.colors.slice(), cover: s.cover, state: s.state, deposit: s.deposit, ice: s.ice, temp: s.temp, volcano: s.volcano }, fresh);
       });
     }
     if (!cam.inMaquete) cam.aimAtGlobeCenter();

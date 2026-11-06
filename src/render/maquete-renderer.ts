@@ -78,8 +78,8 @@ void main(){
   if (uMode == 0 && vMask > 0.0) albedo = mix(vColor, uSand, smoothstep(0.455, 0.505, vMask));
   if (uMode == 1) {
     // Água: variação suave e facetada, em movimento lento.
-    float a = sin(vWorld.x * 1.3 + vWorld.z * 0.7 + uTime * 0.6) + sin(vWorld.z * 1.9 - vWorld.x * 0.4 - uTime * 0.45);
-    albedo *= 1.0 + 0.035 * a;
+    float a = sin(vWorld.x * 0.73 + vWorld.z * 0.41 + uTime * 0.5) + sin(vWorld.z * 1.13 - vWorld.x * 0.37 - uTime * 0.4) + sin((vWorld.x + vWorld.z) * 0.29 + uTime * 0.23);
+    albedo *= 1.0 + 0.016 * a;
     if (vMask > 0.5) albedo += 0.1 * max(0.0, sin(vWorld.y * 5.0 + uTime * 5.0 + vWorld.x * 3.0));
   }
   vec3 light = mix(uGround, uSky, n.y * 0.5 + 0.5) + uSunColor * sun * lit;
