@@ -11,6 +11,10 @@ export interface MaqueteCamera {
   fov: number;
 }
 
+/** Um modelo de animal, desenhado várias vezes: x, y, z, giro e escala por vez. */
+export const ANIMAL_FLOATS = 5;
+export interface InstanceBatch { mesh: number; data: Float32Array; count: number }
+
 /** Um pedaço já montado. */
 export interface MaqueteChunkData {
   terrain: ArrayBuffer;
@@ -86,6 +90,43 @@ void main(){
   if (vMask < -0.5) light = mix(light, vec3(1.0), 0.55);
   frag = vec4(albedo * light * vLight, 1.0);
 }`;
+const ANIMAL_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec4 aNormal;
+layout(location=2) in vec4 aColor;
+layout(location=3) in vec4 iPos;
+layout(location=4) in float iScale;
+uniform mat4 uVP, uSun;
+uniform vec4 uPlace;
+out vec3 vColor, vNormal, vShadow, vWorld;
+out float vMask, vLight;
+void main(){
+  float c = cos(iPos.w), s = sin(iPos.w);
+  vec3 q = aPos * iScale;
+  vec3 w = vec3(c * q.x + s * q.z, q.y, -s * q.x + c * q.z) + iPos.xyz;
+  vWorld = w;
+  vShadow = (uSun * vec4(w, 1.0)).xyz * 0.5 + 0.5;
+  vNormal = vec3(c * aNormal.x + s * aNormal.z, aNormal.y, -s * aNormal.x + c * aNormal.z);
+  vColor = aColor.rgb;
+  vLight = aColor.a;
+  vMask = aNormal.w;
+  gl_Position = uVP * vec4(w, 1.0);
+}`;
+const BLOB_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=3) in vec4 iPos;
+layout(location=4) in float iScale;
+uniform mat4 uVP;
+out float vFade;
+void main(){
+  vFade = aPos.y;
+  gl_Position = uVP * vec4(vec3(aPos.x * iScale, 0.05, aPos.z * iScale) + iPos.xyz, 1.0);
+}`;
+const BLOB_FS = `#version 300 es
+precision mediump float;
+in float vFade;
+out vec4 frag;
+void main(){ frag = vec4(0.04, 0.06, 0.12, 0.3 * vFade); }`;
 const SHADOW_VS = `#version 300 es
 layout(location=0) in vec3 aPos;
 uniform mat4 uSun;
@@ -132,6 +173,18 @@ function compile(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgr
   gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? 'shader da maquete');
   return p;
+}
+
+/** Disco da sombra dos animais: y guarda a força (1 no meio, 0 na borda). */
+function blobBytes(): ArrayBuffer {
+  const view = new DataView(new ArrayBuffer(12 * 3 * VERTEX_BYTES));
+  let o = 0;
+  const put = (x: number, y: number, z: number): void => { view.setFloat32(o, x, true); view.setFloat32(o + 4, y, true); view.setFloat32(o + 8, z, true); o += VERTEX_BYTES; };
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * 6.283, b = ((k + 1) / 12) * 6.283;
+    put(0, 1, 0); put(Math.cos(a), 0, Math.sin(a)); put(Math.cos(b), 0, Math.sin(b));
+  }
+  return view.buffer as ArrayBuffer;
 }
 
 export function perspective(fovDeg: number, aspect: number, near: number, far: number): Float32Array {
@@ -184,6 +237,16 @@ export class MaqueteRenderer {
   private fxaaImage: WebGLUniformLocation | null;
   private fxaaTexel: WebGLUniformLocation | null;
   private chunks = new Map<number, GpuChunk>();
+  private animalProgram: WebGLProgram;
+  private blobProgram: WebGLProgram;
+  private ua: Record<string, WebGLUniformLocation | null> = {};
+  private blobVP: WebGLUniformLocation | null;
+  private instanceBuffer: WebGLBuffer;
+  private meshes: { vao: WebGLVertexArrayObject; buffer: WebGLBuffer; vertices: number }[] = [];
+  private blobMesh = -1;
+  /** O que desenhar no próximo quadro. */
+  batches: InstanceBatch[] = [];
+  blobs: { data: Float32Array; count: number } | null = null;
   private shadowTex: WebGLTexture;
   private shadowFbo: WebGLFramebuffer;
   private shadowSize = 2048;
@@ -212,6 +275,11 @@ export class MaqueteRenderer {
     this.fxaaImage = gl.getUniformLocation(this.fxaa, 'uImage');
     this.fxaaTexel = gl.getUniformLocation(this.fxaa, 'uTexel');
     this.emptyVao = gl.createVertexArray() as WebGLVertexArrayObject;
+    this.animalProgram = compile(gl, ANIMAL_VS, FS);
+    for (const n of ['uVP', 'uSun', 'uShadow', 'uSunDir', 'uSunColor', 'uSky', 'uGround', 'uSand', 'uShadowTexel', 'uMode', 'uTime']) this.ua[n] = gl.getUniformLocation(this.animalProgram, n);
+    this.blobProgram = compile(gl, BLOB_VS, BLOB_FS);
+    this.blobVP = gl.getUniformLocation(this.blobProgram, 'uVP');
+    this.instanceBuffer = gl.createBuffer() as WebGLBuffer;
     gl.activeTexture(gl.TEXTURE9);
     this.shadowTex = gl.createTexture() as WebGLTexture;
     gl.bindTexture(gl.TEXTURE_2D, this.shadowTex);
@@ -257,6 +325,32 @@ export class MaqueteRenderer {
     this.gl.deleteBuffer(b.buffer);
   }
 
+  /** Sobe um modelo para desenhar muitas vezes. Devolve o número dele. */
+  addMesh(bytes: ArrayBuffer): number {
+    const gl = this.gl;
+    const b = this.upload(bytes) as Buffers;
+    gl.bindVertexArray(b.vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribDivisor(3, 1);
+    gl.enableVertexAttribArray(4);
+    gl.vertexAttribDivisor(4, 1);
+    gl.bindVertexArray(null);
+    this.meshes.push(b);
+    return this.meshes.length - 1;
+  }
+
+  private drawInstances(mesh: number, data: Float32Array, count: number): void {
+    const gl = this.gl, b = this.meshes[mesh];
+    if (!b || count === 0) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, count * ANIMAL_FLOATS), gl.STREAM_DRAW);
+    gl.bindVertexArray(b.vao);
+    gl.vertexAttribPointer(3, 4, gl.FLOAT, false, ANIMAL_FLOATS * 4, 0);
+    gl.vertexAttribPointer(4, 1, gl.FLOAT, false, ANIMAL_FLOATS * 4, 16);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, b.vertices, count);
+  }
+
   /** Sobe um pedaço. `place`: x, z, cos e sin do giro no plano. */
   setChunk(key: number, data: MaqueteChunkData, place: readonly [number, number, number, number], open: readonly boolean[]): void {
     this.removeChunk(key);
@@ -282,6 +376,7 @@ export class MaqueteRenderer {
   hasChunk(key: number): boolean { return this.chunks.has(key); }
   setOpen(key: number, open: readonly boolean[]): void { const c = this.chunks.get(key); if (c) c.open = [...open]; }
   setPlace(key: number, place: readonly [number, number, number, number]): void { const c = this.chunks.get(key); if (c) c.place = [place[0], place[1], place[2], place[3]]; }
+  placeOf(key: number): readonly [number, number, number, number] | null { return this.chunks.get(key)?.place ?? null; }
   keys(): IterableIterator<number> { return this.chunks.keys(); }
   markShadowDirty(): void { this.shadowDirty = true; }
 
@@ -392,6 +487,38 @@ export class MaqueteRenderer {
       }
     }
     drawSet(1, (c) => c.water);
+    // Animais, depois da água: os que nadam ficam com a parte de baixo escondida por ela.
+    if (this.batches.length) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      if (this.blobs && this.blobs.count > 0) {
+        if (this.blobMesh < 0) this.blobMesh = this.addMesh(blobBytes());
+        gl.useProgram(this.blobProgram);
+        gl.uniformMatrix4fv(this.blobVP, false, vp);
+        this.drawInstances(this.blobMesh, this.blobs.data, this.blobs.count);
+      }
+      gl.disable(gl.BLEND);
+      gl.depthMask(true);
+      const a = this.ua;
+      gl.useProgram(this.animalProgram);
+      gl.uniformMatrix4fv(a.uVP as WebGLUniformLocation, false, vp);
+      gl.uniformMatrix4fv(a.uSun as WebGLUniformLocation, false, this.sunMatrix);
+      gl.uniform3f(a.uSunDir as WebGLUniformLocation, this.sunDir[0] as number, this.sunDir[1] as number, this.sunDir[2] as number);
+      gl.uniform3fv(a.uSunColor as WebGLUniformLocation, MAQUETE_LIGHT.sunColor);
+      gl.uniform3fv(a.uSky as WebGLUniformLocation, MAQUETE_LIGHT.sky);
+      gl.uniform3fv(a.uGround as WebGLUniformLocation, MAQUETE_LIGHT.ground);
+      gl.uniform3f(a.uSand as WebGLUniformLocation, 0, 0, 0);
+      gl.uniform4f(a.uShadowTexel as WebGLUniformLocation, 1.2 / this.shadowSize, 1.2 / this.shadowSize, 0.0016, 0);
+      gl.uniform1i(a.uMode as WebGLUniformLocation, 2);
+      gl.uniform1f(a.uTime as WebGLUniformLocation, time);
+      gl.uniform1i(a.uShadow as WebGLUniformLocation, 9);
+      for (const b of this.batches) {
+        this.drawInstances(b.mesh, b.data, b.count);
+        tris += ((this.meshes[b.mesh]?.vertices ?? 0) / 3) * b.count;
+        calls++;
+      }
+    }
     // Quadro final com suavização.
     gl.bindVertexArray(this.emptyVao);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);

@@ -5,6 +5,7 @@ import { CellState } from '../world/disasters/ground';
 import { biomeRgb, pickModel } from './flora';
 import { plant, type PlantState, type Species } from './plants';
 import { hash3, noise3, smoothstep } from './hash';
+import { ANIMALS, FAUNA, SWIMMERS } from './animals';
 import { RIVER_FLOW, type Hydro } from './rivers';
 import { depositSize, depositType, isHiddenOil, Resource } from '../world/resources';
 import { depositModel, surfaceOil } from './deposits';
@@ -31,6 +32,12 @@ export interface MaqueteChunkOut {
   props: ArrayBuffer;
   skirts: ArrayBuffer;
   skirtRanges: [number, number][];
+  /** Grupos de animais: espécie, x, z (na face), sorteio. */
+  animals: Float32Array;
+  /** Chão de 33×33 pontos para os animais andarem. */
+  walkY: Float32Array;
+  /** 0 terra; 1 impedido; 2 água funda. */
+  walkMask: Uint8Array;
 }
 
 const MARGIN_COARSE = 3;
@@ -649,6 +656,32 @@ export function buildWorldChunk(w: CoarseWorld, hydro: Hydro | null, face: numbe
   for (let k = 0; k < iceSea.length; k++) iceSea[k] = (f.wr[k] as number) === ICE_WATER[0] || (biomeGrid[k] === Biome.Ice && (f.y[k] as number) < 0.05) ? 1 : 0;
   const places = scatter(f, face, ox, oz, ground, biomeGrid, coverGrid, stateGrid, tempGrid, iceSea, foam, patch.volcanoes, depositsOf(w, patch));
   const facets = buildFacets(w, face, ox, oz, patch, ground);
+  // Chão dos animais.
+  const gridN = CHUNK_CELLS + 1, walkY = new Float32Array(gridN * gridN), walkMask = new Uint8Array(gridN * gridN), st = f.stride, mg = f.margin;
+  for (let j = 0; j < gridN; j++) for (let i = 0; i < gridN; i++) {
+    const k = (j + mg) * st + i + mg, g = j * gridN + i, y = f.y[k] as number, wl = f.water[k] as number;
+    walkY[g] = y;
+    if (wl !== -Infinity && wl > y && !(f.marsh[k] as number)) walkMask[g] = wl - y > 0.7 && wl <= 0.02 ? 2 : 1;
+    else if ((f.peak[k] as number) > 0.5 || (i > 0 && Math.abs((f.y[k] as number) - (f.y[k - 1] as number)) > 0.8)) walkMask[g] = 1;
+  }
+  const herd: number[] = [];
+  const seedA = face * 197 + cx * 13 + cz * 31;
+  for (let t = 0; t < 2; t++) {
+    if (hash3(seedA, t, 301) > 0.62) continue;
+    const lx = 2 + hash3(seedA, t, 303) * (CHUNK_CELLS - 4), lz = 2 + hash3(seedA, t, 307) * (CHUNK_CELLS - 4);
+    const k = (Math.round(lz) + mg) * st + Math.round(lx) + mg;
+    const list = FAUNA[biomeGrid[k] as number];
+    if (!list) continue;
+    const entry = list[Math.floor(hash3(seedA, t, 311) * list.length) % list.length] as (typeof list)[number];
+    const species = ANIMALS.indexOf(entry[0]), swims = SWIMMERS.has(entry[0]);
+    const count = 1 + Math.floor(hash3(seedA, t, 313) * entry[1]);
+    for (let q = 0; q < count; q++) {
+      const ax = Math.max(0.5, Math.min(CHUNK_CELLS - 0.5, lx + (hash3(seedA + q, t, 317) - 0.5) * 7)), az = Math.max(0.5, Math.min(CHUNK_CELLS - 0.5, lz + (hash3(seedA + q, t, 331) - 0.5) * 7));
+      const mask = walkMask[Math.round(az) * gridN + Math.round(ax)] as number;
+      if (swims ? mask !== 2 : mask !== 0) continue;
+      herd.push(species, ax, az, hash3(seedA + q, t, 337));
+    }
+  }
   const skirts = buildSkirts(f, ox, oz, 3);
-  return { terrain: buildTerrain(f, ox, oz, face + 7, facets), water: buildWater(f, ox, oz, {}), props: bakeProps(places), skirts: skirts.data, skirtRanges: skirts.ranges };
+  return { terrain: buildTerrain(f, ox, oz, face + 7, facets), water: buildWater(f, ox, oz, {}), props: bakeProps(places), skirts: skirts.data, skirtRanges: skirts.ranges, animals: new Float32Array(herd), walkY, walkMask };
 }

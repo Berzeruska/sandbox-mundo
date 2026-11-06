@@ -8,7 +8,7 @@ export type ToMaqueteWorker =
   | { type: 'build'; key: number; face: number; cx: number; cz: number; gen: number };
 
 export type FromMaqueteWorker =
-  | { type: 'chunk'; key: number; gen: number; ms: number; terrain: ArrayBuffer; water: ArrayBuffer; props: ArrayBuffer; skirts: ArrayBuffer; skirtRanges: [number, number][] }
+  | { type: 'chunk'; key: number; gen: number; ms: number; terrain: ArrayBuffer; water: ArrayBuffer; props: ArrayBuffer; skirts: ArrayBuffer; skirtRanges: [number, number][]; animals: Float32Array; walkY: Float32Array; walkMask: Uint8Array }
   /** Células mudaram desde a última cópia: estes pedaços precisam ser refeitos. */
   | { type: 'changed'; keys: number[]; id: number };
 
@@ -54,5 +54,5 @@ scope.onmessage = (e) => {
   if (!world) return;
   const t0 = performance.now();
   const c = buildWorldChunk(world, hydro, m.face, m.cx, m.cz);
-  scope.postMessage({ type: 'chunk', key: m.key, gen: m.gen, ms: performance.now() - t0, terrain: c.terrain, water: c.water, props: c.props, skirts: c.skirts, skirtRanges: c.skirtRanges }, [c.terrain, c.water, c.props, c.skirts]);
+  scope.postMessage({ type: 'chunk', key: m.key, gen: m.gen, ms: performance.now() - t0, terrain: c.terrain, water: c.water, props: c.props, skirts: c.skirts, skirtRanges: c.skirtRanges, animals: c.animals, walkY: c.walkY, walkMask: c.walkMask }, [c.terrain, c.water, c.props, c.skirts, c.animals.buffer as ArrayBuffer, c.walkY.buffer as ArrayBuffer, c.walkMask.buffer as ArrayBuffer]);
 };

@@ -1,6 +1,7 @@
 import { CHUNK_CELLS, type ChartChunk } from '../maquete/chart';
 import type { FromMaqueteWorker, ToMaqueteWorker } from '../maquete/worker';
 import type { CoarseWorld } from '../maquete/world-fields';
+import { AnimalHerds } from './maquete-animals';
 import { MAQUETE_LIGHT, MaqueteRenderer } from './maquete-renderer';
 import type { ViewCamera } from './view-camera';
 
@@ -28,11 +29,13 @@ export class MaqueteWorld {
   private lastKeyZ = NaN;
   private lastDistance = 0;
   private openDirty = true;
+  readonly animals: AnimalHerds;
   buildMs: number[] = [];
   uploadMs: number[] = [];
 
   constructor(gl: WebGL2RenderingContext) {
     this.renderer = new MaqueteRenderer(gl);
+    this.animals = new AnimalHerds(this.renderer);
     this.worker = new Worker(new URL('../maquete/worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<FromMaqueteWorker>) => {
       const m = e.data;
@@ -56,7 +59,7 @@ export class MaqueteWorld {
       this.arrived = [];
       this.asked.clear();
       this.stale.clear();
-      for (const k of [...this.renderer.keys()]) this.renderer.removeChunk(k);
+      for (const k of [...this.renderer.keys()]) { this.renderer.removeChunk(k); this.animals.removeChunk(k); }
     }
     this.hasWorld = true;
     this.worldId++;
@@ -99,6 +102,7 @@ export class MaqueteWorld {
       if (!w) continue;
       const t0 = performance.now();
       this.renderer.setChunk(m.key, m, w.chunk.place, [true, true, true, true]);
+      this.animals.setChunk(m.key, m.animals, m.walkY, m.walkMask);
       this.uploadMs.push(performance.now() - t0);
       this.openDirty = true;
       n++;
@@ -144,7 +148,7 @@ export class MaqueteWorld {
   }
 
   private evict(): void {
-    for (const k of [...this.renderer.keys()]) if (!this.wanted.has(k)) this.renderer.removeChunk(k);
+    for (const k of [...this.renderer.keys()]) if (!this.wanted.has(k)) { this.renderer.removeChunk(k); this.animals.removeChunk(k); }
     for (const k of [...this.asked]) if (!this.wanted.has(k)) this.asked.delete(k);
     this.arrived = this.arrived.filter((a) => this.wanted.has(a.key));
   }
@@ -182,6 +186,7 @@ export class MaqueteWorld {
 
   draw(camera: ViewCamera, width: number, height: number, time: number): void {
     const r = this.renderer, v = camera.view;
+    this.animals.update(time);
     // A sombra anda em passos, para não tremer.
     const radius = Math.min(150, v.distance * 0.72 + 20), step = radius * 0.2;
     const cx = Math.round(v.x / step) * step, cz = Math.round(v.z / step) * step;

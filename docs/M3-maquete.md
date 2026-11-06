@@ -53,3 +53,10 @@ Cada bioma tem as próprias espécies, com matas agrupadas. Taiga muito fria usa
 ![jazidas](img/m3/jazidas.png)
 
 As 19 jazidas de `recursos/jazidas.png`, como amontoados de pedras facetadas com veios, cristais ou cubos (`src/maquete/deposits.ts`). Rótulos desta folha em inglês: são os nomes usados no código. **Petróleo misto:** cerca de 30% das manchas de petróleo afloram na maquete como poça preta e brilhante, com borda de terra; o resto segue invisível até cavar. **Limite:** isso é só desenho, para o globo do M2 e o mundo não mudarem. Tocar na poça ainda não diz "petróleo"; o jogo só conta como revelado o que foi cavado. O M4 decide o uso.
+
+## Animais (T7)
+![animais](img/m3/animais.png)
+
+As 26 espécies aprovadas, nos biomas certos, com 5 poses (parado, 2 quadros de andar, comendo, morto), em `src/maquete/animals.ts`. Andam ao acaso e não saem do pedaço onde nasceram (`src/render/maquete-animals.ts`). Cerca de 2,5% aparecem deitados, só para a pose existir. Sem fome, caça, nascimento ou morte de verdade: isso vem com a especificação do M3. Kraken, baleia branca e dragão são da classe mítica e não aparecem sozinhos.
+
+**O que difere das folhas:** os corpos são mais simples, as listras da zebra e as pintas da onça saem por faceta, sem o desenho fino. A água é opaca: os animais do mar aparecem só com a parte que passa da superfície, por isso a lula e o cardume quase não se veem.
