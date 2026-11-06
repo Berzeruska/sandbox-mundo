@@ -32,6 +32,6 @@ Esquema de cada uma (barra: tempo real depois de reduzir; bola: o impacto):
 
 **Recomendo a 3:** é a menor mudança e deixa a queda de ~1 s como está. O efeito a saber: em "Muitos", no Máx, sempre pode haver uma rocha caindo, e a redução poderia demorar mais de 1 s. Ainda não medi quanto. Se você escolher a 3, eu meço, e se passar de 2 s proponho a 5.
 
-Em todas, reduzir com a rocha já perto do chão não muda nada visível. Pausar não entra aqui: a rocha para no ar como hoje, e isso é pedido antigo.
+Em todas, reduzir com a rocha já perto do chão não muda nada visível. Pausar não entra aqui: fica como é hoje.
 
 Código só depois da sua escolha.
