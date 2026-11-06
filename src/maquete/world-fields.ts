@@ -6,6 +6,8 @@ import { biomeRgb, pickModel } from './flora';
 import { plant, type PlantState, type Species } from './plants';
 import { hash3, noise3, smoothstep } from './hash';
 import { RIVER_FLOW, type Hydro } from './rivers';
+import { depositSize, depositType, isHiddenOil, Resource } from '../world/resources';
+import { depositModel, surfaceOil } from './deposits';
 import { rgb, type Rgb } from './models';
 
 /** O chão de todas as células grandes, copiado da simulação. A cor é a do globo (`rgba`, bioma nos 4 bits baixos do alfa). */
@@ -493,6 +495,24 @@ const FLOOR: Partial<Record<number, readonly GroundKind[]>> = {
   [Biome.Mountain]: [{ species: 'rock', chance: 0.08, scale: 0.5, spread: 0.5 }, { species: 'shrub', chance: 0.14, scale: 0.7, spread: 0.5 }],
 };
 
+interface DepositSpot { x: number; z: number; type: number; variant: number; scale: number; yaw: number }
+/** Jazidas à vista no pedaço e em volta. */
+function depositsOf(w: CoarseWorld, patch: Patch): DepositSpot[] {
+  const out: DepositSpot[] = [];
+  for (let j = 0; j < PATCH; j++) for (let i = 0; i < PATCH; i++) {
+    const c = patch.cell[j * PATCH + i] as number, code = w.deposit[c] as number, type = depositType(code);
+    if (type === Resource.None || (isHiddenOil(code) && !surfaceOil(w.n, c)) || (w.ice[c] as number)) continue;
+    const big = depositSize(code);
+    // Duas pedras por célula, um pouco afastadas: a mancha do minério é vista de longe.
+    if (type === Resource.Oil && hash3(c, 3, 79) > 0.34) continue;
+    for (let k = 0; k < (type === Resource.Oil ? 1 : 2); k++) {
+      const h = hash3(c, k, 83), h2 = hash3(c, k, 89), h3 = hash3(c, k, 97);
+      out.push({ x: (patch.x0 + i) * DETAIL + 0.7 + h * 2.6, z: (patch.z0 + j) * DETAIL + 0.7 + h2 * 2.6, type, variant: k, scale: (type === Resource.Oil ? 1.5 : 1) * (0.8 + big * 0.28 + h3 * 0.3), yaw: h3 * 6.283 });
+    }
+  }
+  return out;
+}
+
 /** Estado da planta pelo estado da célula (o fogo do M2 deixa queimado) e um sorteio pela posição. */
 export function plantStateOf(cell: number, cover: number, h: number): PlantState | null {
   if (cell === CellState.Burning || cell === CellState.Burned || cell === CellState.Ash) return 'burned';
@@ -503,7 +523,7 @@ export function plantStateOf(cell: number, cover: number, h: number): PlantState
   return h < 0.12 ? 'young' : h < 0.14 ? 'dry' : 'adult';
 }
 
-function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground, biomeGrid: Uint8Array, coverGrid: Float32Array, stateGrid: Uint8Array, tempGrid: Int8Array, iceSea: Uint8Array, foam: readonly { x: number; z: number; y: number }[], smoke: readonly { x: number; z: number; awake: boolean }[]): Placement[] {
+function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground, biomeGrid: Uint8Array, coverGrid: Float32Array, stateGrid: Uint8Array, tempGrid: Int8Array, iceSea: Uint8Array, foam: readonly { x: number; z: number; y: number }[], smoke: readonly { x: number; z: number; awake: boolean }[], deposits: readonly DepositSpot[]): Placement[] {
   const out: Placement[] = [];
   const s = f.stride, m = f.margin, size = CHUNK_CELLS;
   const yAt = (lx: number, lz: number): number => {
@@ -594,6 +614,17 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
       }
     }
   }
+  // Jazidas: um amontoado por célula, do tamanho da jazida; o petróleo escondido não aparece.
+  for (const d of deposits) {
+    const lx = d.x - ox, lz = d.z - oz;
+    if (lx < 0.8 || lz < 0.8 || lx >= size - 0.8 || lz >= size - 0.8) continue;
+    const k = (Math.round(lz) + m) * s + Math.round(lx) + m;
+    if ((f.peak[k] as number) > 0.5) continue;
+    const water = f.water[k] as number, y = f.y[k] as number;
+    if (water > y + 0.05) continue;
+    out.push({ model: depositModel(d.type, d.variant), x: d.x, y: yAt(lx, lz) - 0.02, z: d.z, scale: d.scale, stretch: 1, yaw: d.yaw, tint: [1, 1, 1] });
+    stampShade(f, d.x, d.z, 1.6 * d.scale, 0.22, ox, oz);
+  }
   // Fumaça dos vulcões em erupção: cubos cinzentos subindo (`bioma/montanhas-vulcao.png`).
   for (const v of smoke) {
     if (!v.awake || v.x < ox || v.z < oz || v.x >= ox + size || v.z >= oz + size) continue;
@@ -616,7 +647,7 @@ export function buildWorldChunk(w: CoarseWorld, hydro: Hydro | null, face: numbe
   fill(w, f, face, ox, oz, patch, ground, biomeGrid, coverGrid, stateGrid, tempGrid, rivers);
   const iceSea = new Uint8Array(f.stride * f.stride);
   for (let k = 0; k < iceSea.length; k++) iceSea[k] = (f.wr[k] as number) === ICE_WATER[0] || (biomeGrid[k] === Biome.Ice && (f.y[k] as number) < 0.05) ? 1 : 0;
-  const places = scatter(f, face, ox, oz, ground, biomeGrid, coverGrid, stateGrid, tempGrid, iceSea, foam, patch.volcanoes);
+  const places = scatter(f, face, ox, oz, ground, biomeGrid, coverGrid, stateGrid, tempGrid, iceSea, foam, patch.volcanoes, depositsOf(w, patch));
   const facets = buildFacets(w, face, ox, oz, patch, ground);
   const skirts = buildSkirts(f, ox, oz, 3);
   return { terrain: buildTerrain(f, ox, oz, face + 7, facets), water: buildWater(f, ox, oz, {}), props: bakeProps(places), skirts: skirts.data, skirtRanges: skirts.ranges };

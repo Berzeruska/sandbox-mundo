@@ -48,3 +48,8 @@ Cada bioma tem as próprias espécies, com matas agrupadas. Taiga muito fria usa
 - **Montanhas:** picos separados, da altura que o mundo tem ali, com chapéu de neve. **Vulcões:** os do M2, com cratera. Em erupção, lava na cratera e nos canais, e fumaça em cubos.
 
 **Limite:** o nível dos rios sobe e desce em patamares; os rios não passam acima de 1.900 m.
+
+## Jazidas e petróleo (T6)
+![jazidas](img/m3/jazidas.png)
+
+As 19 jazidas de `recursos/jazidas.png`, como amontoados de pedras facetadas com veios, cristais ou cubos (`src/maquete/deposits.ts`). Rótulos desta folha em inglês: são os nomes usados no código. **Petróleo misto:** cerca de 30% das manchas de petróleo afloram na maquete como poça preta e brilhante, com borda de terra; o resto segue invisível até cavar. **Limite:** isso é só desenho, para o globo do M2 e o mundo não mudarem. Tocar na poça ainda não diz "petróleo"; o jogo só conta como revelado o que foi cavado. O M4 decide o uso.
