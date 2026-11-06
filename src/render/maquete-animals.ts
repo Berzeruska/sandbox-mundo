@@ -28,6 +28,8 @@ export class AnimalHerds {
   private blobData = new Float32Array(ANIMAL_FLOATS * 256);
   private last = 0;
   count = 0;
+  /** Modelos ainda por montar: um por quadro, antes de precisar, para não engasgar no corte. */
+  private toPrepare: number[] = [];
 
   constructor(private renderer: MaqueteRenderer) {}
 
@@ -37,6 +39,8 @@ export class AnimalHerds {
     const members: Member[] = [];
     for (let o = 0; o + 4 <= animals.length; o += 4) {
       const seed = animals[o + 3] as number;
+      const sp = animals[o] as number;
+      for (let pose = 0; pose < POSES.length; pose++) if (!this.meshIds.has(sp * 8 + pose) && !this.toPrepare.includes(sp * 8 + pose)) this.toPrepare.push(sp * 8 + pose);
       // Uns poucos caídos, para a pose "morto" existir sem simulação.
       members.push({ species: animals[o] as number, x: animals[o + 1] as number, z: animals[o + 2] as number, yaw: seed * 6.283, state: seed < 0.025 ? 4 : 0, until: seed * 3, seed: seed * 9973, step: 0 });
     }
@@ -44,6 +48,12 @@ export class AnimalHerds {
   }
 
   removeChunk(key: number): void { this.herds.delete(key); }
+
+  /** Monta um modelo que vai ser preciso. */
+  prepareOne(): void {
+    const k = this.toPrepare.pop();
+    if (k !== undefined) this.mesh(Math.floor(k / 8), k % 8);
+  }
 
   private mesh(species: number, pose: number): number {
     const key = species * 8 + pose;

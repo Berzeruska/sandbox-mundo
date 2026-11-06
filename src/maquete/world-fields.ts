@@ -681,7 +681,7 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
 }
 
 /** Um pedaço inteiro, nas coordenadas da própria face. */
-export function buildWorldChunk(w: CoarseWorld, hydro: Hydro | null, face: number, cx: number, cz: number): MaqueteChunkOut {
+export function buildWorldChunk(w: CoarseWorld, hydro: Hydro | null, face: number, cx: number, cz: number, near = false): MaqueteChunkOut {
   const f = newFields(CHUNK_CELLS, 3), ox = cx * CHUNK_CELLS, oz = cz * CHUNK_CELLS;
   const patch = new Patch(w, hydro, face, cx * CHUNK_COARSE - MARGIN_COARSE, cz * CHUNK_COARSE - MARGIN_COARSE);
   const ground = new Ground(w, face, patch);
@@ -720,5 +720,5 @@ export function buildWorldChunk(w: CoarseWorld, hydro: Hydro | null, face: numbe
     }
   }
   const skirts = buildSkirts(f, ox, oz, 3);
-  return { terrain: buildTerrain(f, ox, oz, face + 7, facets), water: buildWater(f, ox, oz, {}), props: bakeProps(places), propsFar: bakeProps(places, true), skirts: skirts.data, skirtRanges: skirts.ranges, animals: new Float32Array(herd), walkY, walkMask };
+  return { terrain: buildTerrain(f, ox, oz, face + 7, facets), water: buildWater(f, ox, oz, {}), props: near ? bakeProps(places) : new ArrayBuffer(0), propsFar: near ? new ArrayBuffer(0) : bakeProps(places, true), skirts: skirts.data, skirtRanges: skirts.ranges, animals: new Float32Array(herd), walkY, walkMask };
 }

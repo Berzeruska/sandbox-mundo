@@ -2,13 +2,16 @@ import { CHUNK_CELLS, type ChartChunk } from '../maquete/chart';
 import type { FromMaqueteWorker, ToMaqueteWorker } from '../maquete/worker';
 import type { CoarseWorld } from '../maquete/world-fields';
 import { AnimalHerds } from './maquete-animals';
-import { MAQUETE_LIGHT, MaqueteRenderer } from './maquete-renderer';
+import { eyeOf, MAQUETE_LIGHT, MaqueteRenderer } from './maquete-renderer';
 import type { ViewCamera } from './view-camera';
 
 /** Pedaços da maquete: pede ao ajudante os que a câmera enxerga, sobe poucos por quadro e solta os que ficaram longe (T3). */
 type Arrived = Extract<FromMaqueteWorker, { type: 'chunk' }>;
 
 interface Wanted { chunk: ChartChunk; pcx: number; pcz: number; order: number }
+
+/** Plantas de perto: pedem a esta distância da câmera, soltam a esta. */
+const NEAR_ASK = 185, NEAR_DROP = 240;
 
 /** Lados na ordem da malha (+x, -x, +z, -z), vistos no plano depois de girar. */
 const SIDE_DIRS: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -30,6 +33,8 @@ export class MaqueteWorld {
   private lastDistance = 0;
   private openDirty = true;
   private rebuilding = new Set<number>();
+  private nearAsked = new Set<number>();
+  private nearArrived: Extract<FromMaqueteWorker, { type: 'near' }>[] = [];
   readonly animals: AnimalHerds;
   buildMs: number[] = [];
   uploadMs: number[] = [];
@@ -48,6 +53,7 @@ export class MaqueteWorld {
       }
       this.inFlight--;
       if (m.gen !== this.gen) return;
+      if (m.type === 'near') { this.nearAsked.delete(m.key); this.nearArrived.push(m); return; }
       this.arrived.push(m);
       this.buildMs.push(m.ms);
     };
@@ -59,6 +65,8 @@ export class MaqueteWorld {
     if (fresh) {
       this.gen++;
       this.arrived = [];
+      this.nearArrived = [];
+      this.nearAsked.clear();
       this.asked.clear();
       this.stale.clear();
       for (const k of [...this.renderer.keys()]) { this.renderer.removeChunk(k); this.animals.removeChunk(k); }
@@ -72,7 +80,7 @@ export class MaqueteWorld {
 
   /** Um desenho escondido para o navegador terminar de preparar os programas. */
   warm(width: number, height: number): void {
-    this.renderer.draw({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0.8, distance: 100, fov: 25 }, Math.max(1, width), Math.max(1, height), 0);
+    this.renderer.warm(width, height);
   }
 
   get ready(): boolean { return this.hasWorld; }
@@ -110,10 +118,13 @@ export class MaqueteWorld {
     }
     this.request();
     let n = 0;
-    while (n < uploads && this.arrived.length) {
+    const budgetEnd = performance.now() + 3;
+    while (n < uploads && this.arrived.length && performance.now() < budgetEnd) {
       const m = this.arrived.shift() as Arrived;
       const w = this.wanted.get(m.key);
       if (!w) { this.rebuilding.delete(m.key); continue; }
+      // O pedaço refeito volta a pedir as plantas de perto.
+      this.nearAsked.delete(m.key);
       const t0 = performance.now();
       this.rebuilding.delete(m.key);
       this.renderer.setChunk(m.key, m, w.chunk.place, [true, true, true, true], [(w.chunk.cx + 0.5) * CHUNK_CELLS, (w.chunk.cz + 0.5) * CHUNK_CELLS]);
@@ -122,9 +133,31 @@ export class MaqueteWorld {
       this.openDirty = true;
       n++;
     }
+    this.animals.prepareOne();
+    this.updateNear(camera);
     if (this.openDirty) this.updateOpenSides();
     // Com o globo na tela, a sombra já vai sendo desenhada: a maquete crava pronta.
-    if (!camera.inMaquete) { this.placeShadow(camera); this.renderer.stepShadow(12); }
+    if (!camera.inMaquete) { this.placeShadow(camera); this.renderer.ensureScene(camera.width, camera.height); this.renderer.stepShadow(5); }
+  }
+
+  /** Plantas de perto só nos pedaços perto da câmera: no corte, nenhum precisa delas e sobe muito menos coisa. */
+  private updateNear(camera: ViewCamera): void {
+    const r = this.renderer;
+    if (!camera.inMaquete) return;
+    const eye = eyeOf(camera.view);
+    const up = this.nearArrived.shift();
+    if (up && r.hasChunk(up.key) && r.chunkDistance(up.key, eye) < NEAR_DROP) r.setNear(up.key, up.props);
+    for (const w of this.wanted.values()) {
+      const key = w.chunk.key;
+      if (!r.hasChunk(key)) continue;
+      const d = r.chunkDistance(key, eye);
+      if (d > NEAR_DROP) { if (r.hasNear(key)) r.dropNear(key); continue; }
+      if (d > NEAR_ASK || r.hasNear(key) || this.nearAsked.has(key) || this.inFlight >= 6) continue;
+      this.nearAsked.add(key);
+      this.inFlight++;
+      const msg: ToMaqueteWorker = { type: 'build', key, face: w.chunk.face, cx: w.chunk.cx, cz: w.chunk.cz, gen: this.gen, near: true };
+      this.worker.postMessage(msg);
+    }
   }
 
   private placeShadow(camera: ViewCamera): void {

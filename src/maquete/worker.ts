@@ -5,9 +5,11 @@ import { buildWorldChunk, setDepositLook, setRelief, type CoarseWorld, type Reli
 /** Ajudante da maquete: monta os pedaços fora da tela. */
 export type ToMaqueteWorker =
   | { type: 'world'; world: CoarseWorld; id: number; relief: ReliefMode; stones: string; oil: string }
-  | { type: 'build'; key: number; face: number; cx: number; cz: number; gen: number };
+  | { type: 'build'; key: number; face: number; cx: number; cz: number; gen: number; near?: boolean };
 
 export type FromMaqueteWorker =
+  /** Só as plantas de perto de um pedaço já na tela. */
+  | { type: 'near'; key: number; gen: number; props: ArrayBuffer }
   | { type: 'chunk'; key: number; gen: number; ms: number; terrain: ArrayBuffer; water: ArrayBuffer; props: ArrayBuffer; propsFar: ArrayBuffer; skirts: ArrayBuffer; skirtRanges: [number, number][]; animals: Float32Array; walkY: Float32Array; walkMask: Uint8Array }
   /** Células mudaram desde a última cópia: estes pedaços precisam ser refeitos. */
   | { type: 'changed'; keys: number[]; id: number };
@@ -54,6 +56,7 @@ scope.onmessage = (e) => {
   }
   if (!world) return;
   const t0 = performance.now();
-  const c = buildWorldChunk(world, hydro, m.face, m.cx, m.cz);
+  const c = buildWorldChunk(world, hydro, m.face, m.cx, m.cz, m.near === true);
+  if (m.near) { scope.postMessage({ type: 'near', key: m.key, gen: m.gen, props: c.props }, [c.props]); return; }
   scope.postMessage({ type: 'chunk', key: m.key, gen: m.gen, ms: performance.now() - t0, terrain: c.terrain, water: c.water, props: c.props, propsFar: c.propsFar, skirts: c.skirts, skirtRanges: c.skirtRanges, animals: c.animals, walkY: c.walkY, walkMask: c.walkMask }, [c.terrain, c.water, c.props, c.propsFar, c.skirts, c.animals.buffer as ArrayBuffer, c.walkY.buffer as ArrayBuffer, c.walkMask.buffer as ArrayBuffer]);
 };

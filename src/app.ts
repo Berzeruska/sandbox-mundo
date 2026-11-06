@@ -965,7 +965,7 @@ export class App {
     if (!cam.inMaquete) cam.aimAtGlobeCenter();
     else cam.rechart();
     cam.refresh();
-    m.update(cam, cam.inMaquete ? 2 : 4);
+    m.update(cam, 2);
     if (!cam.inMaquete && px >= CUT_PIXELS && m.ready && m.missing(cam) === 0) cam.enter();
   }
 

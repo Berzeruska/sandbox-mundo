@@ -40,6 +40,7 @@ interface GpuChunk {
   /** Centro do pedaço, nas coordenadas dele. */
   center: [number, number];
   bytes: number;
+  nearBytes: number;
 }
 
 const VS = `#version 300 es
@@ -349,6 +350,28 @@ export class MaqueteRenderer {
     this.gl.deleteBuffer(b.buffer);
   }
 
+  /**
+   * Prepara tudo atrás da tela de carregamento: o navegador só termina de compilar um programa no primeiro desenho de verdade.
+   * Desenha um triângulo com cada programa, em todos os modos, e prepara os quadros no tamanho da tela.
+   */
+  warm(width: number, height: number): void {
+    const view = new DataView(new ArrayBuffer(3 * VERTEX_BYTES));
+    for (let k = 0; k < 3; k++) { const o = k * VERTEX_BYTES; view.setFloat32(o, k === 1 ? 1 : 0, true); view.setFloat32(o + 8, k === 2 ? 1 : 0, true); view.setInt8(o + 13, 127); view.setUint8(o + 19, 255); }
+    const tri = view.buffer as ArrayBuffer, none = new ArrayBuffer(0), key = -1;
+    this.setChunk(key, { terrain: tri, water: tri, props: none, propsFar: tri, skirts: tri, skirtRanges: [[0, 3], [0, 0], [0, 0], [0, 0]] }, [0, 0, 1, 0], [true, false, false, false]);
+    const mesh = this.addMesh(tri);
+    const data = new Float32Array(ANIMAL_FLOATS);
+    data[4] = 1;
+    this.batches = [{ mesh, data, count: 1 }];
+    this.blobs = { data, count: 1 };
+    this.stepShadow(10);
+    this.draw({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0.8, distance: 100, fov: 25 }, Math.max(1, width), Math.max(1, height), 0);
+    this.gl.finish();
+    this.batches = [];
+    this.blobs = null;
+    this.removeChunk(key);
+  }
+
   /** Sobe um modelo para desenhar muitas vezes. Devolve o número dele. */
   addMesh(bytes: ArrayBuffer): number {
     const gl = this.gl;
@@ -379,10 +402,11 @@ export class MaqueteRenderer {
   setChunk(key: number, data: MaqueteChunkData, place: readonly [number, number, number, number], open: readonly boolean[], center: readonly [number, number] = [16, 16]): void {
     this.removeChunk(key);
     const c: GpuChunk = {
-      terrain: this.upload(data.terrain), water: this.upload(data.water), props: this.upload(data.props), propsFar: data.propsFar ? this.upload(data.propsFar) : null, skirts: this.upload(data.skirts),
+      terrain: this.upload(data.terrain), water: this.upload(data.water), props: null, propsFar: data.propsFar ? this.upload(data.propsFar) : null, skirts: this.upload(data.skirts),
       ranges: data.skirtRanges, open: [...open], place: [place[0], place[1], place[2], place[3]],
       center: [center[0], center[1]],
-      bytes: data.terrain.byteLength + data.water.byteLength + data.props.byteLength + (data.propsFar?.byteLength ?? 0) + data.skirts.byteLength,
+      nearBytes: 0,
+      bytes: data.terrain.byteLength + data.water.byteLength + (data.propsFar?.byteLength ?? 0) + data.skirts.byteLength,
     };
     this.chunks.set(key, c);
     this.stats.gpuBytes += c.bytes;
@@ -393,9 +417,35 @@ export class MaqueteRenderer {
     const c = this.chunks.get(key);
     if (!c) return;
     for (const b of [c.terrain, c.water, c.props, c.propsFar, c.skirts]) this.free(b);
-    this.stats.gpuBytes -= c.bytes;
+    this.stats.gpuBytes -= c.bytes + c.nearBytes;
     this.chunks.delete(key);
     this.shadowDirty = true;
+  }
+
+  /** Plantas de perto de um pedaço: chegam depois, só para o que está perto da câmera. */
+  setNear(key: number, bytes: ArrayBuffer): void {
+    const c = this.chunks.get(key);
+    if (!c) return;
+    this.free(c.props);
+    this.stats.gpuBytes += bytes.byteLength - (c.nearBytes);
+    c.nearBytes = bytes.byteLength;
+    c.props = this.upload(bytes);
+  }
+  dropNear(key: number): void {
+    const c = this.chunks.get(key);
+    if (!c || !c.props) return;
+    this.free(c.props);
+    this.stats.gpuBytes -= c.nearBytes;
+    c.nearBytes = 0;
+    c.props = null;
+  }
+  hasNear(key: number): boolean { return !!this.chunks.get(key)?.props; }
+  /** Distância do pedaço até a câmera. */
+  chunkDistance(key: number, eye: readonly number[]): number {
+    const c = this.chunks.get(key);
+    if (!c) return Infinity;
+    const X = c.place[0] + c.center[0] * c.place[2] + c.center[1] * c.place[3], Z = c.place[1] - c.center[0] * c.place[3] + c.center[1] * c.place[2];
+    return Math.hypot(X - (eye[0] as number), 3 - (eye[1] as number), Z - (eye[2] as number));
   }
 
   hasChunk(key: number): boolean { return this.chunks.has(key); }
@@ -434,7 +484,7 @@ export class MaqueteRenderer {
     for (let n = 0; n < budget && job.left.length; n++) {
       const c = job.left.pop() as GpuChunk;
       gl.uniform4f(this.us.uPlace as WebGLUniformLocation, c.place[0], c.place[1], c.place[2], c.place[3]);
-      for (const b of [c.terrain, c.propsFar ?? c.props]) {
+      for (const b of [c.terrain, c.propsFar]) {
         if (!b) continue;
         gl.bindVertexArray(b.vao);
         gl.drawArrays(gl.TRIANGLES, 0, b.vertices);
@@ -448,7 +498,8 @@ export class MaqueteRenderer {
     }
   }
 
-  private ensureScene(w: number, h: number): void {
+  /** Deixa os quadros prontos no tamanho da tela antes do corte. */
+  ensureScene(w: number, h: number): void {
     if (this.sceneW === w && this.sceneH === h) return;
     const gl = this.gl;
     this.sceneW = w;
@@ -575,7 +626,7 @@ export class MaqueteRenderer {
     };
     // Plantas primeiro: o chão atrás delas nem é pintado.
     gl.disable(gl.CULL_FACE);
-    drawSet(2, (c) => (farAway.has(c) ? c.propsFar ?? c.props : c.props));
+    drawSet(2, (c) => (farAway.has(c) ? c.propsFar : c.props ?? c.propsFar));
     gl.enable(gl.CULL_FACE);
     drawSet(0, (c) => c.terrain);
     gl.disable(gl.CULL_FACE);

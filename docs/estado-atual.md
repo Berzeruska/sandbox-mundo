@@ -7,7 +7,7 @@ estamos", vale este.
 
 ## Bloco "fazer a maquete funcionar"
 Decisões em `docs/decisoes.md`. **A medição que vale é o "Medir desempenho" no Firefox do usuário, em tela cheia, na tomada;** as capturas também saem do Firefox, em janela de 1920×1080.
-- [ ] A1 tranco no corte · [ ] A2 setas · [ ] A3 pausa · [ ] A4 animal sem cabeça · [ ] A5 bolas brancas · [ ] A6 mancha do terremoto · [ ] A7 fumaça · [ ] A8 GPU da transição
+- [x] A1 tranco no corte (`docs/M3-defeitos.md`) · [ ] A2 setas · [ ] A3 pausa · [ ] A4 animal sem cabeça · [ ] A5 bolas brancas · [ ] A6 mancha do terremoto · [ ] A7 fumaça · [ ] A8 GPU da transição
 - [ ] B1 opções de ritmo · [ ] B2 animação lisa · [ ] B3 seca suave
 - [ ] C1 meteoro · [ ] C2 tsunami · [ ] C3 furacão · [ ] C4 raio · [ ] C5 fogo · [ ] C6 tempestade de areia · [ ] C7 terremoto
 - [ ] D1 animais · [ ] D2 grupos · [ ] D3 geleira · [ ] D4 deserto · [ ] D5 montanhas · [ ] D6 terraços · [ ] D7 jazidas · [ ] D8 petróleo

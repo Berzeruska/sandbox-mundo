@@ -7,7 +7,9 @@ import { eyeOf, lookAt, multiply, perspective, type MaqueteCamera } from './maqu
 export const CUT_PIXELS = 32;
 export const PRELOAD_PIXELS = 18;
 const FOV = 25;
-const PITCH_FAR = 0.82, PITCH_NEAR = 0.5;
+const PITCH_MID = 0.82, PITCH_NEAR = 0.5;
+/** No corte a maquete olha quase de cima, como o globo; ao aproximar, ela inclina aos poucos. */
+const PITCH_TOP = 1.48;
 /** Zoom máximo: a mesma ideia do globo (48 px por célula grande é pouco para a maquete), aqui em px por célula fina. */
 const MAX_FINE_PIXELS = 46;
 const EXIT_FACTOR = 1.12;
@@ -19,7 +21,7 @@ const EXIT_FACTOR = 1.12;
 export class ViewCamera extends Camera {
   /** Maquete na tela. */
   inMaquete = false;
-  view: MaqueteCamera = { x: 0, y: 1, z: 0, yaw: 0, pitch: PITCH_FAR, distance: 300, fov: FOV };
+  view: MaqueteCamera = { x: 0, y: 1, z: 0, yaw: 0, pitch: PITCH_TOP, distance: 300, fov: FOV };
   /** Face do cubo no centro do plano. */
   chart = 0;
   /** Giro acumulado do plano desde a entrada (o sol acompanha). */
@@ -38,8 +40,12 @@ export class ViewCamera extends Camera {
 
   /** Inclinação segue o zoom: de perto, mais baixa, como na folha-mestra. */
   private applyPitch(): void {
-    const t = Math.max(0, Math.min(1, (this.view.distance - this.minDistance()) / (this.entryDistance() - this.minDistance())));
-    this.view.pitch = PITCH_NEAR + (PITCH_FAR - PITCH_NEAR) * t;
+    const min = this.minDistance(), entry = this.entryDistance();
+    const t = (this.view.distance - min) / (entry - min);
+    // De perto até 70% do caminho: da inclinação baixa à média. Daí até o corte: sobe até quase vertical.
+    const k = Math.max(0, Math.min(1, (t - 0.68) / 0.32));
+    const low = PITCH_NEAR + (PITCH_MID - PITCH_NEAR) * Math.min(1, t / 0.68);
+    this.view.pitch = low + (PITCH_TOP - PITCH_MID) * k * k * (3 - 2 * k);
   }
 
   /** Aponta a maquete para o ponto no centro do globo, com o "para cima" da tela. */
@@ -134,13 +140,16 @@ export class ViewCamera extends Camera {
     return { x: eye[0] + dx * k, z: eye[2] + dz * k };
   }
 
-  /** Cantos do que se vê no chão (no plano). */
+  /** Cantos do que se vê no chão (no plano). Sempre pela inclinação média ou mais baixa: ao aproximar, o que a câmera vai mostrar já está carregado. */
   footprint(): { x: number; z: number }[] {
     const pts: { x: number; z: number }[] = [];
+    const keep = this.view.pitch;
+    this.view.pitch = Math.min(keep, PITCH_MID);
     for (const [sx, sy] of [[0, 0], [this.width, 0], [this.width, this.height], [0, this.height]] as const) {
       const p = this.rayToGround(sx, sy, 0);
       if (p) pts.push(p);
     }
+    this.view.pitch = keep;
     return pts;
   }
 
