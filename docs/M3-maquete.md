@@ -27,3 +27,14 @@ Pinça entra na maquete; ← gira; arrastar anda; o menu abre (com o véu escuro
 
 ## Capturas
 Toda captura sai de um navegador em janela, com a GPU do notebook, num compositor sem tela (`gnome-shell --headless`): é janela de verdade e não aparece na tela do usuário.
+
+## Plantas por bioma (T4)
+As 19 espécies das folhas em `plantas/`, nos estados muda, adulta, seca e queimada (`src/maquete/plants.ts`), com as correções do `LEIAME.md`. A página `prototipo/folhas.html` mostra todas no motor. Em cada espécie, da esquerda para a direita: muda, adulta, seca e queimada.
+
+![plantas](img/m3/plantas.png)
+
+Cada bioma tem as próprias espécies, com matas agrupadas. Taiga muito fria usa o pinheiro com neve. No mundo, cerca de 12% das plantas são mudas e 2% estão secas. Onde a vegetação volta depois de um desastre, nascem mudas.
+
+**O fogo do M2 deixa as árvores queimadas:** a célula em chamas, queimada ou com cinza usa o modelo queimado. A cópia do mundo chega a cada segundo e só os pedaços mudados são refeitos.
+
+![fogo](img/m3/fogo-maquete.png)

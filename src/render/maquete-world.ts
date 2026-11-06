@@ -61,7 +61,7 @@ export class MaqueteWorld {
     this.hasWorld = true;
     this.worldId++;
     const msg: ToMaqueteWorker = { type: 'world', world, id: this.worldId };
-    this.worker.postMessage(msg, [world.height.buffer, world.rgba.buffer, world.cover.buffer, world.state.buffer, world.deposit.buffer, world.ice.buffer] as ArrayBuffer[]);
+    this.worker.postMessage(msg, [world.height.buffer, world.rgba.buffer, world.cover.buffer, world.state.buffer, world.deposit.buffer, world.ice.buffer, world.temp.buffer] as ArrayBuffer[]);
   }
 
   get ready(): boolean { return this.hasWorld; }

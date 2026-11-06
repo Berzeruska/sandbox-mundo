@@ -1,7 +1,9 @@
 import { Biome } from '../world/biomes';
 import { bakeProps, buildSkirts, buildTerrain, buildWater, newFields, reliefShade, stampShade, type Facet, type Fields, type Placement } from './chunk-build';
 import { CHUNK_CELLS, CHUNK_COARSE, coarseIndex, DETAIL, finePoint, resolveFine } from './chart';
-import { biomeRgb, pickModel, type ModelName } from './flora';
+import { CellState } from '../world/disasters/ground';
+import { biomeRgb, pickModel } from './flora';
+import { plant, type PlantState, type Species } from './plants';
 import { hash3, noise3, smoothstep } from './hash';
 import { rgb, type Rgb } from './models';
 
@@ -14,6 +16,8 @@ export interface CoarseWorld {
   state: Uint8Array;
   deposit: Uint8Array;
   ice: Uint8Array;
+  /** Temperatura em °C. */
+  temp: Int8Array;
 }
 
 export interface MaqueteChunkOut {
@@ -88,6 +92,9 @@ class Patch {
   readonly cover = new Float32Array(PATCH * PATCH);
   readonly state = new Uint8Array(PATCH * PATCH);
   readonly ice = new Uint8Array(PATCH * PATCH);
+  readonly temp = new Int8Array(PATCH * PATCH);
+  /** 1 onde a célula é mar: a areia só nasce perto dele. */
+  readonly sea = new Float32Array(PATCH * PATCH);
   highest = -Infinity;
   private wx = new Float32Array(4);
   private wz = new Float32Array(4);
@@ -104,9 +111,11 @@ class Patch {
       this.cover[k] = (w.cover[c] as number) / 255;
       this.state[k] = state;
       this.ice[k] = ice;
+      this.temp[k] = w.temp[c] as number;
       if (m > this.highest) this.highest = m;
       let r = (w.rgba[c * 4] as number) / 255, g = (w.rgba[c * 4 + 1] as number) / 255, b = (w.rgba[c * 4 + 2] as number) / 255;
       if (m <= 0 && !ice) {
+        this.sea[k] = 1;
         this.wr[k] = r; this.wg[k] = g; this.wb[k] = b;
         r = BEACH[0]; g = BEACH[1]; b = BEACH[2];
       } else {
@@ -186,7 +195,7 @@ class Ground {
   }
 }
 
-function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, patch: Patch, ground: Ground, biomeGrid: Uint8Array, coverGrid: Float32Array): void {
+function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, patch: Patch, ground: Ground, biomeGrid: Uint8Array, coverGrid: Float32Array, stateGrid: Uint8Array, tempGrid: Int8Array): void {
   const s = f.stride, m = f.margin, size = w.n * DETAIL;
   for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) {
     const k = j * s + i, X = ox + i - m, Z = oz + j - m;
@@ -204,6 +213,8 @@ function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, p
     const near = patch.nearest(cx, cz), biome = patch.biome[near] as number;
     biomeGrid[k] = biome;
     coverGrid[k] = patch.cover[near] as number;
+    stateGrid[k] = patch.state[near] as number;
+    tempGrid[k] = patch.temp[near] as number;
     const tone = noise3(sx * 0.13, sy * 0.13 + 1.7, sz * 0.13) * 0.12 + noise3(sx * 0.37, sy * 0.37 + 5.4, sz * 0.37) * 0.07;
     const warm = noise3(sx * 0.09 + 9.9, sy * 0.09, sz * 0.09) * 0.075;
     const r0 = patch.field(patch.r, cx, cz), g0 = patch.field(patch.g, cx, cz), b0 = patch.field(patch.b, cx, cz);
@@ -219,7 +230,7 @@ function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, p
     let y = ground.plainY(meters, desert);
     if (meters < 200) f.water[k] = 0;
     const cold = biome === Biome.Tundra || biome === Biome.Taiga || biome === Biome.Ice || biome === Biome.SnowyPeak;
-    if (!cold && (patch.ice[near] as number) === 0) f.sand[k] = smoothstep(0.62, 0.44, y + noise3(sx * 0.5, sy * 0.5, sz * 0.5) * 0.12);
+    if (!cold && (patch.ice[near] as number) === 0 && patch.field(patch.sea, px, pz) > 0.02) f.sand[k] = smoothstep(0.58, 0.42, y + noise3(sx * 0.5, sy * 0.5, sz * 0.5) * 0.12);
     if (patch.highest >= MOUNTAIN_START) {
       const lift = peakLift(px, pz, face, (x, z) => patch.height(x, z));
       // Debaixo das facetas o chão sobe menos, para nunca furar.
@@ -292,34 +303,45 @@ function buildFacets(w: CoarseWorld, face: number, ox: number, oz: number, patch
   return out;
 }
 
-interface Canopy { model: ModelName; chance: number; scale: number; spread: number; cluster: number }
+interface Canopy { species: Species; chance: number; scale: number; spread: number; cluster: number }
 /** Copas por bioma: `chance` por ponto da grade; `cluster` aperta em matas (0 = espalhado). */
 const CANOPY: Partial<Record<number, readonly Canopy[]>> = {
-  [Biome.Taiga]: [{ model: 'pine', chance: 0.92, scale: 1.08, spread: 0.72, cluster: 0.55 }],
-  [Biome.TemperateForest]: [{ model: 'broad', chance: 0.2, scale: 0.86, spread: 0.55, cluster: 0.45 }, { model: 'round', chance: 0.26, scale: 0.86, spread: 0.55, cluster: 0.45 }],
-  [Biome.TropicalForest]: [{ model: 'broad', chance: 0.3, scale: 1, spread: 0.6, cluster: 0.3 }, { model: 'round', chance: 0.2, scale: 1, spread: 0.6, cluster: 0.3 }],
-  [Biome.Grassland]: [{ model: 'round', chance: 0.012, scale: 0.8, spread: 0.5, cluster: 0.2 }],
-  [Biome.Savanna]: [{ model: 'savanna', chance: 0.03, scale: 1.05, spread: 0.55, cluster: 0.2 }],
-  [Biome.Swamp]: [{ model: 'swamp', chance: 0.09, scale: 1.05, spread: 0.4, cluster: 0 }],
-  [Biome.HotDesert]: [{ model: 'cactus', chance: 0.012, scale: 0.8, spread: 0.5, cluster: 0 }],
-  [Biome.Mountain]: [{ model: 'pine', chance: 0.14, scale: 0.8, spread: 0.5, cluster: 0.35 }],
+  [Biome.Taiga]: [{ species: 'pine', chance: 0.92, scale: 1.08, spread: 0.72, cluster: 0.55 }],
+  [Biome.TemperateForest]: [{ species: 'oak', chance: 0.2, scale: 0.86, spread: 0.55, cluster: 0.45 }, { species: 'midTree', chance: 0.26, scale: 0.86, spread: 0.55, cluster: 0.45 }],
+  [Biome.TropicalForest]: [{ species: 'tropical', chance: 0.36, scale: 1, spread: 0.55, cluster: 0.3 }, { species: 'midTree', chance: 0.1, scale: 0.9, spread: 0.5, cluster: 0.3 }, { species: 'palm', chance: 0.04, scale: 0.85, spread: 0.4, cluster: 0 }],
+  [Biome.Grassland]: [{ species: 'midTree', chance: 0.012, scale: 0.8, spread: 0.5, cluster: 0.2 }, { species: 'oak', chance: 0.005, scale: 0.8, spread: 0.4, cluster: 0.2 }],
+  [Biome.Savanna]: [{ species: 'acacia', chance: 0.03, scale: 1.05, spread: 0.55, cluster: 0.2 }, { species: 'baobab', chance: 0.003, scale: 0.8, spread: 0.3, cluster: 0 }],
+  [Biome.Swamp]: [{ species: 'mangrove', chance: 0.09, scale: 1.05, spread: 0.4, cluster: 0 }],
+  [Biome.HotDesert]: [{ species: 'cactusTall', chance: 0.012, scale: 0.8, spread: 0.5, cluster: 0 }],
+  [Biome.Mountain]: [{ species: 'pine', chance: 0.14, scale: 0.8, spread: 0.5, cluster: 0.35 }],
+  [Biome.Beach]: [{ species: 'palm', chance: 0.01, scale: 0.9, spread: 0.4, cluster: 0 }],
 };
-interface GroundKind { model: ModelName; chance: number; scale: number; spread: number }
+interface GroundKind { species: Species | 'rock' | 'sandRock'; chance: number; scale: number; spread: number }
 const FLOOR: Partial<Record<number, readonly GroundKind[]>> = {
-  [Biome.Taiga]: [{ model: 'bush', chance: 0.1, scale: 0.5, spread: 0.3 }],
-  [Biome.TemperateForest]: [{ model: 'bush', chance: 0.12, scale: 0.5, spread: 0.3 }, { model: 'tuft', chance: 0.05, scale: 0.6, spread: 0.3 }],
-  [Biome.TropicalForest]: [{ model: 'bush', chance: 0.2, scale: 0.6, spread: 0.4 }],
-  [Biome.Grassland]: [{ model: 'bush', chance: 0.32, scale: 0.55, spread: 0.62 }, { model: 'tuft', chance: 0.2, scale: 0.55, spread: 0.4 }, { model: 'rock', chance: 0.03, scale: 0.42, spread: 0.34 }],
-  [Biome.Steppe]: [{ model: 'dryBush', chance: 0.22, scale: 0.5, spread: 0.5 }, { model: 'tuft', chance: 0.2, scale: 0.5, spread: 0.4 }, { model: 'rock', chance: 0.03, scale: 0.42, spread: 0.3 }],
-  [Biome.Savanna]: [{ model: 'dryBush', chance: 0.3, scale: 0.55, spread: 0.6 }, { model: 'tuft', chance: 0.14, scale: 0.55, spread: 0.4 }, { model: 'rock', chance: 0.03, scale: 0.42, spread: 0.3 }],
-  [Biome.Swamp]: [{ model: 'reed', chance: 0.42, scale: 0.62, spread: 0.42 }, { model: 'bush', chance: 0.2, scale: 0.45, spread: 0.42 }],
-  [Biome.HotDesert]: [{ model: 'dryBush', chance: 0.02, scale: 0.5, spread: 0.3 }, { model: 'sandRock', chance: 0.02, scale: 0.5, spread: 0.35 }],
-  [Biome.ColdDesert]: [{ model: 'sandRock', chance: 0.03, scale: 0.5, spread: 0.35 }, { model: 'dryBush', chance: 0.03, scale: 0.45, spread: 0.3 }],
-  [Biome.Tundra]: [{ model: 'dryBush', chance: 0.08, scale: 0.4, spread: 0.3 }, { model: 'rock', chance: 0.03, scale: 0.4, spread: 0.3 }],
-  [Biome.Mountain]: [{ model: 'rock', chance: 0.08, scale: 0.5, spread: 0.5 }, { model: 'bush', chance: 0.16, scale: 0.5, spread: 0.4 }],
+  [Biome.Taiga]: [{ species: 'shrub', chance: 0.1, scale: 0.8, spread: 0.5 }, { species: 'moss', chance: 0.06, scale: 0.8, spread: 0.5 }],
+  [Biome.TemperateForest]: [{ species: 'shrub', chance: 0.12, scale: 0.85, spread: 0.5 }, { species: 'tallGrass', chance: 0.05, scale: 0.7, spread: 0.3 }, { species: 'flowers', chance: 0.02, scale: 0.9, spread: 0.3 }],
+  [Biome.TropicalForest]: [{ species: 'shrub', chance: 0.22, scale: 0.95, spread: 0.6 }, { species: 'tallGrass', chance: 0.08, scale: 0.8, spread: 0.3 }],
+  [Biome.Grassland]: [{ species: 'shrub', chance: 0.26, scale: 0.85, spread: 0.85 }, { species: 'tallGrass', chance: 0.2, scale: 0.7, spread: 0.4 }, { species: 'flowers', chance: 0.05, scale: 1, spread: 0.4 }, { species: 'rock', chance: 0.03, scale: 0.42, spread: 0.34 }],
+  [Biome.Steppe]: [{ species: 'desertShrub', chance: 0.1, scale: 0.7, spread: 0.4 }, { species: 'savannaGrass', chance: 0.22, scale: 0.6, spread: 0.3 }, { species: 'rock', chance: 0.03, scale: 0.42, spread: 0.3 }],
+  [Biome.Savanna]: [{ species: 'savannaGrass', chance: 0.3, scale: 0.7, spread: 0.4 }, { species: 'shrub', chance: 0.1, scale: 0.75, spread: 0.5 }, { species: 'rock', chance: 0.03, scale: 0.42, spread: 0.3 }],
+  [Biome.Swamp]: [{ species: 'reedClump', chance: 0.42, scale: 0.8, spread: 0.4 }, { species: 'shrub', chance: 0.16, scale: 0.65, spread: 0.5 }],
+  [Biome.HotDesert]: [{ species: 'cactusLow', chance: 0.012, scale: 0.8, spread: 0.4 }, { species: 'desertShrub', chance: 0.02, scale: 0.8, spread: 0.3 }, { species: 'sandRock', chance: 0.02, scale: 0.5, spread: 0.35 }],
+  [Biome.ColdDesert]: [{ species: 'sandRock', chance: 0.03, scale: 0.5, spread: 0.35 }, { species: 'desertShrub', chance: 0.04, scale: 0.7, spread: 0.3 }],
+  [Biome.Tundra]: [{ species: 'tundraShrub', chance: 0.14, scale: 0.9, spread: 0.4 }, { species: 'moss', chance: 0.18, scale: 0.9, spread: 0.5 }, { species: 'rock', chance: 0.03, scale: 0.4, spread: 0.3 }],
+  [Biome.Mountain]: [{ species: 'rock', chance: 0.08, scale: 0.5, spread: 0.5 }, { species: 'shrub', chance: 0.14, scale: 0.7, spread: 0.5 }],
 };
 
-function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground, biomeGrid: Uint8Array, coverGrid: Float32Array): Placement[] {
+/** Estado da planta pelo estado da célula (o fogo do M2 deixa queimado) e um sorteio pela posição. */
+export function plantStateOf(cell: number, cover: number, h: number): PlantState | null {
+  if (cell === CellState.Burning || cell === CellState.Burned || cell === CellState.Ash) return 'burned';
+  if (cell === CellState.Lava || cell === CellState.Basalt || cell === CellState.Impact || cell === CellState.Ejecta || cell === CellState.Surge || cell === CellState.Flooded || cell === CellState.Lake) return null;
+  if (cell === CellState.Heat) return h < 0.6 ? 'dry' : null;
+  // Vegetação voltando: muitas mudas e poucos adultos.
+  if (cover < 0.55) return h < cover ? 'young' : null;
+  return h < 0.12 ? 'young' : h < 0.14 ? 'dry' : 'adult';
+}
+
+function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground, biomeGrid: Uint8Array, coverGrid: Float32Array, stateGrid: Uint8Array, tempGrid: Int8Array): Placement[] {
   const out: Placement[] = [];
   const s = f.stride, m = f.margin, size = CHUNK_CELLS;
   const yAt = (lx: number, lz: number): number => {
@@ -327,39 +349,45 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
     const a = f.y[j * s + i] as number, b = f.y[j * s + i + 1] as number, c = f.y[(j + 1) * s + i] as number, d = f.y[(j + 1) * s + i + 1] as number;
     return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
   };
-  const usable = (lx: number, lz: number): number => {
+  const usable = (lx: number, lz: number, onSand = false): number => {
     const k = (Math.round(lz) + m) * s + Math.round(lx) + m;
     const y = f.y[k] as number, water = f.water[k] as number;
-    if ((water !== -Infinity && water > y - 0.2) || (f.sand[k] as number) > 0.4 || (f.peak[k] as number) > 0.5) return -1;
+    if ((water !== -Infinity && water > y - 0.2) || (!onSand && (f.sand[k] as number) > 0.4) || (f.peak[k] as number) > 0.5) return -1;
     if (Math.abs(yAt(Math.min(size, lx + 0.7), lz) - yAt(Math.max(0, lx - 0.7), lz)) + Math.abs(yAt(lx, Math.min(size, lz + 0.7)) - yAt(lx, Math.max(0, lz - 0.7))) > 1.05) return -1;
     return k;
   };
   const seed = face * 131 + ox * 3 + oz * 7;
-  const put = (name: ModelName, lx: number, lz: number, scale: number, radius: number, strength: number): void => {
+  const put = (model: Float32Array, lx: number, lz: number, scale: number, radius: number, strength: number, tinted: boolean): void => {
     const h = hash3(seed, Math.round(lx * 7), Math.round(lz * 7));
-    const warm = name === 'rock' || name === 'sandRock' ? 0 : (hash3(Math.round(lx * 3), Math.round(lz * 3), seed) - 0.5) * 0.16;
-    out.push({ model: pickModel(name, h), x: lx + ox, y: yAt(lx, lz) - 0.04, z: lz + oz, scale, stretch: 1, yaw: h * 6.283, tint: [1 + warm, 1, 1 - warm] });
+    const warm = tinted ? (hash3(Math.round(lx * 3), Math.round(lz * 3), seed) - 0.5) * 0.16 : 0;
+    out.push({ model, x: lx + ox, y: yAt(lx, lz) - 0.04, z: lz + oz, scale, stretch: 1, yaw: h * 6.283, tint: [1 + warm, 1, 1 - warm] });
     if (radius > 0) stampShade(f, lx + ox, lz + oz, radius, strength, ox, oz);
   };
   const step = 1.82, gridN = Math.ceil(size / step);
   for (let gz = 0; gz < gridN; gz++) for (let gx = 0; gx < gridN; gx++) {
     const lx = (gx + 0.5 + (hash3(seed, gx * 2, gz) - 0.5) * 0.85) * step, lz = (gz + 0.5 + (hash3(seed, gx * 2 + 1, gz) - 0.5) * 0.85) * step;
     if (lx < 0 || lz < 0 || lx >= size || lz >= size) continue;
-    const k = usable(lx, lz);
+    const k0 = (Math.round(lz) + m) * s + Math.round(lx) + m;
+    const beach = (biomeGrid[k0] as number) === Biome.Beach;
+    const k = usable(lx, lz, beach);
     if (k < 0) continue;
     const list = CANOPY[biomeGrid[k] as number];
     if (!list) continue;
+    const cell = stateGrid[k] as number, burned = cell === CellState.Burning || cell === CellState.Burned || cell === CellState.Ash;
+    const cover = burned ? 1 : Math.max(0.55, coverGrid[k] as number);
     ground.locate(lx + ox, lz + oz);
     const mass = noise3(ground.sx * 0.06, ground.sy * 0.06, ground.sz * 0.06) + noise3(ground.sx * 0.19, ground.sy * 0.19, ground.sz * 0.19) * 0.35;
     const r = hash3(seed, gx, gz * 3 + 1);
     let edge = 0;
     for (const c of list) {
       const inside = c.cluster > 0 ? smoothstep(-c.cluster, c.cluster * 0.6, mass) : 1;
-      edge += c.chance * inside * (coverGrid[k] as number);
+      edge += c.chance * inside * cover;
       if (r < edge) {
-        const size2 = hash3(seed, gx, gz * 3 + 2);
-        const base = (c.scale + size2 * size2 * c.spread) * (0.82 + inside * 0.28);
-        put(c.model, lx, lz, base, 2, 0.3);
+        const size2 = hash3(seed, gx, gz * 3 + 2), h2 = hash3(seed, gx * 3, gz + 5);
+        const state = plantStateOf(cell, coverGrid[k] as number, h2);
+        if (!state) break;
+        const species: Species = c.species === 'pine' && (tempGrid[k] as number) < -7 ? 'snowPine' : c.species;
+        put(plant(species, state, Math.floor(h2 * 17)), lx, lz, (c.scale + size2 * size2 * c.spread) * (0.82 + inside * 0.28), state === 'adult' ? 2 : 0.9, 0.3, state === 'adult' || state === 'young');
         break;
       }
     }
@@ -375,13 +403,16 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
     ground.locate(lx + ox, lz + oz);
     const clump = noise3(ground.sx * 0.22, ground.sy * 0.22, ground.sz * 0.22) + noise3(ground.sx * 0.6, ground.sy * 0.6, ground.sz * 0.6) * 0.3;
     if (clump < -0.08) continue;
+    const cell = stateGrid[k] as number, burned = cell === CellState.Burning || cell === CellState.Burned || cell === CellState.Ash;
     const r = hash3(seed, gx, gz * 3 + 7);
     let edge = 0;
     for (const c of list) {
-      edge += c.chance * (coverGrid[k] as number);
+      edge += c.chance * (burned ? 1 : Math.max(0.55, coverGrid[k] as number));
       if (r < edge) {
-        const size2 = hash3(seed, gx, gz * 3 + 8);
-        put(c.model, lx, lz, c.scale + size2 * c.spread, c.model === 'rock' ? 0.8 : 0.8, 0.14);
+        const size2 = hash3(seed, gx, gz * 3 + 8), h2 = hash3(seed, gx * 5, gz + 11);
+        if (c.species === 'rock' || c.species === 'sandRock') { put(pickModel(c.species, h2), lx, lz, c.scale + size2 * c.spread, 0.8, 0.14, false); break; }
+        const state = plantStateOf(cell, coverGrid[k] as number, h2);
+        if (state) put(plant(c.species, state, Math.floor(h2 * 17)), lx, lz, c.scale + size2 * c.spread, state === 'adult' ? 0.7 : 0, 0.12, state === 'adult' || state === 'young');
         break;
       }
     }
@@ -394,9 +425,9 @@ export function buildWorldChunk(w: CoarseWorld, face: number, cx: number, cz: nu
   const f = newFields(CHUNK_CELLS, 3), ox = cx * CHUNK_CELLS, oz = cz * CHUNK_CELLS;
   const patch = new Patch(w, face, cx * CHUNK_COARSE - MARGIN_COARSE, cz * CHUNK_COARSE - MARGIN_COARSE);
   const ground = new Ground(w, face, patch);
-  const biomeGrid = new Uint8Array(f.stride * f.stride), coverGrid = new Float32Array(f.stride * f.stride);
-  fill(w, f, face, ox, oz, patch, ground, biomeGrid, coverGrid);
-  const places = scatter(f, face, ox, oz, ground, biomeGrid, coverGrid);
+  const biomeGrid = new Uint8Array(f.stride * f.stride), coverGrid = new Float32Array(f.stride * f.stride), stateGrid = new Uint8Array(f.stride * f.stride), tempGrid = new Int8Array(f.stride * f.stride);
+  fill(w, f, face, ox, oz, patch, ground, biomeGrid, coverGrid, stateGrid, tempGrid);
+  const places = scatter(f, face, ox, oz, ground, biomeGrid, coverGrid, stateGrid, tempGrid);
   const facets = buildFacets(w, face, ox, oz, patch, ground);
   const skirts = buildSkirts(f, ox, oz, 3);
   return { terrain: buildTerrain(f, ox, oz, face + 7, facets), water: buildWater(f, ox, oz, {}), props: bakeProps(places), skirts: skirts.data, skirtRanges: skirts.ranges };
