@@ -10,6 +10,7 @@ O usuário só faz testes objetivos e decide design e mecânica; o resto é do C
 
 ## Bloco de opções do portão do M3
 - [x] Triagem das referências: 27 imagens em `docs/img/referencias/`, índice em `indice.png`, ressalvas em `LEIAME.md`.
+- [x] Decisões, reversões (petróleo misto, dragão mítico) e itens de marcos futuros registrados em `docs/decisoes.md`, `03`, `04` e `02-marcos.md`.
 
 Primeira rodada do portão: `docs/M3-portao.md`. O código do protótipo fica em `prototipo/` e o jogo não o usa.
 

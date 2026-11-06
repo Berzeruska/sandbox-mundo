@@ -65,8 +65,10 @@ Entram na mesma rodada de ajuste fino, depois do M3 (usuário, 2026-11-05; não 
 - **Travadas fora da medição, se voltarem, investigar:** 1.852 ms às 14:13:33 (pausado, "tela ocupada fora do quadro") e 717 ms às 13:59:30 ("tela livre esperando o quadro"). Mais em `docs/bugs.md`.
 
 ## Marco 3 — Ecologia
-Plantas e animais em nível agregado e individual, cadeia alimentar, migração, dragão como predador
-de topo, avisos de espécie em risco e de último indivíduo. Ver `docs/04-ecologia.md`.
+Plantas e animais em nível agregado e individual, cadeia alimentar, migração, classe mítica (dragão, kraken e
+baleia branca, só postas por deus; decisão de 2026-11-05), poderes de deus sobre as criaturas, avisos de espécie em
+risco e de último indivíduo. Lista de espécies aprovadas em `docs/04-ecologia.md`.
+**Meteoro:** ao reduzir a velocidade no meio da queda, a rocha fica quase parada no ar; corrigir neste marco (usuário, 2026-11-05), com opções antes do código.
 Anotado em 2026-10-17 (usuário): **floresta grande afeta o clima** (umidade, temperatura); a camada
 "Ver biomas" (feita na T7) é a base para ver isso. **Criaturas vistas de cima**, no estilo de um
 sandbox de deus visto do alto (conteúdo nosso, regra 8): ao especificar o M3, confirmar que a vista de
@@ -105,7 +107,7 @@ cubos" da primeira; detalhes em `docs/decisoes.md`):**
   cidades e nas placas; **(f) (acrescentado pelo usuário em 2026-11-05) as camadas estranhas sobrepostas
   em alguns pontos do globo**: entram junto com o novo desenho do mundo. **A decisão é do usuário.** O M3 só
   começa depois do merge do M2.
-  **Portão feito em 2026-11-05, esperando as decisões do usuário: `docs/M3-portao.md`.**
+  **Primeira rodada do portão feita em 2026-11-05; decisões do usuário e o bloco de opções seguinte em `docs/decisoes.md` e `docs/M3-portao.md`.**
 - **Simulação:** de longe números, de perto indivíduos; exércitos em marcha, generais, aviões em missão
   e figuras da Crônica são sempre indivíduos (detalhe em `docs/06-guerra.md`).
 Inclui a base do **feedback ambiental** (vegetação, solo e fauna reagindo a perturbações) e a
@@ -144,11 +146,31 @@ Anotado na T6 (2026-10-17): **água potável** (rios, lagos, chuva, água subter
 clima e do relevo, a partir do M3/M4); humanos **escavando também revelam petróleo** escondido (o
 estado "revelado" das jazidas nasce na T6); quem tem urânio no território não sabe usá-lo antes do M7.
 
+Registrado pelo usuário (2026-11-05):
+- **Poderes de deus sobre o mundo:** pôr e tirar coisas, materiais e recursos (jazidas, petróleo).
+- **Humanos aplainam o terreno para construir** (mecânica; o relevo do M3 já vem com degraus baixos e rampas).
+- **Humanos e eras (M4 e M5):** nascem nômades na pré-história. Deus pode fazê-los avançar de era pelo menu de espécies
+  (clicando na espécie humana): Idade Média, Renascimento, Era Moderna e as outras, bem completo. **Questão aberta para a
+  especificação:** as eras também avançam sozinhas, com deus só acelerando?
+- **Cidades (M4 e M8):** estilos árabe, sumério, grego, chinês, japonês e favela brasileira, que também ajudam a ocupar o
+  relevo (terraços, escadarias). Construções: usinas hidrelétricas, casas, prédios, quartéis e muralhas; sistema de eras com burgos.
+- **Ocupar o mundo (decisão de escala do M3):** mineração, exploração, deslocamento, rotas por terra, água e ar, cidades
+  grandes, países bem distribuídos, um mundo vivo e coberto, como a Europa e a Ásia.
+
 ## Marco 5 — Política e mente
 Evolução de regimes, botão divino de concessão, ideologias, sistemas econômicos, líderes com
 traços, legitimidade, golpes e revoluções, crônica do mundo, nomes de cidades.
 **Quatro classes sociais** (elite cultural, política, militar com chefe do exército, operários).
 Ver `docs/05-civilizacao-politica.md` e `docs/07-cronica-nomes.md`.
+
+Registrado pelo usuário (2026-11-05): **"vila gasolina"** no deserto extremo, a partir do petróleo aparente (M5/M6); **"era dos
+piratas"** combina com a baleia branca (M5 a M7).
+
+## Sistema próprio, sem marco definido — Genética (usuário, 2026-11-05)
+Sistema grande. A cor da pele tem genes próprios (branco com branco dá branco, preto com preto dá preto, branco com preto dá
+pardo; os outros cruzamentos ficam para a especificação). O sexo e os genes recessivos são calculados cada um à parte e se juntam no
+fim. Capacidades (predisposição para força, guerra, liderança e outras) e doenças vêm de genes independentes da cor: **a cor não define
+capacidade.**
 
 ## Marco 6 — Guerra
 Frentes fluidas, conquista contínua, trincheiras, logística, moral de tropa, combate visível de perto.
@@ -178,6 +200,8 @@ Pedido do usuário (2026-10-16): formações de erosão vistas de perto (pilares
 China, grandes "braços" de pedra); a erosão pelo clima em si é da T7 do M2.
 Ideia do usuário (2026-10-17): zoom maior que o de hoje, para humanos pequenos ficarem
 proporcionais ao relevo (ver a questão de escala do M3).
+Usuário (2026-11-05): com o diorama, as paisagens registradas (pilares de arenito, "braços" de pedra) ficam possíveis de
+perto; quando entram, o usuário decide depois.
 
 Ideia do usuário (2026-10-18), para o M8 ou depois: **câmera em primeira pessoa de um indivíduo**
 (ver o mundo pelos olhos de uma criatura ou pessoa). Depende das criaturas (M3/M4) e do relevo em 3D

@@ -17,10 +17,24 @@ sobem e descem em ciclos, raramente zeram.
 6. **Refúgio:** uma fração pequena de cada população fica fora de alcance de predadores (abrigo),
    evitando extinção total por caça.
 
-## Predador de topo raro (ex.: dragão)
-- Território enorme, reprodução rara, vida longa.
-- Com fome, migra e reduz atividade (hiberna) em vez de morrer.
-- População mínima viável protegida por regra de baixa mortalidade adulta.
+## Espécies aprovadas para o M3 (usuário, 2026-11-05)
+Rena, lobo-ártico, lebre, cervo, alce, javali, lobo, urso, bisão, antílope, zebra, elefante, leão, capivara,
+macaco, onça, jacaré, camelo, cabra-montesa, águia, cardume de peixes, baleia, cachalote, tubarão, lula e
+lula-gigante. Forma e poses: `docs/img/referencias/animais/` (ressalvas em `docs/img/referencias/LEIAME.md`).
+
+## Classe mítica (M3; decisão do usuário, 2026-11-05; substitui "predador de topo raro")
+**Dragão, kraken e baleia branca colossal** (um cachalote mítico, extremamente agressivo). **Só deus as põe no
+mundo:** nenhuma nasce sozinha. Um dragão aparecendo sozinho no meio de uma guerra moderna seria estranho demais.
+Uma futura "era dos piratas" combina com a baleia branca (M5 a M7).
+Comportamento depois de postas (fome, território, reprodução): a especificar no M3.
+
+## Poderes de deus sobre as criaturas (M3)
+Matar uma criatura, mudar as características dela e acompanhá-la com a câmera. Opções antes do código, na
+especificação do M3.
+
+## Sangue (usuário, 2026-11-05)
+Um sangue leve, de diorama, sem exagero. Quando a morte for desenhada, trazer opções do limite (tamanho, quanto
+tempo dura, se há pedaços), com imagem.
 
 ## Domesticação (preparada aqui, usada no Marco 4)
 - Espécies têm atributo `domesticável` e `temperamento`.
