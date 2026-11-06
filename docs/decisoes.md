@@ -1316,3 +1316,15 @@ Nada do M3 entra no jogo antes da aprovação do usuário; toda mudança visual 
 - **Sombra em partes no protótipo:** dois mapas de 2048², o novo desenhado aos poucos e trocado quando pronto. Evitou picos de ~10 ms ao carregar pedaços. Custo: um mapa a mais de memória, ~16 MB.
 - **Modelos de longe:** a partir de 95 unidades da câmera, árvores com menos faces e sem tronco (regra 16: trocar o detalhe pela distância).
 - **O protótipo edita o texto do shader do globo na própria página** para testar o 2D de longe, sem mudar `src/`. Só serve para o protótipo.
+
+## 2026-11-06 — Veredito do usuário sobre o bloco de opções e novo bloco do M3
+**O protótipo foi reprovado:** a maquete ficou feia e malfeita, o 2D de longe ficou ruim e foi descartado, o globo saiu achatado no Chrome em tela cheia e não havia menu nem setas. As imagens, tiradas num navegador sem janela, não mostravam nada disso.
+- **Capturas para o usuário avaliar:** sempre numa janela de navegador de 1920×1080, conferindo que o globo sai redondo antes de mandar.
+- **Regras afrouxadas só neste bloco e só no `marco-3`:** "nada do M3 antes do portão" e "especificação antes de codar". Pode construir já dentro do jogo, sem parar no meio. O `main` só recebe o marco fechado. A aprovação final continua do usuário, no fim do bloco.
+- **Referências:** tudo segue ao máximo `docs/img/referencias/`. Não inventar formas. Primeiro o visual, depois o desempenho (regra 16).
+- **Paradas no meio:** só com meta de desempenho quebrada sem saída ou decisão que só o usuário pode tomar.
+1. **Visão de longe:** o globo do M2 fica exatamente como foi aprovado. O 2D novo e a paleta nova do globo saem. A troca da textura dos biomas (decisão 13 de 2026-11-05, "De longe: o globo em pixel 2D") fica adiada, sem data, e talvez nem aconteça.
+2. **Cor da maquete:** vem das cores do globo do M2. A vida das cores vem da luz e da variação de tom dentro de cada bioma. O corte entre globo e maquete não pode dar salto de cor. Substitui a paleta do item 1.3.
+3. **Escala:** opção 5 (`n` = 256, com detalhe 4× gerado na hora), pelo critério do usuário: a que ficar melhor. Só muda se uma medição mostrar o contrário.
+4. **Meteoro:** opção 3 (a velocidade espera a rocha), pelo critério do usuário: o mais liso e sem bug. Medir o caso "Muitos" no Máx; se a espera passar de 2 s, trazer a opção 5 antes de mudar.
+5. **Relevo, pedrinhas, petróleo e suavização:** o usuário decide nas capturas novas. No meio-tempo vale a opção mais próxima das referências, com as outras em captura.

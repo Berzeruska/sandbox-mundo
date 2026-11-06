@@ -1,9 +1,13 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-05**, branch `marco-3`. **M2 no `main` com a tag `v2.0`. Bloco de opções do portão do M3 em andamento (mensagem do usuário de 2026-11-05).** Nada do M3 entra no jogo antes da aprovação: só protótipo, infraestrutura da prévia, README e docs.
-Jogo: **https://berzeruska.github.io/sandbox-mundo/** · Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/atual/** · Protótipo: **https://berzeruska.github.io/sandbox-mundo/previa/atual/prototipo/**
+Atualizado em: **2026-11-06**, branch `marco-3`. **M2 no `main` com a tag `v2.0`. Bloco "refazer a maquete" em andamento (mensagem do usuário de 2026-11-06).** O protótipo anterior foi reprovado; neste bloco a maquete é construída dentro do jogo, só no `marco-3`.
+Jogo: **https://berzeruska.github.io/sandbox-mundo/** · Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/atual/**
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
 estamos", vale este.
+
+## Bloco "refazer a maquete" (T1 a T10)
+Decisões em `docs/decisoes.md` (2026-11-06). Toda captura para o usuário sai de janela de navegador de 1920×1080.
+- [ ] T1 réplica da folha-mestra · [ ] T2 maquete no jogo · [ ] T3 entorno em pedaços e escala 5 · [ ] T4 plantas · [ ] T5 água, relevo, vulcões · [ ] T6 jazidas e petróleo · [ ] T7 animais · [ ] T8 meteoro · [ ] T9 desempenho · [ ] T10 rascunho da especificação
 
 ## Modo de trabalho (usuário, 2026-11-04)
 O usuário só faz testes objetivos e decide design e mecânica; o resto é do Claude Code, que para só no fim.
