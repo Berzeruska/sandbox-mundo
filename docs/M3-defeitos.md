@@ -47,3 +47,14 @@ Cada um reproduzido no Firefox 158 do notebook, em janela de 1920×1080, num com
 **Como medir no Firefox (proposta):** o relatório agora usa o relógio da GPU quando há, e diz na linha da GPU qual método usou.
 - **Preciso:** em `about:config`, ligar `webgl.enable-privileged-extensions`, uma vez. Essa preferência libera mais informação para as páginas, e pode ser desligada depois de medir.
 - **Sem isso:** a medida por espera, avisando que dá 2 a 3 ms acima do real.
+
+## B3. Seca brusca
+**Reproduzido:** no primeiro passo da seca, 2.301 valores de cor mudaram mais de 25 de uma vez (até 119 em 255), e mais 2.967 aos 4,4 s (até 103). **Corrigido:** no globo, a mudança passa pela mesma troca suave de 600 ms que o clima já usa; na maquete, a cor anda até 6 por cópia do mundo.
+
+## Visual (D3 a D8)
+- **Gelo (D3):** manto de gelo facetado em terra, descendo até um mar congelado azul-claro, como em `bioma/extremos-gelo-e-calor.png`. Só aparece onde o mundo tem gelo em terra: conferido esfriando o planeta (era glacial).
+- **Deserto (D4):** dunas, mesetas de rocha com topo plano, mais cactos e pedras, áreas planas maiores.
+- **Montanhas (D5):** encostas em degraus, com patamares de grama, plantas e pedras, paredes de rocha e neve no topo.
+- **Terraços (D6):** encosta mais curta e menos patamares; sem ruído fino, que criava ilhinhas e riscos soltos. **Limite:** em terreno muito ondulado a linha de terra ainda fica irregular.
+- **Jazidas (D7):** chão manchado da cor do minério e lajes baixas de rocha oxidada (chapéu de ferro). Sem pedras soltas nem montes: isso fica para o M4.
+- **Petróleo (D8):** cava com borda de terra, poça preta com reflexos e dois paus, como em `recursos/jazidas.png`. As árvores abrem espaço em volta. Continua só no desenho.

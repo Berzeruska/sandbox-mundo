@@ -74,7 +74,9 @@ function antlers(k: Built, b: Body, size: number, color: Rgb, wide: boolean): vo
       const near: V3 = [x - size * 0.02, y + size * 0.14, s * size * 0.3];
       // Alce (`animais/floresta-1.png`): haste curta, pá larga e pontas na borda.
       const tipA: V3 = [x + size * 0.22, y + size * 0.42, s * size * 0.8], tipB: V3 = [x - size * 0.42, y + size * 0.42, s * size * 0.9];
-      k.m.blade(near, tipA, tipB, color);
+      // A pá é um galho largo, sem triângulo chapado.
+      limb(k.m, near, [(tipA[0] + tipB[0]) / 2, (tipA[1] + tipB[1]) / 2, (tipA[2] + tipB[2]) / 2], 0.05, 0.075, color, 4, 1, 1);
+      limb(k.m, tipA, tipB, 0.06, 0.06, color, 4, 1, 1);
       for (let t = 0; t < 5; t++) {
         const u = t / 4, bx = tipA[0] + (tipB[0] - tipA[0]) * u, by = tipA[1] + (tipB[1] - tipA[1]) * u, bz = tipA[2] + (tipB[2] - tipA[2]) * u;
         limb(k.m, [bx, by - 0.01, bz], [bx - size * 0.05, by + size * 0.26, bz + s * size * 0.1], 0.028, 0.008, shade(color, 0.96), 3, 1, 1);

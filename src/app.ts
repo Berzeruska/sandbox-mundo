@@ -82,6 +82,7 @@ export class App {
   private maqueteSeed = '';
   private maqueteDrawn = false;
   private maqueteFastUntil = 0;
+  private maqueteRgba: Uint8Array | null = null;
   readonly overlay: Overlay;
   readonly input: PointerInput;
   readonly hud: Hud;
@@ -933,6 +934,27 @@ export class App {
     if (p) this.sim.brush(this.tool, p, this.brushSize, dt);
   }
 
+  /**
+   * Cor que vai para a maquete, um pouco atrás da do globo quando a mudança é lenta (seca, volta da vegetação): sem isso a cor pulava de uma cópia para a outra (B3).
+   * Fogo, lava e outros estados fortes valem na hora.
+   */
+  private smoothColors(state: Uint8Array): Uint8Array {
+    const c = this.colors;
+    let s = this.maqueteRgba;
+    if (!s || s.length !== c.length) { s = this.maqueteRgba = c.slice(); return s.slice(); }
+    const step = 6;
+    for (let k = 0; k < state.length; k++) {
+      const o = k * 4, st = state[k] as number;
+      s[o + 3] = c[o + 3] as number;
+      if (st !== 0 && st !== CellState.Heat) { s[o] = c[o] as number; s[o + 1] = c[o + 1] as number; s[o + 2] = c[o + 2] as number; continue; }
+      for (let i = 0; i < 3; i++) {
+        const d = (c[o + i] as number) - (s[o + i] as number);
+        if (d !== 0) s[o + i] = (s[o + i] as number) + Math.max(-step, Math.min(step, d));
+      }
+    }
+    return s.slice();
+  }
+
   /** O globo espera o contexto como ele deixou: a maquete devolve o que mudou. */
   private restoreGlobeState(gl: WebGL2RenderingContext): void {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -970,7 +992,7 @@ export class App {
         this.maqueteWaiting = false;
         const fresh = s.seedText !== this.maqueteSeed;
         this.maqueteSeed = s.seedText;
-        m.setWorld({ n: info.n, height: s.height, rgba: this.colors.slice(), cover: s.cover, state: s.state, deposit: s.deposit, ice: s.ice, temp: s.temp, volcano: s.volcano }, fresh);
+        m.setWorld({ n: info.n, height: s.height, rgba: this.smoothColors(s.state), cover: s.cover, state: s.state, deposit: s.deposit, ice: s.ice, temp: s.temp, volcano: s.volcano }, fresh);
       });
     }
     if (!cam.inMaquete) cam.aimAtGlobeCenter();

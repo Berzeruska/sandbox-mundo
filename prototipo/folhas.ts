@@ -41,7 +41,7 @@ SPECIES.forEach((s, i) => {
   labels.push({ x: col * colGap + stateGap * 1.5, z: row * rowGap + 1.3, text: s });
 });
 }
-renderer.setChunk(1, { terrain: new ArrayBuffer(0), water: new ArrayBuffer(0), props: bakeProps(list), skirts: new ArrayBuffer(0), skirtRanges: [[0, 0], [0, 0], [0, 0], [0, 0]] }, [0, 0, 1, 0], [false, false, false, false]);
+renderer.setChunk(1, { terrain: new ArrayBuffer(0), water: new ArrayBuffer(0), props: new ArrayBuffer(0), propsFar: bakeProps(list), skirts: new ArrayBuffer(0), skirtRanges: [[0, 0], [0, 0], [0, 0], [0, 0]] }, [0, 0, 1, 0], [false, false, false, false]);
 renderer.sunDir = [-0.42, 0.76, 0.5];
 renderer.shadowCenter = [28, 0, 12]; renderer.shadowRadius = 44;
 const view: MaqueteCamera = folha === 'jazidas' ? { x: 13.8, y: 0.5, z: 5, yaw: 0, pitch: 0.6, distance: 40, fov: 26 } : folha.startsWith('animais') ? { x: 26, y: 0.5, z: 7, yaw: 0, pitch: 0.55, distance: 80, fov: 26 } : { x: 27.5, y: 1, z: 11.4, yaw: 0, pitch: 0.62, distance: 76, fov: 26 };

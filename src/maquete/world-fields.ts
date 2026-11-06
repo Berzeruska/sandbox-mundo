@@ -8,7 +8,7 @@ import { hash3, noise3, smoothstep } from './hash';
 import { ANIMALS, FAUNA, SWIMMERS } from './animals';
 import { RIVER_FLOW, type Hydro } from './rivers';
 import { depositSize, depositType, isHiddenOil, Resource } from '../world/resources';
-import { depositModel, surfaceOil } from './deposits';
+import { depositModel, oreStain, surfaceOil } from './deposits';
 import { logModel, rgb, type Rgb } from './models';
 
 /** O chão de todas as células grandes, copiado da simulação. A cor é a do globo (`rgba`, bioma nos 4 bits baixos do alfa). */
@@ -53,9 +53,11 @@ const MOUNTAIN_START = 1900;
 const GRASS = biomeRgb(Biome.Grassland), BEACH = biomeRgb(Biome.Beach), SNOW = biomeRgb(Biome.SnowyPeak);
 const ROCK_LIGHT: Rgb = rgb(150, 122, 106);
 const ICE_WATER: Rgb = rgb(186, 218, 236);
+const LEDGE: Rgb = rgb(118, 158, 66);
+const ICE_LAND: Rgb = rgb(240, 238, 244), ICE_SEA: Rgb = rgb(198, 220, 238), MESA_TOP: Rgb = rgb(214, 170, 104), MESA_SIDE: Rgb = rgb(150, 112, 82);
 const CRATER: Rgb = rgb(62, 50, 48), LAVA: Rgb = rgb(250, 128, 30), ROCK_DARK: Rgb = rgb(108, 82, 70), DUNE: Rgb = rgb(226, 156, 72);
 /** Chão de floresta: o verde do bioma fica nas copas, o chão clareia para o conjunto dar a cor do globo. */
-const GROUND_MIX: Record<number, number> = { [Biome.Taiga]: 0.42, [Biome.TemperateForest]: 0.36, [Biome.TropicalForest]: 0.1, [Biome.Swamp]: 0.08, [Biome.Mountain]: 0.42 };
+const GROUND_MIX: Record<number, number> = { [Biome.Taiga]: 0.42, [Biome.TemperateForest]: 0.36, [Biome.TropicalForest]: 0.1,  [Biome.Swamp]: 0.08, [Biome.Mountain]: 0.42 };
 const BIOME_FIX: Partial<Record<number, readonly [number, number, number]>> = { [Biome.Savanna]: [1.14, 0.98, 0.92], [Biome.TropicalForest]: [0.45, 1.02, 0.8], [Biome.Taiga]: [1.05, 1.15, 1.45], [Biome.TemperateForest]: [0.72, 1.12, 1.02], [Biome.Mountain]: [1.1, 1.18, 1.18], [Biome.Swamp]: [0.82, 0.96, 0.9] };
 /** Como a cor do bioma aparece no globo: medido no corte, por canal (o relevo e a luz do globo tiram mais azul). */
 const globeR = (c: number): number => Math.max(0, c * 0.95 - 0.03), globeG = (c: number): number => Math.max(0, c * 1.06 - 0.04), globeB = (c: number): number => Math.max(0, c * 1.05 - 0.125);
@@ -67,7 +69,7 @@ export function elevationY(m: number): number {
   return Math.max(-3.2, -0.5 * (1 - Math.exp(m / 70)) + 0.0009 * m);
 }
 
-const PEAK_GRID = 22;
+const PEAK_GRID = 22, PEAK_STEP = 2.7;
 /**
  * Montanha como picos separados (`bioma/montanhas-vulcao.png`, "Cadeia de montanhas"): cada ponto de uma grade larga pode levantar um pico, da altura que o mundo tem ali.
  * Quanto mais alto o terreno, mais perto e mais alto o pico. Entre eles fica chão.
@@ -83,12 +85,14 @@ function peakLift(X: number, Z: number, face: number, metersAt: (x: number, z: n
     const rise = Math.min(1, (m - MOUNTAIN_START) / 2200), h = (5.5 + rise * 12) * (0.62 + hash3(ix, iz, 41 + face) * 0.38);
     const radius = (0.5 + rise * 0.28 + hash3(ix, iz, 43 + face) * 0.16) * PEAK_GRID;
     const d = Math.hypot(X - px, Z - pz) / radius;
-    if (d < 1) best = Math.max(best, h * Math.pow(1 - d, 1.2));
+    if (d < 1) best = Math.max(best, h * Math.pow(1 - d, 1.05));
   }
-  return best;
+  // Encosta em degraus (`bioma/montanhas-vulcao.png`): cada degrau tem um patamar e uma parede.
+  const steps = best / PEAK_STEP, fl = Math.floor(steps), fr = steps - fl;
+  return best > 0.2 ? PEAK_STEP * (fl + smoothstep(0.52, 0.95, fr)) : best;
 }
 
-const TERRACE = 0.62;
+const TERRACE = 0.85;
 export type ReliefMode = 'terraco' | 'lisa' | 'rampa' | 'degrau';
 let relief: ReliefMode = 'terraco';
 let stones: 'pilhas' | 'miudas' = 'pilhas';
@@ -100,7 +104,7 @@ export function setDepositLook(s: string, o: string): void { stones = s === 'miu
 /** Marcada por `terrace`: o último ponto caiu na encosta entre dois patamares. */
 let onBank = false;
 /** Largura da encosta em células finas, por opção. */
-const BANK_WIDTH: Record<ReliefMode, number> = { terraco: 1.3, rampa: 5, degrau: 0.55, lisa: 0 };
+const BANK_WIDTH: Record<ReliefMode, number> = { terraco: 0.8, rampa: 5, degrau: 0.45, lisa: 0 };
 
 /**
  * Terraços ligados (padrão, `bioma/degraus-e-rampas.png`, blocos 4 e 5): patamares planos e uma encosta de largura fixa entre eles, com terra à mostra.
@@ -145,6 +149,12 @@ class Patch {
   readonly impact = new Float32Array(PATCH * PATCH);
   readonly ejecta = new Float32Array(PATCH * PATCH);
   readonly surge = new Float32Array(PATCH * PATCH);
+  readonly iceLand = new Float32Array(PATCH * PATCH);
+  /** Mancha da jazida: quanto o chão assume a cor do minério. */
+  readonly ore = new Float32Array(PATCH * PATCH);
+  readonly oreR = new Float32Array(PATCH * PATCH);
+  readonly oreG = new Float32Array(PATCH * PATCH);
+  readonly oreB = new Float32Array(PATCH * PATCH);
   readonly lake = new Float32Array(PATCH * PATCH);
   readonly lakeY = new Float32Array(PATCH * PATCH);
   highest = -Infinity;
@@ -161,6 +171,7 @@ class Patch {
       const ice = w.ice[c] as number;
       this.cell[k] = c;
       this.h[k] = m;
+      if (ice && m > 0) this.iceLand[k] = 1;
       if (state === CellState.Impact) this.impact[k] = 1;
       if (state === CellState.Ejecta) this.ejecta[k] = 1;
       if (state === CellState.Surge || state === CellState.Flooded || state === CellState.Wave || state === CellState.Meltwater || state === CellState.Lake) this.surge[k] = 1;
@@ -195,6 +206,13 @@ class Patch {
         // Acerto fino por bioma, medido no corte (decisão 2: sem salto de cor).
         const fix = state === 0 || cracked ? BIOME_FIX[biome] : undefined;
         if (fix) { r *= fix[0]; g *= fix[1]; b *= fix[2]; }
+      }
+      // Jazida: o chão fica oxidado, da cor do minério (chapéu de ferro, decisão de 2026-11-06).
+      const dep = w.deposit[c] as number, type = depositType(dep);
+      if (type !== Resource.None && m > 0 && !ice && !isHiddenOil(dep)) {
+        const tint = oreStain(type);
+        this.ore[k] = type === Resource.Oil ? 0 : 1;
+        this.oreR[k] = tint[0]; this.oreG[k] = tint[1]; this.oreB[k] = tint[2];
       }
       this.r[k] = r; this.g[k] = g; this.b[k] = b;
     }
@@ -249,13 +267,28 @@ function surfaceLift(X: number, Z: number, face: number, patch: Patch): { lift: 
     const G = 26, gx = Math.floor(X / G), gz = Math.floor(Z / G);
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
       const ix = gx + dx, iz = gz + dz;
-      if (hash3(ix, iz, 61 + face) > 0.32) continue;
+      if (hash3(ix, iz, 61 + face) > 0.5) continue;
       const px = (ix + 0.2 + hash3(ix, iz, 63 + face) * 0.6) * G, pz = (iz + 0.2 + hash3(ix, iz, 67 + face) * 0.6) * G;
       if (patch.biome[patch.nearest(px, pz)] !== Biome.HotDesert) continue;
       const R = 3.2 + hash3(ix, iz, 71 + face) * 2.2, d = Math.hypot(X - px, Z - pz) / R;
       if (d >= 1) continue;
       const h = (1.5 + hash3(ix, iz, 73 + face)) * Math.pow(1 - d, 0.85);
       if (h > lift) { lift = h; kind = 1; }
+    }
+  }
+  if (patch.hasDesert) {
+    // Mesetas de rocha com topo plano (`bioma/extremos-gelo-e-calor.png`).
+    const G = 44, gx = Math.floor(X / G), gz = Math.floor(Z / G);
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const ix = gx + dx, iz = gz + dz;
+      if (hash3(ix, iz, 91 + face) > 0.34) continue;
+      const px = (ix + 0.2 + hash3(ix, iz, 93 + face) * 0.6) * G, pz = (iz + 0.2 + hash3(ix, iz, 97 + face) * 0.6) * G;
+      if (patch.biome[patch.nearest(px, pz)] !== Biome.HotDesert) continue;
+      const R = 7 + hash3(ix, iz, 101 + face) * 7, ang = Math.atan2(Z - pz, X - px), wob = 1 + Math.sin(ang * 3 + ix) * 0.16 + Math.sin(ang * 5 + iz) * 0.1;
+      const d = Math.hypot(X - px, Z - pz) / (R * wob);
+      if (d >= 1) continue;
+      const H = 2.6 + hash3(ix, iz, 103 + face) * 1.6, l = H * smoothstep(1, 0.86, d);
+      if (l > lift) { lift = l; kind = d < 0.86 ? 6 : 7; }
     }
   }
   return { lift, kind, awake };
@@ -351,11 +384,11 @@ class Ground {
       const p = this.patch;
       const gx = elevationY(p.height(X + 1.5, Z)) - elevationY(p.height(X - 1.5, Z)), gz = elevationY(p.height(X, Z + 1.5)) - elevationY(p.height(X, Z - 1.5));
       const gradient = Math.hypot(gx, gz) / 3;
-      const wobble = noise3(sx * 0.07, sy * 0.07, sz * 0.07) * 0.42 + noise3(sx * 0.2, sy * 0.2, sz * 0.2) * 0.1;
+      // Só ondulação larga: ruído fino criava ilhinhas e riscos de terra soltos pelo chão (D6).
+      const wobble = noise3(sx * 0.05, sy * 0.05, sz * 0.05) * 0.4;
       const stepped = terrace(y, wobble, desert > 0.5 ? TERRACE * 2.4 : TERRACE, gradient);
       this.bank = onBank;
       y = Math.max(0.2, stepped);
-      y += noise3(sx * 0.31, sy * 0.31, sz * 0.31) * 0.09;
     }
     return y;
   }
@@ -390,6 +423,11 @@ function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, p
     f.r[k] = r0 * (1 + (tone + warm) * quiet * quietDry);
     f.g[k] = g0 * (1 + tone * quiet * quietDry);
     f.b[k] = b0 * (1 + (tone - warm) * quiet * quietDry);
+    const oreW = patch.spline(patch.ore, cx, cz);
+    if (oreW > 0.1) {
+      const near2 = patch.nearest(cx, cz), t = smoothstep(0.1, 0.5, oreW) * (0.62 + noise3(sx * 0.6, sy * 0.6, sz * 0.6) * 0.3);
+      if ((patch.ore[near2] as number) > 0) { f.r[k] = (f.r[k] as number) + ((patch.oreR[near2] as number) - (f.r[k] as number)) * t; f.g[k] = (f.g[k] as number) + ((patch.oreG[near2] as number) - (f.g[k] as number)) * t; f.b[k] = (f.b[k] as number) + ((patch.oreB[near2] as number) - (f.b[k] as number)) * t; }
+    }
     if ((patch.ice[cellAt] as number) && (patch.sea[cellAt] as number) === 0 && (patch.h[cellAt] as number) <= 0) { f.wr[k] = ICE_WATER[0]; f.wg[k] = ICE_WATER[1]; f.wb[k] = ICE_WATER[2]; }
     else {
       f.wr[k] = patch.spline(patch.wr, cx, cz);
@@ -467,6 +505,39 @@ const lvx = (ix: number, iz: number, face: number) => ix * LATTICE + (hash3(ix, 
 const lvz = (ix: number, iz: number, face: number) => iz * LATTICE + (hash3(ix, iz, 11 + face) - 0.5) * LATTICE * 0.72;
 
 /** Montanha como rede de triângulos grandes: facetas retas, em cima do chão. */
+/**
+ * Gelo (`bioma/extremos-gelo-e-calor.png`): em terra, manto branco facetado que desce até o mar e termina num pé de gelo; no mar, uma tampa azul-clara, também facetada.
+ */
+function buildIce(face: number, ox: number, oz: number, patch: Patch, ground: Ground): Facet[] {
+  const out: Facet[] = [];
+  let any = false;
+  for (let k = 0; k < PATCH * PATCH; k++) if (patch.ice[k]) { any = true; break; }
+  if (!any) return out;
+  const G = 3.2;
+  const vx = (ix: number, iz: number) => ix * G + (hash3(ix, iz, 71 + face) - 0.5) * G * 0.7, vz = (ix: number, iz: number) => iz * G + (hash3(ix, iz, 73 + face) - 0.5) * G * 0.7;
+  const land = (x: number, z: number) => { const k = patch.nearest(x, z); return (patch.ice[k] as number) === 1 && (patch.h[k] as number) > 0; };
+  const sea = (x: number, z: number) => { const k = patch.nearest(x, z); return (patch.ice[k] as number) === 1 && (patch.h[k] as number) <= 0; };
+  const yOf = (ix: number, iz: number): { x: number; y: number; z: number; land: boolean; sea: boolean } => {
+    const x = vx(ix, iz), z = vz(ix, iz);
+    ground.locate(x, z);
+    const m = patch.spline(patch.iceLand, x, z), base = Math.max(0, ground.plainY(ground.meters(x, z), 0, x, z));
+    return { x, z, land: land(x, z), sea: sea(x, z), y: Math.max(0.14, base) + (m > 0.3 ? 0.7 + m * 2.4 * (0.75 + hash3(ix, iz, 79 + face) * 0.5) : 0) };
+  };
+  const x0 = Math.floor(ox / G) - 1, x1 = Math.ceil((ox + CHUNK_CELLS) / G) + 1, z0 = Math.floor(oz / G) - 1, z1 = Math.ceil((oz + CHUNK_CELLS) / G) + 1;
+  for (let iz = z0; iz < z1; iz++) for (let ix = x0; ix < x1; ix++) {
+    const A = yOf(ix, iz), B = yOf(ix + 1, iz), C = yOf(ix + 1, iz + 1), D = yOf(ix, iz + 1);
+    for (const [p, q, r, t] of [[A, B, C, 0], [A, C, D, 1]] as const) {
+      const mx = (p.x + q.x + r.x) / 3, mz = (p.z + q.z + r.z) / 3;
+      if (mx < ox || mz < oz || mx >= ox + CHUNK_CELLS || mz >= oz + CHUNK_CELLS) continue;
+      const onLand = land(mx, mz), onSea = sea(mx, mz);
+      if (!onLand && !onSea) continue;
+      const h = hash3(ix * 3 + t, iz, 83 + face), base = onLand ? ICE_LAND : ICE_SEA, k = 0.93 + h * 0.1;
+      out.push({ p: [p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z], color: [base[0] * k, base[1] * k, base[2] * k], snow: onLand, light: [1, 1, 1] });
+    }
+  }
+  return out;
+}
+
 /** Rachaduras do terremoto (C7): fenda fina em ziguezague, escura, ligando as células rachadas. */
 function buildCracks(face: number, ox: number, oz: number, patch: Patch, ground: Ground): Facet[] {
   const out: Facet[] = [];
@@ -496,7 +567,7 @@ function buildCracks(face: number, ox: number, oz: number, patch: Patch, ground:
   return out;
 }
 
-function buildFacets(w: CoarseWorld, face: number, ox: number, oz: number, patch: Patch, ground: Ground): Facet[] {
+function buildFacets(w: CoarseWorld, face: number, ox: number, oz: number, patch: Patch, ground: Ground, ledges: { x: number; z: number; y: number; h: number }[]): Facet[] {
   const out: Facet[] = [];
   if (patch.highest < MOUNTAIN_START && !patch.hasDesert && patch.volcanoes.length === 0) return out;
   const size = w.n * DETAIL;
@@ -509,8 +580,9 @@ function buildFacets(w: CoarseWorld, face: number, ox: number, oz: number, patch
       const x = Math.max(0, Math.min(size, lvx(ix, iz, face))), z = Math.max(0, Math.min(size, lvz(ix, iz, face)));
       ground.locate(x, z);
       const meters = ground.meters(x, z), top = surfaceLift(x, z, face, patch), base = top.lift;
-      const amp = top.kind === 0 ? 1 : top.kind === 1 ? 0.2 : 0.4;
-      const rough = base > 0.3 ? amp * ((hash3(ix, iz, 3 + face) - 0.35) * 1.5 * Math.min(1, base / 2) + (noise3(ground.sx * 0.35, ground.sy * 0.35, ground.sz * 0.35) + 0.4) * 1.2 * Math.min(1, base / 3.5)) : 0;
+      const amp = top.kind === 0 ? 1 : top.kind === 1 ? 0.2 : top.kind >= 6 ? 0 : 0.4;
+      // O degrau da montanha só treme um pouco: rugosidade grande apagava os patamares.
+      const rough = base > 0.3 ? amp * (hash3(ix, iz, 3 + face) - 0.5) * (top.kind === 0 ? 0.42 : 1.5) : 0;
       const lift = Math.max(0, base + rough);
       const near = patch.nearest(x, z);
       const vc = patch.volcanoes[0];
@@ -531,13 +603,12 @@ function buildFacets(w: CoarseWorld, face: number, ox: number, oz: number, patch
       if (mx < ox || mz < oz || mx >= ox + CHUNK_CELLS || mz >= oz + CHUNK_CELLS) continue;
       const mean = (a.lift + b.lift + c.lift) / 3, top = Math.max(a.lift, b.lift, c.lift);
       const id = (ix + 2048) * 8192 + (iz + 2048) * 2 + t, h = hash3(id, 91, 17 + face);
-      const near = patch.nearest(mx, mz);
       const snowy = (a.snow + b.snow + c.snow) / 3;
       let color: Rgb, snow = false;
       const kind = Math.max(a.kind, b.kind, c.kind);
       if (kind > 0) {
         const k = 0.84 + h * 0.3;
-        const base2: Rgb = kind === 1 ? DUNE : kind === 3 ? CRATER : ROCK_DARK;
+        const base2: Rgb = kind === 1 ? DUNE : kind === 3 ? CRATER : kind === 6 ? MESA_TOP : kind === 7 ? MESA_SIDE : ROCK_DARK;
         let col: Rgb = [base2[0] * k, base2[1] * k, base2[2] * k];
         // Em erupção: lava na cratera e em canais pela encosta.
         const awake = a.awake || b.awake || c.awake;
@@ -551,14 +622,15 @@ function buildFacets(w: CoarseWorld, face: number, ox: number, oz: number, patch
         continue;
       }
       // Chapéu de neve: os picos altos pegam neve no topo; onde o globo é branco, a neve desce.
-      if ((mean > 8.2 + (h - 0.5) * 2.4) || snowy + (h - 0.5) * 0.7 + (mean > 2 ? 0.12 : -0.2) > 0.62) {
+      if ((mean > 9.5 + (h - 0.5) * 1.6) || (snowy > 0.5 && mean > 4)) {
         snow = true;
         const k = 0.99 + h * 0.05;
         color = [SNOW[0] * k * 1.05, SNOW[1] * k * 1.05, SNOW[2] * k * 1.05];
-      } else if (top < 1.2) {
+      } else if (top - Math.min(a.lift, b.lift, c.lift) < 0.55 || top < 1.2) {
+        // Patamar: grama, como na folha; aqui também nascem plantas e pedras.
         const k = 0.86 + h * 0.2;
-        const r = patch.r[near] as number, g = patch.g[near] as number, bl = patch.b[near] as number;
-        color = [r * k, g * k, bl * k];
+        color = [LEDGE[0] * k, LEDGE[1] * k, LEDGE[2] * k];
+        if (h < 0.1) ledges.push({ x: mx, z: mz, y: (a.y + b.y + c.y) / 3, h: hash3(id, 11, 7) });
       } else {
         const t2 = hash3(id, 5, 3), k = 0.72 + h * 0.34;
         const base = biomeRgb(Biome.Mountain);
@@ -580,7 +652,7 @@ const CANOPY: Partial<Record<number, readonly Canopy[]>> = {
   [Biome.Grassland]: [{ species: 'midTree', chance: 0.012, scale: 0.8, spread: 0.5, cluster: 0.2 }, { species: 'oak', chance: 0.005, scale: 0.8, spread: 0.4, cluster: 0.2 }],
   [Biome.Savanna]: [{ species: 'acacia', chance: 0.03, scale: 1.05, spread: 0.55, cluster: 0.2 }, { species: 'baobab', chance: 0.003, scale: 0.8, spread: 0.3, cluster: 0 }],
   [Biome.Swamp]: [{ species: 'mangrove', chance: 0.09, scale: 1.05, spread: 0.4, cluster: 0 }],
-  [Biome.HotDesert]: [{ species: 'cactusTall', chance: 0.012, scale: 0.8, spread: 0.5, cluster: 0 }],
+  [Biome.HotDesert]: [{ species: 'cactusTall', chance: 0.028, scale: 0.85, spread: 0.6, cluster: 0 }],
   [Biome.Mountain]: [{ species: 'pine', chance: 0.14, scale: 0.8, spread: 0.5, cluster: 0.35 }],
   [Biome.Beach]: [{ species: 'palm', chance: 0.01, scale: 0.9, spread: 0.4, cluster: 0 }],
 };
@@ -593,7 +665,7 @@ const FLOOR: Partial<Record<number, readonly GroundKind[]>> = {
   [Biome.Steppe]: [{ species: 'desertShrub', chance: 0.1, scale: 0.7, spread: 0.4 }, { species: 'savannaGrass', chance: 0.22, scale: 0.6, spread: 0.3 }, { species: 'rock', chance: 0.03, scale: 0.42, spread: 0.3 }],
   [Biome.Savanna]: [{ species: 'savannaGrass', chance: 0.3, scale: 0.7, spread: 0.4 }, { species: 'shrub', chance: 0.1, scale: 0.75, spread: 0.5 }, { species: 'rock', chance: 0.03, scale: 0.42, spread: 0.3 }],
   [Biome.Swamp]: [{ species: 'reedClump', chance: 0.42, scale: 0.8, spread: 0.4 }, { species: 'shrub', chance: 0.16, scale: 0.65, spread: 0.5 }],
-  [Biome.HotDesert]: [{ species: 'cactusLow', chance: 0.012, scale: 0.8, spread: 0.4 }, { species: 'desertShrub', chance: 0.02, scale: 0.8, spread: 0.3 }, { species: 'sandRock', chance: 0.02, scale: 0.5, spread: 0.35 }],
+  [Biome.HotDesert]: [{ species: 'cactusLow', chance: 0.03, scale: 0.8, spread: 0.4 }, { species: 'desertShrub', chance: 0.03, scale: 0.8, spread: 0.3 }, { species: 'sandRock', chance: 0.05, scale: 0.6, spread: 0.6 }],
   [Biome.ColdDesert]: [{ species: 'sandRock', chance: 0.03, scale: 0.5, spread: 0.35 }, { species: 'desertShrub', chance: 0.04, scale: 0.7, spread: 0.3 }],
   [Biome.Tundra]: [{ species: 'tundraShrub', chance: 0.14, scale: 0.9, spread: 0.4 }, { species: 'moss', chance: 0.18, scale: 0.9, spread: 0.5 }, { species: 'rock', chance: 0.03, scale: 0.4, spread: 0.3 }],
   [Biome.Mountain]: [{ species: 'rock', chance: 0.08, scale: 0.5, spread: 0.5 }, { species: 'shrub', chance: 0.14, scale: 0.7, spread: 0.5 }],
@@ -608,11 +680,11 @@ function depositsOf(w: CoarseWorld, patch: Patch): DepositSpot[] {
     if (type === Resource.None || (isHiddenOil(code) && !surfaceOil(w.n, c)) || (w.ice[c] as number)) continue;
     const big = depositSize(code);
     // Duas pedras por célula, um pouco afastadas: a mancha do minério é vista de longe.
-    if (type === Resource.Oil && hash3(c, 3, 79) > (oil === 'unica' ? 0.12 : 0.34)) continue;
+    if (type === Resource.Oil && hash3(c, 3, 79) > (oil === 'unica' ? 0.1 : 0.22)) continue;
     const small = stones === 'miudas' && type !== Resource.Oil;
-    for (let k = 0; k < (type === Resource.Oil ? 1 : small ? 4 : 2); k++) {
+    for (let k = 0; k < (type === Resource.Oil || !small ? 1 : 2); k++) {
       const h = hash3(c, k, 83), h2 = hash3(c, k, 89), h3 = hash3(c, k, 97);
-      out.push({ x: (patch.x0 + i) * DETAIL + 0.7 + h * 2.6, z: (patch.z0 + j) * DETAIL + 0.7 + h2 * 2.6, type, variant: k, scale: (type === Resource.Oil ? (oil === 'unica' ? 3 : 1.5) : small ? 0.55 : 1) * (0.8 + big * 0.28 + h3 * 0.3), yaw: h3 * 6.283 });
+      out.push({ x: (patch.x0 + i) * DETAIL + 0.7 + h * 2.6, z: (patch.z0 + j) * DETAIL + 0.7 + h2 * 2.6, type, variant: k, scale: (type === Resource.Oil ? (oil === 'unica' ? 4 : 2.6) : small ? 1.3 : 1.05) * (0.8 + big * 0.28 + h3 * 0.3), yaw: h3 * 6.283 });
     }
   }
   return out;
@@ -645,7 +717,7 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
   };
   // Onde há jazida não nasce planta por cima.
   for (const d of deposits) {
-    const r = Math.ceil(1.3 * d.scale), lx = Math.round(d.x - ox) + m, lz = Math.round(d.z - oz) + m;
+    const r = Math.ceil((d.type === Resource.Oil ? 2.6 : 1.1) * d.scale), lx = Math.round(d.x - ox) + m, lz = Math.round(d.z - oz) + m;
     for (let j = Math.max(0, lz - r); j <= Math.min(s - 1, lz + r); j++) for (let i = Math.max(0, lx - r); i <= Math.min(s - 1, lx + r); i++) f.peak[j * s + i] = Math.max(f.peak[j * s + i] as number, 0.6);
   }
   const seed = face * 131 + ox * 3 + oz * 7;
@@ -659,9 +731,9 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
   for (let gz = 0; gz < 9; gz++) for (let gx = 0; gx < 9; gx++) {
     const lx = (gx + 0.5 + (hash3(seed, gx, gz * 7 + 3) - 0.5) * 0.7) * 3.55, lz = (gz + 0.5 + (hash3(seed, gx * 7 + 1, gz) - 0.5) * 0.7) * 3.55;
     const k = (Math.round(lz) + m) * s + Math.round(lx) + m;
-    if (!iceSea[k]) continue;
+    if (!iceSea[k] || hash3(seed, gx * 5, gz + 19) > 0.12) continue;
     const h = hash3(seed, gx * 3, gz + 21);
-    out.push({ model: pickModel('floe', h), x: lx + ox, y: 0.02, z: lz + oz, scale: 1.1 + h * h * 2.2, stretch: 0.7, yaw: h * 37, tint: [1, 1, 1], rigid: true });
+    out.push({ model: pickModel('floe', h), x: lx + ox, y: 0.16, z: lz + oz, scale: 0.8 + h * 1.4, stretch: 0.7, yaw: h * 37, tint: [1, 1, 1], rigid: true });
   }
   for (const q of foam) {
     for (let t = 0; t < 5; t++) {
@@ -749,10 +821,19 @@ export function buildWorldChunk(w: CoarseWorld, hydro: Hydro | null, face: numbe
   const foam: { x: number; z: number; y: number }[] = [];
   const rivers = riverSegments(w, hydro, patch, foam);
   fill(w, f, face, ox, oz, patch, ground, biomeGrid, coverGrid, stateGrid, tempGrid, rivers);
+  const ledges: { x: number; z: number; y: number; h: number }[] = [];
   const iceSea = new Uint8Array(f.stride * f.stride);
   for (let k = 0; k < iceSea.length; k++) iceSea[k] = (f.wr[k] as number) === ICE_WATER[0] || (biomeGrid[k] === Biome.Ice && (f.y[k] as number) < 0.05) ? 1 : 0;
+  const facets = buildFacets(w, face, ox, oz, patch, ground, ledges).concat(buildIce(face, ox, oz, patch, ground));
   const places = scatter(f, face, ox, oz, ground, biomeGrid, coverGrid, stateGrid, tempGrid, iceSea, foam, depositsOf(w, patch));
-  const facets = buildFacets(w, face, ox, oz, patch, ground);
+  // Plantas e pedras nos patamares da montanha.
+  for (const q of ledges) {
+    if (q.x < ox || q.z < oz || q.x >= ox + CHUNK_CELLS || q.z >= oz + CHUNK_CELLS) continue;
+    const pine = q.h < 0.55, v = Math.floor(q.h * 17);
+    if (pine) places.push({ model: plant('pine', 'adult', v), far: plant('pine', 'adult', v, true), x: q.x, y: q.y - 0.04, z: q.z, scale: 0.72 + q.h * 0.5, stretch: 1, yaw: q.h * 40, tint: [1, 1, 1] });
+    else if (q.h < 0.8) places.push({ model: plant('shrub', 'adult', v), far: plant('shrub', 'adult', v, true), x: q.x, y: q.y - 0.02, z: q.z, scale: 0.9, stretch: 1, yaw: q.h * 40, tint: [1, 1, 1] });
+    else places.push({ model: pickModel('rock', q.h), far: pickModelFar('rock', q.h), x: q.x, y: q.y - 0.02, z: q.z, scale: 0.6, stretch: 1, yaw: q.h * 40, tint: [1, 1, 1], rigid: true });
+  }
   // Chão dos animais.
   const gridN = CHUNK_CELLS + 1, walkY = new Float32Array(gridN * gridN), walkMask = new Uint8Array(gridN * gridN), st = f.stride, mg = f.margin;
   for (let j = 0; j < gridN; j++) for (let i = 0; i < gridN; i++) {

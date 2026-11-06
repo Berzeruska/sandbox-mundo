@@ -1,6 +1,6 @@
 import { Resource } from '../world/resources';
 import { sequence } from './hash';
-import { lump, Model, rgb, setFarModels, type Rgb, type V3 } from './models';
+import { limb, Model, rgb, setFarModels, type Rgb, type V3 } from './models';
 
 /**
  * Jazidas como amontoados de pedras facetadas da cor do minério (`recursos/jazidas.png`). Cada tipo tem a pedra, o veio e o que há por cima (cristais, cubos).
@@ -17,107 +17,87 @@ export function surfaceOil(n: number, cell: number): boolean {
 
 const shade = (c: Rgb, k: number): Rgb => [c[0] * k, c[1] * k, c[2] * k];
 
-/** Bola facetada com facetas de duas cores: pedra e veio. */
-function boulder(m: Model, c: V3, r: number, base: Rgb, vein: Rgb | null, seed: number, chance = 0.26): void {
-  const rand = sequence(seed * 17 + 3);
-  const start = new Model();
-  lump(start, c, [r, r * 0.84, r * 0.92], base, seed, { detail: r > 0.3 ? 1 : 0, rough: r > 0.3 ? 0.13 : 0.2, tone: 0.14, low: 0.66, foot: 0 });
-  const tris = start.build();
-  for (let o = 0; o + 30 <= tris.length; o += 30) {
-    const pick = vein && rand() < chance;
-    const col: Rgb = pick ? shade(vein, 0.92 + rand() * 0.16) : [tris[o + 6] as number, tris[o + 7] as number, tris[o + 8] as number];
-    m.tri([tris[o] as number, tris[o + 1] as number, tris[o + 2] as number], [tris[o + 10] as number, tris[o + 11] as number, tris[o + 12] as number], [tris[o + 20] as number, tris[o + 21] as number, tris[o + 22] as number], col, c, [tris[o + 9] as number, tris[o + 19] as number, tris[o + 29] as number]);
-  }
+/** Cor oxidada de cada minério: rocha manchada, puxando para a cor da jazida. */
+const STAIN: Partial<Record<number, { rock: Rgb; vein: Rgb }>> = {
+  [Resource.Iron]: { rock: rgb(138, 84, 58), vein: rgb(172, 76, 44) },
+  [Resource.Copper]: { rock: rgb(126, 104, 84), vein: rgb(52, 128, 118) },
+  [Resource.Gold]: { rock: rgb(160, 122, 72), vein: rgb(214, 170, 62) },
+  [Resource.Silver]: { rock: rgb(132, 130, 130), vein: rgb(182, 184, 190) },
+  [Resource.Tin]: { rock: rgb(138, 128, 116), vein: rgb(178, 176, 170) },
+  [Resource.Bauxite]: { rock: rgb(156, 84, 58), vein: rgb(184, 100, 66) },
+  [Resource.Manganese]: { rock: rgb(70, 58, 66), vein: rgb(46, 38, 58) },
+  [Resource.Chromium]: { rock: rgb(92, 98, 80), vein: rgb(54, 112, 84) },
+  [Resource.Niobium]: { rock: rgb(112, 118, 128), vein: rgb(128, 150, 176) },
+  [Resource.RareEarths]: { rock: rgb(112, 92, 118), vein: rgb(112, 80, 150) },
+  [Resource.Lithium]: { rock: rgb(190, 180, 158), vein: rgb(232, 232, 232) },
+  [Resource.Coal]: { rock: rgb(58, 54, 54), vein: rgb(30, 30, 34) },
+  [Resource.Uranium]: { rock: rgb(120, 122, 104), vein: rgb(128, 190, 76) },
+  [Resource.Potash]: { rock: rgb(180, 146, 136), vein: rgb(212, 142, 136) },
+  [Resource.Nitrates]: { rock: rgb(208, 188, 148), vein: rgb(226, 208, 168) },
+  [Resource.Salt]: { rock: rgb(220, 220, 216), vein: rgb(246, 246, 248) },
+  [Resource.Sulfur]: { rock: rgb(186, 162, 72), vein: rgb(232, 208, 62) },
+  [Resource.Limestone]: { rock: rgb(208, 196, 170), vein: rgb(226, 216, 192) },
+};
+
+/** Cor da mancha no chão em volta do afloramento. */
+export function oreStain(type: number): Rgb {
+  const t = STAIN[type];
+  return t ? t.rock : rgb(130, 110, 90);
 }
 
-function pile(m: Model, base: Rgb, vein: Rgb | null, seed: number, chance?: number): void {
-  boulder(m, [0, 0.46, 0], 0.62, base, vein, seed + 1, chance);
-  boulder(m, [0.68, 0.26, 0.26], 0.36, base, vein, seed + 2, chance);
-  boulder(m, [-0.56, 0.24, 0.42], 0.34, base, vein, seed + 3, chance);
-  boulder(m, [0.1, 0.12, 0.76], 0.18, base, vein, seed + 4, chance);
-}
-
-function crystal(m: Model, x: number, z: number, y: number, h: number, r: number, color: Rgb, tilt: number): void {
-  const sides = 5, inside: V3 = [x, y + h * 0.4, z], tip: V3 = [x + tilt, y + h, z + tilt * 0.5];
+/** Laje baixa e angulosa, rente ao chão. */
+function slab(m: Model, x: number, z: number, r: number, h: number, base: Rgb, vein: Rgb, seed: number): void {
+  const rand = sequence(seed * 19 + 3), sides = 6, ring: V3[] = [], top: V3[] = [];
   for (let i = 0; i < sides; i++) {
-    const a = (i / sides) * 6.283, b = ((i + 1) / sides) * 6.283;
-    m.tri([x + Math.cos(a) * r, y, z + Math.sin(a) * r], [x + Math.cos(b) * r, y, z + Math.sin(b) * r], tip, shade(color, 0.88 + (i % 3) * 0.14), inside, [0.86, 0.86, 1]);
+    const a = (i / sides) * 6.283 + rand() * 0.5, q = r * (0.72 + rand() * 0.42), ax = x + Math.cos(a) * q, az = z + Math.sin(a) * q;
+    ring.push([ax, -0.02, az]);
+    top.push([x + Math.cos(a) * q * 0.72, h * (0.72 + rand() * 0.45), z + Math.sin(a) * q * 0.72]);
   }
-}
-
-function crystals(m: Model, color: Rgb, seed: number, count: number, spread = 0.72): void {
-  const rand = sequence(seed * 23 + 9);
-  for (let k = 0; k < count; k++) {
-    const t = rand() * 6.283, d = rand() * spread;
-    crystal(m, Math.cos(t) * d, Math.sin(t) * d, 0.3 + rand() * 0.4, 0.34 + rand() * 0.34, 0.08 + rand() * 0.05, color, (rand() - 0.5) * 0.18);
+  const mid: V3 = [x, h * 1.04, z], inside: V3 = [x, h * 0.2, z];
+  const pick = (): Rgb => (rand() < 0.34 ? shade(vein, 0.92 + rand() * 0.14) : shade(base, 0.88 + rand() * 0.2));
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides;
+    m.tri(top[i] as V3, top[j] as V3, mid, pick(), inside);
+    const c = pick();
+    m.tri(ring[i] as V3, ring[j] as V3, top[j] as V3, shade(c, 0.86), inside, [0.78, 0.78, 1]);
+    m.tri(ring[i] as V3, top[j] as V3, top[i] as V3, shade(c, 0.86), inside, [0.78, 1, 1]);
   }
-}
-
-function cube(m: Model, x: number, z: number, s: number, color: Rgb, yaw: number): void {
-  const c = Math.cos(yaw) * s, n = Math.sin(yaw) * s, h = s * 1.5;
-  const at = (a: number, b: number, y: number): V3 => [x + a * c - b * n, y, z + a * n + b * c];
-  const v = [at(-1, -1, 0), at(1, -1, 0), at(1, 1, 0), at(-1, 1, 0), at(-1, -1, h), at(1, -1, h), at(1, 1, h), at(-1, 1, h)] as const;
-  const inside: V3 = [x, h / 2, z];
-  for (const [a, b, d, e, k] of [[4, 5, 6, 7, 1.04], [0, 1, 5, 4, 0.92], [1, 2, 6, 5, 0.86], [2, 3, 7, 6, 0.92], [3, 0, 4, 7, 0.86]] as const) {
-    m.tri(v[a], v[b], v[d], shade(color, k), inside);
-    m.tri(v[a], v[d], v[e], shade(color, k), inside);
-  }
-}
-
-function flat(m: Model, radius: number, color: Rgb, seed: number, y = 0.06, sides = 11): void {
-  const rand = sequence(seed * 41 + 13);
-  const ring: V3[] = [];
-  for (let i = 0; i < sides; i++) { const a = (i / sides) * 6.283, r = radius * (0.72 + rand() * 0.4); ring.push([Math.cos(a) * r, y, Math.sin(a) * r]); }
-  const c: V3 = [0, y + 0.01, 0];
-  for (let i = 0; i < sides; i++) m.tri(ring[i] as V3, ring[(i + 1) % sides] as V3, c, shade(color, 0.96 + rand() * 0.08), [0, -1, 0]);
 }
 
 function build(type: number, seed: number): Float32Array {
   const m = new Model();
-  switch (type) {
-    case Resource.Copper: pile(m, rgb(176, 104, 72), rgb(38, 122, 132), seed, 0.42); break;
-    case Resource.Silver: pile(m, rgb(186, 190, 196), rgb(148, 152, 160), seed); break;
-    case Resource.Gold: pile(m, rgb(164, 154, 128), rgb(236, 190, 60), seed, 0.22); break;
-    case Resource.Iron: pile(m, rgb(116, 96, 92), rgb(176, 74, 50), seed, 0.3); break;
-    case Resource.Manganese: pile(m, rgb(46, 38, 58), null, seed); break;
-    case Resource.Chromium:
-      pile(m, rgb(50, 112, 82), rgb(36, 84, 62), seed);
-      for (let k = 0; k < 5; k++) boulder(m, [Math.cos(k * 1.3) * 0.7, 0.1, Math.sin(k * 1.3) * 0.7], 0.1, rgb(60, 130, 96), null, seed + k + 9);
-      break;
-    case Resource.Tin: pile(m, rgb(190, 188, 182), rgb(150, 150, 146), seed); break;
-    case Resource.Bauxite:
-      cube(m, 0, 0, 0.36, rgb(178, 86, 58), 0.4); cube(m, 0.56, 0.24, 0.24, rgb(166, 66, 48), 1); cube(m, -0.5, 0.3, 0.22, rgb(186, 96, 66), 2); cube(m, 0.1, 0.64, 0.14, rgb(166, 66, 48), 0.2);
-      break;
-    case Resource.Niobium: pile(m, rgb(128, 150, 176), rgb(100, 122, 150), seed); break;
-    case Resource.RareEarths: pile(m, rgb(106, 76, 142), rgb(82, 58, 116), seed); crystals(m, rgb(146, 104, 186), seed, 6); break;
-    case Resource.Lithium:
-      flat(m, 1.05, rgb(196, 186, 160), seed);
-      for (let k = 0; k < 5; k++) cube(m, Math.cos(k * 1.9) * 0.55, Math.sin(k * 1.9) * 0.5, 0.09 + (k % 3) * 0.03, rgb(244, 246, 248), k);
-      break;
-    case Resource.Oil:
-      // Poça: borda de terra escura, preto no meio e dois reflexos.
-      flat(m, 1.2, rgb(84, 62, 46), seed, 0.04);
-      flat(m, 0.95, rgb(14, 12, 18), seed + 1, 0.07);
-      m.tri([-0.34, 0.085, -0.08], [-0.06, 0.085, -0.24], [0.02, 0.085, -0.02], rgb(110, 112, 128), [0, -1, 0]);
-      m.tri([0.2, 0.085, 0.16], [0.44, 0.085, 0.08], [0.34, 0.085, 0.3], rgb(70, 72, 88), [0, -1, 0]);
-      break;
-    case Resource.Coal:
-      boulder(m, [0, 0.3, 0], 0.46, rgb(30, 30, 34), null, seed + 1); boulder(m, [0.56, 0.18, 0.2], 0.26, rgb(26, 26, 30), null, seed + 2); boulder(m, [-0.5, 0.14, 0.3], 0.2, rgb(34, 34, 38), null, seed + 3);
-      for (let k = 0; k < 4; k++) boulder(m, [Math.cos(k * 2) * 0.82, 0.05, Math.sin(k * 2) * 0.82], 0.08, rgb(26, 26, 30), null, seed + 4 + k);
-      break;
-    case Resource.Uranium: pile(m, rgb(132, 134, 130), null, seed); crystals(m, rgb(140, 226, 70), seed, 7); break;
-    case Resource.Potash: pile(m, rgb(226, 178, 176), rgb(204, 116, 118), seed, 0.3); break;
-    case Resource.Nitrates:
-      flat(m, 1.1, rgb(226, 204, 158), seed);
-      for (let k = 0; k < 6; k++) boulder(m, [Math.cos(k * 1.7) * 0.6, 0.08, Math.sin(k * 1.7) * 0.55], 0.1 + (k % 3) * 0.03, rgb(206, 182, 128), null, seed + k + 5);
-      break;
-    case Resource.Salt:
-      flat(m, 1, rgb(232, 234, 236), seed);
-      cube(m, 0, 0, 0.34, rgb(248, 249, 250), 0.5); cube(m, 0.56, 0.24, 0.2, rgb(244, 246, 248), 1.2); cube(m, -0.48, 0.34, 0.17, rgb(244, 246, 248), 0.1); cube(m, 0.14, 0.62, 0.12, rgb(244, 246, 248), 2);
-      break;
-    case Resource.Sulfur: pile(m, rgb(234, 212, 58), rgb(214, 186, 40), seed); crystals(m, rgb(246, 226, 66), seed, 7); break;
-    case Resource.Limestone: pile(m, rgb(226, 214, 190), rgb(208, 196, 170), seed); break;
-    default: pile(m, rgb(130, 130, 130), null, seed);
+  if (type === Resource.Oil) {
+    // Cava de `recursos/jazidas.png`: buraco de terra escura com borda levantada, poça preta e dois paus.
+    const rand = sequence(seed * 7 + 1), sides = 12, earth = rgb(112, 76, 50), dark = rgb(84, 58, 42);
+    const outer: V3[] = [], rim: V3[] = [], pool: V3[] = [];
+    for (let i = 0; i < sides; i++) {
+      const a = (i / sides) * 6.283, w = 0.84 + rand() * 0.3;
+      outer.push([Math.cos(a) * 1.45 * w, 0, Math.sin(a) * 1.45 * w]);
+      rim.push([Math.cos(a) * 1.05 * w, 0.26 + rand() * 0.1, Math.sin(a) * 1.05 * w]);
+      pool.push([Math.cos(a) * 0.82 * w, 0.1, Math.sin(a) * 0.82 * w]);
+    }
+    const c: V3 = [0, 0.1, 0];
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides;
+      m.tri(outer[i] as V3, outer[j] as V3, rim[j] as V3, shade(earth, 0.95 + rand() * 0.14), [0, -1, 0]);
+      m.tri(outer[i] as V3, rim[j] as V3, rim[i] as V3, shade(earth, 0.95 + rand() * 0.14), [0, -1, 0]);
+      m.tri(rim[i] as V3, rim[j] as V3, pool[j] as V3, shade(dark, 0.9 + rand() * 0.14), [0, 2, 0]);
+      m.tri(rim[i] as V3, pool[j] as V3, pool[i] as V3, shade(dark, 0.9 + rand() * 0.14), [0, 2, 0]);
+      m.tri(pool[i] as V3, pool[j] as V3, c, rgb(12, 10, 16), [0, -1, 0]);
+    }
+    m.tri([-0.38, 0.115, -0.1], [-0.08, 0.115, -0.26], [0, 0.115, -0.04], rgb(116, 118, 136), [0, -1, 0]);
+    m.tri([0.2, 0.115, 0.16], [0.46, 0.115, 0.08], [0.34, 0.115, 0.3], rgb(72, 74, 92), [0, -1, 0]);
+    limb(m, [1.05, 0.2, 0.2], [1.35, 0.74, 0.36], 0.035, 0.022, rgb(86, 62, 44), 4);
+    limb(m, [-0.9, 0.2, -0.5], [-1.2, 0.62, -0.72], 0.035, 0.022, rgb(86, 62, 44), 4);
+    return m.build();
+  }
+  // Chapéu de ferro: rocha oxidada aflorando em lajes baixas. Pedra solta e monte só no M4, quando minerar.
+  const t = STAIN[type] ?? { rock: rgb(130, 110, 90), vein: rgb(150, 110, 70) };
+  const rand = sequence(seed * 11 + 5);
+  const n = 5;
+  for (let k = 0; k < n; k++) {
+    const a = rand() * 6.283, d = k === 0 ? 0 : 0.45 + rand() * 0.75, r = k === 0 ? 0.62 : 0.26 + rand() * 0.3;
+    slab(m, Math.cos(a) * d, Math.sin(a) * d, r, k === 0 ? 0.34 : 0.14 + rand() * 0.16, t.rock, t.vein, seed + k * 3);
   }
   return m.build();
 }

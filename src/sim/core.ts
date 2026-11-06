@@ -1,5 +1,6 @@
 import { seedFrom } from '../core/rng';
 import { maxSpeedQuota } from '../core/geologic-time';
+import { CellState } from '../world/disasters/ground';
 import { Clock, holdsSpeedChange, TICKS_PER_YEAR, type Speed } from '../core/time';
 import { applyBrush, applyTerrainDeltas, RAISE_RATE } from '../input/tools';
 import { buildColors, colorCacheBytes, forgetResourceHalo, NO_LAYERS, tintStress, withRing, type Layers } from '../render/colors';
@@ -477,7 +478,15 @@ export class SimulationCore {
     const cells: number[] = [];
     for (let c = 0; c < world.cellCount; c++) if (world.boundary[c]) cells.push(c);
     this.paint(cells);
-    this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
+    // Seca e volta da vegetação mudam aos poucos: a tela troca a cor suavemente (B3). Fogo, lava e o resto valem na hora.
+    const ground = this.disasters?.ground;
+    const slow: number[] = [], now: number[] = [];
+    for (const c of cells) {
+      const st = ground ? (ground.state[c] as number) : 0;
+      if (st === CellState.Heat || st === CellState.None) slow.push(c); else now.push(c);
+    }
+    if (slow.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, slow)), brushMs: -1, fade: true });
+    if (now.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, now)), brushMs: -1 });
   }
 
   /** Aplica o que os desastres fizeram: relevo erguido, marcas novas ou vencidas, e avisa a tela. */
@@ -537,7 +546,15 @@ export class SimulationCore {
     const cells = [...this.pendingPaint];
     this.pendingPaint.clear();
     this.paint(cells);
-    this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
+    // Seca e volta da vegetação mudam aos poucos: a tela troca a cor suavemente (B3). Fogo, lava e o resto valem na hora.
+    const ground = this.disasters?.ground;
+    const slow: number[] = [], now: number[] = [];
+    for (const c of cells) {
+      const st = ground ? (ground.state[c] as number) : 0;
+      if (st === CellState.Heat || st === CellState.None) slow.push(c); else now.push(c);
+    }
+    if (slow.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, slow)), brushMs: -1, fade: true });
+    if (now.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, now)), brushMs: -1 });
   }
 
   /**
