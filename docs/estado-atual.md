@@ -1,15 +1,17 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-05**, branch `marco-3`. **M2 no `main` com a tag `v2.0`. Portão do M3 pronto, esperando as decisões do usuário:** `docs/M3-portao.md`.
-Jogo: **https://berzeruska.github.io/sandbox-mundo/** · Protótipo do portão: **https://berzeruska.github.io/sandbox-mundo/previa/marco-3/prototipo/**
+Atualizado em: **2026-11-05**, branch `marco-3`. **M2 no `main` com a tag `v2.0`. Bloco de opções do portão do M3 em andamento (mensagem do usuário de 2026-11-05).** Nada do M3 entra no jogo antes da aprovação: só protótipo, infraestrutura da prévia, README e docs.
+Jogo: **https://berzeruska.github.io/sandbox-mundo/** · Protótipo: **https://berzeruska.github.io/sandbox-mundo/previa/marco-3/prototipo/**
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
 estamos", vale este.
 
 ## Modo de trabalho (usuário, 2026-11-04)
 O usuário só faz testes objetivos e decide design e mecânica; o resto é do Claude Code, que para só no fim.
 
-## Portão do M3 (`docs/M3-portao.md`)
-Feito: (a) diorama medido em WebGL2, Three.js e sprites; (b) passagem do globo para o diorama; (c) guia de estilo com 5 opções; (d) 5 opções de escala; (e) globo e 3 mapas planos; (f) candidato às camadas estranhas (as jazidas), a confirmar. **Nada do M3 começa antes das 5 decisões do fim do documento.** O código do protótipo fica em `prototipo/` e o jogo não o usa.
+## Bloco de opções do portão do M3
+- [x] Triagem das referências: 27 imagens em `docs/img/referencias/`, índice em `indice.png`, ressalvas em `LEIAME.md`.
+
+Primeira rodada do portão: `docs/M3-portao.md`. O código do protótipo fica em `prototipo/` e o jogo não o usa.
 
 ## Antes do merge (teste da `3238cd7b`, usuário, 2026-11-05)
 Aprovados: relatório do Chrome (60 fps, nenhum quadro > 50 ms, relógio esperou 0, 0 travadas da data), tempo geológico; tsunami "bem melhor".
