@@ -1,13 +1,15 @@
 # Sandbox Mundo (nome provisório)
 
-**Jogar (versão do `main`):** https://berzeruska.github.io/sandbox-mundo/
+**Jogar (prévia mais recente):** https://berzeruska.github.io/sandbox-mundo/previa/atual/
+
+Versão estável (`main`): https://berzeruska.github.io/sandbox-mundo/
 
 **Protótipo do portão do M3 (não é o jogo):** https://berzeruska.github.io/sandbox-mundo/previa/marco-3/prototipo/ · opções em `docs/M3-portao.md`
 
 Sandbox de deus num planeta redondo: civilizações que evoluem na ordem histórica, economia,
 ideologias, guerra com frentes fluidas, ecologia equilibrada e geologia viva.
 
-Roda no navegador do celular e do notebook. Instalável como app (PWA).
+Roda no navegador do notebook. Instalável como app (PWA).
 
 ## Documentação
 - `docs/00-visao.md` — o que é o jogo e seus pilares
