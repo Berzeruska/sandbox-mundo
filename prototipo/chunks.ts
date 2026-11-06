@@ -108,6 +108,8 @@ export interface Camera3D {
 
 /** A partir desta distância da câmera, modelos de longe. */
 const FAR_MODEL = 95;
+/** Pedaços desenhados no mapa de sombra por quadro. */
+const BAKE_PER_FRAME = 5;
 const keyOf = (cx: number, cz: number) => (cz + 4096) * 8192 + cx + 4096;
 
 export function perspective(fovDeg: number, aspect: number, near: number, far: number): Float32Array {
@@ -152,8 +154,11 @@ export class ChunkWorld {
   private figureVbo: WebGLBuffer;
   private figureVertices: number;
   private figures: { vao: WebGLVertexArrayObject; buffer: WebGLBuffer; data: Float32Array; walk: Float32Array; count: number };
-  private shadowTexture: WebGLTexture;
-  private shadowFbo: WebGLFramebuffer;
+  private shadowTextures: WebGLTexture[] = [];
+  private shadowFbos: WebGLFramebuffer[] = [];
+  private shadowIndex = 0;
+  private hasShadow = false;
+  private bakeJob: { sun: Float32Array; center: number[]; left: number[]; started: boolean } | null = null;
   private sun: Float32Array = new Float32Array(16);
   private shadowDirty = true;
   private shadowCenter = [0, 0];
@@ -208,19 +213,23 @@ export class ChunkWorld {
     gl.bindVertexArray(null);
     this.figures = { vao, buffer, data, walk, count };
     // Sombra.
-    this.shadowTexture = gl.createTexture() as WebGLTexture;
-    gl.bindTexture(gl.TEXTURE_2D, this.shadowTexture);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, 2048, 2048);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    this.shadowFbo = gl.createFramebuffer() as WebGLFramebuffer;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadowTexture, 0);
-    gl.drawBuffers([gl.NONE]);
-    gl.readBuffer(gl.NONE);
+    for (let k = 0; k < 2; k++) {
+      const texture = gl.createTexture() as WebGLTexture;
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, 2048, 2048);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const fbo = gl.createFramebuffer() as WebGLFramebuffer;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, texture, 0);
+      gl.drawBuffers([gl.NONE]);
+      gl.readBuffer(gl.NONE);
+      this.shadowTextures.push(texture);
+      this.shadowFbos.push(fbo);
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     this.worker = new Worker(new URL('./detail-worker.ts', import.meta.url), { type: 'module' });
@@ -413,30 +422,40 @@ export class ChunkWorld {
     }
   }
 
-  private bakeShadow(v: Camera3D): void {
-    const gl = this.gl;
+  /**
+   * Sombra em partes (item 1.6): o mapa novo é desenhado aos poucos, alguns pedaços por quadro, num segundo mapa fora de uso, e só
+   * entra quando está pronto. Assim, nenhum quadro paga o desenho inteiro enquanto os pedaços carregam.
+   */
+  private startBake(v: Camera3D): void {
     const sun = this.light.sun;
     const span = (this.radius + 1) * CHUNK;
     // Sombra presa à grade dos pedaços: não treme com a câmera andando.
     const c = [Math.floor(v.x / CHUNK) * CHUNK + CHUNK / 2, Math.floor(v.z / CHUNK) * CHUNK + CHUNK / 2] as const;
-    this.shadowCenter = [c[0], c[1]];
     const l = Math.hypot(sun[0], sun[1], sun[2]);
     const eye = [c[0] + (sun[0] / l) * 200, (sun[1] / l) * 200, c[1] + (sun[2] / l) * 200];
     const view = lookAt(eye, [c[0], 0, c[1]], [0, 1, 0]);
     const r = span * 1.05, near = 10, far = 420;
     const ortho = new Float32Array([1 / r, 0, 0, 0, 0, 1 / r, 0, 0, 0, 0, -2 / (far - near), 0, 0, 0, -(far + near) / (far - near), 1]);
-    this.sun = multiply(ortho, view);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo);
+    this.bakeJob = { sun: multiply(ortho, view), center: [c[0], c[1]], left: [...this.loaded.keys()], started: false };
+    this.shadowDirty = false;
+  }
+
+  private stepBake(maxChunks: number): void {
+    const gl = this.gl, job = this.bakeJob;
+    if (!job) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbos[1 - this.shadowIndex] as WebGLFramebuffer);
     gl.viewport(0, 0, 2048, 2048);
     gl.depthMask(true);
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
     gl.disable(gl.CULL_FACE);
-    gl.clear(gl.DEPTH_BUFFER_BIT);
+    if (!job.started) { gl.clear(gl.DEPTH_BUFFER_BIT); job.started = true; }
     gl.useProgram(this.shadowProgram);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.shadowProgram, 'uSun'), false, this.sun);
+    gl.uniformMatrix4fv(gl.getUniformLocation(this.shadowProgram, 'uSun'), false, job.sun);
     this.constants();
-    for (const g of this.loaded.values()) {
+    for (let k = 0; k < maxChunks && job.left.length; k++) {
+      const g = this.loaded.get(job.left.pop() as number);
+      if (!g) continue;
       if (g.terrain) { gl.bindVertexArray(g.terrain.vao); gl.drawArrays(gl.TRIANGLES, 0, g.terrain.vertices); }
       for (const p of g.parts) {
         if (p.kind === 'tronco' || p.kind === 'arbusto' || p.kind === 'pedra' || p.kind === 'rocha') continue;
@@ -446,7 +465,13 @@ export class ChunkWorld {
     }
     gl.bindVertexArray(null);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    this.shadowDirty = false;
+    if (!job.left.length) {
+      this.shadowIndex = 1 - this.shadowIndex;
+      this.sun = job.sun;
+      this.shadowCenter = job.center;
+      this.bakeJob = null;
+      this.hasShadow = true;
+    }
   }
 
   private constants(): void {
@@ -477,7 +502,9 @@ export class ChunkWorld {
   draw(v: Camera3D, aspect: number, time: number, target: WebGLFramebuffer | null, width: number, height: number): void {
     const gl = this.gl, u = this.u as Record<string, WebGLUniformLocation>, st = this.light;
     const cxNow = Math.floor(v.x / CHUNK) * CHUNK + CHUNK / 2, czNow = Math.floor(v.z / CHUNK) * CHUNK + CHUNK / 2;
-    if (this.shadowDirty || cxNow !== this.shadowCenter[0] || czNow !== this.shadowCenter[1]) this.bakeShadow(v);
+    if (!this.bakeJob && (this.shadowDirty || cxNow !== this.shadowCenter[0] || czNow !== this.shadowCenter[1])) this.startBake(v);
+    // A primeira sombra sai inteira, antes do primeiro quadro; as outras, em partes.
+    this.stepBake(this.hasShadow ? BAKE_PER_FRAME : Infinity);
     const eye = eyeOf(v);
     const vp = multiply(perspective(v.fov, aspect, 2, 1200), lookAt(eye, [v.x, 0, v.z], [0, 1, 0]));
     gl.bindFramebuffer(gl.FRAMEBUFFER, target);
@@ -501,7 +528,7 @@ export class ChunkWorld {
     gl.uniform3fv(u['uSky'] as WebGLUniformLocation, st.sky);
     gl.uniform3fv(u['uGround'] as WebGLUniformLocation, st.ground);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.shadowTexture);
+    gl.bindTexture(gl.TEXTURE_2D, this.shadowTextures[this.shadowIndex] as WebGLTexture);
     gl.uniform1i(u['uShadowMap'] as WebGLUniformLocation, 0);
     this.constants();
     let calls = 0, tris = 0, shown = 0;

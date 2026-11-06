@@ -118,11 +118,9 @@ export class Sampler {
     for (const r of this.w.rivers) {
       for (let k = 0; k + 3 < r.length; k += 2) {
         const ax = r[k] as number, az = r[k + 1] as number, bx = r[k + 2] as number, bz = r[k + 3] as number;
-        if (Math.abs(ax - x) > 8 && Math.abs(bx - x) > 8) continue;
-        if (Math.abs(az - z) > 8 && Math.abs(bz - z) > 8) continue;
-        const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x + 0.5 - ax) * dx + (z + 0.5 - az) * dz) / (dx * dx + dz * dz || 1)));
-        const wobble = (noise(x, z, 7, 11) - 0.5) * 2.2;
-        if (Math.hypot(ax + dx * t - x - 0.5 + wobble, az + dz * t - z - 0.5 - wobble) < 1.0) return true;
+                const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x + 0.5 - ax) * dx + (z + 0.5 - az) * dz) / (dx * dx + dz * dz || 1)));
+        const wobble = (noise(x, z, 16, 11) - 0.5) * 5;
+        if (Math.hypot(ax + dx * t - x - 0.5 + wobble, az + dz * t - z - 0.5 - wobble) < 1.15) return true;
       }
     }
     return false;
@@ -140,7 +138,7 @@ export class Sampler {
     if (relief === 'lisa') return m;
     // Terraço: patamares planos, ligados por uma encosta curta que dá para subir a pé.
     const s = 0.44, t = m / s, f = t - Math.floor(t);
-    return (Math.floor(t) + smooth(Math.max(0, (f - 0.45) / 0.55))) * s;
+    return (Math.floor(t) + smooth(Math.max(0, (f - 0.6) / 0.4))) * s;
   }
 }
 
@@ -173,13 +171,13 @@ class Mesh {
     }
   }
   /** Bloco de faces planas e irregular: copas e pedras. Nunca redondo liso: as faces têm de aparecer. */
-  gem(cy: number, r: number, squash: number, seed: number, color: RGB): void {
+  gem(cy: number, r: number, squash: number, seed: number, color: RGB, rough = 0.44): void {
     const t = (1 + Math.sqrt(5)) / 2;
     const base = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]];
     const faces = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
     const v = base.map((p, i) => {
       const l = Math.hypot(p[0] as number, p[1] as number, p[2] as number);
-      const k = (r / l) * (0.78 + 0.44 * hash2(i, seed, 5));
+      const k = (r / l) * (1 - rough / 2 + rough * hash2(i, seed, 5));
       return [(p[0] as number) * k, cy + (p[1] as number) * k * squash, (p[2] as number) * k];
     });
     for (const f of faces) this.tri(v[f[0] as number] as number[], v[f[1] as number] as number[], v[f[2] as number] as number[], color);
@@ -188,6 +186,16 @@ class Mesh {
 }
 
 const WHITE: RGB = [1, 1, 1];
+
+/** Poças de petróleo aparente: manchas irregulares, uma por bloco sorteado. Devolve as que alcançam o ponto (ou a área dada). */
+function poolsNear(x0: number, z0: number, x1: number, z1: number): { x: number; z: number; r: number; seed: number }[] {
+  const B = 11, out: { x: number; z: number; r: number; seed: number }[] = [];
+  for (let bz = Math.floor((z0 - 6) / B); bz <= Math.floor((z1 + 6) / B); bz++) for (let bx = Math.floor((x0 - 6) / B); bx <= Math.floor((x1 + 6) / B); bx++) {
+    if (hash2(bx, bz, 43) > 0.6) continue;
+    out.push({ x: (bx + hash2(bx, bz, 44)) * B, z: (bz + hash2(bx, bz, 45)) * B, r: 1.6 + hash2(bx, bz, 46) * 2.6, seed: bx * 31 + bz });
+  }
+  return out;
+}
 
 /** Modelos instanciados, com as formas das referências (`docs/img/referencias/plantas`). */
 export function kindMesh(kind: Kind): Float32Array {
@@ -209,8 +217,8 @@ export function kindMesh(kind: Kind): Float32Array {
       m.tri([-e, 0, -e], [0, 0.6, -e], [e, 0, -e], [0.9, 0.9, 0.85]);
       break;
     }
-    case 'pedra': m.gem(0.14, 0.2, 0.8, 8, WHITE); m.gem(0.09, 0.12, 0.8, 9, [0.82, 0.82, 0.82]); break;
-    case 'rocha': m.gem(0.12, 0.2, 0.7, 10, WHITE); break;
+    case 'pedra': m.gem(0.14, 0.2, 0.8, 8, WHITE, 0.95); m.gem(0.09, 0.12, 0.8, 9, [0.82, 0.82, 0.82], 0.95); break;
+    case 'rocha': m.gem(0.12, 0.2, 0.7, 10, WHITE, 0.95); break;
   }
   return m.build();
 }
@@ -306,6 +314,7 @@ export function buildChunk(whole: WorldData, cx: number, cz: number): ChunkData 
   const put = (k: Kind, x: number, y: number, z: number, sx: number, sy: number, sz: number, rot: number, c: RGB) => inst[k].push(x, y, z, sx, sy, sz, rot, 0, c[0], c[1], c[2]);
   const tmp = new Float32Array(4), other = new Float32Array(4);
   const seaY = -0.12;
+  const pools = poolsNear(x0, z0, x0 + N, z0 + N);
   const near = w.cities.filter((c) => c.x + c.r > x0 - 1 && c.x - c.r < x0 + N + 1 && c.z + c.r > z0 - 1 && c.z - c.r < z0 + N + 1);
   const pick = <T>(a: readonly T[], r: number): T => a[Math.min(a.length - 1, Math.floor(r * a.length))] as T;
 
@@ -337,9 +346,9 @@ export function buildChunk(whole: WorldData, cx: number, cz: number): ChunkData 
       } else {
         // Terra: cor do bioma, misturando com a do bioma vizinho na mesma célula grande só pela ondulação da borda.
         // Petróleo aparente (decisão de 2026-11-05): parte da jazida aflora como poça preta; a outra parte fica escondida.
-        const oil = (w.deposit[c] as number) === Resource.Oil && hash2(Math.floor(x / 3), Math.floor(z / 3), 41) < 0.55;
+        const oil = (w.deposit[c] as number) === Resource.Oil && pools.some((q) => Math.hypot(q.x - x - 0.5, q.z - z - 0.5) < q.r * 1.15);
         const road = city && ((x - Math.round(city.x)) % 4 === 0 || (z - Math.round(city.z)) % 4 === 0);
-        const color = oil ? ([0.05, 0.045, 0.06] as RGB) : road ? p.road : shade(p.biome[biome] as RGB, speck);
+        const color = road ? p.road : shade(p.biome[biome] as RGB, speck);
         // Diagonal que acompanha a inclinação, para a rampa não dobrar errado.
         if (Math.abs(a - cc) <= Math.abs(b - d)) land.quad([x, a, z], [x, d, z + 1], [x + 1, cc, z + 1], [x + 1, b, z], color);
         else { land.tri([x, a, z], [x, d, z + 1], [x + 1, b, z], color); land.tri([x + 1, b, z], [x, d, z + 1], [x + 1, cc, z + 1], color); }
@@ -358,7 +367,7 @@ export function buildChunk(whole: WorldData, cx: number, cz: number): ChunkData 
           }
         }
         // Objetos: nunca em rua ou rio.
-        if (!road) decorate(s, w, put, x, z, biome, c, (a + b + cc + d) / 4, city, pick);
+        if (!road && !oil) decorate(s, w, put, x, z, biome, c, (a + b + cc + d) / 4, city, pick);
       }
       // Paredes do degrau e penhasco da borda do pedaço (coberto pelo vizinho quando ele existe).
       const ownEdge = [[a, d, x, z, x, z + 1], [cc, b, x + 1, z + 1, x + 1, z], [d, cc, x, z + 1, x + 1, z + 1], [b, a, x + 1, z, x, z]] as const;
@@ -382,6 +391,27 @@ export function buildChunk(whole: WorldData, cx: number, cz: number): ChunkData 
         } else land.quad([own[2], low0, own[3]], [own[4], low1, own[5]], [own[4], top1, own[5]], [own[2], top0, own[3]], mkColor);
       }
     }
+  }
+  // Poças por cima do chão: contorno irregular de faces planas e um reflexo, sem seguir a grade.
+  for (const q of pools) {
+    if (q.x < x0 || q.x >= x0 + N || q.z < z0 || q.z >= z0 + N) continue;
+    if ((w.deposit[s.coarse(q.x, q.z)] as number) !== Resource.Oil || s.isWater(q.x, q.z)) continue;
+    let y = 0;
+    for (let a = 0; a < 8; a++) {
+      const px = Math.floor(q.x + Math.cos(a * 0.785) * q.r), pz = Math.floor(q.z + Math.sin(a * 0.785) * q.r);
+      cellCorners(s, px, pz, w.relief, tmp, 0);
+      y = Math.max(y, tmp[0] as number, tmp[1] as number, tmp[2] as number, tmp[3] as number);
+    }
+    const ring = (k: number, ox: number, oz: number, c: RGB, lift: number) => {
+      const SIDES = 13;
+      const at = (i: number): number[] => {
+        const a = (i / SIDES) * Math.PI * 2, r = q.r * k * (0.72 + 0.56 * hash2(i % SIDES, q.seed, 47));
+        return [q.x + ox + Math.cos(a) * r, y + lift, q.z + oz + Math.sin(a) * r];
+      };
+      for (let i = 0; i < SIDES; i++) land.tri([q.x + ox, y + lift, q.z + oz], at(i + 1), at(i), c);
+    };
+    ring(1, 0, 0, [0.035, 0.03, 0.045], 0.03);
+    ring(0.32, -q.r * 0.25, -q.r * 0.2, [0.17, 0.17, 0.22], 0.035);
   }
   const instances = {} as Record<Kind, Float32Array>;
   for (const k of KINDS) instances[k] = new Float32Array(inst[k]);

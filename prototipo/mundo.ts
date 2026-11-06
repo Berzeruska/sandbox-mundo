@@ -21,7 +21,7 @@ import { pickRegion, REGION } from './scene';
  */
 const q = new URLSearchParams(location.search);
 const options = {
-  palette: Math.max(0, Math.min(PALETTES.length - 1, Number(q.get('paleta') ?? 1))),
+  palette: Math.max(0, Math.min(PALETTES.length - 1, Number(q.get('paleta') ?? 4))),
   far: (FAR_MODES.find((m) => m === q.get('longe')) ?? 'atlas') as FarMode,
   relief: (RELIEFS.find((m) => m === q.get('relevo')) ?? 'terraco') as Relief,
   aa: (q.get('aa') ?? 'fxaa') as AaMode,
@@ -138,7 +138,7 @@ function faceData(face: number, flip: boolean, jitter = 0): WorldData {
   }
   // Rios: do ponto alto de cada bloco, sempre pelo vizinho mais baixo, até o mar.
   const rivers: Float32Array[] = [];
-  const RB = 28;
+  const RB = 40;
   for (let by = 0; by + RB <= n; by += RB) for (let bx = 0; bx + RB <= n; bx += RB) {
     let top = -1, h = 500;
     for (let y = by; y < by + RB; y++) for (let x = bx; x < bx + RB; x++) if ((height[y * n + x] as number) > h) { h = height[y * n + x] as number; top = y * n + x; }
@@ -153,7 +153,8 @@ function faceData(face: number, flip: boolean, jitter = 0): WorldData {
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
         const ax = x + dx, ay = y + dy;
         if (ax < 0 || ay < 0 || ax >= n || ay >= n) continue;
-        const v = (height[ay * n + ax] as number) + (water[ay * n + ax] ? -1000 : 0);
+        // Um pouco de sorteio pela posição: rio serpenteia em vez de descer em linha reta.
+        const v = (height[ay * n + ax] as number) + (water[ay * n + ax] ? -1000 : 0) + ((Math.imul(ax, 2654435761) ^ Math.imul(ay, 40503)) >>> 24) * 1.2;
         if (v < low && !path.includes((ax + 0.5) * D)) { low = v; next = ay * n + ax; }
       }
       if (next < 0) break;
@@ -411,7 +412,7 @@ async function runReport(ms = 8000, gpuMs = 2500, names?: readonly string[]): Pr
   );
   return [
     'PROTÓTIPO do portão do M3 (não é o jogo)',
-    report.replace(/\n\n[^\n]*worker parado[\s\S]*$/, '').replaceAll('GPU do globo', 'GPU do quadro'),
+    report.replace(/\n\n[^\n]*worker parado[\s\S]*$/, '').replace(/\n\("tela ms"[\s\S]*?células quadradas\.\)/, '\n("tela ms" = trabalho da tela por quadro: média/pior. Se a GPU der perto de 15 ms com 60 fps, é o relógio da GPU em baixa, não o peso da cena: repita.)').replaceAll('GPU do globo', 'GPU do quadro'),
     '',
     `mundo: gerado em ${worldMs.toFixed(0)} ms · n=${n} · detalhe ${options.D}× · abertura ${pageLoadMs.toFixed(0)} ms${bakeInfo ? ` · pré-render ${bakeInfo.ms.toFixed(0)} ms, ${(bakeInfo.bytes / 1048576).toFixed(0)} MB` : ''}`,
     `pedaços (${CHUNK}×${CHUNK} células finas): ${c.buildMs.length} montados no worker, média ${mean(c.buildMs).toFixed(1)} ms, pior ${Math.max(0, ...c.buildMs).toFixed(0)} ms · subir para a GPU, média ${mean(c.uploadMs).toFixed(2)} ms, p95 ${p95(c.uploadMs).toFixed(2)}, pior ${Math.max(0, ...c.uploadMs).toFixed(1)} ms`,
@@ -502,6 +503,26 @@ const proto = {
   },
   recomposition,
   chunkStats: () => ({ builds: chunks?.buildMs.length ?? 0, buildMean: +mean(chunks?.buildMs ?? []).toFixed(2), buildWorst: +Math.max(0, ...(chunks?.buildMs ?? [])).toFixed(1), uploadMean: +mean(chunks?.uploadMs ?? []).toFixed(2), uploadWorst: +Math.max(0, ...(chunks?.uploadMs ?? [])).toFixed(1), cutWait: stats.cutWait, gpuMb: (chunks?.gpuBytes ?? 0) / 1048576, loaded: chunks?.loadedCount ?? 0, triangles: Math.round(chunks?.triangles ?? 0), drawCalls: chunks?.drawCalls ?? 0, worldMs, bake: bakeInfo }),
+  /** Leva a câmera a uma célula: `biome` (código) ou `deposit` (tipo de jazida), a mais no meio do lugar. */
+  async go(what: { biome?: number; deposit?: number; skip?: number }, px = CUT + 1) {
+    if (mode === 'maquete') goGlobe();
+    let found = -1, best = -1, seen = 0;
+    const r = 6;
+    for (let f = 0; f < 6; f++) for (let y = r; y < n - r; y += 3) for (let x = r; x < n - r; x += 3) {
+      const same = (c: number) => (what.biome !== undefined ? world.biome[c] === what.biome : depositType(world.deposit[c] as number) === what.deposit);
+      if (!same(g.index(f, x, y))) continue;
+      let score = 0;
+      for (let dy = -r; dy <= r; dy += 3) for (let dx = -r; dx <= r; dx += 3) if (same(g.index(f, x + dx, y + dy))) score++;
+      if (score > best || (score === best && seen < (what.skip ?? 0))) { best = score; found = g.index(f, x, y); seen++; }
+    }
+    if (found < 0) return false;
+    const f = Math.floor(found / (n * n)), rest = found - f * n * n;
+    const p = g.cellToPoint(f, rest % n, Math.floor(rest / n));
+    camera.lookAt([p[0] as number, p[1] as number, p[2] as number]);
+    setPx(px);
+    await wait(60);
+    return true;
+  },
   /** Item 1.8: quanto da terra à vista se alcança a pé. */
   walkReach: () => chunks?.walkReach(view) ?? null,
   async ready() { while (chunks && chunks.pending(view) > 0) await wait(30); await wait(200); },
@@ -517,6 +538,7 @@ const proto = {
     return { cities: occupation.cities.length, capitals: occupation.capitals.length, landCells: occupation.landCells, roads: occupation.roads.length, sea: occupation.sea.length, air: occupation.air.length, ms: Math.round(performance.now() - t0) };
   },
   redrawOccupation(symbol: number) { if (occupation) drawOccupation(overlay.getContext('2d') as CanvasRenderingContext2D, world, camera, occupation, symbol); },
+  /* tempo de GPU do quadro atual, para medir o 2D de longe */
   gpuBusy: async () => { const a: number[] = []; gpuOut = a; forceResolve = true; await wait(2000); gpuOut = null; forceResolve = false; return +mean(a.slice(1)).toFixed(2); },
 };
 (window as unknown as { proto: typeof proto }).proto = proto;

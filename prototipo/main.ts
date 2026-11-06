@@ -300,6 +300,35 @@ const api = {
 (window as unknown as { proto: typeof api }).proto = api;
 requestAnimationFrame(loop);
 
+// Botão "Medir desempenho" (item 4.1): o mesmo tipo de relatório, para comparar os motores no Chrome do usuário.
+const button = document.createElement('button');
+button.textContent = 'Medir desempenho';
+button.style.cssText = 'position:fixed;right:10px;top:10px;font:inherit;padding:8px 14px;border-radius:8px;border:0;background:#2b6;color:#fff';
+document.body.appendChild(button);
+const versionLine = document.createElement('div');
+versionLine.textContent = `versão ${__BUILD_ID__} · motor ${motor} · carga ${load}×`;
+versionLine.style.cssText = 'position:fixed;left:10px;bottom:8px;background:#000a;padding:2px 8px;border-radius:6px;font-size:12px';
+document.body.appendChild(versionLine);
+button.addEventListener('click', () => {
+  button.disabled = true;
+  void (async () => {
+    const lines = [`Protótipo do portão do M3: motores · versão ${__BUILD_ID__} · ${new Date().toLocaleString('pt-BR')}`, `motor ${motor} · carga ${load}× · suavização ${aa ? 'MSAA 4×' : 'nenhuma'}`, `GPU: ${String(api.info().gpu)}`, navigator.userAgent, '', 'cenário      fps méd   pior quadro  >50ms   tela ms   GPU média/p95/pior (ms)'];
+    for (const name of ['orbita', 'perto', 'chao'] as const) {
+      hud.textContent = `Medindo: ${name}…`;
+      const r = await api.measure(name, 8000);
+      lines.push(`${name.padEnd(12)} ${String(Math.round(r.fps)).padStart(7)}   ${`${Math.round(r.frame.worst)} ms`.padStart(11)}  ${String(r.over50).padStart(5)}   ${r.cpu.mean.toFixed(1).padStart(7)}   ${r.gpu.mean}/${r.gpu.p95}/${r.gpu.worst}`);
+    }
+    const text = lines.join('\n');
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.readOnly = true;
+    box.style.cssText = 'position:fixed;inset:8vh 8vw;font:12px monospace;background:#000;color:#eee;padding:10px;white-space:pre';
+    document.body.appendChild(box);
+    box.select();
+    button.disabled = false;
+  })();
+});
+
 // Girar com o dedo ou o mouse, aproximar com a roda ou a pinça.
 let dragging: { x: number; y: number } | null = null;
 canvas.addEventListener('pointerdown', (e) => { dragging = { x: e.clientX, y: e.clientY }; });

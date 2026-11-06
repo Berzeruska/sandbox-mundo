@@ -1,7 +1,7 @@
 # Estado atual do projeto
 
 Atualizado em: **2026-11-05**, branch `marco-3`. **M2 no `main` com a tag `v2.0`. Bloco de opções do portão do M3 em andamento (mensagem do usuário de 2026-11-05).** Nada do M3 entra no jogo antes da aprovação: só protótipo, infraestrutura da prévia, README e docs.
-Jogo: **https://berzeruska.github.io/sandbox-mundo/** · Protótipo: **https://berzeruska.github.io/sandbox-mundo/previa/marco-3/prototipo/**
+Jogo: **https://berzeruska.github.io/sandbox-mundo/** · Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/atual/** · Protótipo: **https://berzeruska.github.io/sandbox-mundo/previa/atual/prototipo/**
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
 estamos", vale este.
 
@@ -12,7 +12,12 @@ O usuário só faz testes objetivos e decide design e mecânica; o resto é do C
 - [x] Triagem das referências: 27 imagens em `docs/img/referencias/`, índice em `indice.png`, ressalvas em `LEIAME.md`.
 - [x] Decisões, reversões (petróleo misto, dragão mítico) e itens de marcos futuros registrados em `docs/decisoes.md`, `03`, `04` e `02-marcos.md`.
 
-Primeira rodada do portão: `docs/M3-portao.md`. O código do protótipo fica em `prototipo/` e o jogo não o usa.
+- [x] `/previa/atual/` e deploy que não apaga as prévias (PR #4, no `main`); "Jogar" do README e "Website" apontando para ele.
+- [x] Protótipo novo: globo 2D, corte, maquete em pedaços com detalhe 4×, sombra em partes, FXAA, botão "Medir desempenho" e linha de versão (`prototipo/index.html`; motores em `antigo.html`).
+- [x] Opções com imagem: `docs/M3-decisoes-visuais.md` (paleta, relevo, 2D), `docs/M3-escala.md`, `docs/M3-meteoro.md`.
+- [ ] **Parado esperando:** a medição do usuário no Chrome e as decisões de paleta, relevo, aplicação do 2D, escala, suavização e meteoro.
+
+Medição do Claude Code: `docs/medicao-m3-bloco-opcoes.txt`. Portão e primeira rodada: `docs/M3-portao.md`. O código do protótipo fica em `prototipo/` e o jogo não o usa.
 
 ## Antes do merge (teste da `3238cd7b`, usuário, 2026-11-05)
 Aprovados: relatório do Chrome (60 fps, nenhum quadro > 50 ms, relógio esperou 0, 0 travadas da data), tempo geológico; tsunami "bem melhor".

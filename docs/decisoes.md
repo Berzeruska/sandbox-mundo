@@ -1310,3 +1310,9 @@ Nada do M3 entra no jogo antes da aprovação do usuário; toda mudança visual 
 ## 2026-11-05 — Duas decisões revertidas pelo usuário
 - **Petróleo: misto (substitui "Petróleo fica escondido", `docs/03-mundo-geologia.md`, 2026-10-17).** Parte no subsolo, escondida até o terreno ser cavado, e parte aflorando na superfície como poça de água preta, à vista. O aparente dá origem, mais tarde, a uma "vila gasolina" no deserto extremo (M5/M6).
 - **Dragão: classe mítica (substitui "predador de topo raro", `docs/04-ecologia.md`).** Só deus põe no mundo. Um dragão aparecendo sozinho no meio de uma guerra moderna seria estranho demais.
+
+## 2026-11-05 — Decisões técnicas do bloco de opções do portão do M3
+- **Deploy único (`.github/workflows/pages.yml`, `scripts/build-site.sh`):** o Pages troca o site inteiro a cada publicação, então cada publicação remonta o `main`, a última versão de cada `marco-*` e `/previa/atual/`, que é um redirecionamento para o branch de marco mais novo à frente do `main` (ou para o próprio `main`). Descartado: guardar os builds num branch próprio (incha o histórico). Efeito: o deploy leva mais, cerca de 30 s por branch de marco.
+- **Sombra em partes no protótipo:** dois mapas de 2048², o novo desenhado aos poucos e trocado quando pronto. Evitou picos de ~10 ms ao carregar pedaços. Custo: um mapa a mais de memória, ~16 MB.
+- **Modelos de longe:** a partir de 95 unidades da câmera, árvores com menos faces e sem tronco (regra 16: trocar o detalhe pela distância).
+- **O protótipo edita o texto do shader do globo na própria página** para testar o 2D de longe, sem mudar `src/`. Só serve para o protótipo.

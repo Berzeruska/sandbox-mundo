@@ -140,22 +140,26 @@ export function drawOccupation(ctx: CanvasRenderingContext2D, world: WorldState,
     ctx.stroke();
     ctx.setLineDash([]);
   };
-  line(o.roads, 'rgba(250,235,200,0.75)', 1, []);
+  line(o.roads, 'rgba(250,235,200,0.8)', symbol >= 8 ? 2 : 1, []);
   line(o.sea, 'rgba(235,245,255,0.7)', 1, [3, 3]);
   line(o.air, 'rgba(255,255,255,0.35)', 1, [1, 4]);
   const capitalSet = new Set(o.capitals);
+  // Três tamanhos, como no mundo real: poucas grandes, algumas médias, muitas pequenas. Cada uma é um carimbo de quarteirões.
   for (const c of o.cities) {
     const p = screen(c);
     if (!p.visible) continue;
-    const big = capitalSet.has(c), s = big ? symbol + 2 : symbol, x = Math.round(p.x - s / 2), y = Math.round(p.y - s / 2);
-    // Quarteirões: telhados vermelhos com um ponto branco, como um carimbo de mapa.
+    const r = hash(c, 91), capital = capitalSet.has(c);
+    const scale = capital || r < 0.05 ? 1.7 : r < 0.25 ? 1 : 0.65;
+    const s = Math.max(2, Math.round(symbol * scale)), x = Math.round(p.x - s / 2), y = Math.round(p.y - s / 2);
     ctx.fillStyle = '#2a1a16';
     ctx.fillRect(x - 1, y - 1, s + 2, s + 2);
-    ctx.fillStyle = big ? '#ffffff' : '#d8472f';
+    ctx.fillStyle = '#d8d0c0';
     ctx.fillRect(x, y, s, s);
-    if (s >= 4) {
-      ctx.fillStyle = big ? '#d8472f' : '#f4e3c8';
-      ctx.fillRect(x + 1, y + 1, Math.floor(s / 2), Math.floor(s / 2));
+    const block = s >= 12 ? 3 : s >= 6 ? 2 : s;
+    for (let by = 0; by < s; by += block + 1) for (let bx = 0; bx < s; bx += block + 1) {
+      ctx.fillStyle = hash(c + bx * 7, by + 3) < 0.5 ? '#c8452f' : hash(c + by, bx) < 0.5 ? '#e0683f' : '#f4e3c8';
+      ctx.fillRect(x + bx, y + by, Math.min(block, s - bx), Math.min(block, s - by));
     }
+    if (capital) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x + (s >> 1) - 1, y - 3, 2, 2); }
   }
 }

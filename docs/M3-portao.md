@@ -1,5 +1,33 @@
 # Portão do M3 — opções para o usuário decidir
 
+**Segundo bloco (2026-11-05, depois das decisões do usuário em `docs/decisoes.md`):**
+- **Decisões visuais:** `docs/M3-decisoes-visuais.md` (paleta, passagem entre níveis, 2D de longe).
+- **Prova da escala:** `docs/M3-escala.md`. **Meteoro:** `docs/M3-meteoro.md`.
+- **Protótipo:** https://berzeruska.github.io/sandbox-mundo/previa/atual/prototipo/ · comparação de motores em `prototipo/antigo.html`.
+- **Referências:** `docs/img/referencias/indice.png` e `LEIAME.md`.
+
+## Medições do segundo bloco
+Relatório completo do botão "Medir desempenho": `docs/medicao-m3-bloco-opcoes.txt`. Chromium sem janela, GPU real, 1080p, na tomada. **O portão só se aprova com a medição do usuário no Chrome.**
+
+**Passagem e pedaços (1.5 e 1.6), carga 1×, com detalhe 4×:** 60 fps nos 10 cenários, pior quadro 17 ms, nenhum > 50 ms. GPU média: globo 4,3–5,1 ms, maquete 5,9–6,5 ms, andando 6,6 ms, correndo 7,3 ms. **Picos acima de 8 ms:** correndo 9,9 ms e ida e volta no corte 10,0 ms, em quadros isolados. Numa rodada só dos cenários de carregar, o pior foi 7,4 ms. A sombra é desenhada em partes para não pesar um quadro só. Espera no corte: 1 ms depois dos pedaços carregados. Limite: os pedaços param na aresta da face do cubo.
+
+**Aviso sobre a GPU:** nas minhas medições a mesma cena deu ora ~6 ms, ora ~15 ms de GPU, sempre a 60 fps. O relógio da GPU oscila entre 200 e 1.900 MHz nesses momentos, e numa repetição controlada voltou a 6 ms. Atribuo ao relógio em baixa, sem ter provado que é a única causa. Se o seu relatório mostrar ~15 ms com 60 fps, repita antes de concluir.
+
+**Suavização de bordas (4.2):** `img/m3/suavizacao.png`. GPU média (maquete parada · girando · rente ao chão · correndo):
+
+| Modo | Carga 1× | Carga 3× | Carga 6× |
+|---|---|---|---|
+| MSAA 4× (hoje) | 7,2 · 6,5 · 6,4 · 7,8 | 8,6 · 7,8 · 7,8 · 8,5 | 9,5 · 9,1 · 9,0 · 10,1 |
+| MSAA 2× | 6,3 · 5,7 · 5,5 · 6,7 | 7,4 · 6,6 · 6,3 · 7,3 | 8,1 · 7,5 · 7,0 · 8,2 |
+| **FXAA no quadro final (recomendo e deixei no protótipo)** | 5,8 · 5,5 · 5,6 · 6,0 | 6,9 · 6,2 · 6,4 · 6,7 | 6,8 · 6,5 · 6,7 · 7,0 |
+| Sem suavizar | 4,9 · 4,5 · 4,6 · 5,0 | 5,0 · 4,7 · 5,1 · 5,1 | 6,2 · 5,3 · 5,7 · 5,8 |
+
+**Qualidade:** bordas tão lisas quanto as do MSAA 4×, mas o FXAA amolece um pouco o interior das faces; a 3× de zoom dá para ver, em tamanho normal quase não. Pela regra 16, se você achar que perdeu qualidade, a volta é o MSAA 2×, que é mais nítido e custa 1,2 ms a mais na carga 6×.
+
+---
+
+# Primeira rodada
+
 Feito em 2026-11-05, depois do merge do M2 (`v2.0`). **Nada do M3 foi construído:** o protótipo fica em `prototipo/`, à parte
 do jogo, e o jogo não importa nada dele. O M3 só começa depois das decisões do fim deste documento.
 
