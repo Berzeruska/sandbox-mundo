@@ -29,6 +29,8 @@ export interface Fields {
   sand: Float32Array;
   /** Charco: a água fica escura e esverdeada. */
   marsh: Float32Array;
+  /** Encosta de terraço: terra à mostra. */
+  bank: Float32Array;
   /** Pico por cima (nada de planta aqui). */
   peak: Float32Array;
   /** Cor da água funda (a do globo, no mar). */
@@ -45,7 +47,7 @@ export interface Fields {
 export function newFields(size: number, margin: number): Fields {
   const stride = size + 1 + margin * 2, count = stride * stride;
   const a = () => new Float32Array(count);
-  return { size, margin, stride, y: a(), water: new Float32Array(count).fill(-Infinity), r: a(), g: a(), b: a(), sand: a(), marsh: a(), peak: a(), wr: new Float32Array(count).fill(WATER_DEEP[0]), wg: new Float32Array(count).fill(WATER_DEEP[1]), wb: new Float32Array(count).fill(WATER_DEEP[2]), shade: new Float32Array(count).fill(1), jx: a(), jz: a() };
+  return { size, margin, stride, y: a(), water: new Float32Array(count).fill(-Infinity), r: a(), g: a(), b: a(), sand: a(), marsh: a(), bank: a(), peak: a(), wr: new Float32Array(count).fill(WATER_DEEP[0]), wg: new Float32Array(count).fill(WATER_DEEP[1]), wb: new Float32Array(count).fill(WATER_DEEP[2]), shade: new Float32Array(count).fill(1), jx: a(), jz: a() };
 }
 
 export class VertexOut {
@@ -90,7 +92,8 @@ function terrainTriangle(out: VertexOut, f: Fields, a: number, b: number, c: num
   let g = ((f.g[a] as number) + (f.g[b] as number) + (f.g[c] as number)) * third * j;
   let bl = ((f.b[a] as number) + (f.b[b] as number) + (f.b[c] as number)) * third * j;
   const sand = ((f.sand[a] as number) + (f.sand[b] as number) + (f.sand[c] as number)) * third;
-  if (ny < 0.8 && sand < 0.3 && (f.marsh[a] as number) < 0.5) {
+  const bank = ((f.bank[a] as number) + (f.bank[b] as number) + (f.bank[c] as number)) * third;
+  if ((ny < 0.8 || bank > 0.6) && sand < 0.3 && (f.marsh[a] as number) < 0.5) {
     // Barranco: terra à mostra, em faixas.
     const band = midY + hash3(seedX, 7, 1) * 0.5;
     const e = band > 1.2 ? EARTH_TOP : band > 0 ? EARTH_MID : EARTH_LOW;

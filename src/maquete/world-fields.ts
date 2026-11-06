@@ -92,11 +92,22 @@ let oil: 'pocas' | 'unica' = 'pocas';
 export function setRelief(mode: ReliefMode): void { relief = mode; }
 export function setDepositLook(s: string, o: string): void { stones = s === 'miudas' ? 'miudas' : 'pilhas'; oil = o === 'unica' ? 'unica' : 'pocas'; }
 
-/** Terraços ligados (padrão): patamares planos e encosta curta entre eles. As outras opções mudam só a encosta. */
-function terrace(y: number, wobble: number, step = TERRACE): number {
+/** Marcada por `terrace`: o último ponto caiu na encosta entre dois patamares. */
+let onBank = false;
+/** Largura da encosta em células finas, por opção. */
+const BANK_WIDTH: Record<ReliefMode, number> = { terraco: 1.3, rampa: 5, degrau: 0.55, lisa: 0 };
+
+/**
+ * Terraços ligados (padrão, `bioma/degraus-e-rampas.png`, blocos 4 e 5): patamares planos e uma encosta de largura fixa entre eles, com terra à mostra.
+ * `gradient` é quanto o terreno sobe por célula: sem ele a encosta ficaria larga onde o terreno é suave, e o degrau sumiria. As outras opções mudam só a largura.
+ */
+function terrace(y: number, wobble: number, step = TERRACE, gradient = 0.02): number {
+  onBank = false;
   if (relief === 'lisa') return y;
   const k = (y + wobble) / step, fl = Math.floor(k), fr = k - fl;
-  const t = relief === 'degrau' ? smoothstep(0.93, 0.995, fr) : relief === 'rampa' ? smoothstep(0.4, 1, fr) : smoothstep(0.74, 0.98, fr);
+  const width = Math.min(0.9, Math.max(0.02, (gradient * BANK_WIDTH[relief]) / step));
+  const t = smoothstep(1 - width, 1, fr);
+  onBank = relief !== 'rampa' && t > 0.02 && t < 0.98;
   return step * (fl + t) - wobble * 0.15;
 }
 const stepY = (y: number, wobble: number): number => (y > 0.15 ? Math.max(0.2, terrace(y, wobble)) : y);
@@ -294,6 +305,8 @@ const NOISE_SCALE = (size: number) => (size * 2) / Math.PI;
 class Ground {
   private p: [number, number, number] = [0, 0, 0];
   sx = 0; sy = 0; sz = 0;
+  /** O último `plainY` caiu numa encosta de terraço. */
+  bank = false;
   constructor(private w: CoarseWorld, private face: number, private patch: Patch) {}
 
   locate(X: number, Z: number): void {
@@ -314,12 +327,17 @@ class Ground {
   }
 
   /** Altura do chão sem as facetas. */
-  plainY(m: number, desert: number): number {
+  plainY(m: number, desert: number, X: number, Z: number): number {
     const { sx, sy, sz } = this;
     let y = elevationY(m);
+    this.bank = false;
     if (y > 0.15) {
+      const p = this.patch;
+      const gx = elevationY(p.height(X + 1.5, Z)) - elevationY(p.height(X - 1.5, Z)), gz = elevationY(p.height(X, Z + 1.5)) - elevationY(p.height(X, Z - 1.5));
+      const gradient = Math.hypot(gx, gz) / 3;
       const wobble = noise3(sx * 0.07, sy * 0.07, sz * 0.07) * 0.42 + noise3(sx * 0.2, sy * 0.2, sz * 0.2) * 0.1;
-      const stepped = terrace(y, wobble, desert > 0.5 ? TERRACE * 2.4 : TERRACE);
+      const stepped = terrace(y, wobble, desert > 0.5 ? TERRACE * 2.4 : TERRACE, gradient);
+      this.bank = onBank;
       y = Math.max(0.2, stepped);
       y += noise3(sx * 0.31, sy * 0.31, sz * 0.31) * 0.09;
     }
@@ -364,7 +382,8 @@ function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, p
     }
     const meters = ground.meters(px, pz);
     const desert = biome === Biome.HotDesert || biome === Biome.ColdDesert ? 1 : 0;
-    let y = ground.plainY(meters, desert);
+    let y = ground.plainY(meters, desert, px, pz);
+    if (ground.bank && meters > 40) f.bank[k] = 1;
     if (meters < 200) f.water[k] = 0;
     const cold = biome === Biome.Tundra || biome === Biome.Taiga || biome === Biome.Ice || biome === Biome.SnowyPeak;
     if (!cold && (patch.ice[cellAt] as number) === 0 && patch.field(patch.sea, px, pz) > 0.02) f.sand[k] = smoothstep(0.58, 0.42, y + noise3(sx * 0.5, sy * 0.5, sz * 0.5) * 0.12);
@@ -395,6 +414,7 @@ function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, p
         if (dL < d) { d = dL; level = patch.lakeY[cellAt] as number || patch.lakeY[patch.nearest(px, pz)] as number || level; }
       }
       if (d < 6 && meters > 0) {
+        f.bank[k] = 0;
         if (level > y - 0.4) y += (level + 0.45 - y) * smoothstep(5.5, 2, d);
         y += (level + 0.26 - y) * smoothstep(3.2, 0.6, d);
         y += (level - 0.9 - y) * smoothstep(0.55, -0.9, d);
@@ -432,7 +452,7 @@ function buildFacets(w: CoarseWorld, face: number, ox: number, oz: number, patch
       const lift = Math.max(0, base + rough);
       const near = patch.nearest(x, z);
       const vc = patch.volcanoes[0];
-      v = { x, z, lift, y: ground.plainY(meters, 0) + lift - 0.04, snow: patch.biome[near] === Biome.SnowyPeak || (patch.ice[near] as number) === 1 ? 1 : 0, kind: top.kind, awake: top.awake, angle: vc ? Math.atan2(z - vc.z, x - vc.x) : 0 };
+      v = { x, z, lift, y: ground.plainY(meters, 0, x, z) + lift - 0.04, snow: patch.biome[near] === Biome.SnowyPeak || (patch.ice[near] as number) === 1 ? 1 : 0, kind: top.kind, awake: top.awake, angle: vc ? Math.atan2(z - vc.z, x - vc.x) : 0 };
       cache.set(key, v);
     }
     return v;
@@ -557,6 +577,11 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
     if (Math.abs(yAt(Math.min(size, lx + 0.7), lz) - yAt(Math.max(0, lx - 0.7), lz)) + Math.abs(yAt(lx, Math.min(size, lz + 0.7)) - yAt(lx, Math.max(0, lz - 0.7))) > 1.05) return -1;
     return k;
   };
+  // Onde há jazida não nasce planta por cima.
+  for (const d of deposits) {
+    const r = Math.ceil(1.3 * d.scale), lx = Math.round(d.x - ox) + m, lz = Math.round(d.z - oz) + m;
+    for (let j = Math.max(0, lz - r); j <= Math.min(s - 1, lz + r); j++) for (let i = Math.max(0, lx - r); i <= Math.min(s - 1, lx + r); i++) f.peak[j * s + i] = Math.max(f.peak[j * s + i] as number, 0.6);
+  }
   const seed = face * 131 + ox * 3 + oz * 7;
   const put = (model: Float32Array, modelFar: Float32Array, lx: number, lz: number, scale: number, radius: number, strength: number, tinted: boolean): void => {
     const h = hash3(seed, Math.round(lx * 7), Math.round(lz * 7));
@@ -638,7 +663,7 @@ function scatter(f: Fields, face: number, ox: number, oz: number, ground: Ground
     const lx = d.x - ox, lz = d.z - oz;
     if (lx < 0.8 || lz < 0.8 || lx >= size - 0.8 || lz >= size - 0.8) continue;
     const k = (Math.round(lz) + m) * s + Math.round(lx) + m;
-    if ((f.peak[k] as number) > 0.5) continue;
+    if ((f.peak[k] as number) > 0.65) continue;
     const water = f.water[k] as number, y = f.y[k] as number;
     if (water > y + 0.05) continue;
     out.push({ model: depositModel(d.type, d.variant), far: depositModel(d.type, d.variant, true), x: d.x, y: yAt(lx, lz) - 0.02, z: d.z, scale: d.scale, stretch: 1, yaw: d.yaw, tint: [1, 1, 1] });

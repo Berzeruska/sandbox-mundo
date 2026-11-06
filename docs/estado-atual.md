@@ -8,9 +8,10 @@ estamos", vale este.
 
 ## Bloco "refazer a maquete" (T1 a T10)
 Decisões em `docs/decisoes.md` (2026-11-06). Toda captura para o usuário sai de janela de navegador de 1920×1080.
+**Parado no fim do bloco, esperando o usuário:** testes, "Medir desempenho" no Chrome, decisões em `docs/M3-decisoes-maquete.md`, meteoro (opção 3 ou 5) e aprovação de `docs/M3-especificacao.md`. A simulação da ecologia não tem código.
 - [x] T1 réplica da folha-mestra (`docs/M3-replica.md`, `docs/img/m3/replica.png`, motor em `src/maquete/` e `src/render/maquete-renderer.ts`) ·
 -  [x] T2 maquete no jogo · [x] T3 entorno em pedaços e escala 5 (`docs/M3-maquete.md`) ·
--  [x] T4 plantas · [x] T5 água, relevo, vulcões · [x] T6 jazidas e petróleo · [x] T7 animais · [x] T8 meteoro (opção 3; espera de até 3,6 s em "Muitos" no Máx: a opção 5 volta ao usuário) · [x] T9 desempenho (`docs/M3-maquete.md`) · [ ] T10 rascunho da especificação
+-  [x] T4 plantas · [x] T5 água, relevo, vulcões · [x] T6 jazidas e petróleo · [x] T7 animais · [x] T8 meteoro (opção 3; espera de até 3,6 s em "Muitos" no Máx: a opção 5 volta ao usuário) · [x] T9 desempenho (`docs/M3-maquete.md`) · [x] T10 rascunho da especificação (`docs/M3-especificacao.md`)
 
 ## Modo de trabalho (usuário, 2026-11-04)
 O usuário só faz testes objetivos e decide design e mecânica; o resto é do Claude Code, que para só no fim.

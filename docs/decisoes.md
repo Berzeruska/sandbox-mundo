@@ -1328,3 +1328,15 @@ Nada do M3 entra no jogo antes da aprovação do usuário; toda mudança visual 
 3. **Escala:** opção 5 (`n` = 256, com detalhe 4× gerado na hora), pelo critério do usuário: a que ficar melhor. Só muda se uma medição mostrar o contrário.
 4. **Meteoro:** opção 3 (a velocidade espera a rocha), pelo critério do usuário: o mais liso e sem bug. Medir o caso "Muitos" no Máx; se a espera passar de 2 s, trazer a opção 5 antes de mudar.
 5. **Relevo, pedrinhas, petróleo e suavização:** o usuário decide nas capturas novas. No meio-tempo vale a opção mais próxima das referências, com as outras em captura.
+
+## 2026-11-06 — Decisões técnicas do bloco de refazer a maquete
+- **Motor em `src/maquete/` e `src/render/maquete-*.ts`, câmera única em `src/render/view-camera.ts`:** a mesma classe vale nas duas vistas, então menu, poderes e efeitos não precisaram mudar. Alternativa descartada: um segundo conjunto de controles para a maquete.
+- **Protótipo apagado e Three.js removido** (`prototipo/` fica só com `replica.html` e `folhas.html`, páginas de conferência). A decisão de motor segue WebGL2.
+- **Pedaço montado nas coordenadas da própria face:** trocar a face central do mapa só muda onde ele é posto, e não refaz nada. No canto do cubo, o quadrante vazio é preenchido em leque (forma anéis, nos 8 cantos).
+- **Rios e lagos só no desenho (`src/maquete/rivers.ts`):** a simulação não sabe deles; ficam para o usuário decidir se ganham efeito de jogo.
+- **Petróleo aparente só no desenho:** gravar o bit "revelado" ao gerar mudava o resultado da geologia e o globo aprovado (o teste de impressão digital acusou). Fica na maquete, em 30% das manchas por bloco de 8×8.
+- **Cor no corte:** a maquete lê a cor do globo por célula e passa por uma calibração medida (`globeR/G/B`, `BIOME_FIX`). Maior diferença hoje: 25 em 255, na floresta tropical.
+- **Encosta de terraço de largura fixa:** a largura depende de quanto o terreno sobe; sem isso o degrau sumia em terreno suave.
+- **Sombra em partes, em 2 mapas de 2048²:** ~16 MB a mais. **Modelos de longe a partir de 170 unidades.**
+- **Capturas em janela real, sem aparecer na tela do usuário:** `gnome-shell --headless` como compositor e Chromium em janela Wayland. **Os fps saem do navegador sem janela**, porque esse compositor oscila.
+- **Meteoro:** `src/core/time.ts` (`holdsSpeedChange`) e `src/sim/core.ts`. A espera conta toda rocha à vista, mesmo as que entram durante ela; por isso passa de 2 s às vezes em "Muitos" no Máx.

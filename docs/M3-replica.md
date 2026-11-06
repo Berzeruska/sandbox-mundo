@@ -2,7 +2,7 @@
 
 ![réplica](img/m3/replica.png)
 
-À esquerda, a referência `estilo/folha-mestra.png`. À direita, a mesma cena no motor, capturada numa janela de navegador de 1920×1080. A página é `prototipo/replica.html`. As posições foram lidas da folha, em pixels, e levadas ao chão por uma transformação de perspectiva. A câmera foi ajustada para os cantos baterem.
+À esquerda, a referência `estilo/folha-mestra.png`. À direita, a mesma cena no motor, capturada numa janela de navegador de 1920×1080. A página é `prototipo/replica.html`, publicada na prévia. As posições foram lidas da folha, em pixels, e levadas ao chão por uma transformação de perspectiva. A câmera foi ajustada para os cantos baterem.
 
 As cores vêm do globo do M2 (decisão 2 de 2026-11-06), por isso os verdes e amarelos são mais claros que os da folha. Isso é esperado e não é erro da réplica.
 
