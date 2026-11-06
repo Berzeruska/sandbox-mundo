@@ -10,7 +10,7 @@ estamos", vale este.
 Decisões em `docs/decisoes.md` (2026-11-06). Toda captura para o usuário sai de janela de navegador de 1920×1080.
 - [x] T1 réplica da folha-mestra (`docs/M3-replica.md`, `docs/img/m3/replica.png`, motor em `src/maquete/` e `src/render/maquete-renderer.ts`) ·
 -  [x] T2 maquete no jogo · [x] T3 entorno em pedaços e escala 5 (`docs/M3-maquete.md`) ·
--  [x] T4 plantas · [x] T5 água, relevo, vulcões · [x] T6 jazidas e petróleo · [x] T7 animais · [ ] T8 meteoro · [ ] T9 desempenho · [ ] T10 rascunho da especificação
+-  [x] T4 plantas · [x] T5 água, relevo, vulcões · [x] T6 jazidas e petróleo · [x] T7 animais · [x] T8 meteoro (opção 3; espera de até 3,6 s em "Muitos" no Máx: a opção 5 volta ao usuário) · [ ] T9 desempenho · [ ] T10 rascunho da especificação
 
 ## Modo de trabalho (usuário, 2026-11-04)
 O usuário só faz testes objetivos e decide design e mecânica; o resto é do Claude Code, que para só no fim.

@@ -113,6 +113,8 @@ export type FromWorker =
       type: 'clock';
       tick: number;
       speed: Speed;
+      /** Quanto a última redução de velocidade esperou a rocha cair (ms). */
+      speedWaitMs: number;
       ticksPerSecond: number;
       geologyMs: number;
       memoryMb: number;

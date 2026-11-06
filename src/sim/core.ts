@@ -1,6 +1,6 @@
 import { seedFrom } from '../core/rng';
 import { maxSpeedQuota } from '../core/geologic-time';
-import { Clock, TICKS_PER_YEAR } from '../core/time';
+import { Clock, holdsSpeedChange, TICKS_PER_YEAR, type Speed } from '../core/time';
 import { applyBrush, applyTerrainDeltas, RAISE_RATE } from '../input/tools';
 import { buildColors, colorCacheBytes, forgetResourceHalo, NO_LAYERS, tintStress, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
@@ -182,6 +182,10 @@ export class SimulationCore {
   private stormsTick = -1;
   /** Deriva no relógio (a mesma soma da tectônica) e a composição mostrada, para os ângulos. */
   private drift = 0;
+  /** Velocidade escolhida esperando a rocha cair, e desde quando. */
+  private heldSpeed: Speed | null = null;
+  private heldSince: number | null = null;
+  private speedWaitMs = 0;
   private shown: ShownComposition = { angles: [], speeds: [], drift: 0 };
   private platesMoving = false;
   private stats: GeologyStats | null = null;
@@ -258,7 +262,15 @@ export class SimulationCore {
         if (!this.world) this.climateControl = this.climateGlide = this.climateTarget;
         break;
       case 'speed':
-        this.clock.speed = msg.speed;
+        // A velocidade espera a rocha que está caindo (T8): o botão já mostra a escolha, o mundo não muda.
+        if (holdsSpeedChange(this.clock.speed, msg.speed, this.disasters?.fallingUntil() ?? -1, this.clock.tick)) {
+          this.heldSpeed = msg.speed;
+          this.heldSince ??= this.now();
+        } else {
+          this.clock.speed = msg.speed;
+          this.heldSpeed = null;
+          this.heldSince = null;
+        }
         this.postClock(true);
         break;
       case 'query':
@@ -803,6 +815,12 @@ export class SimulationCore {
       quota = pace.quota;
       this.paceCarry = pace.carry;
     }
+    if (this.heldSpeed !== null && (this.disasters?.fallingUntil() ?? -1) <= this.clock.tick) {
+      this.clock.speed = this.heldSpeed;
+      this.heldSpeed = null;
+      this.speedWaitMs = this.heldSince === null ? 0 : this.now() - this.heldSince;
+      this.heldSince = null;
+    }
     if (this.disasters && this.clock.speed !== 0) this.disasters.meteorFall = meteorFallTicks(this.clock.speed, this.ticksWindow.rate);
     const firstTick = this.clock.tick;
     const ran = this.clock.advance(
@@ -902,7 +920,8 @@ export class SimulationCore {
     this.send({
       type: 'clock',
       tick: this.clock.tick,
-      speed: this.clock.speed,
+      speed: this.heldSpeed ?? this.clock.speed,
+      speedWaitMs: this.speedWaitMs,
       ticksPerSecond: this.ticksWindow.rate,
       geologyMs: this.geologyMs,
       memoryMb: this.memoryBytes() / 1e6,

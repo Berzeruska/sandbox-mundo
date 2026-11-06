@@ -20,6 +20,13 @@ export function speedLabel(speed: Speed): string {
   return speed === 'max' ? 'Máx' : `${speed}×`;
 }
 
+/** Reduzir a velocidade com rocha caindo: o botão muda na hora e o tempo espera o impacto (T8, opção 3). Pausar e acelerar valem na hora. */
+export function holdsSpeedChange(current: Speed, requested: Speed, fallingUntil: number, tick: number): boolean {
+  if (requested === 0 || current === 0 || fallingUntil <= tick) return false;
+  const rate = (s: Speed): number => (s === 'max' ? Infinity : s);
+  return rate(requested) < rate(current);
+}
+
 export class Clock {
   /** Passos desde o início do mundo. */
   tick = 0;

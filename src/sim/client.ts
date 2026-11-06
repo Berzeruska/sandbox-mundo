@@ -52,6 +52,8 @@ export class SimClient {
   /** Tempo tratando mensagens do worker (ms, acumulado): o "Medir desempenho" desconta por quadro. */
   receiveMs = 0;
 
+  /** Última espera da velocidade pela rocha (ms). */
+  speedWaitMs = 0;
   private snapshots = new Map<number, (s: MaqueteSnapshot) => void>();
 
   constructor(private events: SimEvents) {
@@ -202,6 +204,7 @@ export class SimClient {
         }
         break;
       case 'clock':
+        this.speedWaitMs = msg.speedWaitMs;
         this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.memoryMb, msg.angles, msg.work, msg.climate);
         break;
       case 'query':

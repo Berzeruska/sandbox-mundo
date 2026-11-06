@@ -1,4 +1,22 @@
-# Portão do M3: meteoro ao reduzir a velocidade na queda (item 5)
+# Meteoro ao reduzir a velocidade na queda
+
+## Aplicado: opção 3, a velocidade espera a rocha (T8, decisão do usuário de 2026-11-06)
+O botão muda na hora; o relógio segue na velocidade antiga até a rocha à vista cair. Acelerar e pausar valem na hora. O mundo não muda.
+
+Medido em janela real, com um meteoro pedido e a velocidade reduzida 150 ms depois:
+
+| De → para | Antes | Agora (espera) |
+|---|---:|---:|
+| Máx → 1× | 130,8 s | 1,2 s |
+| Máx → 20× | 6,5 s | 0,35 s |
+| 20× → 1× | 13,5 s | 0,87 s |
+| 5× → 1× | 3,5 s | 0,86 s |
+
+**"Muitos" no Máx, 14 reduções (tempo até o relógio desacelerar, em segundos):** 3,6 · 1,4 · 0,6 · 1,5 · 2,9 · 1,4 · 1,5 · 1,1 · 0,5 · 0,5 · 1,8 · 2,0 · 0,9 · 0,8. Mediana 1,4 s; **3 de 14 chegaram a 2 s ou mais** (a maior, 3,6 s), porque outra rocha entra durante a espera. Pela regra do usuário, a opção 5 volta para ele decidir; o jogo fica com a 3.
+
+---
+
+# O que foi proposto antes (item 5 do portão)
 
 ## O defeito, reproduzido no jogo atual
 Pedi um meteoro e reduzi a velocidade logo depois, no navegador com a GPU real:
