@@ -6,9 +6,11 @@ O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento d
 estamos", vale este.
 
 ## Bloco "fazer a maquete funcionar"
+**Parado no fim do bloco, esperando o usuário:** testes, "Medir desempenho" no Firefox em tela cheia, e as decisões: ritmo do tempo (`docs/M3-ritmo-do-tempo.md`), visuais (`docs/M3-decisoes-maquete.md`), lista de espécies (`docs/M3-lista-especies.md`). Depois: simulação da ecologia, a partir da E1.
+
 Decisões em `docs/decisoes.md`. **A medição que vale é o "Medir desempenho" no Firefox do usuário, em tela cheia, na tomada;** as capturas também saem do Firefox, em janela de 1920×1080.
 - [x] A1 tranco no corte (`docs/M3-defeitos.md`) · [x] A2 setas (parcial, ver `docs/M3-defeitos.md`) · [x] A3 pausa · [x] A4 animal sem cabeça · [x] A5 bolas brancas · [x] A6 mancha do terremoto · [x] A7 fumaça · [x] A8 GPU da transição (`docs/M3-defeitos.md`)
-- [ ] B1 opções de ritmo · [x] B2 animação lisa · [x] B3 seca suave
+- [x] B1 opções de ritmo (`docs/M3-ritmo-do-tempo.md`; sem código até a escolha) · [x] B2 animação lisa · [x] B3 seca suave
 - [x] C1 meteoro · [x] C2 tsunami · [x] C3 furacão · [x] C4 raio · [x] C5 fogo (ritmo depende de B1) · [x] C6 tempestade de areia · [x] C7 terremoto
 - [x] D1 animais (corpo e rig; conferir nas folhas) · [x] D2 grupos · [x] D3 geleira · [x] D4 deserto · [x] D5 montanhas · [x] D6 terraços · [x] D7 jazidas · [x] D8 petróleo
 

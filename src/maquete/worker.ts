@@ -17,6 +17,7 @@ export type FromMaqueteWorker =
 let world: CoarseWorld | null = null;
 let hydro: Hydro | null = null;
 let neighbors: Int32Array | null = null;
+let hydroAt = -Infinity;
 const scope = self as unknown as { postMessage(m: FromMaqueteWorker, t?: Transferable[]): void; onmessage: (e: MessageEvent<ToMaqueteWorker>) => void };
 
 /** Compara duas cópias e devolve os pedaços afetados (a borda de um pedaço enxerga 3 células de fora). */
@@ -43,7 +44,10 @@ scope.onmessage = (e) => {
     setDepositLook(m.stones, m.oil);
     // Os rios só mudam quando o relevo muda.
     const sameHeight = world && world.n === m.world.n && world.height.every((h, i) => h === m.world.height[i]);
-    if (!sameHeight || !hydro) {
+    // Os rios são caros (cerca de 200 ms): no máximo um recálculo a cada 3 s, para não atrasar os pedaços.
+    const nowMs = performance.now();
+    if (!hydro || (!sameHeight && nowMs - hydroAt > 3000)) {
+      hydroAt = nowMs;
       neighbors ??= neighborTable(m.world.n);
       hydro = computeHydro(m.world.n, m.world.height, m.world.rgba, m.world.ice, neighbors);
     }
