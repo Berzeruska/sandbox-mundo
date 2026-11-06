@@ -207,3 +207,9 @@ Ideia do usuário (2026-10-18), para o M8 ou depois: **câmera em primeira pesso
 (ver o mundo pelos olhos de uma criatura ou pessoa). Depende das criaturas (M3/M4) e do relevo em 3D
 (o pseudo-3D do M8). Referência do usuário: o vídeo do Andrezitos com o WorldBox em visão 3D,
 controlando uma criatura (só como referência de ideia; regra 8: nada copiado).
+
+## Sem marco, depois dos humanos: variedade de geologia (usuário, 2026-11-06)
+Famílias de formações: torres, mesas, cânions, formações costeiras e coloridas, e o carste visto de cima. A referência é a lista de formações e de lugares da Bahia do usuário (**a lista em si ainda não está no repositório**). Só registrado. As cavernas por dentro ficam no M8.
+
+## M4: mineração dos humanos (usuário, 2026-11-06)
+Locais de mineração como os de hoje, a partir das jazidas (afloramento de rocha manchada, o "chapéu de ferro"). As pedras soltas e os montes aparecem quando o local é minerado. Só registrado.

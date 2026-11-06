@@ -1,6 +1,6 @@
-# M3 — Especificação da ecologia (RASCUNHO para aprovação do usuário)
+# M3 — Especificação da ecologia
 
-**Estado:** rascunho de 2026-11-06. Nada desta simulação tem código. Hoje as plantas e os animais são desenho (`docs/M3-maquete.md`). Base: `docs/04-ecologia.md`. As perguntas em aberto estão marcadas com **[decidir]**; decisões visuais vêm com 4 a 6 opções e imagem antes do código (regra 14).
+**Estado:** modelo aprovado pelo usuário em 2026-11-06 (de longe números, de perto indivíduos); o código começa no bloco seguinte, a partir da E1. Nada desta simulação tem código. Hoje as plantas e os animais são desenho (`docs/M3-maquete.md`). Base: `docs/04-ecologia.md`. As perguntas em aberto estão marcadas com **[decidir]**; decisões visuais vêm com 4 a 6 opções e imagem antes do código (regra 14).
 
 ## 1. Objetivo
 Equilíbrio dinâmico: populações sobem e descem em ciclos e raramente zeram. O jogador vê a vida reagir a clima, desastres e aos poderes dele. Critério de aceite no item 8.
@@ -96,6 +96,7 @@ Mesmas metas do jogo. O "Medir desempenho" ganha um cenário com populações ch
 - **E7.** Classe mítica, depois da decisão do item 6.
 - **E8.** Sangue e morte, depois da decisão do item 7.
 - **E9.** Extremos de temperatura e feedback ambiental.
+- **E9b.** Lista das espécies no menu: ao escolher uma, ícones no globo onde ela está. Interface com 4 a 6 opções e imagem antes do código.
 - **E10.** Fechamento do marco: medição, CHANGELOG, PR para o `main`.
 
 ## Fora deste marco

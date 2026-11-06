@@ -1340,3 +1340,13 @@ Nada do M3 entra no jogo antes da aprovação do usuário; toda mudança visual 
 - **Sombra em partes, em 2 mapas de 2048²:** ~16 MB a mais. **Modelos de longe a partir de 170 unidades.**
 - **Capturas em janela real, sem aparecer na tela do usuário:** `gnome-shell --headless` como compositor e Chromium em janela Wayland. **Os fps saem do navegador sem janela**, porque esse compositor oscila.
 - **Meteoro:** `src/core/time.ts` (`holdsSpeedChange`) e `src/sim/core.ts`. A espera conta toda rocha à vista, mesmo as que entram durante ela; por isso passa de 2 s às vezes em "Muitos" no Máx.
+
+## 2026-11-06 — Resultado dos testes da `700c784` e novo bloco do M3
+Teste do usuário: medição não vale como aprovação (Firefox, fora da tela cheia), mas a GPU passou de 8 ms na transição do globo (10,4 ms; pior 13,1). Corte ❌ (tranco nos dois sentidos). Comandos ❌ (setas de zoom param depois de entrar e sair). Fogo ❌ (queima quase na hora, recupera rápido demais). Passeio ✅. Meteoro: não testado.
+- **Navegador de medição: Firefox (substitui o relatório no Chrome como palavra final, regra 6 e decisões anteriores).** O usuário só usa o Firefox. Vale o "Medir desempenho" no Firefox dele, em tela cheia, na tomada, e o jogo tem de bater as metas nele. As capturas para o usuário também são feitas no Firefox, em janela de 1920×1080.
+- **Jazidas: afloramento de rocha oxidada e manchada da cor do minério, o "chapéu de ferro" (gossan) (substitui a decisão 1.9 de 2026-11-05, "pedrinhas").** Pedras soltas e montes só aparecem quando o local for minerado, no M4.
+- **Especificação da ecologia aprovada** no modelo de longe números, de perto indivíduos. Tarefa nova: lista das espécies no menu; ao escolher uma, ícones no globo onde ela está. Interface com 4 a 6 opções e imagem antes do código.
+- **Meteoro: fica a opção 3** (a velocidade espera a rocha), com o visual da tarefa C1.
+- **Escopo:** primeiro fazer o jogo atual funcionar, depois os humanos. Variedade de geologia só registrada, sem marco. Cavernas por dentro no M8.
+- **Mineração dos humanos (M4):** locais de mineração como os de hoje, a partir das jazidas. Só registrado.
+- **Ações de deus têm resposta instantânea:** ao clicar (vulcão, meteoro, raio, fogo…), o efeito começa a aparecer na hora.
