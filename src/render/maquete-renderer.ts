@@ -1,4 +1,5 @@
 import { VERTEX_BYTES } from '../maquete/chunk-build';
+import { measureFrames } from './gpu-timer';
 
 /** A câmera da maquete: gira em volta de um ponto do chão. */
 export interface MaqueteCamera {
@@ -12,8 +13,9 @@ export interface MaqueteCamera {
 }
 
 /** Um modelo de animal, desenhado várias vezes: x, y, z, giro e escala por vez. */
-export const ANIMAL_FLOATS = 5;
-export interface InstanceBatch { mesh: number; data: Float32Array; count: number }
+export const ANIMAL_FLOATS = 7;
+/** `rig`: base do pescoço (x, y), quanto ele desce e o passo da perna. */
+export interface InstanceBatch { mesh: number; data: Float32Array; count: number; rig?: readonly [number, number, number, number] }
 
 /** Um pedaço já montado. */
 export interface MaqueteChunkData {
@@ -49,10 +51,13 @@ layout(location=1) in vec4 aNormal;
 layout(location=2) in vec4 aColor;
 uniform mat4 uVP, uSun;
 uniform vec4 uPlace;
+uniform vec4 uWind;
 out vec3 vColor, vNormal, vShadow, vWorld;
 out float vMask, vLight;
 void main(){
   vec3 w = vec3(uPlace.z * aPos.x + uPlace.w * aPos.z + uPlace.x, aPos.y, -uPlace.w * aPos.x + uPlace.z * aPos.z + uPlace.y);
+  // Vento: só as plantas (máscara = altura); a base não sai do lugar.
+  if (uWind.z > 0.0 && aNormal.w > 0.0) { float gust = 0.65 + 0.35 * sin(uWind.w * 3.0 + w.x * 0.6 + w.z * 0.4); w.xz += uWind.xy * aNormal.w * uWind.z * gust; }
   vWorld = w;
   vShadow = (uSun * vec4(w, 1.0)).xyz * 0.5 + 0.5;
   vNormal = vec3(uPlace.z * aNormal.x + uPlace.w * aNormal.z, aNormal.y, -uPlace.w * aNormal.x + uPlace.z * aNormal.z);
@@ -70,7 +75,7 @@ uniform sampler2DShadow uShadow;
 uniform vec3 uSunDir, uSunColor, uSky, uGround, uSand;
 uniform vec4 uShadowTexel;
 uniform int uMode;
-uniform float uTime;
+uniform float uTime, uDust;
 out vec4 frag;
 float shadow(){
   if (any(lessThan(vShadow, vec3(0.0))) || any(greaterThan(vShadow, vec3(1.0)))) return 1.0;
@@ -96,6 +101,8 @@ void main(){
   }
   vec3 light = mix(uGround, uSky, n.y * 0.5 + 0.5) + uSunColor * sun * lit;
   if (vMask < -0.5) light = mix(light, vec3(1.0), 0.55);
+  // Tempestade de areia: a areia cobre o chão e as plantas, mais o que olha para cima.
+  if (uDust > 0.0 && uMode != 1) albedo = mix(albedo, vec3(0.78, 0.62, 0.40), uDust * (0.35 + 0.65 * max(n.y, 0.0)));
   frag = vec4(albedo * light * vLight, 1.0);
 }`;
 const ANIMAL_VS = `#version 300 es
@@ -104,20 +111,35 @@ layout(location=1) in vec4 aNormal;
 layout(location=2) in vec4 aColor;
 layout(location=3) in vec4 iPos;
 layout(location=4) in float iScale;
+layout(location=5) in vec2 iAnim;
 uniform mat4 uVP, uSun;
 uniform vec4 uPlace;
+uniform vec4 uRig;
 out vec3 vColor, vNormal, vShadow, vWorld;
 out float vMask, vLight;
 void main(){
   float c = cos(iPos.w), s = sin(iPos.w);
-  vec3 q = aPos * iScale;
+  vec3 q = aPos;
+  // Andar e comer sem saltos: a perna balança em volta do quadril e o pescoço desce em volta da base.
+  // aNormal.w: de -0,5 a 0,5 é a perna; acima de 0,5 é o quanto o ponto segue o pescoço.
+  vec3 nn = aNormal.xyz;
+  if (aNormal.w > 0.5) {
+    float a = -iAnim.y * uRig.z * (aNormal.w - 0.5) * 2.0;
+    float ca = cos(a), sa = sin(a);
+    vec2 d = q.xy - uRig.xy;
+    q.xy = uRig.xy + vec2(ca * d.x - sa * d.y, sa * d.x + ca * d.y);
+    nn.xy = vec2(ca * nn.x - sa * nn.y, sa * nn.x + ca * nn.y);
+  } else if (aNormal.w != 0.0) {
+    q.x += aNormal.w * sin(iAnim.x) * uRig.w;
+  }
+  q *= iScale;
   vec3 w = vec3(c * q.x + s * q.z, q.y, -s * q.x + c * q.z) + iPos.xyz;
   vWorld = w;
   vShadow = (uSun * vec4(w, 1.0)).xyz * 0.5 + 0.5;
-  vNormal = vec3(c * aNormal.x + s * aNormal.z, aNormal.y, -s * aNormal.x + c * aNormal.z);
+  vNormal = vec3(c * nn.x + s * nn.z, nn.y, -s * nn.x + c * nn.z);
   vColor = aColor.rgb;
   vLight = aColor.a;
-  vMask = aNormal.w;
+  vMask = iAnim.y < -0.5 ? -1.0 : 0.0;
   gl_Position = uVP * vec4(w, 1.0);
 }`;
 const BLOB_VS = `#version 300 es
@@ -280,6 +302,9 @@ export class MaqueteRenderer {
   /** Direção do sol: a maquete pode girar o mundo em relação ao mapa (troca de face do cubo). */
   sunDir: readonly number[] = MAQUETE_LIGHT.sunDir;
   background: readonly [number, number, number] = [0.46, 0.46, 0.47];
+  /** Vento (direção x, z e força, em células na copa) e poeira (0 a 1). */
+  wind: [number, number, number] = [0, 0, 0];
+  dust = 0;
   /** Raio coberto pela sombra e centro. */
   shadowRadius = 60;
   shadowCenter: readonly [number, number, number] = [0, 0, 0];
@@ -288,7 +313,7 @@ export class MaqueteRenderer {
   /** Suavização: `fxaa` no quadro final (padrão), `msaa4` com 4 amostras, `off` sem. Decisão do usuário nas capturas (`?aa=`). */
   constructor(private gl: WebGL2RenderingContext, private aa: 'fxaa' | 'msaa4' | 'off' = 'fxaa') {
     this.main = compile(gl, VS, FS);
-    for (const n of ['uVP', 'uSun', 'uPlace', 'uShadow', 'uSunDir', 'uSunColor', 'uSky', 'uGround', 'uSand', 'uShadowTexel', 'uMode', 'uTime']) this.u[n] = gl.getUniformLocation(this.main, n);
+    for (const n of ['uVP', 'uSun', 'uPlace', 'uShadow', 'uSunDir', 'uSunColor', 'uSky', 'uGround', 'uSand', 'uShadowTexel', 'uMode', 'uTime', 'uWind', 'uDust']) this.u[n] = gl.getUniformLocation(this.main, n);
     this.shadowProgram = compile(gl, SHADOW_VS, SHADOW_FS);
     for (const n of ['uSun', 'uPlace']) this.us[n] = gl.getUniformLocation(this.shadowProgram, n);
     this.fxaa = compile(gl, FXAA_VS, FXAA_FS);
@@ -297,7 +322,7 @@ export class MaqueteRenderer {
     this.fxaaOff = gl.getUniformLocation(this.fxaa, 'uCopy');
     this.emptyVao = gl.createVertexArray() as WebGLVertexArrayObject;
     this.animalProgram = compile(gl, ANIMAL_VS, FS);
-    for (const n of ['uVP', 'uSun', 'uShadow', 'uSunDir', 'uSunColor', 'uSky', 'uGround', 'uSand', 'uShadowTexel', 'uMode', 'uTime']) this.ua[n] = gl.getUniformLocation(this.animalProgram, n);
+    for (const n of ['uVP', 'uSun', 'uShadow', 'uSunDir', 'uSunColor', 'uSky', 'uGround', 'uSand', 'uShadowTexel', 'uMode', 'uTime', 'uRig', 'uDust']) this.ua[n] = gl.getUniformLocation(this.animalProgram, n);
     this.blobProgram = compile(gl, BLOB_VS, BLOB_FS);
     this.blobVP = gl.getUniformLocation(this.blobProgram, 'uVP');
     this.instanceBuffer = gl.createBuffer() as WebGLBuffer;
@@ -382,6 +407,8 @@ export class MaqueteRenderer {
     gl.vertexAttribDivisor(3, 1);
     gl.enableVertexAttribArray(4);
     gl.vertexAttribDivisor(4, 1);
+    gl.enableVertexAttribArray(5);
+    gl.vertexAttribDivisor(5, 1);
     gl.bindVertexArray(null);
     this.meshes.push(b);
     return this.meshes.length - 1;
@@ -395,6 +422,7 @@ export class MaqueteRenderer {
     gl.bindVertexArray(b.vao);
     gl.vertexAttribPointer(3, 4, gl.FLOAT, false, ANIMAL_FLOATS * 4, 0);
     gl.vertexAttribPointer(4, 1, gl.FLOAT, false, ANIMAL_FLOATS * 4, 16);
+    gl.vertexAttribPointer(5, 2, gl.FLOAT, false, ANIMAL_FLOATS * 4, 20);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, b.vertices, count);
   }
 
@@ -535,35 +563,7 @@ export class MaqueteRenderer {
 
   /** GPU da maquete para o "Medir desempenho": `frames` desenhos seguidos. */
   async measureDraw(view: MaqueteCamera, width: number, height: number, time: number, frames: number): Promise<{ ms: number[]; method: string }> {
-    const gl = this.gl;
-    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null;
-    const px = new Uint8Array(4);
-    if (!ext) {
-      const sync: number[] = [];
-      for (let k = 0; k < frames; k++) {
-        const t0 = performance.now();
-        this.draw(view, width, height, time);
-        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-        sync.push(performance.now() - t0);
-      }
-      return { ms: sync, method: 'quadro esperando a GPU' };
-    }
-    const queries: WebGLQuery[] = [];
-    for (let k = 0; k < frames; k++) {
-      const q = gl.createQuery() as WebGLQuery;
-      gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
-      this.draw(view, width, height, time);
-      gl.endQuery(ext.TIME_ELAPSED_EXT);
-      queries.push(q);
-    }
-    const last = queries[queries.length - 1] as WebGLQuery;
-    for (let tries = 0; tries < 40 && !gl.getQueryParameter(last, gl.QUERY_RESULT_AVAILABLE); tries++) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    const disjoint = !!gl.getParameter(ext.GPU_DISJOINT_EXT), ms: number[] = [];
-    for (const q of queries) {
-      if (!disjoint && gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) ms.push((gl.getQueryParameter(q, gl.QUERY_RESULT) as number) / 1e6);
-      gl.deleteQuery(q);
-    }
-    return { ms, method: 'consulta de tempo da GPU' };
+    return measureFrames(this.gl, frames, () => this.draw(view, width, height, time));
   }
 
   draw(view: MaqueteCamera, width: number, height: number, time: number): void {
@@ -595,6 +595,8 @@ export class MaqueteRenderer {
     gl.uniform3f(u.uSand as WebGLUniformLocation, 226 / 255, 200 / 255, 138 / 255);
     gl.uniform4f(u.uShadowTexel as WebGLUniformLocation, 1.2 / this.shadowSize, 1.2 / this.shadowSize, 0.0016, view.distance > 200 ? 1 : 0);
     gl.uniform1f(u.uTime as WebGLUniformLocation, time);
+    gl.uniform4f(u.uWind as WebGLUniformLocation, this.wind[0], this.wind[1], this.wind[2], time);
+    gl.uniform1f(u.uDust as WebGLUniformLocation, this.dust);
     gl.activeTexture(gl.TEXTURE9);
     gl.bindTexture(gl.TEXTURE_2D, this.shadowTex[this.shadowFront] as WebGLTexture);
     gl.uniform1i(u.uShadow as WebGLUniformLocation, 9);
@@ -668,7 +670,10 @@ export class MaqueteRenderer {
       gl.uniform1i(a.uMode as WebGLUniformLocation, 2);
       gl.uniform1f(a.uTime as WebGLUniformLocation, time);
       gl.uniform1i(a.uShadow as WebGLUniformLocation, 9);
+      gl.uniform1f(a.uDust as WebGLUniformLocation, this.dust);
       for (const b of this.batches) {
+        const rig = b.rig ?? [0, 0, 0, 0];
+        gl.uniform4f(a.uRig as WebGLUniformLocation, rig[0], rig[1], rig[2], rig[3]);
         this.drawInstances(b.mesh, b.data, b.count);
         tris += ((this.meshes[b.mesh]?.vertices ?? 0) / 3) * b.count;
         calls++;

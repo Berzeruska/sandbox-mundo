@@ -282,6 +282,8 @@ export function buildSkirts(f: Fields, ox: number, oz: number, seed: number): { 
 
 export interface Placement {
   model: Float32Array;
+  /** Não balança ao vento (pedra, jazida, gelo). */
+  rigid?: boolean;
   /** O mesmo modelo, simplificado, para ver de longe. */
   far?: Float32Array;
   x: number;
@@ -304,7 +306,7 @@ export function bakeProps(list: readonly Placement[], lod = false): ArrayBuffer 
     for (let o = 0; o < m.length; o += MODEL_FLOATS) {
       const x = (m[o] as number) * p.scale, y = (m[o + 1] as number) * p.scale * p.stretch, z = (m[o + 2] as number) * p.scale;
       const nx = m[o + 3] as number, ny = m[o + 4] as number, nz = m[o + 5] as number;
-      out.push(c * x + s * z + p.x, y + p.y, -s * x + c * z + p.z, c * nx + s * nz, ny, -s * nx + c * nz, 0, (m[o + 6] as number) * p.tint[0], (m[o + 7] as number) * p.tint[1], (m[o + 8] as number) * p.tint[2], m[o + 9] as number);
+      out.push(c * x + s * z + p.x, y + p.y, -s * x + c * z + p.z, c * nx + s * nz, ny, -s * nx + c * nz, p.rigid ? 0 : Math.min(1, y / 5), (m[o + 6] as number) * p.tint[0], (m[o + 7] as number) * p.tint[1], (m[o + 8] as number) * p.tint[2], m[o + 9] as number);
     }
   }
   return out.bytes();

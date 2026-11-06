@@ -297,3 +297,45 @@ export function smokeCube(seed: number): Float32Array {
   }
   return m.build();
 }
+
+/** Espuma da cachoeira: lascas brancas achatadas na água, sem bolas (`bioma/agua.png`). */
+export function foamPatch(seed: number): Float32Array {
+  const m = new Model(), rand = sequence(seed * 131 + 7), white = rgb(238, 246, 250);
+  for (let k = 0; k < 7; k++) {
+    const t = rand() * 6.283, d = rand() * 0.8, x = Math.cos(t) * d, z = Math.sin(t) * d, r = 0.14 + rand() * 0.22, a = rand() * 6.283;
+    const p = (q: number): V3 => [x + Math.cos(a + q) * r, 0.02, z + Math.sin(a + q) * r];
+    m.tri(p(0), p(2.1), p(4.2), shade(white, 0.94 + rand() * 0.08), [x, -1, z]);
+  }
+  return m.build();
+}
+
+/** Chama facetada: dois cones, laranja por fora e amarelo por dentro. */
+export function flameModel(seed: number): Float32Array {
+  const m = new Model(), rand = sequence(seed * 137 + 1);
+  const cone = (r: number, h: number, color: Rgb, ox: number): void => {
+    const tip: V3 = [ox + (rand() - 0.5) * r * 0.6, h, (rand() - 0.5) * r * 0.6];
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * 6.283, b = ((i + 1) / 5) * 6.283;
+      m.tri([ox + Math.cos(a) * r, 0, Math.sin(a) * r], [ox + Math.cos(b) * r, 0, Math.sin(b) * r], tip, shade(color, 0.92 + (i % 2) * 0.12), [ox, h * 0.3, 0]);
+    }
+  };
+  cone(0.42, 1.25, rgb(232, 96, 28), 0);
+  cone(0.26, 0.85, rgb(250, 190, 50), 0.05);
+  return m.build();
+}
+
+/** Tronco caído, arrastado pela água ou pelo vento. */
+export function logModel(seed: number): Float32Array {
+  const m = new Model();
+  limb(m, [-0.75, 0.12, 0], [0.75, 0.12, 0.08], 0.13, 0.09, rgb(112, 80, 54), 5, 0.82, 0.98);
+  limb(m, [0.2, 0.14, 0], [0.5, 0.42, 0.22 + seed * 0.03], 0.05, 0.02, rgb(104, 74, 50), 3, 0.9, 1);
+  return m.build();
+}
+
+/** Rocha do meteoro: escura, facetada, com a frente em brasa. */
+export function meteorRock(): Float32Array {
+  const m = new Model();
+  lump(m, [0, 0, 0], [1, 0.9, 1], rgb(70, 58, 52), 77, { detail: 1, rough: 0.2, tone: 0.2, low: 0.85 });
+  lump(m, [0, -0.55, 0], [0.62, 0.42, 0.62], rgb(250, 140, 40), 78, { rough: 0.16, tone: 0.1, low: 1 });
+  return m.build();
+}

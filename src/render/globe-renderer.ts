@@ -1,3 +1,4 @@
+import { measureFrames } from './gpu-timer';
 import { fragmentShader, MAX_DUST, MAX_STORMS, VERTEX_SHADER } from './shaders';
 import { ClimateFade, type PatchLike } from './climate-fade';
 import type { Camera } from './camera';
@@ -391,48 +392,7 @@ export class GlobeRenderer {
    * o envio pela CPU (um pouco acima do real).
    */
   async measureDraw(camera: Camera, motion: PlateMotionUniforms | undefined, frames: number): Promise<{ ms: number[]; method: string }> {
-    const gl = this.gl;
-    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null;
-    const px = new Uint8Array(4);
-    const sync: number[] = [];
-    const queries: WebGLQuery[] = [];
-    for (let k = 0; k < frames; k++) {
-      const q = ext ? gl.createQuery() : null;
-      if (ext && q) gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
-      const t0 = performance.now();
-      this.draw(camera, motion);
-      if (ext && q) {
-        gl.endQuery(ext.TIME_ELAPSED_EXT);
-        queries.push(q);
-      }
-      // Sem a consulta de tempo da GPU, cada desenho espera a GPU (lendo 1 pixel) para ser medido.
-      if (!ext) {
-        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-        sync.push(performance.now() - t0);
-      }
-    }
-    if (ext && queries.length) {
-      // Os resultados das consultas chegam alguns quadros depois.
-      const last = queries[queries.length - 1] as WebGLQuery;
-      for (let tries = 0; tries < 30 && !gl.getQueryParameter(last, gl.QUERY_RESULT_AVAILABLE); tries++) {
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      }
-      const disjoint = !!gl.getParameter(ext.GPU_DISJOINT_EXT);
-      const ms: number[] = [];
-      for (const q of queries) {
-        if (!disjoint && gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) ms.push((gl.getQueryParameter(q, gl.QUERY_RESULT) as number) / 1e6);
-        gl.deleteQuery(q);
-      }
-      if (ms.length >= frames / 2) return { ms, method: 'consulta de tempo da GPU' };
-      // A consulta falhou (GPU trocou de ritmo no meio): mede de novo esperando a GPU.
-      for (let k = 0; k < frames; k++) {
-        const t0 = performance.now();
-        this.draw(camera, motion);
-        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-        sync.push(performance.now() - t0);
-      }
-    }
-    return { ms: sync, method: 'quadro esperando a GPU (inclui o envio pela CPU; o navegador não tem a consulta de tempo da GPU)' };
+    return measureFrames(this.gl, frames, () => this.draw(camera, motion));
   }
 
   /**

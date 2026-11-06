@@ -19,27 +19,33 @@ interface Body {
   coat: Rgb; belly?: Rgb; legs?: Rgb; face?: Rgb; rump?: number; chest?: number;
 }
 
+let rigOut = { x: 0, y: 0, top: 0 };
+
 interface Built { m: Model; hx: number; hy: number; hz: number; top: number; rear: number; eat: boolean }
 
 /** Quatro patas, tronco, pescoço e cabeça, na pose pedida. */
-function quadruped(b: Body, pose: Pose, seed: number): Built {
+function quadruped(b0: Body, _pose: Pose, seed: number): Built {
+  void _pose;
   const m = new Model();
+  // Corpo mais cheio que os parâmetros (D1: os animais estavam magros), como nas folhas.
+  const b: Body = { ...b0, h: b0.h * 1.28, w: b0.w * 1.26, legR: b0.legR * 1.4 };
+  rigOut = { x: b.len * 0.42, y: b.leg + b.h * 0.72, top: b.leg + b.h * 0.14 };
   const legs = b.legs ?? shade(b.coat, 0.82), face = b.face ?? b.coat, rump = b.rump ?? 0.9, chest = b.chest ?? 1;
   const by = b.leg + b.h / 2, stride = b.leg * 0.42;
-  const swing = pose === 'walk1' ? 1 : pose === 'walk2' ? -1 : 0;
-  const eat = pose === 'eat';
+  const swing = 0, eat = false;
   for (const [sx, sz, phase] of [[0.36, 1, 1], [0.36, -1, -1], [-0.36, 1, -1], [-0.36, -1, 1]] as const) {
     const x = sx * b.len, z = sz * b.w * 0.34, foot = x + swing * phase * stride;
     const knee: V3 = [x + (foot - x) * 0.45 + 0.02, b.leg * 0.48, z];
-    limb(m, [x, b.leg + b.h * 0.14, z], knee, b.legR, b.legR * 0.74, legs, 5, 0.86, 0.82);
-    limb(m, knee, [foot, 0, z], b.legR * 0.74, b.legR * 0.55, shade(legs, 0.9), 4, 0.82, 0.7);
+    limb(m, [x, b.leg + b.h * 0.2, z], knee, b.legR * 1.25, b.legR * 0.7, legs, 6, 0.9, 0.84);
+    limb(m, knee, [foot, b.leg * 0.08, z], b.legR * 0.7, b.legR * 0.56, shade(legs, 0.92), 5, 0.84, 0.76);
+    limb(m, [foot, b.leg * 0.09, z], [foot + 0.01, 0, z], b.legR * 0.62, b.legR * 0.7, shade(legs, 0.5), 4, 0.7, 0.66);
   }
-  lump(m, [b.len * 0.2, by + b.h * 0.02, 0], [b.len * 0.36, (b.h / 2) * chest, b.w / 2], b.coat, seed + 1, { detail: 1, rough: 0.03, tone: 0.06, low: 0.7 });
-  lump(m, [-b.len * 0.22, by, 0], [b.len * 0.36, (b.h / 2) * rump, (b.w / 2) * 0.96], shade(b.coat, 0.97), seed + 2, { detail: 1, rough: 0.03, tone: 0.06, low: 0.7 });
+  lump(m, [b.len * 0.2, by + b.h * 0.02, 0], [b.len * 0.4, (b.h / 2) * chest, b.w / 2], b.coat, seed + 1, { detail: 1, rough: 0.03, tone: 0.06, low: 0.7 });
+  lump(m, [-b.len * 0.22, by, 0], [b.len * 0.4, (b.h / 2) * rump, (b.w / 2) * 0.96], shade(b.coat, 0.97), seed + 2, { detail: 1, rough: 0.03, tone: 0.06, low: 0.7 });
   if (b.belly) lump(m, [0, by - b.h * 0.28, 0], [b.len * 0.36, b.h * 0.24, b.w * 0.42], b.belly, seed + 3, { rough: 0.03, tone: 0.04, low: 0.86 });
   const nx = b.len * 0.42, ny = by + b.h * 0.2;
   const hx = eat ? nx + b.neck * 0.62 : nx + b.neck * (1 - b.neckUp * 0.55), hy = eat ? Math.max(b.head * 0.4, 0.08) : ny + b.neck * b.neckUp;
-  limb(m, [nx, ny, 0], [hx, hy, 0], b.h * 0.3, b.h * 0.2, shade(b.coat, 0.98), 5, 0.82, 1);
+  limb(m, [nx - b.len * 0.06, ny - b.h * 0.08, 0], [hx, hy, 0], b.h * 0.42, b.h * 0.2, shade(b.coat, 0.98), 7, 0.84, 1);
   lump(m, [hx + b.head * 0.3, hy, 0], [b.head * 0.68, b.head * 0.48, b.head * 0.46], face, seed + 4, { detail: 1, rough: 0.03, tone: 0.06, low: 0.8 });
   lump(m, [hx + b.head * 0.86, hy - b.head * 0.12, 0], [b.head * 0.34, b.head * 0.27, b.head * 0.27], shade(face, 0.92), seed + 5, { rough: 0.03, tone: 0.05, low: 0.82 });
   return { m, hx, hy, hz: 0, top: by + b.h / 2, rear: -b.len * 0.56, eat };
@@ -66,8 +72,13 @@ function antlers(k: Built, b: Body, size: number, color: Rgb, wide: boolean): vo
     if (wide) {
       // Alce: pá larga.
       const near: V3 = [x - size * 0.02, y + size * 0.14, s * size * 0.3];
-      k.m.blade(near, [x + size * 0.34, y + size * 0.5, s * size * 0.92], [x - size * 0.4, y + size * 0.72, s * size * 0.98], color);
-      k.m.blade(near, [x - size * 0.4, y + size * 0.72, s * size * 0.98], [x - size * 0.58, y + size * 0.3, s * size * 0.74], shade(color, 0.92));
+      // Alce (`animais/floresta-1.png`): haste curta, pá larga e pontas na borda.
+      const tipA: V3 = [x + size * 0.22, y + size * 0.42, s * size * 0.8], tipB: V3 = [x - size * 0.42, y + size * 0.42, s * size * 0.9];
+      k.m.blade(near, tipA, tipB, color);
+      for (let t = 0; t < 5; t++) {
+        const u = t / 4, bx = tipA[0] + (tipB[0] - tipA[0]) * u, by = tipA[1] + (tipB[1] - tipA[1]) * u, bz = tipA[2] + (tipB[2] - tipA[2]) * u;
+        limb(k.m, [bx, by - 0.01, bz], [bx - size * 0.05, by + size * 0.26, bz + s * size * 0.1], 0.028, 0.008, shade(color, 0.96), 3, 1, 1);
+      }
     } else {
       limb(k.m, up, [x - size * 0.34, y + size * 1.2, s * size * 0.64], 0.024, 0.012, color, 3, 1, 1);
       limb(k.m, [x - size * 0.06, y + size * 0.42, s * size * 0.28], [x + size * 0.32, y + size * 0.76, s * size * 0.34], 0.022, 0.01, color, 3, 1, 1);
@@ -107,13 +118,6 @@ function lieDown(data: Float32Array): Float32Array {
   return out;
 }
 
-/** Nadar: a parte de trás abana para os lados. */
-function wag(data: Float32Array, amount: number): Float32Array {
-  const out = new Float32Array(data);
-  for (let o = 0; o < out.length; o += MODEL_FLOATS) { const x = out[o] as number; if (x < 0) out[o + 2] = (out[o + 2] as number) + amount * x * x; }
-  return out;
-}
-
 function fin(m: Model, a: V3, b: V3, c: V3, color: Rgb): void { m.blade(a, b, c, color); }
 
 /** Corpo de nadador: fuso facetado de 8 lados, afinando para a cauda. */
@@ -129,6 +133,15 @@ function spindle(m: Model, len: number, r: number, color: Rgb, belly: Rgb, head 
       m.tri(p(xa, ra, t0), p(xa, ra, t1), p(xb, rb, t1), col, [(xa + xb) * 0.5 * len, 0, 0]);
       m.tri(p(xa, ra, t0), p(xb, rb, t1), p(xb, rb, t0), col, [(xa + xb) * 0.5 * len, 0, 0]);
     }
+  }
+}
+
+function capEnds(m: Model, len: number, r: number, color: Rgb, head: number): void {
+  // Ponta da frente fechada: sem isso o bicho parecia sem cabeça (A4).
+  const R = 0.25 * head * r, tip: V3 = [len * 1.14, 0, 0];
+  for (let k = 0; k < 8; k++) {
+    const t0 = (k / 8) * 6.283, t1 = ((k + 1) / 8) * 6.283;
+    m.tri([len, Math.sin(t0) * R, Math.cos(t0) * R], [len, Math.sin(t1) * R, Math.cos(t1) * R], tip, color, [len * 0.9, 0, 0]);
   }
 }
 
@@ -152,7 +165,8 @@ function squid(m: Model, len: number, r: number, color: Rgb, seed: number): void
 
 function build(a: Animal, pose: Pose): Float32Array {
   // "morto" parte do parado; os nadadores abanam nos quadros de andar.
-  const shapePose: Pose = pose === 'dead' ? 'idle' : pose;
+  const shapePose = 'idle' as Pose;
+  rigOut = { x: 0, y: 0, top: 0 };
   let data: Float32Array;
   switch (a) {
     case 'rena': {
@@ -178,7 +192,7 @@ function build(a: Animal, pose: Pose): Float32Array {
     }
     case 'alce': {
       const b: Body = { len: 1.55, h: 0.72, w: 0.52, leg: 0.86, legR: 0.07, neck: 0.5, neckUp: 0.42, head: 0.42, coat: rgb(92, 66, 50), legs: rgb(128, 96, 72), chest: 1.16, rump: 0.86 };
-      const k = quadruped(b, shapePose, 19); earsOn(k, b, 0.15, b.coat); antlers(k, b, 0.62, rgb(170, 134, 96), true); tail(k, k.top - 0.16, 0.08, 0.05, 0.05, b.coat);
+      const k = quadruped(b, shapePose, 19); earsOn(k, b, 0.15, b.coat); antlers(k, b, 0.62, rgb(146, 112, 80), true); tail(k, k.top - 0.16, 0.08, 0.05, 0.05, b.coat);
       data = k.m.build(); break;
     }
     case 'javali': {
@@ -302,18 +316,18 @@ function build(a: Animal, pose: Pose): Float32Array {
     }
     case 'baleia': {
       const m = new Model(), c = rgb(44, 66, 112);
-      spindle(m, 2.5, 0.62, c, rgb(214, 216, 216)); flukes(m, -2.4, 0.7, 0.55, c);
+      spindle(m, 2.5, 0.62, c, rgb(214, 216, 216)); capEnds(m, 2.5, 0.62, c, 1); flukes(m, -2.4, 0.7, 0.55, c);
       fin(m, [0.7, -0.1, 0.5], [0.2, -0.2, 0.5], [0.1, -0.3, 1.25], c); fin(m, [0.7, -0.1, -0.5], [0.2, -0.2, -0.5], [0.1, -0.3, -1.25], c);
       data = m.build(); break;
     }
     case 'cachalote': {
       const m = new Model(), c = rgb(112, 112, 116);
-      spindle(m, 2.2, 0.55, c, rgb(150, 148, 146), 3); flukes(m, -2.15, 0.62, 0.48, c);
+      spindle(m, 2.2, 0.55, c, rgb(150, 148, 146), 3); capEnds(m, 2.2, 0.55, c, 3); flukes(m, -2.15, 0.62, 0.48, c);
       data = m.build(); break;
     }
     case 'tubarao': {
       const m = new Model(), c = rgb(112, 124, 134);
-      spindle(m, 1.2, 0.26, c, rgb(226, 228, 226)); fin(m, [0.1, 0.22, 0], [-0.26, 0.22, 0], [-0.24, 0.62, 0], c);
+      spindle(m, 1.2, 0.26, c, rgb(226, 228, 226)); capEnds(m, 1.2, 0.26, c, 1); fin(m, [0.1, 0.22, 0], [-0.26, 0.22, 0], [-0.24, 0.62, 0], c);
       fin(m, [-1.1, 0, 0], [-1.42, 0.42, 0], [-1.3, 0, 0], c); fin(m, [-1.1, 0, 0], [-1.36, -0.24, 0], [-1.3, 0, 0], c);
       fin(m, [0.3, -0.1, 0.2], [0, -0.14, 0.22], [-0.1, -0.16, 0.6], c); fin(m, [0.3, -0.1, -0.2], [0, -0.14, -0.22], [-0.1, -0.16, -0.6], c);
       data = m.build(); break;
@@ -321,9 +335,8 @@ function build(a: Animal, pose: Pose): Float32Array {
     case 'lula': { const m = new Model(); squid(m, 0.42, 0.13, rgb(196, 112, 84), 55); data = m.build(); break; }
     case 'lulaGigante': { const m = new Model(); squid(m, 1.4, 0.36, rgb(164, 62, 52), 57); data = m.build(); break; }
   }
+  rigs.set(a, rigOut);
   if (SWIMMERS.has(a)) {
-    if (pose === 'walk1') data = wag(data, 0.06);
-    if (pose === 'walk2') data = wag(data, -0.06);
     if (pose === 'dead') {
       // Boia de lado.
       const c = Math.cos(1.2), s = Math.sin(1.2), out = new Float32Array(data);
@@ -335,6 +348,13 @@ function build(a: Animal, pose: Pose): Float32Array {
   return pose === 'dead' ? lieDown(data) : data;
 }
 
+const rigs = new Map<Animal, { x: number; y: number; top: number }>();
+/** Base do pescoço e altura do quadril: o desenho dobra o pescoço e balança a perna em volta deles. */
+export function animalRig(a: Animal): { x: number; y: number; top: number } {
+  animalModel(a, 'idle');
+  return rigs.get(a) ?? { x: 0, y: 0, top: 0 };
+}
+
 const cache = new Map<string, Float32Array>();
 export function animalModel(a: Animal, pose: Pose): Float32Array {
   const key = `${a}:${pose}`;
@@ -343,21 +363,21 @@ export function animalModel(a: Animal, pose: Pose): Float32Array {
   return m;
 }
 
-/** Quem vive em cada bioma, e em que grupo. */
-export const FAUNA: Partial<Record<number, readonly (readonly [Animal, number])[]>> = {
-  [Biome.Tundra]: [['rena', 5], ['loboArtico', 3], ['lebre', 3]],
-  [Biome.Ice]: [['loboArtico', 2]],
-  [Biome.Taiga]: [['alce', 2], ['lobo', 4], ['urso', 1], ['lebre', 2], ['rena', 4]],
-  [Biome.TemperateForest]: [['cervo', 4], ['javali', 4], ['lobo', 3], ['urso', 1], ['alce', 1]],
-  [Biome.Grassland]: [['bisao', 6], ['cervo', 3], ['antilope', 4]],
-  [Biome.Steppe]: [['bisao', 5], ['antilope', 4]],
-  [Biome.Savanna]: [['zebra', 6], ['antilope', 6], ['elefante', 3], ['leao', 3]],
-  [Biome.TropicalForest]: [['macaco', 5], ['onca', 1], ['capivara', 4], ['javali', 3]],
-  [Biome.Swamp]: [['jacare', 3], ['capivara', 5]],
-  [Biome.HotDesert]: [['camelo', 3]],
-  [Biome.ColdDesert]: [['camelo', 2]],
-  [Biome.Mountain]: [['cabra', 4], ['aguia', 1]],
-  [Biome.SnowyPeak]: [['cabra', 2], ['aguia', 1]],
-  [Biome.ShallowOcean]: [['cardume', 3], ['tubarao', 1], ['lula', 2]],
-  [Biome.DeepOcean]: [['baleia', 2], ['cachalote', 2], ['cardume', 3], ['lulaGigante', 1], ['tubarao', 1]],
+/** Quem vive em cada bioma, com o tamanho de grupo da especificação (mínimo e máximo). */
+export const FAUNA: Partial<Record<number, readonly (readonly [Animal, number, number])[]>> = {
+  [Biome.Tundra]: [['rena', 3, 8], ['loboArtico', 2, 5], ['lebre', 1, 3]],
+  [Biome.Ice]: [['loboArtico', 2, 4]],
+  [Biome.Taiga]: [['alce', 1, 2], ['lobo', 3, 6], ['urso', 1, 1], ['lebre', 1, 3], ['rena', 3, 8]],
+  [Biome.TemperateForest]: [['cervo', 2, 6], ['javali', 2, 6], ['lobo', 3, 6], ['urso', 1, 1], ['alce', 1, 2]],
+  [Biome.Grassland]: [['bisao', 4, 12], ['cervo', 2, 6], ['antilope', 4, 12]],
+  [Biome.Steppe]: [['bisao', 4, 12], ['antilope', 4, 12]],
+  [Biome.Savanna]: [['zebra', 4, 10], ['antilope', 4, 12], ['elefante', 2, 6], ['leao', 2, 6]],
+  [Biome.TropicalForest]: [['macaco', 3, 10], ['onca', 1, 1], ['capivara', 3, 8], ['javali', 2, 6]],
+  [Biome.Swamp]: [['jacare', 1, 3], ['capivara', 3, 8]],
+  [Biome.HotDesert]: [['camelo', 2, 5]],
+  [Biome.ColdDesert]: [['camelo', 2, 5]],
+  [Biome.Mountain]: [['cabra', 2, 6], ['aguia', 1, 1]],
+  [Biome.SnowyPeak]: [['cabra', 2, 6], ['aguia', 1, 1]],
+  [Biome.ShallowOcean]: [['cardume', 6, 12], ['tubarao', 1, 2]],
+  [Biome.DeepOcean]: [['baleia', 1, 3], ['cachalote', 1, 3], ['cardume', 6, 12]],
 };

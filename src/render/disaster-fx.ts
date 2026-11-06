@@ -129,13 +129,15 @@ export class DisasterFx {
   }
 
   /** Desenha tudo no instante `now`, com o jogo no passo `tick` (estimado) e neste ritmo; tira o que acabou. */
-  draw(ctx: CanvasRenderingContext2D, camera: Camera, now: number, tick: number, ticksPerSecond: number, dpr: number): void {
+  draw(ctx: CanvasRenderingContext2D, camera: Camera, now: number, tick: number, ticksPerSecond: number, dpr: number, flat = false): void {
     for (const f of this.list) {
       if (f.e.kind !== DisasterKind.Meteor || f.landed !== undefined) continue;
       f.entry = meteorEntry(f.entry ?? 0, now - (f.drawnAt ?? f.start), (f.e.impactTick ?? f.e.tick) - tick, ticksPerSecond);
       f.drawnAt = now;
     }
     this.list = this.list.filter((f) => (f.e.kind === DisasterKind.Meteor ? f.landed === undefined || now - f.landed < METEOR_AFTER_MS : now - f.start < f.ms));
+    // Na maquete quem desenha é `MaqueteFx`, em três dimensões.
+    if (flat) return;
     for (const f of this.list) {
       if (f.e.kind === DisasterKind.Lightning) drawLightning(ctx, camera, f.e, now - f.start, f.e.id, dpr);
       else if (f.e.kind === DisasterKind.Meteor) drawMeteor(ctx, camera, f.e, f.landed === undefined ? (f.entry ?? 0) : 1 + (now - f.landed) / METEOR_AFTER_MS, f.e.id, dpr);

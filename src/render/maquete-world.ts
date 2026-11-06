@@ -2,6 +2,7 @@ import { CHUNK_CELLS, type ChartChunk } from '../maquete/chart';
 import type { FromMaqueteWorker, ToMaqueteWorker } from '../maquete/worker';
 import type { CoarseWorld } from '../maquete/world-fields';
 import { AnimalHerds } from './maquete-animals';
+import { MaqueteFx } from './maquete-fx';
 import { eyeOf, MAQUETE_LIGHT, MaqueteRenderer } from './maquete-renderer';
 import type { ViewCamera } from './view-camera';
 
@@ -36,6 +37,7 @@ export class MaqueteWorld {
   private nearAsked = new Set<number>();
   private nearArrived: Extract<FromMaqueteWorker, { type: 'near' }>[] = [];
   readonly animals: AnimalHerds;
+  readonly fx: MaqueteFx;
   buildMs: number[] = [];
   uploadMs: number[] = [];
 
@@ -43,6 +45,7 @@ export class MaqueteWorld {
     const aa = new URLSearchParams(location.search).get('aa');
     this.renderer = new MaqueteRenderer(gl, aa === 'msaa4' || aa === 'off' ? aa : 'fxaa');
     this.animals = new AnimalHerds(this.renderer);
+    this.fx = new MaqueteFx(this.renderer);
     this.worker = new Worker(new URL('../maquete/worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<FromMaqueteWorker>) => {
       const m = e.data;
@@ -69,7 +72,7 @@ export class MaqueteWorld {
       this.nearAsked.clear();
       this.asked.clear();
       this.stale.clear();
-      for (const k of [...this.renderer.keys()]) { this.renderer.removeChunk(k); this.animals.removeChunk(k); }
+      for (const k of [...this.renderer.keys()]) { this.renderer.removeChunk(k); this.animals.removeChunk(k); this.fx.setFlames(k, null); this.fx.setVents(k, null); }
     }
     this.hasWorld = true;
     this.worldId++;
@@ -81,6 +84,7 @@ export class MaqueteWorld {
   /** Um desenho escondido para o navegador terminar de preparar os programas. */
   warm(width: number, height: number): void {
     this.renderer.warm(width, height);
+    this.fx.prepare();
   }
 
   get ready(): boolean { return this.hasWorld; }
@@ -129,6 +133,8 @@ export class MaqueteWorld {
       this.rebuilding.delete(m.key);
       this.renderer.setChunk(m.key, m, w.chunk.place, [true, true, true, true], [(w.chunk.cx + 0.5) * CHUNK_CELLS, (w.chunk.cz + 0.5) * CHUNK_CELLS]);
       this.animals.setChunk(m.key, m.animals, m.walkY, m.walkMask);
+      this.fx.setFlames(m.key, m.flames);
+      this.fx.setVents(m.key, m.vents);
       this.uploadMs.push(performance.now() - t0);
       this.openDirty = true;
       n++;
@@ -209,7 +215,7 @@ export class MaqueteWorld {
   }
 
   private evict(): void {
-    for (const k of [...this.renderer.keys()]) if (!this.wanted.has(k)) { this.renderer.removeChunk(k); this.animals.removeChunk(k); }
+    for (const k of [...this.renderer.keys()]) if (!this.wanted.has(k)) { this.renderer.removeChunk(k); this.animals.removeChunk(k); this.fx.setFlames(k, null); this.fx.setVents(k, null); }
     for (const k of [...this.asked]) if (!this.wanted.has(k)) this.asked.delete(k);
     this.arrived = this.arrived.filter((a) => this.wanted.has(a.key));
   }
@@ -245,9 +251,11 @@ export class MaqueteWorld {
     this.openDirty = false;
   }
 
-  draw(camera: ViewCamera, width: number, height: number, time: number): void {
+  draw(camera: ViewCamera, width: number, height: number, time: number, paused: boolean): void {
     const r = this.renderer, v = camera.view;
-    this.animals.update(time);
+    this.fx.update(time * 1000, camera, paused);
+    this.animals.update(time, paused, this.fx.windHere);
+    r.batches = [...this.animals.list(), ...this.fx.list()];
     // A sombra anda em passos, para não tremer.
     this.placeShadow(camera);
     // Tremor do terremoto: a câmera balança um pouco, como no globo.

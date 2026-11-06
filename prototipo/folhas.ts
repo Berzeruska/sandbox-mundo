@@ -1,5 +1,5 @@
 import { bakeProps, type Placement } from '../src/maquete/chunk-build';
-import { ANIMALS, animalModel, POSES } from '../src/maquete/animals';
+import { ANIMALS, animalModel } from '../src/maquete/animals';
 import { depositModel } from '../src/maquete/deposits';
 import { Resource } from '../src/world/resources';
 import { PLANT_STATES, plant, SPECIES } from '../src/maquete/plants';
@@ -26,8 +26,8 @@ if (folha === 'jazidas') {
   const page = Number(folha.slice(7) || 1) - 1, perPage = 9;
   ANIMALS.slice(page * perPage, (page + 1) * perPage).forEach((a, i) => {
     const col = i % 3, row = Math.floor(i / 3);
-    POSES.forEach((pose, k) => {
-      list.push({ model: animalModel(a, pose), x: col * 19 + k * 3.5, y: 0, z: row * 7, scale: 1, stretch: 1, yaw: -0.45, tint: white });
+    (['idle', 'dead'] as const).forEach((pose, k) => {
+      list.push({ model: animalModel(a, pose), x: col * 19 + k * 7, y: 0, z: row * 7, scale: 1, stretch: 1, yaw: -0.45, tint: white });
     });
     labels.push({ x: col * 19 + 7, z: row * 7 + 2, text: a });
   });

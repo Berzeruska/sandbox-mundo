@@ -81,6 +81,7 @@ export class App {
   private maqueteWaiting = false;
   private maqueteSeed = '';
   private maqueteDrawn = false;
+  private maqueteFastUntil = 0;
   readonly overlay: Overlay;
   readonly input: PointerInput;
   readonly hud: Hud;
@@ -686,12 +687,17 @@ export class App {
   /** Desastres que aconteceram: animação, aviso (só os grandes naturais) e lista. */
   private onDisasters(events: DisasterEvent[], impacts: number[]): void {
     const now = performance.now();
+    if (events.length || impacts.length) this.maqueteFastUntil = now + 4000;
     for (const e of events) {
       this.fx.add(e, now);
+      this.maquete?.fx.add(e, now);
       if (e.kind === DisasterKind.Quake) this.startShake(e, now);
     }
     // A rocha toca o chão: o clarão vem no próximo desenho e o meteoro grande e o gigante tremem a tela.
     for (const id of impacts) {
+      this.maquete?.fx.land(id, now, this.camera);
+      // A cratera já vai para o ajudante, sem esperar a próxima cópia do mundo.
+      this.maqueteAskedAt = -Infinity;
       const e = this.fx.land(id, now);
       if (e && SHAKE_MAGNITUDE[e.magnitude]) this.startShake({ ...e, magnitude: SHAKE_MAGNITUDE[e.magnitude] as number }, now);
     }
@@ -703,6 +709,10 @@ export class App {
    * muda as escolhas do jogador sozinho (decisão do usuário, 2026-10-19, revertendo a volta para 1×).
    */
   private provoke(kind: DisasterKind, point: Vec3): void {
+    // Resposta instantânea (decisão de 2026-11-06): o efeito começa no toque, antes de a simulação responder.
+    this.maquete?.fx.action(kind, point, performance.now());
+    this.maqueteFastUntil = performance.now() + 4000;
+    this.maqueteAskedAt = -Infinity;
     this.sim.triggerDisaster(kind, point, this.hud.strengthOf(kind));
   }
 
@@ -951,7 +961,8 @@ export class App {
     this.maquete ??= new MaqueteWorld(renderer.context);
     const m = this.maquete;
     // Uma cópia do mundo ao chegar perto e, depois, uma por segundo com o relógio andando.
-    const every = this.clock.speed === 0 ? 4000 : 1000;
+    // Com desastre acontecendo, a maquete acompanha de perto.
+    const every = now < this.maqueteFastUntil ? 280 : this.clock.speed === 0 ? 4000 : 1000;
     if (!this.maqueteWaiting && now - this.maqueteAskedAt > every) {
       this.maqueteWaiting = true;
       this.maqueteAskedAt = now;
@@ -1027,7 +1038,8 @@ export class App {
     const drew = this.needsDraw || this.camera.inMaquete;
     if (this.camera.inMaquete && this.maquete) {
       this.camera.refresh();
-      this.maquete.draw(this.camera, renderer.canvas.width, renderer.canvas.height, performance.now() / 1000);
+      this.maquete.fx.setStorms([...this.storms.values()].map((q) => ({ p: q.shown.p, radius: q.shown.radius, power: q.shown.power, kind: q.kind })));
+      this.maquete.draw(this.camera, renderer.canvas.width, renderer.canvas.height, performance.now() / 1000, this.clock.speed === 0);
       this.maqueteDrawn = true;
       this.drawOverlay();
       this.needsDraw = false;
@@ -1419,13 +1431,14 @@ export class App {
 
   private drawOverlay(): void {
     this.overlay.clear();
+    if (this.camera.inMaquete) this.maquete?.fx.drawOverlay(this.overlay.context, this.camera, performance.now());
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.fxShown = this.fx.active;
     if (this.fx.active) {
       const now = performance.now();
       const rate = this.clock.speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * this.clock.speed;
       // O passo só chega a cada ~100 ms: entre uma mensagem e outra, estimado pelo ritmo.
-      this.fx.draw(this.overlay.context, this.camera, now, this.clock.tick + (rate * Math.min(now - this.clockAt, 2 * CLOCK_POST_MS)) / 1000, rate, dpr);
+      this.fx.draw(this.overlay.context, this.camera, now, this.clock.tick + (rate * Math.min(now - this.clockAt, 2 * CLOCK_POST_MS)) / 1000, rate, dpr, this.camera.inMaquete);
     }
     if (this.mode !== 'paint' || !this.brushScreen || !this.info) return;
     const p = this.camera.pick(this.brushScreen.x, this.brushScreen.y);

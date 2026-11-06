@@ -196,6 +196,15 @@ export class ViewCamera extends Camera {
     }
   }
 
+  /** Ponto do planeta no plano da maquete (null: fora das faces abertas). */
+  planeOf(p: readonly number[]): { x: number; z: number } | null {
+    const size = this.fineSize(), q = pointToFine(p, size), c = fineToChart(this.chart, q.face, q.x, q.y, size);
+    return c ? { x: c.X, z: c.Z } : null;
+  }
+
+  /** Plano → tela, para a camada de cima. */
+  project(x: number, y: number, z: number): { x: number; y: number; visible: boolean } { return this.projectPlane(x, y, z); }
+
   override turnView(amount: number): boolean {
     if (!this.inMaquete) return false;
     this.view.yaw -= amount * 1.3;
