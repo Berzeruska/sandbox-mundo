@@ -1,8 +1,11 @@
-name: Deploy no GitHub Pages
+name: Site e prévias no GitHub Pages
 
+# O GitHub Pages troca o site inteiro a cada publicação. Por isso cada publicação remonta tudo:
+# o main na raiz, a última versão de cada branch marco-* em /previa/<branch>/, e /previa/atual/.
+# Assim, nem o deploy do main nem o de uma prévia apagam as outras.
 on:
   push:
-    branches: [main]
+    branches: [main, 'marco-*']
   workflow_dispatch:
 
 permissions:
@@ -12,23 +15,25 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
-          cache: npm
-      - run: npm ci
-      - run: npm run check
-      - run: npm run build
+      - name: Confere o que foi enviado
+        run: npm ci && npm run check
+      - name: Monta o site
+        run: bash scripts/build-site.sh site
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: dist
+          path: site
 
   deploy:
     needs: build
