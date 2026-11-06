@@ -66,16 +66,16 @@ Build de produção, navegador com a GPU do notebook, 1080p, na tomada. Relatór
 
 | Medida (meta) | Antes das técnicas | Depois |
 |---|---:|---:|
-| GPU na entrada da maquete (≤ 8 ms) | 10,4 ms | 4,4 ms no cenário do relatório |
+| GPU na entrada da maquete, cenário do relatório (≤ 8 ms) | 10,4 ms | 3,7 ms (pior 5,5) |
 | GPU na mata mais densa do planeta, de 1× a 5,6× de zoom (≤ 8 ms) | | 4,5–8,0 ms de média; quadros isolados até 9,8 ms na taiga |
 | Triângulos na entrada | 1,22 milhão | ~660 mil |
-| Pior quadro andando e correndo (nenhum > 50 ms) | 298 ms | 17 ms |
-| fps nos 23 cenários (60) | 52–56 | 60, mínimo 60 |
-| Montar um pedaço no ajudante, pior | 355 ms | 29 ms (média 5,8 ms) |
+| Pior quadro andando e correndo (nenhum > 50 ms) | 298 ms | 17 ms (no relatório todo, 33 ms, em desastres "Muitos" a 20×) |
+| fps nos cenários (60) | 52–56 | 60 de média; mínimo 59 |
+| Montar um pedaço no ajudante, pior | 355 ms | 31 ms (média 5,9 ms) |
 | Memória da página (≤ 400 MB) | | 218 MB |
-| Geração (≤ 1,5 s) / abertura (≤ 2,5 s) | | 0,92 s / 1,46 s |
-| Recomposição à vista na maquete (≤ 1 s) | | 793 ms em segundo plano, pior quadro 17 ms |
-| Relógio esperou (0) | | 0; travadas 0 |
+| Geração (≤ 1,5 s) / abertura (≤ 2,5 s) | | 0,91 s / 1,44 s |
+| Recomposição à vista na maquete (≤ 1 s) | | 795 ms em segundo plano, pior quadro 17 ms |
+| Travadas | | 0 da tela; 1 da data (326 ms, ao ligar as placas depois de muito tempo paradas) |
 
 **Técnicas (regra 16, nada some da tela):** modelos de longe com a mesma silhueta e menos faces, a partir de 170 unidades da câmera; sombra desenhada em partes em 2 mapas, com os modelos de longe; fundo do mar coberto não é desenhado; mar aberto em blocos de 4 células; recorte do que está fora da vista; plantas antes do chão; uma amostra de sombra de longe; programas compilados atrás da tela de carregamento; e a sombra já começa a ser feita antes do corte.
 

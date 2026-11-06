@@ -29,6 +29,8 @@ export interface Fields {
   sand: Float32Array;
   /** Charco: a água fica escura e esverdeada. */
   marsh: Float32Array;
+  /** Rio: só aqui um degrau no nível da água vira cachoeira. */
+  river: Float32Array;
   /** Encosta de terraço: terra à mostra. */
   bank: Float32Array;
   /** Pico por cima (nada de planta aqui). */
@@ -47,7 +49,7 @@ export interface Fields {
 export function newFields(size: number, margin: number): Fields {
   const stride = size + 1 + margin * 2, count = stride * stride;
   const a = () => new Float32Array(count);
-  return { size, margin, stride, y: a(), water: new Float32Array(count).fill(-Infinity), r: a(), g: a(), b: a(), sand: a(), marsh: a(), bank: a(), peak: a(), wr: new Float32Array(count).fill(WATER_DEEP[0]), wg: new Float32Array(count).fill(WATER_DEEP[1]), wb: new Float32Array(count).fill(WATER_DEEP[2]), shade: new Float32Array(count).fill(1), jx: a(), jz: a() };
+  return { size, margin, stride, y: a(), water: new Float32Array(count).fill(-Infinity), r: a(), g: a(), b: a(), sand: a(), marsh: a(), river: a(), bank: a(), peak: a(), wr: new Float32Array(count).fill(WATER_DEEP[0]), wg: new Float32Array(count).fill(WATER_DEEP[1]), wb: new Float32Array(count).fill(WATER_DEEP[2]), shade: new Float32Array(count).fill(1), jx: a(), jz: a() };
 }
 
 export class VertexOut {
@@ -167,6 +169,8 @@ export function buildWater(f: Fields, ox: number, oz: number, style: TerrainStyl
     return best;
   };
   const tri = (a: number, b: number, c: number, wa: number, wb: number, wc: number): void => {
+    // Lago encostado no mar, ou em outro nível: nada de parede de água; aparece a margem de terra entre eles.
+    if (Math.max(wa, wb, wc) - Math.min(wa, wb, wc) > 0.25 && !((f.river[a] as number) && (f.river[b] as number) && (f.river[c] as number))) return;
     const ax = px(a), az = pz(a), bx = px(b), bz = pz(b), cx = px(c), cz = pz(c);
     let nx = (bz - az) * (wc - wa) - (wb - wa) * (cz - az);
     let ny = (bx - ax) * (cz - az) - (bz - az) * (cx - ax);

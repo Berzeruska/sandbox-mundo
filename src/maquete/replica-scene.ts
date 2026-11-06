@@ -242,7 +242,7 @@ function fillFields(f: Fields, ox: number, oz: number): void {
       if (level > y - 0.4) y = y + (level + 0.45 - y) * smoothstep(5.5, 2, d);
       y = y + (level + 0.26 - y) * smoothstep(3.2, 0.6, d);
       y = y + (level - 0.9 - y) * smoothstep(0.55, -0.9, d);
-      if (d < 3) f.water[k] = level;
+      if (d < 3) { f.water[k] = level; f.river[k] = 1; }
       f.sand[k] = smoothstep(2.15, 1.1, d + noise3(px * 0.5, 3.3, pz * 0.5) * 0.45);
     }
     // Debaixo das facetas o chão sobe junto, um pouco mais baixo, e não aparece.

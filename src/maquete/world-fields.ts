@@ -399,7 +399,7 @@ function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, p
     const lift = surfaceLift(px, pz, face, patch).lift;
     if (lift <= 0.5) {
       // Rio e lago: canal cavado; o chão acompanha o nível da água, para o rio não correr por cima dele.
-      let d = Infinity, level = 0;
+      let d = Infinity, level = 0, isLake = false;
       const wobble = noise3(sx * 0.35, sy * 0.35, sz * 0.35) * 0.45;
       for (const q of near) {
         const ex = q.bx - q.ax, ez = q.bz - q.az, wx0 = px - q.ax, wz0 = pz - q.az;
@@ -411,14 +411,14 @@ function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, p
       const lakeMask = patch.spline(patch.lake, cx, cz);
       if (lakeMask > 0.02) {
         const dL = (0.5 - lakeMask) * 7 + wobble;
-        if (dL < d) { d = dL; level = patch.lakeY[cellAt] as number || patch.lakeY[patch.nearest(px, pz)] as number || level; }
+        if (dL < d) { d = dL; isLake = true; level = patch.lakeY[cellAt] as number || patch.lakeY[patch.nearest(px, pz)] as number || level; }
       }
       if (d < 6 && meters > 0) {
         f.bank[k] = 0;
         if (level > y - 0.4) y += (level + 0.45 - y) * smoothstep(5.5, 2, d);
         y += (level + 0.26 - y) * smoothstep(3.2, 0.6, d);
         y += (level - 0.9 - y) * smoothstep(0.55, -0.9, d);
-        if (d < 3) { f.water[k] = level; f.marsh[k] = 0; }
+        if (d < 3) { f.water[k] = level; f.marsh[k] = 0; f.river[k] = isLake ? 0 : 1; }
         if (!cold) f.sand[k] = Math.max(f.sand[k] as number, smoothstep(1.7, 0.9, d + noise3(sx * 0.5 + 3, sy * 0.5, sz * 0.5) * 0.4));
       }
     }
