@@ -39,6 +39,8 @@ export interface SimEvents {
  * Pinceladas são agrupadas: enquanto o worker processa uma, as seguintes acumulam o tempo e a
  * posição mais recente, para nunca formar fila (a tela segue fluida com pincel grande).
  */
+export type MaqueteSnapshot = Extract<FromWorker, { type: 'maqueteSnapshot' }>;
+
 export class SimClient {
   private worker: Worker;
   private brushInFlight = false;
@@ -49,6 +51,8 @@ export class SimClient {
   private sharedProbe: boolean | null = null;
   /** Tempo tratando mensagens do worker (ms, acumulado): o "Medir desempenho" desconta por quadro. */
   receiveMs = 0;
+
+  private snapshots = new Map<number, (s: MaqueteSnapshot) => void>();
 
   constructor(private events: SimEvents) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -151,8 +155,23 @@ export class SimClient {
     });
   }
 
+  /** O chão de todas as células, para a maquete. */
+  maqueteSnapshot(): Promise<MaqueteSnapshot> {
+    const id = this.nextQuery++;
+    return new Promise((resolve) => {
+      this.snapshots.set(id, resolve);
+      this.send({ type: 'maqueteSnapshot', id });
+    });
+  }
+
   private receive(msg: FromWorker): void {
     switch (msg.type) {
+      case 'maqueteSnapshot': {
+        const done = this.snapshots.get(msg.id);
+        this.snapshots.delete(msg.id);
+        done?.(msg);
+        break;
+      }
       case 'hello':
         if (msg.version !== __BUILD_ID__) {
           this.events.onError(`Versões diferentes: tela ${__BUILD_ID__}, simulador ${msg.version}`, true);

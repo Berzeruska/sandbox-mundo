@@ -209,6 +209,23 @@ export class SimulationCore {
     this.post(msg, transferables(msg));
   }
 
+  /** Cópia do chão para a maquete. Só leitura: nenhum passo do mundo muda por causa disso. */
+  private maqueteSnapshot(id: number): void {
+    const world = this.world;
+    if (!world) return;
+    const count = world.cellCount;
+    const height = new Int16Array(count), cover = new Uint8Array(count), state = new Uint8Array(count), deposit = new Uint8Array(count), ice = new Uint8Array(count);
+    const ground = this.disasters?.ground;
+    for (let c = 0; c < count; c++) {
+      height[c] = Math.max(-32000, Math.min(32000, Math.round(world.heightAboveSea(c))));
+      cover[c] = ground ? Math.round((ground.cover[c] as number) * 255) : 255;
+      state[c] = ground ? (ground.state[c] as number) : 0;
+    }
+    deposit.set(world.deposit);
+    ice.set(world.ice);
+    this.send({ type: 'maqueteSnapshot', id, seedText: world.params.seedText, height, cover, state, deposit, ice });
+  }
+
   handle(msg: ToWorker): void {
     switch (msg.type) {
       case 'newWorld':
@@ -244,6 +261,9 @@ export class SimulationCore {
         break;
       case 'query':
         this.query(msg.id, msg.point);
+        break;
+      case 'maqueteSnapshot':
+        this.maqueteSnapshot(msg.id);
         break;
       case 'resetWorst':
         this.work.worstGeology = 0;

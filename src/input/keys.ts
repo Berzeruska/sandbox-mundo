@@ -45,7 +45,7 @@ export class KeyControls {
     if (zoom) camera.zoomAt(cx, cy, Math.exp(zoom * KEY_ZOOM_RATE * dt));
     // Como arrastar a tela pelo centro (olhar para a direita = puxar o planeta para a esquerda): a
     // mesma velocidade aparente em qualquer zoom.
-    if (turn) {
+    if (turn && !camera.turnView(turn * dt)) {
       const dx = -turn * KEY_TURN_RATE * camera.radius() * dt;
       camera.drag(cx, cy, cx + dx, cy);
     }

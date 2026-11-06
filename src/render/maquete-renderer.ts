@@ -1,0 +1,412 @@
+import { VERTEX_BYTES } from '../maquete/chunk-build';
+
+/** A câmera da maquete: gira em volta de um ponto do chão. */
+export interface MaqueteCamera {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+  distance: number;
+  fov: number;
+}
+
+/** Um pedaço já montado. */
+export interface MaqueteChunkData {
+  terrain: ArrayBuffer;
+  water: ArrayBuffer;
+  props: ArrayBuffer;
+  skirts: ArrayBuffer;
+  skirtRanges: readonly (readonly [number, number])[];
+}
+
+interface Buffers { vao: WebGLVertexArrayObject; buffer: WebGLBuffer; vertices: number }
+interface GpuChunk {
+  terrain: Buffers | null;
+  water: Buffers | null;
+  props: Buffers | null;
+  skirts: Buffers | null;
+  ranges: readonly (readonly [number, number])[];
+  /** Lados com borda à mostra: +x, -x, +z, -z. */
+  open: boolean[];
+  place: [number, number, number, number];
+  bytes: number;
+}
+
+const VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec4 aNormal;
+layout(location=2) in vec4 aColor;
+uniform mat4 uVP, uSun;
+uniform vec4 uPlace;
+out vec3 vColor, vNormal, vShadow, vWorld;
+out float vMask, vLight;
+void main(){
+  vec3 w = vec3(uPlace.z * aPos.x + uPlace.w * aPos.z + uPlace.x, aPos.y, -uPlace.w * aPos.x + uPlace.z * aPos.z + uPlace.y);
+  vWorld = w;
+  vShadow = (uSun * vec4(w, 1.0)).xyz * 0.5 + 0.5;
+  vNormal = vec3(uPlace.z * aNormal.x + uPlace.w * aNormal.z, aNormal.y, -uPlace.w * aNormal.x + uPlace.z * aNormal.z);
+  vColor = aColor.rgb;
+  vLight = aColor.a;
+  vMask = aNormal.w;
+  gl_Position = uVP * vec4(w, 1.0);
+}`;
+const FS = `#version 300 es
+precision highp float;
+precision highp sampler2DShadow;
+in vec3 vColor, vNormal, vShadow, vWorld;
+in float vMask, vLight;
+uniform sampler2DShadow uShadow;
+uniform vec3 uSunDir, uSunColor, uSky, uGround, uSand;
+uniform vec4 uShadowTexel;
+uniform int uMode;
+uniform float uTime;
+out vec4 frag;
+float shadow(){
+  if (any(lessThan(vShadow, vec3(0.0))) || any(greaterThan(vShadow, vec3(1.0)))) return 1.0;
+  vec2 t = uShadowTexel.xy;
+  float b = uShadowTexel.z, s = 0.0;
+  const vec2 taps[6] = vec2[6](vec2(-0.5,-1.4), vec2(1.3,-0.7), vec2(-1.4,0.4), vec2(0.6,0.5), vec2(-0.3,1.5), vec2(1.5,1.2));
+  for (int i = 0; i < 6; i++) s += texture(uShadow, vec3(vShadow.xy + taps[i] * t, vShadow.z - b));
+  return s / 6.0;
+}
+void main(){
+  vec3 n = normalize(vNormal);
+  float sun = max(dot(n, uSunDir), 0.0);
+  float lit = sun > 0.0 ? shadow() : 1.0;
+  vec3 albedo = vColor;
+  if (uMode == 0 && vMask > 0.0) albedo = mix(vColor, uSand, smoothstep(0.455, 0.505, vMask));
+  if (uMode == 1) {
+    // Água: variação suave e facetada, em movimento lento.
+    float a = sin(vWorld.x * 1.3 + vWorld.z * 0.7 + uTime * 0.6) + sin(vWorld.z * 1.9 - vWorld.x * 0.4 - uTime * 0.45);
+    albedo *= 1.0 + 0.035 * a;
+    if (vMask > 0.5) albedo += 0.1 * max(0.0, sin(vWorld.y * 5.0 + uTime * 5.0 + vWorld.x * 3.0));
+  }
+  vec3 light = mix(uGround, uSky, n.y * 0.5 + 0.5) + uSunColor * sun * lit;
+  if (vMask < -0.5) light = mix(light, vec3(1.0), 0.55);
+  frag = vec4(albedo * light * vLight, 1.0);
+}`;
+const SHADOW_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+uniform mat4 uSun;
+uniform vec4 uPlace;
+void main(){ gl_Position = uSun * vec4(uPlace.z * aPos.x + uPlace.w * aPos.z + uPlace.x, aPos.y, -uPlace.w * aPos.x + uPlace.z * aPos.z + uPlace.y, 1.0); }`;
+const SHADOW_FS = `#version 300 es
+precision lowp float; void main(){}`;
+const FXAA_VS = `#version 300 es
+out vec2 vUv;
+void main(){ vec2 q = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2.0; vUv = q; gl_Position = vec4(q * 2.0 - 1.0, 0.0, 1.0); }`;
+const FXAA_FS = `#version 300 es
+precision mediump float;
+in vec2 vUv;
+uniform sampler2D uImage;
+uniform vec2 uTexel;
+out vec4 frag;
+float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
+void main(){
+  vec3 m = texture(uImage, vUv).rgb;
+  float lm = luma(m);
+  float nw = luma(textureOffset(uImage, vUv, ivec2(-1, 1)).rgb), ne = luma(textureOffset(uImage, vUv, ivec2(1, 1)).rgb);
+  float sw = luma(textureOffset(uImage, vUv, ivec2(-1, -1)).rgb), se = luma(textureOffset(uImage, vUv, ivec2(1, -1)).rgb);
+  float lo = min(lm, min(min(nw, ne), min(sw, se))), hi = max(lm, max(max(nw, ne), max(sw, se)));
+  if (hi - lo < max(0.04, hi * 0.11)) { frag = vec4(m, 1.0); return; }
+  vec2 dir = vec2(-((nw + ne) - (sw + se)), (nw + sw) - (ne + se));
+  float reduce = max((nw + ne + sw + se) * 0.03125, 0.0078125);
+  float scale = 1.0 / (min(abs(dir.x), abs(dir.y)) + reduce);
+  dir = clamp(dir * scale, vec2(-8.0), vec2(8.0)) * uTexel;
+  vec3 a = 0.5 * (texture(uImage, vUv + dir * (1.0 / 3.0 - 0.5)).rgb + texture(uImage, vUv + dir * (2.0 / 3.0 - 0.5)).rgb);
+  vec3 b = a * 0.5 + 0.25 * (texture(uImage, vUv - dir * 0.5).rgb + texture(uImage, vUv + dir * 0.5).rgb);
+  float lb = luma(b);
+  frag = vec4(lb < lo || lb > hi ? a : b, 1.0);
+}`;
+
+function compile(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgram {
+  const p = gl.createProgram() as WebGLProgram;
+  for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]] as const) {
+    const s = gl.createShader(type) as WebGLShader;
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) ?? 'shader da maquete');
+    gl.attachShader(p, s);
+  }
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? 'shader da maquete');
+  return p;
+}
+
+export function perspective(fovDeg: number, aspect: number, near: number, far: number): Float32Array {
+  const f = 1 / Math.tan((fovDeg * Math.PI) / 360);
+  return new Float32Array([f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) / (near - far), -1, 0, 0, (2 * far * near) / (near - far), 0]);
+}
+
+export function lookAt(eye: readonly number[], at: readonly number[], up: readonly number[]): Float32Array {
+  const norm = (v: readonly number[]): [number, number, number] => { const l = Math.hypot(v[0] as number, v[1] as number, v[2] as number) || 1; return [(v[0] as number) / l, (v[1] as number) / l, (v[2] as number) / l]; };
+  const z = norm([(eye[0] as number) - (at[0] as number), (eye[1] as number) - (at[1] as number), (eye[2] as number) - (at[2] as number)]);
+  const x = norm([(up[1] as number) * z[2] - (up[2] as number) * z[1], (up[2] as number) * z[0] - (up[0] as number) * z[2], (up[0] as number) * z[1] - (up[1] as number) * z[0]]);
+  const y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]] as const;
+  const dot = (a: readonly number[], b: readonly number[]) => (a[0] as number) * (b[0] as number) + (a[1] as number) * (b[1] as number) + (a[2] as number) * (b[2] as number);
+  return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -dot(x, eye), -dot(y, eye), -dot(z, eye), 1]);
+}
+
+export function multiply(a: Float32Array, b: Float32Array): Float32Array {
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+    let s = 0;
+    for (let k = 0; k < 4; k++) s += (a[k * 4 + r] as number) * (b[c * 4 + k] as number);
+    o[c * 4 + r] = s;
+  }
+  return o;
+}
+
+export function ortho(l: number, r: number, b: number, t: number, n: number, f: number): Float32Array {
+  return new Float32Array([2 / (r - l), 0, 0, 0, 0, 2 / (t - b), 0, 0, 0, 0, -2 / (f - n), 0, -(r + l) / (r - l), -(t + b) / (t - b), -(f + n) / (f - n), 1]);
+}
+
+export function eyeOf(v: MaqueteCamera): [number, number, number] {
+  const cp = Math.cos(v.pitch);
+  return [v.x + Math.sin(v.yaw) * cp * v.distance, v.y + Math.sin(v.pitch) * v.distance, v.z + Math.cos(v.yaw) * cp * v.distance];
+}
+
+/** Luz: meio-dia suave, sombra azulada e nada de preto. No chão plano ao sol, luz ≈ 1: a cor fica a do globo. */
+export const MAQUETE_LIGHT = {
+  sunDir: [-0.52, 0.72, -0.46] as const,
+  sunColor: [0.5, 0.48, 0.42] as const,
+  sky: [0.72, 0.74, 0.8] as const,
+  ground: [0.42, 0.38, 0.36] as const,
+};
+
+export class MaqueteRenderer {
+  private main: WebGLProgram;
+  private shadowProgram: WebGLProgram;
+  private fxaa: WebGLProgram;
+  private u: Record<string, WebGLUniformLocation | null> = {};
+  private us: Record<string, WebGLUniformLocation | null> = {};
+  private fxaaImage: WebGLUniformLocation | null;
+  private fxaaTexel: WebGLUniformLocation | null;
+  private chunks = new Map<number, GpuChunk>();
+  private shadowTex: WebGLTexture;
+  private shadowFbo: WebGLFramebuffer;
+  private shadowSize = 2048;
+  private sceneFbo: WebGLFramebuffer;
+  private sceneColor: WebGLTexture;
+  private sceneDepth: WebGLRenderbuffer;
+  private sceneW = 0;
+  private sceneH = 0;
+  private emptyVao: WebGLVertexArrayObject;
+  private shadowDirty = true;
+  private sunMatrix: Float32Array = new Float32Array(16);
+  /** Direção do sol: a maquete pode girar o mundo em relação ao mapa (troca de face do cubo). */
+  sunDir: readonly number[] = MAQUETE_LIGHT.sunDir;
+  background: readonly [number, number, number] = [0.46, 0.46, 0.47];
+  /** Raio coberto pela sombra e centro. */
+  shadowRadius = 60;
+  shadowCenter: readonly [number, number, number] = [0, 0, 0];
+  stats = { triangles: 0, drawCalls: 0, gpuBytes: 0 };
+
+  constructor(private gl: WebGL2RenderingContext) {
+    this.main = compile(gl, VS, FS);
+    for (const n of ['uVP', 'uSun', 'uPlace', 'uShadow', 'uSunDir', 'uSunColor', 'uSky', 'uGround', 'uSand', 'uShadowTexel', 'uMode', 'uTime']) this.u[n] = gl.getUniformLocation(this.main, n);
+    this.shadowProgram = compile(gl, SHADOW_VS, SHADOW_FS);
+    for (const n of ['uSun', 'uPlace']) this.us[n] = gl.getUniformLocation(this.shadowProgram, n);
+    this.fxaa = compile(gl, FXAA_VS, FXAA_FS);
+    this.fxaaImage = gl.getUniformLocation(this.fxaa, 'uImage');
+    this.fxaaTexel = gl.getUniformLocation(this.fxaa, 'uTexel');
+    this.emptyVao = gl.createVertexArray() as WebGLVertexArrayObject;
+    gl.activeTexture(gl.TEXTURE9);
+    this.shadowTex = gl.createTexture() as WebGLTexture;
+    gl.bindTexture(gl.TEXTURE_2D, this.shadowTex);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, this.shadowSize, this.shadowSize);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.shadowFbo = gl.createFramebuffer() as WebGLFramebuffer;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadowTex, 0);
+    gl.drawBuffers([gl.NONE]);
+    gl.readBuffer(gl.NONE);
+    this.sceneFbo = gl.createFramebuffer() as WebGLFramebuffer;
+    this.sceneColor = gl.createTexture() as WebGLTexture;
+    this.sceneDepth = gl.createRenderbuffer() as WebGLRenderbuffer;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.activeTexture(gl.TEXTURE0);
+  }
+
+  private upload(bytes: ArrayBuffer): Buffers | null {
+    if (bytes.byteLength === 0) return null;
+    const gl = this.gl;
+    const vao = gl.createVertexArray() as WebGLVertexArrayObject;
+    const buffer = gl.createBuffer() as WebGLBuffer;
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, bytes, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, VERTEX_BYTES, 0);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 4, gl.BYTE, true, VERTEX_BYTES, 12);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 4, gl.UNSIGNED_BYTE, true, VERTEX_BYTES, 16);
+    gl.bindVertexArray(null);
+    return { vao, buffer, vertices: bytes.byteLength / VERTEX_BYTES };
+  }
+
+  private free(b: Buffers | null): void {
+    if (!b) return;
+    this.gl.deleteVertexArray(b.vao);
+    this.gl.deleteBuffer(b.buffer);
+  }
+
+  /** Sobe um pedaço. `place`: x, z, cos e sin do giro no plano. */
+  setChunk(key: number, data: MaqueteChunkData, place: readonly [number, number, number, number], open: readonly boolean[]): void {
+    this.removeChunk(key);
+    const c: GpuChunk = {
+      terrain: this.upload(data.terrain), water: this.upload(data.water), props: this.upload(data.props), skirts: this.upload(data.skirts),
+      ranges: data.skirtRanges, open: [...open], place: [place[0], place[1], place[2], place[3]],
+      bytes: data.terrain.byteLength + data.water.byteLength + data.props.byteLength + data.skirts.byteLength,
+    };
+    this.chunks.set(key, c);
+    this.stats.gpuBytes += c.bytes;
+    this.shadowDirty = true;
+  }
+
+  removeChunk(key: number): void {
+    const c = this.chunks.get(key);
+    if (!c) return;
+    for (const b of [c.terrain, c.water, c.props, c.skirts]) this.free(b);
+    this.stats.gpuBytes -= c.bytes;
+    this.chunks.delete(key);
+    this.shadowDirty = true;
+  }
+
+  hasChunk(key: number): boolean { return this.chunks.has(key); }
+  setOpen(key: number, open: readonly boolean[]): void { const c = this.chunks.get(key); if (c) c.open = [...open]; }
+  setPlace(key: number, place: readonly [number, number, number, number]): void { const c = this.chunks.get(key); if (c) c.place = [place[0], place[1], place[2], place[3]]; }
+  keys(): IterableIterator<number> { return this.chunks.keys(); }
+  markShadowDirty(): void { this.shadowDirty = true; }
+
+  private updateShadow(): void {
+    const gl = this.gl;
+    const [cx, cy, cz] = this.shadowCenter;
+    const d = this.sunDir;
+    const eye = [cx + (d[0] as number) * 200, cy + (d[1] as number) * 200, cz + (d[2] as number) * 200];
+    const r = this.shadowRadius;
+    this.sunMatrix = multiply(ortho(-r, r, -r, r, 1, 400), lookAt(eye, [cx, cy, cz], [0, 1, 0]));
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo);
+    gl.viewport(0, 0, this.shadowSize, this.shadowSize);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
+    gl.depthMask(true);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(this.shadowProgram);
+    gl.uniformMatrix4fv(this.us.uSun as WebGLUniformLocation, false, this.sunMatrix);
+    for (const c of this.chunks.values()) {
+      gl.uniform4f(this.us.uPlace as WebGLUniformLocation, c.place[0], c.place[1], c.place[2], c.place[3]);
+      for (const b of [c.terrain, c.props]) {
+        if (!b) continue;
+        gl.bindVertexArray(b.vao);
+        gl.drawArrays(gl.TRIANGLES, 0, b.vertices);
+      }
+    }
+    gl.bindVertexArray(null);
+    this.shadowDirty = false;
+  }
+
+  private ensureScene(w: number, h: number): void {
+    if (this.sceneW === w && this.sceneH === h) return;
+    const gl = this.gl;
+    this.sceneW = w;
+    this.sceneH = h;
+    gl.activeTexture(gl.TEXTURE9);
+    gl.bindTexture(gl.TEXTURE_2D, this.sceneColor);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this.sceneDepth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.sceneColor, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.sceneDepth);
+  }
+
+  draw(view: MaqueteCamera, width: number, height: number, time: number): void {
+    const gl = this.gl;
+    if (this.shadowDirty) this.updateShadow();
+    this.ensureScene(width, height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFbo);
+    gl.viewport(0, 0, width, height);
+    const bg = this.background;
+    gl.clearColor(bg[0], bg[1], bg[2], 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
+    gl.depthMask(true);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.disable(gl.BLEND);
+    const eye = eyeOf(view);
+    const near = Math.max(1, view.distance * 0.1), far = view.distance * 4 + 200;
+    const vp = multiply(perspective(view.fov, width / height, near, far), lookAt(eye, [view.x, view.y, view.z], [0, 1, 0]));
+    gl.useProgram(this.main);
+    const u = this.u;
+    gl.uniformMatrix4fv(u.uVP as WebGLUniformLocation, false, vp);
+    gl.uniformMatrix4fv(u.uSun as WebGLUniformLocation, false, this.sunMatrix);
+    gl.uniform3f(u.uSunDir as WebGLUniformLocation, this.sunDir[0] as number, this.sunDir[1] as number, this.sunDir[2] as number);
+    gl.uniform3fv(u.uSunColor as WebGLUniformLocation, MAQUETE_LIGHT.sunColor);
+    gl.uniform3fv(u.uSky as WebGLUniformLocation, MAQUETE_LIGHT.sky);
+    gl.uniform3fv(u.uGround as WebGLUniformLocation, MAQUETE_LIGHT.ground);
+    gl.uniform3f(u.uSand as WebGLUniformLocation, 226 / 255, 200 / 255, 138 / 255);
+    gl.uniform4f(u.uShadowTexel as WebGLUniformLocation, 1.2 / this.shadowSize, 1.2 / this.shadowSize, 0.0016, 0);
+    gl.uniform1f(u.uTime as WebGLUniformLocation, time);
+    gl.activeTexture(gl.TEXTURE9);
+    gl.bindTexture(gl.TEXTURE_2D, this.shadowTex);
+    gl.uniform1i(u.uShadow as WebGLUniformLocation, 9);
+    let tris = 0, calls = 0;
+    const drawSet = (mode: number, pick: (c: GpuChunk) => Buffers | null): void => {
+      gl.uniform1i(u.uMode as WebGLUniformLocation, mode);
+      for (const c of this.chunks.values()) {
+        const b = pick(c);
+        if (!b) continue;
+        gl.uniform4f(u.uPlace as WebGLUniformLocation, c.place[0], c.place[1], c.place[2], c.place[3]);
+        gl.bindVertexArray(b.vao);
+        gl.drawArrays(gl.TRIANGLES, 0, b.vertices);
+        tris += b.vertices / 3;
+        calls++;
+      }
+    };
+    drawSet(0, (c) => c.terrain);
+    gl.disable(gl.CULL_FACE);
+    drawSet(2, (c) => c.props);
+    // Borda: só os lados que dão para fora do que está carregado.
+    gl.uniform1i(u.uMode as WebGLUniformLocation, 2);
+    for (const c of this.chunks.values()) {
+      if (!c.skirts || !c.open.some((o) => o)) continue;
+      gl.uniform4f(u.uPlace as WebGLUniformLocation, c.place[0], c.place[1], c.place[2], c.place[3]);
+      gl.bindVertexArray(c.skirts.vao);
+      for (let s = 0; s < 4; s++) {
+        const r = c.ranges[s];
+        if (r && c.open[s] && r[1] > 0) { gl.drawArrays(gl.TRIANGLES, r[0], r[1]); tris += r[1] / 3; calls++; }
+      }
+    }
+    drawSet(1, (c) => c.water);
+    // Quadro final com suavização.
+    gl.bindVertexArray(this.emptyVao);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(this.fxaa);
+    gl.activeTexture(gl.TEXTURE9);
+    gl.bindTexture(gl.TEXTURE_2D, this.sceneColor);
+    gl.uniform1i(this.fxaaImage, 9);
+    gl.uniform2f(this.fxaaTexel, 1 / width, 1 / height);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.bindVertexArray(null);
+    gl.activeTexture(gl.TEXTURE0);
+    this.stats.triangles = tris;
+    this.stats.drawCalls = calls;
+  }
+}

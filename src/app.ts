@@ -25,8 +25,9 @@ import type { PlateMotionUniforms } from './render/globe-renderer';
 import { BIOME_INFO, Biome } from './world/biomes';
 import { BASE_TICKS_PER_SECOND } from './core/time';
 import { CLOCK_POST_MS } from './sim/core';
-import { Camera } from './render/camera';
 import { GlobeRenderer } from './render/globe-renderer';
+import { MaqueteWorld } from './render/maquete-world';
+import { CUT_PIXELS, PRELOAD_PIXELS, ViewCamera } from './render/view-camera';
 import { Overlay } from './render/overlay';
 import { SimClient } from './sim/client';
 import { applyPatch, type Patch, type PlateMotionInfo, type WorldInfo } from './sim/protocol';
@@ -73,7 +74,13 @@ export const BENCHMARK_CONFIRM =
   'O "Medir desempenho" leva cerca de 3 minutos e, no fim, gera o mundo de novo: o jogo volta ao ano 0 e o que você fez neste mundo se perde.\n\nDeixe o jogo na frente, sem trocar de janela. Começar?';
 
 export class App {
-  readonly camera = new Camera();
+  readonly camera = new ViewCamera();
+  /** A maquete: nasce na primeira vez que a câmera chega perto. */
+  private maquete: MaqueteWorld | null = null;
+  private maqueteAskedAt = -Infinity;
+  private maqueteWaiting = false;
+  private maqueteSeed = '';
+  private maqueteDrawn = false;
   readonly overlay: Overlay;
   readonly input: PointerInput;
   readonly hud: Hud;
@@ -499,6 +506,7 @@ export class App {
     this.lastGenerationSignal = performance.now();
     this.info = info;
     this.colors = colors;
+    if (this.camera.inMaquete) this.camera.exit();
     if (!this.renderer) {
       this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
       this.renderer.clouds = this.cloudsOn ? 1 : 0;
@@ -907,6 +915,52 @@ export class App {
     if (p) this.sim.brush(this.tool, p, this.brushSize, dt);
   }
 
+  /** O globo espera o contexto como ele deixou: a maquete devolve o que mudou. */
+  private restoreGlobeState(gl: WebGL2RenderingContext): void {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindVertexArray(null);
+  }
+
+  /**
+   * A passagem entre as vistas (T2): perto do corte os pedaços já carregam; ao cravar, a maquete substitui o globo inteiro de uma vez, sem os dois juntos.
+   * Afastar além do limite, ou o tempo geológico travar o zoom, volta ao globo.
+   */
+  private updateMaquete(now: number): void {
+    const cam = this.camera, renderer = this.renderer, info = this.info;
+    if (!renderer || !info) return;
+    const blocked = cam.zoomLocked || this.bench !== null;
+    if (cam.inMaquete && (blocked || cam.wantsExit)) {
+      cam.exit();
+      this.needsDraw = true;
+    }
+    const px = cam.globePixels();
+    if (!cam.inMaquete && (blocked || px < PRELOAD_PIXELS)) return;
+    this.maquete ??= new MaqueteWorld(renderer.context);
+    const m = this.maquete;
+    // Uma cópia do mundo ao chegar perto e, depois, uma por segundo com o relógio andando.
+    const every = this.clock.speed === 0 ? 4000 : 1000;
+    if (!this.maqueteWaiting && now - this.maqueteAskedAt > every) {
+      this.maqueteWaiting = true;
+      this.maqueteAskedAt = now;
+      void this.sim.maqueteSnapshot().then((s) => {
+        this.maqueteWaiting = false;
+        const fresh = s.seedText !== this.maqueteSeed;
+        this.maqueteSeed = s.seedText;
+        m.setWorld({ n: info.n, height: s.height, rgba: this.colors.slice(), cover: s.cover, state: s.state, deposit: s.deposit, ice: s.ice }, fresh);
+      });
+    }
+    if (!cam.inMaquete) cam.aimAtGlobeCenter();
+    else cam.rechart();
+    cam.refresh();
+    m.update(cam, cam.inMaquete ? 2 : 4);
+    if (!cam.inMaquete && px >= CUT_PIXELS && m.ready && m.missing(cam) === 0) cam.enter();
+  }
+
   /** Um quadro: ajusta tamanho, avança animações e pincel, e desenha se algo mudou. */
   frame(time: number): void {
     const workStart = performance.now();
@@ -961,8 +1015,16 @@ export class App {
       r.stormCount = moving - r.dustCount;
       if (running && r.clouds > 0 && this.camera.cellPixels() < 4) this.needsDraw = true;
     }
-    const drew = this.needsDraw;
-    if (this.needsDraw) {
+    this.updateMaquete(performance.now());
+    const drew = this.needsDraw || this.camera.inMaquete;
+    if (this.camera.inMaquete && this.maquete) {
+      this.camera.refresh();
+      this.maquete.draw(this.camera, renderer.canvas.width, renderer.canvas.height, performance.now() / 1000);
+      this.maqueteDrawn = true;
+      this.drawOverlay();
+      this.needsDraw = false;
+    } else if (this.needsDraw) {
+      if (this.maqueteDrawn) { this.restoreGlobeState(renderer.context); this.maqueteDrawn = false; }
       renderer.draw(this.camera, this.motion.uniforms);
       this.drawOverlay();
       this.needsDraw = false;

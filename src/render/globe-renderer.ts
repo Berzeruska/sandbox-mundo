@@ -369,6 +369,11 @@ export class GlobeRenderer {
     }
   }
 
+  /** O contexto do canvas: a maquete desenha no mesmo. */
+  get context(): WebGL2RenderingContext {
+    return this.gl;
+  }
+
   /** Ajusta o tamanho interno do canvas ao tamanho na tela. Retorna true se mudou. */
   resize(pixelRatio: number): boolean {
     const w = Math.max(1, Math.round(this.canvas.clientWidth * pixelRatio));

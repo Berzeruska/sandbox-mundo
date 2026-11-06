@@ -1,0 +1,48 @@
+import { CHUNK_COARSE, chunkKey } from './chart';
+import { buildWorldChunk, type CoarseWorld } from './world-fields';
+
+/** Ajudante da maquete: monta os pedaços fora da tela. */
+export type ToMaqueteWorker =
+  | { type: 'world'; world: CoarseWorld; id: number }
+  | { type: 'build'; key: number; face: number; cx: number; cz: number; gen: number };
+
+export type FromMaqueteWorker =
+  | { type: 'chunk'; key: number; gen: number; ms: number; terrain: ArrayBuffer; water: ArrayBuffer; props: ArrayBuffer; skirts: ArrayBuffer; skirtRanges: [number, number][] }
+  /** Células mudaram desde a última cópia: estes pedaços precisam ser refeitos. */
+  | { type: 'changed'; keys: number[]; id: number };
+
+let world: CoarseWorld | null = null;
+const scope = self as unknown as { postMessage(m: FromMaqueteWorker, t?: Transferable[]): void; onmessage: (e: MessageEvent<ToMaqueteWorker>) => void };
+
+/** Compara duas cópias e devolve os pedaços afetados (a borda de um pedaço enxerga 3 células de fora). */
+function diff(a: CoarseWorld, b: CoarseWorld): number[] {
+  const n = a.n, keys = new Set<number>();
+  const count = 6 * n * n;
+  for (let c = 0; c < count; c++) {
+    const o = c * 4;
+    if (a.height[c] === b.height[c] && a.state[c] === b.state[c] && a.ice[c] === b.ice[c] && a.deposit[c] === b.deposit[c] && a.rgba[o] === b.rgba[o] && a.rgba[o + 1] === b.rgba[o + 1] && a.rgba[o + 2] === b.rgba[o + 2] && Math.abs((a.cover[c] as number) - (b.cover[c] as number)) < 8) continue;
+    const face = Math.floor(c / (n * n)), rest = c - face * n * n, x = rest % n, zc = n - 1 - Math.floor(rest / n);
+    for (const dz of [-3, 3]) for (const dx of [-3, 3]) {
+      const px = x + dx, pz = zc + dz;
+      if (px < 0 || pz < 0 || px >= n || pz >= n) continue;
+      keys.add(chunkKey(face, Math.floor(px / CHUNK_COARSE), Math.floor(pz / CHUNK_COARSE)));
+    }
+  }
+  return [...keys];
+}
+
+scope.onmessage = (e) => {
+  const m = e.data;
+  if (m.type === 'world') {
+    if (world && world.n === m.world.n) {
+      const keys = diff(world, m.world);
+      if (keys.length) scope.postMessage({ type: 'changed', keys, id: m.id });
+    }
+    world = m.world;
+    return;
+  }
+  if (!world) return;
+  const t0 = performance.now();
+  const c = buildWorldChunk(world, m.face, m.cx, m.cz);
+  scope.postMessage({ type: 'chunk', key: m.key, gen: m.gen, ms: performance.now() - t0, terrain: c.terrain, water: c.water, props: c.props, skirts: c.skirts, skirtRanges: c.skirtRanges }, [c.terrain, c.water, c.props, c.skirts]);
+};

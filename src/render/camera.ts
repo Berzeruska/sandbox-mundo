@@ -113,6 +113,12 @@ export class Camera {
     return true;
   }
 
+  /** Giro por teclado quando a vista não é o globo. Retorna false se o globo deve girar como sempre. */
+  turnView(amount: number): boolean {
+    void amount;
+    return false;
+  }
+
   /** Mantém o ponto central e endireita o norte para cima. */
   northUp(): void {
     this.lookAt(this.centerPoint());
