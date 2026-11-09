@@ -42,8 +42,8 @@ export class MaqueteWorld {
   uploadMs: number[] = [];
 
   constructor(gl: WebGL2RenderingContext) {
-    const aa = new URLSearchParams(location.search).get('aa');
-    this.renderer = new MaqueteRenderer(gl, aa === 'msaa4' || aa === 'off' ? aa : 'fxaa');
+    // Suavização: FXAA (decisão do usuário, 2026-11-09).
+    this.renderer = new MaqueteRenderer(gl, 'fxaa');
     this.animals = new AnimalHerds(this.renderer);
     this.fx = new MaqueteFx(this.renderer);
     this.worker = new Worker(new URL('../maquete/worker.ts', import.meta.url), { type: 'module' });
@@ -76,8 +76,7 @@ export class MaqueteWorld {
     }
     this.hasWorld = true;
     this.worldId++;
-    const q = new URLSearchParams(location.search), relief = q.get('relevo');
-    const msg: ToMaqueteWorker = { type: 'world', world, id: this.worldId, relief: relief === 'lisa' || relief === 'rampa' || relief === 'degrau' ? relief : 'terraco', stones: q.get('pedras') ?? '', oil: q.get('oleo') ?? '' };
+    const msg: ToMaqueteWorker = { type: 'world', world, id: this.worldId };
     this.worker.postMessage(msg, [world.height.buffer, world.rgba.buffer, world.cover.buffer, world.state.buffer, world.deposit.buffer, world.ice.buffer, world.temp.buffer, world.volcano.buffer] as ArrayBuffer[]);
   }
 

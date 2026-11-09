@@ -1,10 +1,10 @@
 import { CHUNK_COARSE, chunkKey } from './chart';
 import { computeHydro, neighborTable, type Hydro } from './rivers';
-import { buildWorldChunk, setDepositLook, setRelief, type CoarseWorld, type ReliefMode } from './world-fields';
+import { buildWorldChunk, type CoarseWorld } from './world-fields';
 
 /** Ajudante da maquete: monta os pedaços fora da tela. */
 export type ToMaqueteWorker =
-  | { type: 'world'; world: CoarseWorld; id: number; relief: ReliefMode; stones: string; oil: string }
+  | { type: 'world'; world: CoarseWorld; id: number }
   | { type: 'build'; key: number; face: number; cx: number; cz: number; gen: number; near?: boolean };
 
 export type FromMaqueteWorker =
@@ -40,8 +40,6 @@ function diff(a: CoarseWorld, b: CoarseWorld): number[] {
 scope.onmessage = (e) => {
   const m = e.data;
   if (m.type === 'world') {
-    setRelief(m.relief);
-    setDepositLook(m.stones, m.oil);
     // Os rios só mudam quando o relevo muda.
     const sameHeight = world && world.n === m.world.n && world.height.every((h, i) => h === m.world.height[i]);
     // Os rios são caros (cerca de 200 ms): no máximo um recálculo a cada 3 s, para não atrasar os pedaços.

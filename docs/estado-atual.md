@@ -11,7 +11,7 @@ Regras deste bloco em `docs/decisoes.md` ("Fechar o M3 com o máximo de autonomi
 **Para continuar do zero:** ler esta seção, depois `docs/M3-especificacao.md` e a entrada de 2026-11-09 em `docs/decisoes.md`. A próxima tarefa é a primeira caixa vazia abaixo.
 
 ### Parte 1: fidelidade às referências (página `docs/M3-fidelidade.md`)
-- [ ] P1 terraços limpos · [ ] P2 montanhas · [ ] P3 jazidas com a cor do minério · [ ] P4 animais iguais às folhas, com mar e míticos · [ ] P5 plantas, água, gelo, deserto e vulcão · [ ] P6 recomposição da maquete ≤ 1 s · [ ] P7 intervalos de 130 a 380 ms
+- [x] P1 terraços limpos · [x] P2 montanhas · [x] P3 jazidas com a cor do minério · [ ] P4 animais iguais às folhas, com mar e míticos · [ ] P5 plantas, água, gelo, deserto e vulcão · [ ] P6 recomposição da maquete ≤ 1 s · [ ] P7 intervalos de 130 a 380 ms
 
 ### Parte 2: ecologia (`docs/M3-especificacao.md`)
 - [ ] E1 · [ ] E2 · [ ] E3 · [ ] E4 · [ ] E5 · [ ] E6 · [ ] E7 · [ ] E8 · [ ] E9 · [ ] E9b
@@ -20,6 +20,9 @@ Regras deste bloco em `docs/decisoes.md` ("Fechar o M3 com o máximo de autonomi
 - [ ] "Medir desempenho" no Firefox contra a linha de base · [ ] CHANGELOG e `docs/M3-revisao.md` · [ ] PR do `marco-3` para o `main`, **sem merge** · [ ] prévia final em `/previa/atual/`
 
 ### Feito neste bloco
+- [x] **P1 e P2, terraços e montanhas (2026-11-09):** reproduzido no Firefox (lascas e riscos em zigue-zague; montanhas em bolotas com grama em espiral). A malha do chão agora corta cada triângulo pelas curvas de nível: patamar plano, parede de terra limpa entre dois patamares, e nada de lasca (crista ou vala com menos de 3 vértices de largura fica no patamar vizinho). As montanhas viraram o próprio chão em degraus altos: parede de rocha, patamar de grama com pinheiros e pedras, neve a partir de um patamar inteiro e cume em ponta. Cada pico pertence à célula do mundo: sai igual em pedaços vizinhos e dos dois lados da aresta do cubo. Código: `src/maquete/chunk-build.ts` (`steppedTriangle`, `prepareSteps`, `surfaceY`) e `src/maquete/world-fields.ts` (`Peaks`, `fill`). Testes: `tests/maquete/terraces.test.ts`.
+- [x] **P3, jazidas (2026-11-09):** reproduzido (lajes cinza-escuras, mancha fraca). Cores tiradas de `recursos/jazidas.png` (cobre laranja com verde-azulado e azul, ferro com ferrugem, urânio com cristais verdes, enxofre amarelo, sal e lítio com cubos brancos); lajes maiores, duas por célula, e mancha forte no chão. Continua afloramento (decisão de 2026-11-06), sem montes. A cava de petróleo é única e grande (opção 2), com o chão aplainado em volta.
+- Também corrigido no caminho: buraco na margem de lago encostado em outro nível de água; frestas na água do mar; água sobrando para fora do rio em lascas azuis (dique baixo onde o rio corre acima do chão ao lado). As opções de URL `relevo=`, `pedras=`, `oleo=` e `aa=` saíram: as escolhas estão feitas.
 - [x] Regras do bloco e decisões pendentes registradas; lista de lugares da Bahia em `docs/02-marcos.md` (variedade de geologia, sem marco).
 
 ## Bloco "fazer a maquete funcionar"
