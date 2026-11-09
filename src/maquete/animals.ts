@@ -1,4 +1,5 @@
 import { Biome } from '../world/biomes';
+import { SPECIES_IDS } from '../world/species';
 import { hash3, sequence } from './hash';
 import { limb, lump, MODEL_FLOATS, Model, rgb, type Rgb, type V3 } from './models';
 
@@ -9,7 +10,7 @@ import { limb, lump, MODEL_FLOATS, Model, rgb, type Rgb, type V3 } from './model
  */
 export const POSES = ['idle', 'walk1', 'walk2', 'eat', 'dead'] as const;
 export type Pose = (typeof POSES)[number];
-export const ANIMALS = ['rena', 'loboArtico', 'lebre', 'cervo', 'alce', 'javali', 'lobo', 'urso', 'bisao', 'antilope', 'zebra', 'elefante', 'leao', 'capivara', 'macaco', 'onca', 'jacare', 'camelo', 'cabra', 'aguia', 'cardume', 'baleia', 'cachalote', 'tubarao', 'lula', 'lulaGigante', 'dragao', 'kraken', 'baleiaBranca'] as const;
+export const ANIMALS = SPECIES_IDS;
 export type Animal = (typeof ANIMALS)[number];
 export const SWIMMERS: ReadonlySet<Animal> = new Set(['cardume', 'baleia', 'cachalote', 'tubarao', 'lula', 'lulaGigante', 'kraken', 'baleiaBranca']);
 /** Classe mítica (`docs/04-ecologia.md`): só deus as põe no mundo; nenhuma nasce sozinha. */

@@ -32,6 +32,8 @@ export interface SimEvents {
   onPlatesStopped?(): void;
   /** Furacões andando (R8): STORM_FLOATS números por furacão (ver protocol.ts). */
   onStorms?(storms: Float32Array): void;
+  /** Vida, uma vez por ano de jogo (M3). */
+  onLife?(life: Extract<FromWorker, { type: 'life' }>): void;
 }
 
 /**
@@ -219,6 +221,9 @@ export class SimClient {
         break;
       case 'disasters':
         this.events.onDisasters?.(msg.events, msg.impacts);
+        break;
+      case 'life':
+        this.events.onLife?.(msg);
         break;
       case 'sharedProbe':
         this.sharedProbe = msg.ok && !!this.sharedBuffer && Atomics.load(new Int32Array(this.sharedBuffer), 0) === SHARED_PROBE_VALUE;

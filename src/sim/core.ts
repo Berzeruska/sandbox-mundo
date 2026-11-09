@@ -1,6 +1,7 @@
 import { seedFrom } from '../core/rng';
 import { maxSpeedQuota } from '../core/geologic-time';
 import { CellState } from '../world/disasters/ground';
+import { Ecology, type EcologyYear } from '../world/ecology';
 import { Clock, holdsSpeedChange, TICKS_PER_YEAR, type Speed } from '../core/time';
 import { applyBrush, applyTerrainDeltas, RAISE_RATE } from '../input/tools';
 import { buildColors, colorCacheBytes, forgetResourceHalo, NO_LAYERS, tintStress, withRing, type Layers } from '../render/colors';
@@ -18,7 +19,7 @@ import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import { archipelagoReached } from '../world/generation';
 import type { WorldKind, WorldState } from '../world/state';
 import { emptyWork, type WorkCounters } from '../ui/benchmark';
-import { makePatches, STORM_FLOATS, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
+import { LIFE_MYTHIC_FLOATS, makePatches, STORM_FLOATS, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
 
 /** De quantos em quantos anos a camada "Ver tensão" é repintada (a tensão sobe devagar). */
 const STRESS_REFRESH_YEARS = 2;
@@ -163,6 +164,8 @@ export class SimulationCore {
   private brushLog: { tick: number; delta: BrushDelta }[] = [];
   /** Desastres do mundo atual (T8–T12) e o nível de frequência escolhido (vale para os mundos novos). */
   disasters: Disasters | null = null;
+  /** Ecologia em números (M3): anda no relógio, depois dos desastres. */
+  ecology: Ecology | null = null;
   private disasterFrequency = DEFAULT_FREQUENCY;
   private stressBuf = new Float32Array(0);
   /** Células com aparência nova esperando a repintura do fim do laço. */
@@ -230,7 +233,8 @@ export class SimulationCore {
     deposit.set(world.deposit);
     ice.set(world.ice);
     for (const v of this.disasters?.volcanoes ?? []) if (!v.extinct) volcano[v.cell] = v.awake ? 2 : 1;
-    this.send({ type: 'maqueteSnapshot', id, seedText: world.params.seedText, height, cover, state, deposit, ice, temp, volcano });
+    const life = this.ecology ? this.ecology.snapshot() : new Uint16Array(0);
+    this.send({ type: 'maqueteSnapshot', id, seedText: world.params.seedText, height, cover, state, deposit, ice, temp, volcano, life, lifeBlocks: this.ecology?.nb ?? 0 });
   }
 
   handle(msg: ToWorker): void {
@@ -253,6 +257,9 @@ export class SimulationCore {
           this.applyDisasters(this.disasters.trigger(msg.kind, msg.point, this.clock.tick, msg.strength));
           this.flushPaint();
         }
+        break;
+      case 'life':
+        this.lifeCommand(msg);
         break;
       case 'disasterFrequency':
         this.disasterFrequency = Math.max(0, Math.min(FREQUENCIES.length - 1, Math.round(msg.level)));
@@ -330,10 +337,13 @@ export class SimulationCore {
     this.world = world;
     this.disasters = new Disasters(world);
     this.disasters.frequency = this.disasterFrequency;
+    this.ecology = null;
     // Cones dos vulcões do começo (R7): fazem parte do mundo que nasce (antes das cores e do motor).
     for (const t of this.disasters.takeInitialTerrain()) applyTerrainDeltas(world, t.cells, t.deltas);
     this.colors = new Uint8Array(world.cellCount * 4);
     buildColors(world, this.colors, undefined, this.layers, this.disasters.ground);
+    // A vida nasce com o mundo pronto (relevo dos vulcões e biomas já no lugar).
+    this.ecology = new Ecology(world, this.disasters.ground);
     this.cellRef = new Int32Array(world.cellCount);
     for (let c = 0; c < world.cellCount; c++) this.cellRef[c] = c;
     stagesMs[current] = this.now() - mark;
@@ -815,7 +825,7 @@ export class SimulationCore {
   memoryBytes(): number {
     const caches = this.grid ? climateCacheBytes(this.grid) + colorCacheBytes(this.grid) : 0;
     const ground = this.disasters?.ground.bytes ?? 0;
-    return typedBytes(this.world) + typedBytes(this.grid) + caches + this.colors.byteLength + this.cellRef.byteLength + this.geology.bytes + ground;
+    return typedBytes(this.world) + typedBytes(this.grid) + caches + this.colors.byteLength + this.cellRef.byteLength + this.geology.bytes + ground + (this.ecology?.bytes ?? 0);
   }
 
   /** Avança o relógio pelo tempo real `dt` (segundos). Chamado pelo laço do worker. */
@@ -891,6 +901,30 @@ export class SimulationCore {
       if (o) this.applyDisasters(o);
       if (tick % (STRESS_REFRESH_YEARS * TICKS_PER_YEAR) === 0) this.refreshStress();
     }
+    if (this.ecology) {
+      const year = this.ecology.step(tick);
+      if (year) this.postLife(year);
+    }
+  }
+
+  /** Poder de deus sobre as criaturas: vale no passo em que chega, como os desastres do jogador. */
+  private lifeCommand(msg: Extract<ToWorker, { type: 'life' }>): void {
+    const eco = this.ecology, world = this.world;
+    if (!eco || !world) return;
+    if (msg.op === 'trait') eco.setTrait(msg.species, msg.trait, msg.value);
+    else if (msg.op === 'place') eco.place(msg.species, world.grid.pointToCellOf(msg.point), msg.count);
+    else eco.kill(world.grid.cellsInCap(msg.point[0], msg.point[1], msg.point[2], msg.radius), msg.species);
+    this.postLife({ events: [], fires: [] });
+  }
+
+  /** Fim do ano da ecologia: totais, avisos e míticos para a tela. */
+  private postLife(year: EcologyYear): void {
+    const eco = this.ecology, world = this.world;
+    if (!eco || !world) return;
+    const point = (cell: number): Vec3 => [world.grid.positions[cell * 3] as number, world.grid.positions[cell * 3 + 1] as number, world.grid.positions[cell * 3 + 2] as number];
+    const mythics = new Float32Array(eco.mythics.length * LIFE_MYTHIC_FLOATS);
+    eco.mythics.forEach((m, i) => { const p = point(m.cell); mythics.set([m.id, m.species, p[0], p[1], p[2]], i * LIFE_MYTHIC_FLOATS); });
+    this.send({ type: 'life', year: eco.year, totals: Float32Array.from(eco.totals), events: year.events.map((e) => ({ kind: e.kind, species: e.species, point: point(e.cell), year: e.year })), mythics, traits: eco.traits.slice() });
   }
 
   /** Ângulo atual de cada placa (para o desenho), a partir da composição mostrada. */
