@@ -209,7 +209,24 @@ Ideia do usuário (2026-10-18), para o M8 ou depois: **câmera em primeira pesso
 controlando uma criatura (só como referência de ideia; regra 8: nada copiado).
 
 ## Sem marco, depois dos humanos: variedade de geologia (usuário, 2026-11-06)
-Famílias de formações: torres, mesas, cânions, formações costeiras e coloridas, e o carste visto de cima. A referência é a lista de formações e de lugares da Bahia do usuário (**a lista em si ainda não está no repositório**). Só registrado. As cavernas por dentro ficam no M8.
+Famílias de formações: torres, mesas, cânions, formações costeiras e coloridas, e o carste visto de cima. A referência é a lista de lugares da Bahia do usuário, abaixo. Só registrado. As cavernas por dentro ficam no M8.
+
+Lugares da Bahia dados pelo usuário em 2026-11-09 como referência de **tipos** de formação (base do mundo real, sem copiar nenhum lugar):
+
+| # | Lugar | Tipo |
+|---:|---|---|
+| 1 | Morro do Pai Inácio | morro testemunho |
+| 2 | Chapada Diamantina | chapada |
+| 3 | Vale do Pati | vale encaixado |
+| 4 | Cachoeira da Fumacinha | cânion |
+| 5 | Gruta da Lapa Doce | caverna calcária |
+| 6 | Poço Encantado | caverna inundada |
+| 7 | Poço Azul | caverna inundada |
+| 8 | Buraco do Inferno | cavidade cárstica |
+| 9 | Gruta Azul | caverna calcária |
+| 10 | Serra do Sincorá | relevo montanhoso |
+| 11 | Morro do Camelo | formação rochosa residual |
+| 12 | Cachoeira do Buracão | cânion e garganta fluvial |
 
 ## M4: mineração dos humanos (usuário, 2026-11-06)
 Locais de mineração como os de hoje, a partir das jazidas (afloramento de rocha manchada, o "chapéu de ferro"). As pedras soltas e os montes aparecem quando o local é minerado. Só registrado.

@@ -1350,3 +1350,24 @@ Teste do usuário: medição não vale como aprovação (Firefox, fora da tela c
 - **Escopo:** primeiro fazer o jogo atual funcionar, depois os humanos. Variedade de geologia só registrada, sem marco. Cavernas por dentro no M8.
 - **Mineração dos humanos (M4):** locais de mineração como os de hoje, a partir das jazidas. Só registrado.
 - **Ações de deus têm resposta instantânea:** ao clicar (vulcão, meteoro, raio, fogo…), o efeito começa a aparecer na hora.
+
+## 2026-11-09 — Fechar o M3 com o máximo de autonomia (mensagem do usuário)
+O usuário pediu o M3 inteiro, sem consulta no meio, o mais idêntico possível a `docs/img/referencias/`. Ele revisa tudo no fim.
+
+**Regras que mudam, só até o fim do M3 (depois voltam as regras 9, 11 e 14 do `CLAUDE.md`):**
+1. **Decisões de design e de mecânica: o Claude Code decide, sem trazer opções antes.** Ordem de critério: (a) o mais perto das referências; (b) o que já está em `docs/` (`04-ecologia.md`, `M3-especificacao.md`, este arquivo); (c) o mundo real como base; (d) a opção mais simples de desfazer. Cada uma entra aqui como **"provisória, decidida pelo Code, a revisar pelo usuário"**, com a alternativa principal e o motivo, e vai para `docs/M3-revisao.md` com imagem.
+2. **Testes: o Claude Code testa tudo**, no Firefox de verdade, em janela de 1920×1080, com o "Medir desempenho" completo e o relógio da GPU ligado. Para o usuário ficam só os testes finais (no máximo 6).
+3. **Continuam valendo, sem exceção:** reproduzir cada defeito antes de corrigir; commit e push por tarefa, com os testes passando e sem afrouxar teste; `estado-atual.md` a cada tarefa; as metas de desempenho; a regra 16; o `main` só recebe o marco depois da aprovação do usuário.
+4. **Sessão longa:** ao fim de cada tarefa grande, os docs trazem tudo para continuar do zero (feito, falta, decisões provisórias).
+
+**Quando parar:** só no relatório final. Tarefa que precise de humanos (M4), armamento, bombas ou guerra (M6/M7): não criar, registrar o que faltou e seguir. Meta de desempenho que não fechar depois de esgotar as técnicas: registrar, seguir e trazer no relatório final.
+
+**Decisões pendentes do bloco anterior, aplicadas como provisórias (escolha do usuário nesta mensagem):**
+- **Ritmo do tempo: opção 5** de `docs/M3-ritmo-do-tempo.md` (em 1×, o tempo cai para cerca de 1/12 dentro da maquete, com o desenho suave).
+- **Petróleo aparente: opção 2**, cava única e grande (a opção 1 mostrava duas cavas fundidas, com uma borda por cima da outra).
+- **Suavização: FXAA.**
+- **Lista de espécies no menu: opção 1**, cartão "Vida" em grade, com ícones no globo.
+
+**Pontos [decidir] da especificação, com a direção dada pelo usuário:** poderes de deus pelo jeito que o jogo já usa (tocar e pincel); classe mítica só posta por deus, com o comportamento mais coerente com `04-ecologia.md`; sangue leve, de diorama, sem pedaços de corpo; o efeito da floresta na chuva entra no E9; os extremos de temperatura entram na parte física do M3, e a parte social fica para o M5/M6. As escolhas de detalhe ficam registradas abaixo, tarefa por tarefa.
+
+**Teste de aceite de 1.000 anos:** sementes fixas, sem relógio real. Semente que falhar fica marcada como falha conhecida; não é excluída nem o critério afrouxa.

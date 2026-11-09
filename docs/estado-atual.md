@@ -1,12 +1,29 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-06**, branch `marco-3`. **M2 no `main` com a tag `v2.0`. Bloco "fazer a maquete funcionar" em andamento (mensagem do usuário de 2026-11-06).** A simulação da ecologia começa no bloco seguinte, a partir da E1.
+Atualizado em: **2026-11-09**, branch `marco-3`. **M2 no `main` com a tag `v2.0`. Bloco "fechar o M3" em andamento (mensagem do usuário de 2026-11-09): o Claude Code segue sozinho até o relatório final.**
 Jogo: **https://berzeruska.github.io/sandbox-mundo/** · Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/atual/**
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
 estamos", vale este.
 
+## Bloco "fechar o M3" (2026-11-09)
+Regras deste bloco em `docs/decisoes.md` ("Fechar o M3 com o máximo de autonomia"): o Claude Code decide design e mecânica como **provisório**, testa tudo no Firefox a 1920×1080 e só para no relatório final. Decisões provisórias: `docs/decisoes.md` e, no fim, `docs/M3-revisao.md`.
+
+**Para continuar do zero:** ler esta seção, depois `docs/M3-especificacao.md` e a entrada de 2026-11-09 em `docs/decisoes.md`. A próxima tarefa é a primeira caixa vazia abaixo.
+
+### Parte 1: fidelidade às referências (página `docs/M3-fidelidade.md`)
+- [ ] P1 terraços limpos · [ ] P2 montanhas · [ ] P3 jazidas com a cor do minério · [ ] P4 animais iguais às folhas, com mar e míticos · [ ] P5 plantas, água, gelo, deserto e vulcão · [ ] P6 recomposição da maquete ≤ 1 s · [ ] P7 intervalos de 130 a 380 ms
+
+### Parte 2: ecologia (`docs/M3-especificacao.md`)
+- [ ] E1 · [ ] E2 · [ ] E3 · [ ] E4 · [ ] E5 · [ ] E6 · [ ] E7 · [ ] E8 · [ ] E9 · [ ] E9b
+
+### Parte 3: fechamento (E10)
+- [ ] "Medir desempenho" no Firefox contra a linha de base · [ ] CHANGELOG e `docs/M3-revisao.md` · [ ] PR do `marco-3` para o `main`, **sem merge** · [ ] prévia final em `/previa/atual/`
+
+### Feito neste bloco
+- [x] Regras do bloco e decisões pendentes registradas; lista de lugares da Bahia em `docs/02-marcos.md` (variedade de geologia, sem marco).
+
 ## Bloco "fazer a maquete funcionar"
-**Parado no fim do bloco, esperando o usuário:** testes, "Medir desempenho" no Firefox em tela cheia, e as decisões: ritmo do tempo (`docs/M3-ritmo-do-tempo.md`), visuais (`docs/M3-decisoes-maquete.md`), lista de espécies (`docs/M3-lista-especies.md`). Depois: simulação da ecologia, a partir da E1.
+**Bloco encerrado em 2026-11-09:** o usuário respondeu as decisões (ritmo 5, petróleo 2, FXAA, lista de espécies 1) e abriu o bloco "fechar o M3", acima.
 
 Decisões em `docs/decisoes.md`. **A medição que vale é o "Medir desempenho" no Firefox do usuário, em tela cheia, na tomada;** as capturas também saem do Firefox, em janela de 1920×1080.
 - [x] A1 tranco no corte (`docs/M3-defeitos.md`) · [x] A2 setas (parcial, ver `docs/M3-defeitos.md`) · [x] A3 pausa · [x] A4 animal sem cabeça · [x] A5 bolas brancas · [x] A6 mancha do terremoto · [x] A7 fumaça · [x] A8 GPU da transição (`docs/M3-defeitos.md`)
