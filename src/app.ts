@@ -998,7 +998,8 @@ export class App {
     if (!cam.inMaquete) cam.aimAtGlobeCenter();
     else cam.rechart();
     cam.refresh();
-    m.update(cam, 2);
+    // Quantos pedaços sobem por quadro quem decide é o tempo (3 ms), não a contagem: com 2 por quadro, refazer a vista levava dezenas de quadros (P6).
+    m.update(cam, 12);
     if (!cam.inMaquete && px >= CUT_PIXELS && m.ready && m.missing(cam) === 0) cam.enter();
   }
 

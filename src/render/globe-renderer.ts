@@ -376,9 +376,24 @@ export class GlobeRenderer {
   }
 
   /** Ajusta o tamanho interno do canvas ao tamanho na tela. Retorna true se mudou. */
+  /** Tamanho da tela em CSS, avisado pelo navegador quando muda. */
+  private cssSize: { w: number; h: number } | null = null;
+  private sizeWatch: ResizeObserver | null = null;
+
   resize(pixelRatio: number): boolean {
-    const w = Math.max(1, Math.round(this.canvas.clientWidth * pixelRatio));
-    const h = Math.max(1, Math.round(this.canvas.clientHeight * pixelRatio));
+    // Ler `clientWidth` a cada quadro obriga o navegador a refazer o leiaute ali mesmo, dentro do quadro: medido até 65 ms no Firefox quando a página
+    // tinha mudado (aviso, data). O navegador avisa quando o tamanho muda, e o quadro só usa o que foi avisado (P7).
+    if (!this.sizeWatch && typeof ResizeObserver !== 'undefined') {
+      this.sizeWatch = new ResizeObserver((entries) => {
+        const box = entries[entries.length - 1]?.contentRect;
+        if (box) this.cssSize = { w: box.width, h: box.height };
+      });
+      this.sizeWatch.observe(this.canvas);
+    }
+    const css = this.cssSize ?? { w: this.canvas.clientWidth, h: this.canvas.clientHeight };
+    if (!this.cssSize && css.w > 0) this.cssSize = css;
+    const w = Math.max(1, Math.round(css.w * pixelRatio));
+    const h = Math.max(1, Math.round(css.h * pixelRatio));
     if (this.canvas.width === w && this.canvas.height === h) return false;
     this.canvas.width = w;
     this.canvas.height = h;

@@ -46,14 +46,14 @@ export interface MaqueteChunkOut {
 }
 
 const LOG = logModel(1);
-const MARGIN_COARSE = 3;
+const MARGIN_COARSE = 4;
 const PATCH = CHUNK_COARSE + MARGIN_COARSE * 2;
 const LATTICE = 2.5;
 const MOUNTAIN_START = 1900;
 const GRASS = biomeRgb(Biome.Grassland), BEACH = biomeRgb(Biome.Beach);
 const ICE_WATER: Rgb = rgb(186, 218, 236);
 const ICE_LAND: Rgb = rgb(240, 238, 244), ICE_SEA: Rgb = rgb(198, 220, 238), MESA_TOP: Rgb = rgb(214, 170, 104), MESA_SIDE: Rgb = rgb(150, 112, 82);
-const CRATER: Rgb = rgb(62, 50, 48), LAVA: Rgb = rgb(250, 128, 30), ROCK_DARK: Rgb = rgb(108, 82, 70), DUNE: Rgb = rgb(226, 156, 72);
+const CRATER: Rgb = rgb(62, 50, 48), LAVA: Rgb = rgb(250, 128, 30), ROCK_DARK: Rgb = rgb(108, 82, 70), DUNE: Rgb = rgb(236, 202, 132);
 /** Chão de floresta: o verde do bioma fica nas copas, o chão clareia para o conjunto dar a cor do globo. */
 const GROUND_MIX: Record<number, number> = { [Biome.Taiga]: 0.42, [Biome.TemperateForest]: 0.36, [Biome.TropicalForest]: 0.1,  [Biome.Swamp]: 0.08, [Biome.Mountain]: 0.42 };
 const BIOME_FIX: Partial<Record<number, readonly [number, number, number]>> = { [Biome.Savanna]: [1.14, 0.98, 0.92], [Biome.TropicalForest]: [0.45, 1.02, 0.8], [Biome.Taiga]: [1.05, 1.15, 1.45], [Biome.TemperateForest]: [0.72, 1.12, 1.02], [Biome.Mountain]: [1.1, 1.18, 1.18], [Biome.Swamp]: [0.82, 0.96, 0.9] };
@@ -261,8 +261,8 @@ function surfaceLift(X: number, Z: number, face: number, patch: Patch): { lift: 
   for (const v of patch.volcanoes) {
     const R = 17, H = 12.5, d = Math.hypot(X - v.x, Z - v.z) / R;
     if (d >= 1) continue;
-    const crater = d < 0.24;
-    const h = crater ? H * Math.pow(0.76, 1.15) - (0.24 - d) * H * 1.6 : H * Math.pow(1 - d, 1.15);
+    const crater = d < 0.17;
+    const h = crater ? H * Math.pow(0.83, 1.15) - (0.17 - d) * H * 1.5 : H * Math.pow(1 - d, 1.15);
     if (h > lift) { lift = h; kind = crater ? 3 : 2; awake = v.awake; }
   }
   if (patch.hasDesert) {
@@ -321,6 +321,25 @@ function riverSegments(w: CoarseWorld, hydro: Hydro | null, patch: Patch, foam: 
     if (j > 0 && patch.cell[k - PATCH] === p) return k - PATCH;
     return -1;
   };
+  // Curso alisado: o rio vinha de célula em célula, em escada e em cruz. Cada nó anda para o meio do caminho entre o de cima e o de baixo (duas passadas), e as quinas viram curvas (`bioma/agua.png`).
+  const down = new Int32Array(PATCH * PATCH), up = new Int32Array(PATCH * PATCH).fill(-1);
+  const flowOf = (k: number): number => hydro.flow[patch.cell[k] as number] as number;
+  for (let k = 0; k < PATCH * PATCH; k++) down[k] = downstream(k);
+  for (let k = 0; k < PATCH * PATCH; k++) {
+    const q = down[k] as number;
+    if (q >= 0 && flowOf(k) >= RIVER_FLOW && ((up[q] as number) < 0 || flowOf(k) > flowOf(up[q] as number))) up[q] = k;
+  }
+  for (let pass = 0; pass < 2; pass++) {
+    const ox2 = nodeX.slice(), oz2 = nodeZ.slice();
+    for (let k = 0; k < PATCH * PATCH; k++) {
+      const a = up[k] as number, b = down[k] as number;
+      if (a < 0 || b < 0 || flowOf(k) < RIVER_FLOW) continue;
+      const c = patch.cell[k] as number, rest = c % (n * n), x = rest % n, y = Math.floor(rest / n);
+      if (x === 0 || y === 0 || x === n - 1 || y === n - 1) continue;
+      nodeX[k] = ((ox2[a] as number) + 2 * (ox2[k] as number) + (ox2[b] as number)) / 4;
+      nodeZ[k] = ((oz2[a] as number) + 2 * (oz2[k] as number) + (oz2[b] as number)) / 4;
+    }
+  }
   const levelOf = (k: number): number => {
     const c = patch.cell[k] as number;
     return (w.height[c] as number) <= 0 ? 0 : Math.max(0.02, stepY(elevationY(hydro.filled[c] as number)) - 0.1);
@@ -441,7 +460,9 @@ function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, p
     // Limite liso: decidir pelo bioma de cada vértice deixava a parede em dentes de serra.
     const desert = patch.spline(patch.dry, px, pz) > 0.5 ? 1 : 0;
     peaks.at(px, pz, hit);
-    const peak = hit.lift;
+    // No cone de um vulcão não nasce pico: o degrau da montanha furava a encosta.
+    const lift = surfaceLift(px, pz, face, patch).lift;
+    const peak = lift > 0.3 ? 0 : hit.lift;
     ground.steps(meters, peak);
     let keep = ground.keep, add = (1 - keep) * ground.yS, steps = desert ? 2 : 1, phase = 0;
     const u = ground.u, level = Math.floor(u);
@@ -474,7 +495,6 @@ function fill(w: CoarseWorld, f: Fields, face: number, ox: number, oz: number, p
       add += 0.055 * (1 - wet) - 0.36 * wet;
       f.marsh[k] = 1;
     }
-    const lift = surfaceLift(px, pz, face, patch).lift;
     if (lift <= 0.5 && peak <= 0.35) {
       // Rio e lago: canal cavado; o chão acompanha o nível da água, para o rio não correr por cima dele.
       let d = Infinity, water = 0, isLake = false;
@@ -561,6 +581,8 @@ function buildIce(face: number, ox: number, oz: number, patch: Patch, ground: Gr
       if (mx < ox || mz < oz || mx >= ox + CHUNK_CELLS || mz >= oz + CHUNK_CELLS) continue;
       const onLand = land(mx, mz), onSea = sea(mx, mz);
       if (!onLand && !onSea) continue;
+      // Na borda, só entra a faceta com os três cantos no gelo: sem isso sobravam pontas brancas penduradas para fora.
+      if (!((p.land || p.sea) && (q.land || q.sea) && (r.land || r.sea))) continue;
       const h = hash3(ix * 3 + t, iz, 83 + face), base = onLand ? ICE_LAND : ICE_SEA, k = 0.93 + h * 0.1;
       out.push({ p: [p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z], color: [base[0] * k, base[1] * k, base[2] * k], snow: onLand, light: [1, 1, 1] });
     }
