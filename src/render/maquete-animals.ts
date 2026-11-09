@@ -28,7 +28,7 @@ interface Herd { members: Member[]; y: Float32Array; mask: Uint8Array; cx: numbe
 interface Rig { pivotX: number; pivotY: number; down: number; step: number }
 
 const GRID = 33;
-const SIZE: Partial<Record<Animal, number>> = { elefante: 1.5, alce: 0.95, bisao: 0.95, urso: 0.8, camelo: 0.85, rena: 0.7, cervo: 0.7, zebra: 0.7, leao: 0.72, onca: 0.62, lobo: 0.55, loboArtico: 0.55, javali: 0.5, antilope: 0.55, cabra: 0.5, capivara: 0.42, macaco: 0.3, lebre: 0.25, jacare: 0.7 };
+const SIZE: Partial<Record<Animal, number>> = { elefante: 1.5, alce: 0.95, bisao: 0.95, urso: 0.8, camelo: 0.85, rena: 0.7, cervo: 0.7, zebra: 0.7, leao: 0.72, onca: 0.62, lobo: 0.55, loboArtico: 0.55, javali: 0.5, antilope: 0.55, cabra: 0.5, capivara: 0.42, macaco: 0.3, lebre: 0.25, jacare: 0.7, dragao: 2 };
 const SPEED: Partial<Record<Animal, number>> = { elefante: 0.7, lebre: 1.1, jacare: 0.35, urso: 0.55, baleia: 0.9, cachalote: 0.9, aguia: 2.4 };
 const GRAZERS = new Set<Animal>(['rena', 'lebre', 'cervo', 'alce', 'bisao', 'antilope', 'zebra', 'elefante', 'capivara', 'camelo', 'cabra', 'javali', 'macaco', 'urso']);
 
@@ -148,7 +148,7 @@ export class AnimalHerds {
         const i = Math.max(0, Math.min(GRID - 2, Math.floor(a.x))), j = Math.max(0, Math.min(GRID - 2, Math.floor(a.z))), tx = a.x - i, tz = a.z - j;
         const q = j * GRID + i;
         const gy = ((h.y[q] as number) * (1 - tx) + (h.y[q + 1] as number) * tx) * (1 - tz) + ((h.y[q + GRID] as number) * (1 - tx) + (h.y[q + GRID + 1] as number) * tx) * tz;
-        const y = swims ? (name === 'cardume' ? 0.02 : 0.06) : flies ? gy + 7 : gy;
+        const y = swims ? 0 : flies ? gy + 7 : gy;
         const lx = a.x + origin.x, lz = a.z + origin.z;
         const wx = place[0] + place[2] * lx + place[3] * lz, wz = place[1] - place[3] * lx + place[2] * lz;
         const pose = a.state === 4 ? 4 : 0;

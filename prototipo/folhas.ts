@@ -27,9 +27,9 @@ if (folha === 'jazidas') {
   ANIMALS.slice(page * perPage, (page + 1) * perPage).forEach((a, i) => {
     const col = i % 3, row = Math.floor(i / 3);
     (['idle', 'dead'] as const).forEach((pose, k) => {
-      list.push({ model: animalModel(a, pose), x: col * 19 + k * 7, y: 0, z: row * 7, scale: 1, stretch: 1, yaw: -0.45, tint: white });
+      list.push({ model: animalModel(a, pose), x: col * 11 + k * 4.6, y: 0, z: row * 4.6, scale: 1, stretch: 1, yaw: -0.5, tint: white });
     });
-    labels.push({ x: col * 19 + 7, z: row * 7 + 2, text: a });
+    labels.push({ x: col * 11 + 2.3, z: row * 4.6 + 1.5, text: a });
   });
 } else {
 const stateGap = 2.55, colGap = stateGap * 4 + 1.2, rowGap = 7.6;
@@ -44,7 +44,7 @@ SPECIES.forEach((s, i) => {
 renderer.setChunk(1, { terrain: new ArrayBuffer(0), water: new ArrayBuffer(0), props: new ArrayBuffer(0), propsFar: bakeProps(list), skirts: new ArrayBuffer(0), skirtRanges: [[0, 0], [0, 0], [0, 0], [0, 0]] }, [0, 0, 1, 0], [false, false, false, false]);
 renderer.sunDir = [-0.42, 0.76, 0.5];
 renderer.shadowCenter = [28, 0, 12]; renderer.shadowRadius = 44;
-const view: MaqueteCamera = folha === 'jazidas' ? { x: 13.8, y: 0.5, z: 5, yaw: 0, pitch: 0.6, distance: 40, fov: 26 } : folha.startsWith('animais') ? { x: 26, y: 0.5, z: 7, yaw: 0, pitch: 0.55, distance: 80, fov: 26 } : { x: 27.5, y: 1, z: 11.4, yaw: 0, pitch: 0.62, distance: 76, fov: 26 };
+const view: MaqueteCamera = folha === 'jazidas' ? { x: 13.8, y: 0.5, z: 5, yaw: 0, pitch: 0.6, distance: 40, fov: 26 } : folha.startsWith('animais') ? { x: 13.5, y: 0.5, z: 4.2, yaw: 0, pitch: 0.5, distance: 40, fov: 26 } : { x: 27.5, y: 1, z: 11.4, yaw: 0, pitch: 0.62, distance: 76, fov: 26 };
 for (const k of ['x', 'z', 'distance', 'pitch'] as const) if (q.has(k)) view[k] = Number(q.get(k));
 const vp = multiply(perspective(view.fov, canvas.width / canvas.height, 1, 400), lookAt(eyeOf(view), [view.x, view.y, view.z], [0, 1, 0]));
 const box = document.getElementById('labels') as HTMLElement;
