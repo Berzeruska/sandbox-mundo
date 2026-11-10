@@ -37,6 +37,7 @@ export class MaqueteWorld {
   private nearAsked = new Set<number>();
   private nearArrived: Extract<FromMaqueteWorker, { type: 'near' }>[] = [];
   readonly animals: AnimalHerds;
+  private lifeBlocks = 0;
   readonly fx: MaqueteFx;
   buildMs: number[] = [];
   uploadMs: number[] = [];
@@ -64,7 +65,9 @@ export class MaqueteWorld {
   }
 
   /** Cópia nova do mundo. `fresh`: outro planeta, tudo sai. */
-  setWorld(world: CoarseWorld, fresh: boolean): void {
+  setWorld(world: CoarseWorld, fresh: boolean, life: Uint16Array = new Uint16Array(0), lifeBlocks = 0): void {
+    this.animals.setLife(life, lifeBlocks);
+    this.lifeBlocks = lifeBlocks;
     if (fresh) {
       this.gen++;
       this.arrived = [];
@@ -131,7 +134,10 @@ export class MaqueteWorld {
       const t0 = performance.now();
       this.rebuilding.delete(m.key);
       this.renderer.setChunk(m.key, m, w.chunk.place, [true, true, true, true], [(w.chunk.cx + 0.5) * CHUNK_CELLS, (w.chunk.cz + 0.5) * CHUNK_CELLS]);
-      this.animals.setChunk(m.key, m.animals, m.walkY, m.walkMask);
+      // O bloco da ecologia que este pedaço mostra (o z do pedaço corre ao contrário do y das células).
+      const nb = this.lifeBlocks, c = w.chunk;
+      const block = nb && c.cx >= 0 && c.cz >= 0 && c.cx < nb && c.cz < nb ? c.face * nb * nb + (nb - 1 - c.cz) * nb + c.cx : -1;
+      this.animals.setChunk(m.key, block, m.walkY, m.walkMask);
       this.fx.setFlames(m.key, m.flames);
       this.fx.setVents(m.key, m.vents);
       this.uploadMs.push(performance.now() - t0);

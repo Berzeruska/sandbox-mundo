@@ -12,7 +12,8 @@ import { CellState, STATE_NAMES } from './world/disasters/ground';
 import { droughtHeat } from './world/disasters/drought';
 import { MAX_DUST, MAX_STORMS } from './render/shaders';
 import { DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './world/disasters/types';
-import { STORM_FLOATS, type LifeEvent } from './sim/protocol';
+import { LIFE_MYTHIC_FLOATS, STORM_FLOATS, type LifeEvent } from './sim/protocol';
+import type { MythicView } from './render/maquete-animals';
 import { SPECIES, type SpeciesInfo } from './world/species';
 import { feltRadius } from './world/disasters/quakes';
 import { SHAKE_MAGNITUDE } from './world/disasters/meteor';
@@ -707,11 +708,22 @@ export class App {
     for (const e of events) if (isToast(e)) this.toasts.show(toEntry(e));
   }
 
+  /** Os míticos no plano da maquete, a partir do ponto do planeta que a simulação deu. */
+  private placeMythics(): void {
+    const list: MythicView[] = [], data = this.life?.mythics;
+    if (data) for (let o = 0; o + LIFE_MYTHIC_FLOATS <= data.length; o += LIFE_MYTHIC_FLOATS) {
+      const p = this.camera.planeOf([data[o + 2] as number, data[o + 3] as number, data[o + 4] as number]);
+      if (p) list.push({ id: data[o] as number, species: data[o + 1] as number, x: p.x, z: p.z });
+    }
+    this.maquete?.animals.setMythics(list);
+  }
+
   /** Vida, uma vez por ano de jogo: totais para o cartão "Vida" e avisos no canto. */
   life: { year: number; totals: Float32Array; traits: Float32Array; mythics: Float32Array } | null = null;
   private lifeToastId = 1_000_000;
   private onLife(m: { year: number; totals: Float32Array; events: LifeEvent[]; mythics: Float32Array; traits: Float32Array }): void {
     this.life = { year: m.year, totals: m.totals, traits: m.traits, mythics: m.mythics };
+    this.maquete?.animals.setTraits(m.traits);
     for (const e of m.events) this.toasts.show(lifeEntry(e.kind, (SPECIES[e.species] as SpeciesInfo).name, e.year, e.point, this.lifeToastId++));
   }
 
@@ -1002,7 +1014,7 @@ export class App {
         this.maqueteWaiting = false;
         const fresh = s.seedText !== this.maqueteSeed;
         this.maqueteSeed = s.seedText;
-        m.setWorld({ n: info.n, height: s.height, rgba: this.smoothColors(s.state), cover: s.cover, state: s.state, deposit: s.deposit, ice: s.ice, temp: s.temp, volcano: s.volcano }, fresh);
+        m.setWorld({ n: info.n, height: s.height, rgba: this.smoothColors(s.state), cover: s.cover, state: s.state, deposit: s.deposit, ice: s.ice, temp: s.temp, volcano: s.volcano }, fresh, s.life, s.lifeBlocks);
       });
     }
     if (!cam.inMaquete) cam.aimAtGlobeCenter();
@@ -1071,6 +1083,7 @@ export class App {
     const drew = this.needsDraw || this.camera.inMaquete;
     if (this.camera.inMaquete && this.maquete) {
       this.camera.refresh();
+      this.placeMythics();
       this.maquete.fx.setStorms([...this.storms.values()].map((q) => ({ p: q.shown.p, radius: q.shown.radius, power: q.shown.power, kind: q.kind })));
       this.maquete.draw(this.camera, renderer.canvas.width, renderer.canvas.height, performance.now() / 1000, this.clock.speed === 0);
       this.maqueteDrawn = true;

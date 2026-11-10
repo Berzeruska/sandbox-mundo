@@ -5,7 +5,6 @@ import { CellState } from '../world/disasters/ground';
 import { biomeRgb, pickModel, pickModelFar } from './flora';
 import { plant, type PlantState, type Species } from './plants';
 import { hash3, noise3, smoothstep } from './hash';
-import { ANIMALS, FAUNA, SWIMMERS } from './animals';
 import { RIVER_FLOW, type Hydro } from './rivers';
 import { depositSize, depositType, isHiddenOil, Resource } from '../world/resources';
 import { depositModel, oreStain, surfaceOil } from './deposits';
@@ -33,8 +32,6 @@ export interface MaqueteChunkOut {
   propsFar: ArrayBuffer;
   skirts: ArrayBuffer;
   skirtRanges: [number, number][];
-  /** Grupos de animais: espécie, x, z (na face), sorteio. */
-  animals: Float32Array;
   /** Chamas: x, y, z por célula em chamas. */
   flames: Float32Array;
   /** Vulcões em erupção: x, y, z da cratera. */
@@ -861,25 +858,7 @@ export function buildWorldChunk(w: CoarseWorld, hydro: Hydro | null, face: numbe
     if (wl !== -Infinity && wl > y && !(f.marsh[k] as number)) walkMask[g] = (f.river[k] as number) && wl - y < 0.8 ? 3 : wl - y > 0.7 && wl <= 0.02 && !iceSea[k] ? 2 : 1;
     else if ((f.peak[k] as number) > 0.5 || (i > 0 && Math.abs((f.y[k] as number) - (f.y[k - 1] as number)) > 0.8)) walkMask[g] = 1;
   }
-  // Grupos por espécie: a região escolhe uma só e poucos pedaços têm grupo (D2). A posição vem da região, então a espécie se espalha pelo bioma.
-  const herd: number[] = [];
-  const seedA = face * 197 + cx * 13 + cz * 31;
-  const lx = 2 + hash3(seedA, 1, 303) * (CHUNK_CELLS - 4), lz = 2 + hash3(seedA, 1, 307) * (CHUNK_CELLS - 4);
-  const k0 = (Math.round(lz) + mg) * st + Math.round(lx) + mg;
-  const here = biomeGrid[k0] as number, list = FAUNA[here];
-  if (list && hash3(seedA, 1, 301) < (here === Biome.DeepOcean || here === Biome.ShallowOcean ? 0.07 : 0.2)) {
-    const region = hash3(face * 37 + (cx >> 2), cz >> 2, 311 + here);
-    const entry = list[Math.floor(region * list.length) % list.length] as (typeof list)[number];
-    const species = ANIMALS.indexOf(entry[0]), swims = SWIMMERS.has(entry[0]);
-    const count = entry[1] + Math.floor(hash3(seedA, 1, 313) * (entry[2] - entry[1] + 1));
-    const spread = 1.6 + Math.sqrt(count) * 1.5;
-    for (let q = 0; q < count; q++) {
-      const ax = Math.max(0.5, Math.min(CHUNK_CELLS - 0.5, lx + (hash3(seedA + q, 1, 317) - 0.5) * spread * 2)), az = Math.max(0.5, Math.min(CHUNK_CELLS - 0.5, lz + (hash3(seedA + q, 1, 331) - 0.5) * spread * 2));
-      const mask = walkMask[Math.round(az) * gridN + Math.round(ax)] as number;
-      if (swims ? mask !== 2 : mask !== 0) continue;
-      herd.push(species, ax, az, hash3(seedA + q, 1, 337));
-    }
-  }
+  // Os animais não saem mais daqui: a maquete mostra os números da ecologia (E5, `src/render/maquete-animals.ts`).
   // Chamas nas células em chamas; fumaça sai dos vulcões em erupção.
   const flames: number[] = [], vents: number[] = [];
   for (let j = 0; j < PATCH; j++) for (let i = 0; i < PATCH; i++) {
@@ -894,5 +873,5 @@ export function buildWorldChunk(w: CoarseWorld, hydro: Hydro | null, face: numbe
   }
   for (const v of patch.volcanoes) if (v.awake && v.x >= ox && v.z >= oz && v.x < ox + CHUNK_CELLS && v.z < oz + CHUNK_CELLS) vents.push(v.x, 13, v.z);
   const skirts = buildSkirts(f, ox, oz, 3);
-  return { terrain: buildTerrain(f, ox, oz, face + 7, facets.concat(buildCracks(face, ox, oz, patch, f))), water: buildWater(f, ox, oz, {}), props: near ? bakeProps(places) : new ArrayBuffer(0), propsFar: near ? new ArrayBuffer(0) : bakeProps(places, true), skirts: skirts.data, skirtRanges: skirts.ranges, animals: new Float32Array(herd), flames: new Float32Array(flames), vents: new Float32Array(vents), walkY, walkMask };
+  return { terrain: buildTerrain(f, ox, oz, face + 7, facets.concat(buildCracks(face, ox, oz, patch, f))), water: buildWater(f, ox, oz, {}), props: near ? bakeProps(places) : new ArrayBuffer(0), propsFar: near ? new ArrayBuffer(0) : bakeProps(places, true), skirts: skirts.data, skirtRanges: skirts.ranges, flames: new Float32Array(flames), vents: new Float32Array(vents), walkY, walkMask };
 }

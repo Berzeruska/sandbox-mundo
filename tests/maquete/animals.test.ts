@@ -40,3 +40,18 @@ describe('modelos dos animais', () => {
     expect([...MYTHIC].sort()).toEqual(['baleiaBranca', 'dragao', 'kraken']);
   });
 });
+
+describe('indivíduos pelos números (E5)', () => {
+  it('o pedaço mostra a população do bloco: sem ninguém, ninguém; a fração vira um a mais em parte dos blocos; há teto', async () => {
+    const { shownCount } = await import('../../src/render/maquete-animals');
+    expect(shownCount(0, 7, 3, false)).toBe(0);
+    expect(shownCount(5, 7, 3, false)).toBe(5);
+    let extra = 0;
+    for (let b = 0; b < 400; b++) { const n = shownCount(2.5, b, 3, false); expect(n === 2 || n === 3).toBe(true); if (n === 3) extra++; }
+    expect(extra).toBeGreaterThan(120);
+    expect(extra).toBeLessThan(280);
+    expect(shownCount(900, 1, 3, false)).toBeLessThanOrEqual(18);
+    // Um modelo de cardume já são nove peixes.
+    expect(shownCount(27, 2, ANIMALS.indexOf('cardume'), true)).toBeLessThanOrEqual(4);
+  });
+});

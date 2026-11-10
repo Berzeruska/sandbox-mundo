@@ -156,7 +156,8 @@ const BLOB_FS = `#version 300 es
 precision mediump float;
 in float vFade;
 out vec4 frag;
-void main(){ frag = vec4(0.04, 0.06, 0.12, 0.3 * vFade); }`;
+uniform vec4 uTint;
+void main(){ frag = vec4(uTint.rgb, uTint.a * vFade); }`;
 const SHADOW_VS = `#version 300 es
 layout(location=0) in vec3 aPos;
 uniform mat4 uSun;
@@ -282,6 +283,9 @@ export class MaqueteRenderer {
   /** O que desenhar no próximo quadro. */
   batches: InstanceBatch[] = [];
   blobs: { data: Float32Array; count: number } | null = null;
+  /** Manchas de sangue, leves (E8): o mesmo disco da sombra, vermelho-escuro. */
+  stains: { data: Float32Array; count: number } | null = null;
+  private blobTint: WebGLUniformLocation | null = null;
   /** Dois mapas de sombra: um na tela, outro sendo desenhado aos poucos. */
   private shadowTex: WebGLTexture[] = [];
   private shadowFbo: WebGLFramebuffer[] = [];
@@ -325,6 +329,7 @@ export class MaqueteRenderer {
     for (const n of ['uVP', 'uSun', 'uShadow', 'uSunDir', 'uSunColor', 'uSky', 'uGround', 'uSand', 'uShadowTexel', 'uMode', 'uTime', 'uRig', 'uDust']) this.ua[n] = gl.getUniformLocation(this.animalProgram, n);
     this.blobProgram = compile(gl, BLOB_VS, BLOB_FS);
     this.blobVP = gl.getUniformLocation(this.blobProgram, 'uVP');
+    this.blobTint = gl.getUniformLocation(this.blobProgram, 'uTint');
     this.instanceBuffer = gl.createBuffer() as WebGLBuffer;
     gl.activeTexture(gl.TEXTURE9);
     for (let k = 0; k < 2; k++) {
@@ -653,7 +658,12 @@ export class MaqueteRenderer {
         if (this.blobMesh < 0) this.blobMesh = this.addMesh(blobBytes());
         gl.useProgram(this.blobProgram);
         gl.uniformMatrix4fv(this.blobVP, false, vp);
+        gl.uniform4f(this.blobTint, 0.04, 0.06, 0.12, 0.3);
         this.drawInstances(this.blobMesh, this.blobs.data, this.blobs.count);
+        if (this.stains && this.stains.count > 0) {
+          gl.uniform4f(this.blobTint, 0.42, 0.03, 0.04, 0.62);
+          this.drawInstances(this.blobMesh, this.stains.data, this.stains.count);
+        }
       }
       gl.disable(gl.BLEND);
       gl.depthMask(true);
