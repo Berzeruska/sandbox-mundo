@@ -2,7 +2,8 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules'] },
+  // `scripts/firefox`: roteiros de medição em Node e no navegador, fora do jogo (ver o LEIAME de lá).
+  { ignores: ['dist', 'node_modules', 'scripts/firefox'] },
   js.configs.recommended,
   ...tseslint.configs.strict,
   {
