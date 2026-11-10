@@ -7,6 +7,8 @@ export const TICKS_PER_YEAR = 12;
 export const BASE_TICKS_PER_SECOND = 12;
 /** Teto de passos num único quadro (protege contra travar a tela em "máximo"). */
 export const MAX_TICKS_PER_FRAME = 600;
+/** Em 1×, dentro da maquete: um mês de jogo por segundo. */
+export const MAQUETE_PACE = 1 / 12;
 /** Orçamento de tempo de simulação por quadro na velocidade máxima (ms). */
 export const MAX_SPEED_BUDGET_MS = 8;
 /** Maior intervalo real considerado num quadro (aba em segundo plano, engasgo). */
@@ -31,6 +33,11 @@ export class Clock {
   /** Passos desde o início do mundo. */
   tick = 0;
   speed: Speed = 1;
+  /**
+   * Ritmo da maquete (decisão do usuário, 2026-11-09, opção 5): olhando de perto em 1×, o tempo anda a 1/12 (um mês por segundo), para o fogo, os bichos e a chuva
+   * ficarem na mesma escala. Só vale em 1×; 2×, 5×, 20× e Máx seguem como escolhidos. Não muda o mundo: só quantos passos rodam por segundo.
+   */
+  pace = 1;
   private accumulator = 0;
 
   /**
@@ -56,7 +63,7 @@ export class Clock {
       }
       return count;
     }
-    this.accumulator += Math.min(dt, MAX_FRAME_DT) * BASE_TICKS_PER_SECOND * this.speed;
+    this.accumulator += Math.min(dt, MAX_FRAME_DT) * BASE_TICKS_PER_SECOND * this.speed * (this.speed === 1 ? this.pace : 1);
     count = Math.min(MAX_TICKS_PER_FRAME, Math.floor(this.accumulator));
     this.accumulator -= count;
     // Se bateu no teto, descarta o atraso em vez de acumular uma dívida infinita.

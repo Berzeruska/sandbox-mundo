@@ -146,6 +146,10 @@ export class SimClient {
     this.send({ type: 'speed', speed });
   }
 
+  setPace(pace: number): void {
+    this.send({ type: 'pace', pace });
+  }
+
   brush(tool: Tool, point: Vec3, radius: number, dt: number): void {
     if (this.brushInFlight) {
       const prev = this.pendingBrush;

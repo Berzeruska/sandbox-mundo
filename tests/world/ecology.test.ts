@@ -302,3 +302,43 @@ describe('poderes de deus pelo relógio (E6, E7, E9b)', () => {
     for (let o = LIFE_MAP_FLOATS; o < map!.length; o += LIFE_MAP_FLOATS) expect(map![o + 3]).toBeLessThanOrEqual(map![o - 1]!);
   }, 60000);
 });
+
+describe('extremos de temperatura e floresta (E9)', () => {
+  it('planeta congelado: quem não é do frio perde o lugar e some; a vida não volta sozinha onde não cabe', () => {
+    const base = worldOf('gaia');
+    const w = Object.create(base) as WorldState;
+    const biome = base.biome.slice(), ice = base.ice.slice();
+    for (let c = 0; c < base.cellCount; c++) { if (!base.isWater(c)) biome[c] = Biome.Ice; ice[c] = 1; }
+    Object.defineProperty(w, 'biome', { value: biome });
+    Object.defineProperty(w, 'ice', { value: ice });
+    const e = new Ecology(base, null), frozen = Object.assign(e, { world: w }) as Ecology;
+    const zebra0 = frozen.totals[ix('zebra')] as number, fish0 = frozen.totals[ix('cardume')] as number;
+    run(frozen, 60);
+    expect(frozen.totals[ix('zebra')]).toBeLessThan(zebra0 * 0.02);
+    expect(frozen.totals[ix('macaco')]).toBeLessThan(1);
+    // Mar todo congelado: o cardume também perde o lugar.
+    expect(frozen.totals[ix('cardume')]).toBeLessThan(fish0 * 0.02);
+  });
+  it('calor extremo: tudo deserto, a floresta e os bichos dela somem; o camelo fica', () => {
+    const base = worldOf('gaia');
+    const w = Object.create(base) as WorldState;
+    const biome = base.biome.slice();
+    for (let c = 0; c < base.cellCount; c++) if (!base.isWater(c)) biome[c] = Biome.HotDesert;
+    Object.defineProperty(w, 'biome', { value: biome });
+    Object.defineProperty(w, 'ice', { value: new Uint8Array(base.cellCount) });
+    const e = Object.assign(new Ecology(base, null), { world: w }) as Ecology;
+    const camel0 = e.totals[ix('camelo')] as number;
+    run(e, 120);
+    expect(e.totals[ix('macaco')]).toBeLessThan(1);
+    expect(e.totals[ix('cervo')]).toBeLessThan(1);
+    expect(e.totals[ix('camelo')]).toBeGreaterThan(camel0);
+  });
+  it('floresta grande segura a chuva: cercado de mata, o bloco cresce mais depressa que cercado de deserto', () => {
+    const e = new Ecology(worldOf('terra'), null);
+    let wet = 0, dry = 1e9;
+    for (let b = 0; b < e.blocks; b++) { if ((e.plantCap[b] as number) <= 0) continue; const m = e.moisture(b); wet = Math.max(wet, m); dry = Math.min(dry, m); }
+    expect(wet).toBeGreaterThan(dry + 0.15);
+    expect(dry).toBeGreaterThanOrEqual(0.85);
+    expect(wet).toBeLessThanOrEqual(1.15 + 1e-6);
+  });
+});

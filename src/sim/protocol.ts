@@ -50,6 +50,8 @@ export type ToWorker =
   | { type: 'newWorld'; seedText: string; n: number; kind?: WorldKind }
   | { type: 'brush'; tool: Tool; point: Vec3; radius: number; dt: number }
   | { type: 'speed'; speed: Speed }
+  /** Ritmo do tempo em 1× (1 fora da maquete; MAQUETE_PACE dentro dela). */
+  | { type: 'pace'; pace: number }
   | { type: 'layers'; layers: Layers }
   | { type: 'plateRate'; rate: number }
   /** Controle de temperatura global (°C, T7). */

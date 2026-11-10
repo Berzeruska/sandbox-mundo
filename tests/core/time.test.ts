@@ -60,3 +60,20 @@ describe('relógio', () => {
     expect(speedLabel('max')).toBe('Máx');
   });
 });
+
+describe('ritmo da maquete (opção 5)', () => {
+  it('em 1×, o ritmo de 1/12 dá um passo (um mês) por segundo; nas outras velocidades nada muda', async () => {
+    const { Clock, MAQUETE_PACE } = await import('../../src/core/time');
+    const run = (speed: 1 | 5, pace: number): number => {
+      const c = new Clock();
+      c.speed = speed; c.pace = pace;
+      let n = 0;
+      for (let i = 0; i < 600; i++) n += c.advance(0.1);
+      return n;
+    };
+    expect(run(1, 1)).toBe(720);
+    // 60 s a um passo por segundo; a soma de frações em ponto flutuante pode deixar o último passo para o quadro seguinte.
+    expect(Math.abs(run(1, MAQUETE_PACE) - 60)).toBeLessThanOrEqual(1);
+    expect(run(5, MAQUETE_PACE)).toBe(run(5, 1));
+  });
+});

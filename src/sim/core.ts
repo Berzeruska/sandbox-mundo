@@ -2,7 +2,7 @@ import { seedFrom } from '../core/rng';
 import { maxSpeedQuota } from '../core/geologic-time';
 import { CellState } from '../world/disasters/ground';
 import { Ecology, type EcologyYear } from '../world/ecology';
-import { Clock, holdsSpeedChange, TICKS_PER_YEAR, type Speed } from '../core/time';
+import { Clock, holdsSpeedChange, MAQUETE_PACE, TICKS_PER_YEAR, type Speed } from '../core/time';
 import { applyBrush, applyTerrainDeltas, RAISE_RATE } from '../input/tools';
 import { buildColors, colorCacheBytes, forgetResourceHalo, NO_LAYERS, tintStress, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
@@ -271,6 +271,9 @@ export class SimulationCore {
       case 'climateControl':
         this.climateTarget = Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, msg.control));
         if (!this.world) this.climateControl = this.climateGlide = this.climateTarget;
+        break;
+      case 'pace':
+        this.clock.pace = Math.max(MAQUETE_PACE, Math.min(1, msg.pace));
         break;
       case 'speed':
         // A velocidade espera a rocha que está caindo (T8): o botão já mostra a escolha, o mundo não muda.

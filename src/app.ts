@@ -26,7 +26,7 @@ import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectoni
 import { advanceDisplayTick, MAX_SHADER_PLATES, rotate } from './render/plate-motion';
 import type { PlateMotionUniforms } from './render/globe-renderer';
 import { BIOME_INFO, Biome } from './world/biomes';
-import { BASE_TICKS_PER_SECOND } from './core/time';
+import { BASE_TICKS_PER_SECOND, MAQUETE_PACE } from './core/time';
 import { CLOCK_POST_MS } from './sim/core';
 import { GlobeRenderer } from './render/globe-renderer';
 import { MaqueteWorld } from './render/maquete-world';
@@ -86,6 +86,7 @@ export class App {
   private maqueteDrawn = false;
   private maqueteFastUntil = 0;
   private maqueteRgba: Uint8Array | null = null;
+  private slowPace = false;
   readonly overlay: Overlay;
   readonly input: PointerInput;
   readonly hud: Hud;
@@ -1148,6 +1149,9 @@ export class App {
       if (running && r.clouds > 0 && this.camera.cellPixels() < 4) this.needsDraw = true;
     }
     this.updateMaquete(performance.now());
+    // Ritmo do tempo: de perto, em 1×, um mês por segundo (opção 5). Durante a medição vale o ritmo normal.
+    const slow = this.camera.inMaquete && this.bench === null;
+    if (slow !== this.slowPace) { this.slowPace = slow; this.sim.setPace(slow ? MAQUETE_PACE : 1); this.hud.setSlowPace(slow); }
     const drew = this.needsDraw || this.camera.inMaquete;
     if (this.camera.inMaquete && this.maquete) {
       this.camera.refresh();
@@ -1552,7 +1556,7 @@ export class App {
     this.fxShown = this.fx.active;
     if (this.fx.active) {
       const now = performance.now();
-      const rate = this.clock.speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * this.clock.speed;
+      const rate = this.clock.speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * this.clock.speed * (this.slowPace && this.clock.speed === 1 ? MAQUETE_PACE : 1);
       // O passo só chega a cada ~100 ms: entre uma mensagem e outra, estimado pelo ritmo.
       this.fx.draw(this.overlay.context, this.camera, now, this.clock.tick + (rate * Math.min(now - this.clockAt, 2 * CLOCK_POST_MS)) / 1000, rate, dpr, this.camera.inMaquete);
     }

@@ -169,6 +169,14 @@ export class Hud {
     this.render();
   }
 
+  /** Na maquete, em 1×, o selo avisa o ritmo: o relógio nunca muda sem aparecer na tela. */
+  private slowPace = false;
+  setSlowPace(on: boolean): void {
+    if (on === this.slowPace) return;
+    this.slowPace = on;
+    this.render();
+  }
+
   private apply(state: MenuState, effect: MenuEffect = { type: 'none' }): void {
     this.state = state;
     this.render();
@@ -342,7 +350,7 @@ export class Hud {
 
   private render(): void {
     const paused = this.speed === 0;
-    this.speedBadge.textContent = paused ? 'pausado' : speedLabel(this.speed);
+    this.speedBadge.textContent = paused ? 'pausado' : this.slowPace && this.speed === 1 ? '1× · 1 mês/s' : speedLabel(this.speed);
     this.speedBadge.classList.toggle('paused', paused);
     this.pauseBtn.innerHTML = '';
     this.pauseBtn.append(el('span', 'hud-big-icon', paused ? '▶' : '⏸'), el('small', '', paused ? 'seguir' : 'pausa'));
