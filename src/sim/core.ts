@@ -1,13 +1,15 @@
 import { seedFrom } from '../core/rng';
 import { maxSpeedQuota } from '../core/geologic-time';
-import { Clock, TICKS_PER_YEAR } from '../core/time';
+import { CellState } from '../world/disasters/ground';
+import { Ecology, type EcologyYear } from '../world/ecology';
+import { Clock, holdsSpeedChange, MAQUETE_PACE, TICKS_PER_YEAR, type Speed } from '../core/time';
 import { applyBrush, applyTerrainDeltas, RAISE_RATE } from '../input/tools';
 import { buildColors, colorCacheBytes, forgetResourceHalo, NO_LAYERS, tintStress, withRing, type Layers } from '../render/colors';
 import { dirtyRects } from '../render/dirty';
 import { applyClimateOffset, climateCacheBytes, type ImpactWinter, climateOffsetAt, CONTROL_APPLY_STEP, impactCooling, CONTROL_MAX, CONTROL_MIN, glideToward, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellPool } from '../world/cell-pool';
 import { createWorld, WORLD_STAGES } from '../world/create';
-import { DEFAULT_FREQUENCY, Disasters, FREQUENCIES, type DisasterOutcome } from '../world/disasters';
+import { DEFAULT_FREQUENCY, DisasterKind, Disasters, FREQUENCIES, type DisasterOutcome } from '../world/disasters';
 import { meteorFallTicks } from '../world/disasters/meteor';
 import { Tool } from '../input/tools';
 import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
@@ -17,7 +19,7 @@ import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import { archipelagoReached } from '../world/generation';
 import type { WorldKind, WorldState } from '../world/state';
 import { emptyWork, type WorkCounters } from '../ui/benchmark';
-import { makePatches, STORM_FLOATS, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
+import { LIFE_MAP_BLOCKS, LIFE_MAP_FLOATS, LIFE_MYTHIC_FLOATS, makePatches, STORM_FLOATS, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
 
 /** De quantos em quantos anos a camada "Ver tensão" é repintada (a tensão sobe devagar). */
 const STRESS_REFRESH_YEARS = 2;
@@ -162,6 +164,8 @@ export class SimulationCore {
   private brushLog: { tick: number; delta: BrushDelta }[] = [];
   /** Desastres do mundo atual (T8–T12) e o nível de frequência escolhido (vale para os mundos novos). */
   disasters: Disasters | null = null;
+  /** Ecologia em números (M3): anda no relógio, depois dos desastres. */
+  ecology: Ecology | null = null;
   private disasterFrequency = DEFAULT_FREQUENCY;
   private stressBuf = new Float32Array(0);
   /** Células com aparência nova esperando a repintura do fim do laço. */
@@ -182,6 +186,10 @@ export class SimulationCore {
   private stormsTick = -1;
   /** Deriva no relógio (a mesma soma da tectônica) e a composição mostrada, para os ângulos. */
   private drift = 0;
+  /** Velocidade escolhida esperando a rocha cair, e desde quando. */
+  private heldSpeed: Speed | null = null;
+  private heldSince: number | null = null;
+  private speedWaitMs = 0;
   private shown: ShownComposition = { angles: [], speeds: [], drift: 0 };
   private platesMoving = false;
   private stats: GeologyStats | null = null;
@@ -209,6 +217,26 @@ export class SimulationCore {
     this.post(msg, transferables(msg));
   }
 
+  /** Cópia do chão para a maquete. Só leitura: nenhum passo do mundo muda por causa disso. */
+  private maqueteSnapshot(id: number): void {
+    const world = this.world;
+    if (!world) return;
+    const count = world.cellCount;
+    const height = new Int16Array(count), cover = new Uint8Array(count), state = new Uint8Array(count), deposit = new Uint8Array(count), ice = new Uint8Array(count), temp = new Int8Array(count), volcano = new Uint8Array(count);
+    const ground = this.disasters?.ground;
+    for (let c = 0; c < count; c++) {
+      height[c] = Math.max(-32000, Math.min(32000, Math.round(world.heightAboveSea(c))));
+      cover[c] = ground ? Math.round((ground.cover[c] as number) * 255) : 255;
+      state[c] = ground ? (ground.state[c] as number) : 0;
+      temp[c] = Math.max(-127, Math.min(127, Math.round(world.temperature[c] as number)));
+    }
+    deposit.set(world.deposit);
+    ice.set(world.ice);
+    for (const v of this.disasters?.volcanoes ?? []) if (!v.extinct) volcano[v.cell] = v.awake ? 2 : 1;
+    const life = this.ecology ? this.ecology.snapshot() : new Uint16Array(0);
+    this.send({ type: 'maqueteSnapshot', id, seedText: world.params.seedText, height, cover, state, deposit, ice, temp, volcano, life, lifeBlocks: this.ecology?.nb ?? 0 });
+  }
+
   handle(msg: ToWorker): void {
     switch (msg.type) {
       case 'newWorld':
@@ -230,6 +258,12 @@ export class SimulationCore {
           this.flushPaint();
         }
         break;
+      case 'life':
+        this.lifeCommand(msg);
+        break;
+      case 'lifeMap':
+        this.lifeMap(msg.species);
+        break;
       case 'disasterFrequency':
         this.disasterFrequency = Math.max(0, Math.min(FREQUENCIES.length - 1, Math.round(msg.level)));
         if (this.disasters) this.disasters.frequency = this.disasterFrequency;
@@ -238,12 +272,26 @@ export class SimulationCore {
         this.climateTarget = Math.max(CONTROL_MIN, Math.min(CONTROL_MAX, msg.control));
         if (!this.world) this.climateControl = this.climateGlide = this.climateTarget;
         break;
+      case 'pace':
+        this.clock.pace = Math.max(MAQUETE_PACE, Math.min(1, msg.pace));
+        break;
       case 'speed':
-        this.clock.speed = msg.speed;
+        // A velocidade espera a rocha que está caindo (T8): o botão já mostra a escolha, o mundo não muda.
+        if (holdsSpeedChange(this.clock.speed, msg.speed, this.disasters?.fallingUntil() ?? -1, this.clock.tick)) {
+          this.heldSpeed = msg.speed;
+          this.heldSince ??= this.now();
+        } else {
+          this.clock.speed = msg.speed;
+          this.heldSpeed = null;
+          this.heldSince = null;
+        }
         this.postClock(true);
         break;
       case 'query':
         this.query(msg.id, msg.point);
+        break;
+      case 'maqueteSnapshot':
+        this.maqueteSnapshot(msg.id);
         break;
       case 'resetWorst':
         this.work.worstGeology = 0;
@@ -295,10 +343,13 @@ export class SimulationCore {
     this.world = world;
     this.disasters = new Disasters(world);
     this.disasters.frequency = this.disasterFrequency;
+    this.ecology = null;
     // Cones dos vulcões do começo (R7): fazem parte do mundo que nasce (antes das cores e do motor).
     for (const t of this.disasters.takeInitialTerrain()) applyTerrainDeltas(world, t.cells, t.deltas);
     this.colors = new Uint8Array(world.cellCount * 4);
     buildColors(world, this.colors, undefined, this.layers, this.disasters.ground);
+    // A vida nasce com o mundo pronto (relevo dos vulcões e biomas já no lugar).
+    this.ecology = new Ecology(world, this.disasters.ground);
     this.cellRef = new Int32Array(world.cellCount);
     for (let c = 0; c < world.cellCount; c++) this.cellRef[c] = c;
     stagesMs[current] = this.now() - mark;
@@ -443,7 +494,15 @@ export class SimulationCore {
     const cells: number[] = [];
     for (let c = 0; c < world.cellCount; c++) if (world.boundary[c]) cells.push(c);
     this.paint(cells);
-    this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
+    // Seca e volta da vegetação mudam aos poucos: a tela troca a cor suavemente (B3). Fogo, lava e o resto valem na hora.
+    const ground = this.disasters?.ground;
+    const slow: number[] = [], now: number[] = [];
+    for (const c of cells) {
+      const st = ground ? (ground.state[c] as number) : 0;
+      if (st === CellState.Heat || st === CellState.None) slow.push(c); else now.push(c);
+    }
+    if (slow.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, slow)), brushMs: -1, fade: true });
+    if (now.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, now)), brushMs: -1 });
   }
 
   /** Aplica o que os desastres fizeram: relevo erguido, marcas novas ou vencidas, e avisa a tela. */
@@ -503,7 +562,15 @@ export class SimulationCore {
     const cells = [...this.pendingPaint];
     this.pendingPaint.clear();
     this.paint(cells);
-    this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, cells)), brushMs: -1 });
+    // Seca e volta da vegetação mudam aos poucos: a tela troca a cor suavemente (B3). Fogo, lava e o resto valem na hora.
+    const ground = this.disasters?.ground;
+    const slow: number[] = [], now: number[] = [];
+    for (const c of cells) {
+      const st = ground ? (ground.state[c] as number) : 0;
+      if (st === CellState.Heat || st === CellState.None) slow.push(c); else now.push(c);
+    }
+    if (slow.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, slow)), brushMs: -1, fade: true });
+    if (now.length) this.send({ type: 'patch', patches: makePatches(this.colors, world.params.n, dirtyRects(world.grid, now)), brushMs: -1 });
   }
 
   /**
@@ -593,6 +660,7 @@ export class SimulationCore {
         (c) => (world.plate[c] as number) * n + (cellRef[c] as number),
       );
     }
+    this.ecology?.worldMoved();
     this.shown = { angles: r.angles, speeds: r.motion.map((m) => m.speed), drift: r.drift };
     this.platesMoving = true;
     // Os buffers do motor estão livres para a próxima recomposição.
@@ -764,7 +832,7 @@ export class SimulationCore {
   memoryBytes(): number {
     const caches = this.grid ? climateCacheBytes(this.grid) + colorCacheBytes(this.grid) : 0;
     const ground = this.disasters?.ground.bytes ?? 0;
-    return typedBytes(this.world) + typedBytes(this.grid) + caches + this.colors.byteLength + this.cellRef.byteLength + this.geology.bytes + ground;
+    return typedBytes(this.world) + typedBytes(this.grid) + caches + this.colors.byteLength + this.cellRef.byteLength + this.geology.bytes + ground + (this.ecology?.bytes ?? 0);
   }
 
   /** Avança o relógio pelo tempo real `dt` (segundos). Chamado pelo laço do worker. */
@@ -780,6 +848,12 @@ export class SimulationCore {
       const pace = maxSpeedQuota(this.clock.tick - this.engineTick, dt, this.paceCarry);
       quota = pace.quota;
       this.paceCarry = pace.carry;
+    }
+    if (this.heldSpeed !== null && (this.disasters?.fallingUntil() ?? -1) <= this.clock.tick) {
+      this.clock.speed = this.heldSpeed;
+      this.heldSpeed = null;
+      this.speedWaitMs = this.heldSince === null ? 0 : this.now() - this.heldSince;
+      this.heldSince = null;
     }
     if (this.disasters && this.clock.speed !== 0) this.disasters.meteorFall = meteorFallTicks(this.clock.speed, this.ticksWindow.rate);
     const firstTick = this.clock.tick;
@@ -834,6 +908,49 @@ export class SimulationCore {
       if (o) this.applyDisasters(o);
       if (tick % (STRESS_REFRESH_YEARS * TICKS_PER_YEAR) === 0) this.refreshStress();
     }
+    if (this.ecology) {
+      const year = this.ecology.step(tick);
+      if (year) {
+        // O dragão põe fogo onde caça (E7): entra como um incêndio comum, no passo em que o ano fecha.
+        if (this.disasters && this.world) {
+          const pos = this.world.grid.positions;
+          for (const c of year.fires) this.applyDisasters(this.disasters.trigger(DisasterKind.Fire, [pos[c * 3] as number, pos[c * 3 + 1] as number, pos[c * 3 + 2] as number], tick, 1));
+        }
+        this.postLife(year);
+      }
+    }
+  }
+
+  /** Poder de deus sobre as criaturas: vale no passo em que chega, como os desastres do jogador. */
+  private lifeCommand(msg: Extract<ToWorker, { type: 'life' }>): void {
+    const eco = this.ecology, world = this.world;
+    if (!eco || !world) return;
+    if (msg.op === 'trait') eco.setTrait(msg.species, msg.trait, msg.value);
+    else if (msg.op === 'place') eco.place(msg.species, world.grid.pointToCellOf(msg.point), msg.count);
+    else eco.kill(world.grid.cellsInCap(msg.point[0], msg.point[1], msg.point[2], msg.radius), msg.species);
+    this.postLife({ events: [], fires: [] });
+  }
+
+  /** Onde a espécie vive: os blocos com mais indivíduos (só leitura). */
+  private lifeMap(species: number): void {
+    const eco = this.ecology, world = this.world;
+    if (!eco || !world || species < 0 || species >= eco.totals.length) return;
+    const list: [number, number][] = [];
+    for (let b = 0; b < eco.blocks; b++) { const n = eco.blockPopulation(species, b); if (n >= 0.5) list.push([n, b]); }
+    list.sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+    const top = list.slice(0, LIFE_MAP_BLOCKS), points = new Float32Array(top.length * LIFE_MAP_FLOATS), pos = world.grid.positions;
+    top.forEach(([n, b], i) => { const c = eco.centerCell(b); points.set([pos[c * 3] as number, pos[c * 3 + 1] as number, pos[c * 3 + 2] as number, n], i * LIFE_MAP_FLOATS); });
+    this.send({ type: 'lifeMap', species, points });
+  }
+
+  /** Fim do ano da ecologia: totais, avisos e míticos para a tela. */
+  private postLife(year: EcologyYear): void {
+    const eco = this.ecology, world = this.world;
+    if (!eco || !world) return;
+    const point = (cell: number): Vec3 => [world.grid.positions[cell * 3] as number, world.grid.positions[cell * 3 + 1] as number, world.grid.positions[cell * 3 + 2] as number];
+    const mythics = new Float32Array(eco.mythics.length * LIFE_MYTHIC_FLOATS);
+    eco.mythics.forEach((m, i) => { const p = point(m.cell); mythics.set([m.id, m.species, p[0], p[1], p[2]], i * LIFE_MYTHIC_FLOATS); });
+    this.send({ type: 'life', year: eco.year, totals: Float32Array.from(eco.totals), events: year.events.map((e) => ({ kind: e.kind, species: e.species, point: point(e.cell), year: e.year })), mythics, traits: eco.traits.slice() });
   }
 
   /** Ângulo atual de cada placa (para o desenho), a partir da composição mostrada. */
@@ -880,7 +997,8 @@ export class SimulationCore {
     this.send({
       type: 'clock',
       tick: this.clock.tick,
-      speed: this.clock.speed,
+      speed: this.heldSpeed ?? this.clock.speed,
+      speedWaitMs: this.speedWaitMs,
       ticksPerSecond: this.ticksWindow.rate,
       geologyMs: this.geologyMs,
       memoryMb: this.memoryBytes() / 1e6,

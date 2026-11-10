@@ -1,0 +1,578 @@
+[
+ {
+  "aa": "msaa4",
+  "carga": 1,
+  "busy": [
+   0
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 7.55,
+   "p95": 9.27,
+   "pior": 9.6,
+   "tri": 120086,
+   "cpu": 0.5
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.42,
+   "p95": 7.89,
+   "pior": 9.1,
+   "tri": 123372,
+   "cpu": 0.46
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.31,
+   "p95": 7.16,
+   "pior": 7.9,
+   "tri": 84264,
+   "cpu": 0.43
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 7.57,
+   "p95": 9.45,
+   "pior": 10.7,
+   "tri": 81014,
+   "cpu": 0.62
+  },
+  "errors": []
+ },
+ {
+  "aa": "msaa4",
+  "carga": 3,
+  "busy": [
+   99
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 8.31,
+   "p95": 8.96,
+   "pior": 9.6,
+   "tri": 215485,
+   "cpu": 0.78
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 7.77,
+   "p95": 9.64,
+   "pior": 10.4,
+   "tri": 248763,
+   "cpu": 0.74
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 7.93,
+   "p95": 8.94,
+   "pior": 9.7,
+   "tri": 191892,
+   "cpu": 0.71
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 8.7,
+   "p95": 11.26,
+   "pior": 11.9,
+   "tri": 110716,
+   "cpu": 0.89
+  },
+  "errors": []
+ },
+ {
+  "aa": "msaa4",
+  "carga": 6,
+  "busy": [
+   100
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 10.55,
+   "p95": 12.23,
+   "pior": 12.6,
+   "tri": 359631,
+   "cpu": 1.11
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 9.13,
+   "p95": 10.98,
+   "pior": 12.4,
+   "tri": 436728,
+   "cpu": 1.09
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 9.1,
+   "p95": 10.52,
+   "pior": 11.2,
+   "tri": 354654,
+   "cpu": 1.06
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 9.7,
+   "p95": 13,
+   "pior": 13.8,
+   "tri": 155532,
+   "cpu": 1.23
+  },
+  "errors": []
+ },
+ {
+  "aa": "fxaa",
+  "carga": 1,
+  "busy": [
+   0
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.77,
+   "p95": 6.38,
+   "pior": 7.1,
+   "tri": 120086,
+   "cpu": 0.49
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.5,
+   "p95": 6.12,
+   "pior": 7,
+   "tri": 123372,
+   "cpu": 0.46
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.58,
+   "p95": 6.17,
+   "pior": 6.7,
+   "tri": 84264,
+   "cpu": 0.43
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.02,
+   "p95": 7.45,
+   "pior": 10,
+   "tri": 81014,
+   "cpu": 0.61
+  },
+  "errors": []
+ },
+ {
+  "aa": "fxaa",
+  "carga": 3,
+  "busy": [
+   0
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.86,
+   "p95": 7.74,
+   "pior": 8.2,
+   "tri": 215485,
+   "cpu": 0.77
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.21,
+   "p95": 6.98,
+   "pior": 8.4,
+   "tri": 248763,
+   "cpu": 0.74
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.44,
+   "p95": 7.25,
+   "pior": 7.7,
+   "tri": 191892,
+   "cpu": 0.7
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.65,
+   "p95": 8.35,
+   "pior": 9.4,
+   "tri": 110716,
+   "cpu": 0.89
+  },
+  "errors": []
+ },
+ {
+  "aa": "fxaa",
+  "carga": 6,
+  "busy": [
+   100
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.81,
+   "p95": 7.52,
+   "pior": 7.9,
+   "tri": 359631,
+   "cpu": 1.21
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.49,
+   "p95": 7.4,
+   "pior": 7.9,
+   "tri": 436728,
+   "cpu": 1.22
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.73,
+   "p95": 7.61,
+   "pior": 8.9,
+   "tri": 354654,
+   "cpu": 1.1
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.97,
+   "p95": 9.91,
+   "pior": 12.9,
+   "tri": 155532,
+   "cpu": 1.45
+  },
+  "errors": []
+ },
+ {
+  "aa": "msaa2",
+  "carga": 1,
+  "busy": [
+   2
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.57,
+   "p95": 6.13,
+   "pior": 6.9,
+   "tri": 120086,
+   "cpu": 0.48
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.1,
+   "p95": 5.74,
+   "pior": 6,
+   "tri": 123372,
+   "cpu": 0.45
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.16,
+   "p95": 6.04,
+   "pior": 6.5,
+   "tri": 84264,
+   "cpu": 0.41
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.01,
+   "p95": 7.63,
+   "pior": 7.8,
+   "tri": 81014,
+   "cpu": 0.6
+  },
+  "errors": []
+ },
+ {
+  "aa": "msaa2",
+  "carga": 3,
+  "busy": [
+   0
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.36,
+   "p95": 7.09,
+   "pior": 7.8,
+   "tri": 215485,
+   "cpu": 0.78
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.71,
+   "p95": 6.37,
+   "pior": 6.8,
+   "tri": 248763,
+   "cpu": 0.76
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.77,
+   "p95": 6.67,
+   "pior": 7.9,
+   "tri": 191892,
+   "cpu": 0.71
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.62,
+   "p95": 9.36,
+   "pior": 12.7,
+   "tri": 110716,
+   "cpu": 0.92
+  },
+  "errors": []
+ },
+ {
+  "aa": "msaa2",
+  "carga": 6,
+  "busy": [
+   0
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 7.08,
+   "p95": 7.66,
+   "pior": 8.1,
+   "tri": 359631,
+   "cpu": 1.11
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.6,
+   "p95": 7.31,
+   "pior": 7.7,
+   "tri": 436728,
+   "cpu": 1.11
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.57,
+   "p95": 7.43,
+   "pior": 8.4,
+   "tri": 354654,
+   "cpu": 1.07
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 7.38,
+   "p95": 10.51,
+   "pior": 11.5,
+   "tri": 155532,
+   "cpu": 1.24
+  },
+  "errors": []
+ },
+ {
+  "aa": "off",
+  "carga": 1,
+  "busy": [
+   0
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 4.9,
+   "p95": 5.97,
+   "pior": 6.4,
+   "tri": 120086,
+   "cpu": 0.48
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 4.5,
+   "p95": 5.38,
+   "pior": 6.1,
+   "tri": 123372,
+   "cpu": 0.45
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 4.58,
+   "p95": 5.29,
+   "pior": 5.7,
+   "tri": 84264,
+   "cpu": 0.41
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 4.95,
+   "p95": 6.17,
+   "pior": 7.1,
+   "tri": 81014,
+   "cpu": 0.59
+  },
+  "errors": []
+ },
+ {
+  "aa": "off",
+  "carga": 3,
+  "busy": [
+   0
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 4.97,
+   "p95": 5.51,
+   "pior": 5.9,
+   "tri": 215485,
+   "cpu": 0.75
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 4.7,
+   "p95": 5.59,
+   "pior": 5.9,
+   "tri": 248763,
+   "cpu": 0.73
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.11,
+   "p95": 5.88,
+   "pior": 6.1,
+   "tri": 191892,
+   "cpu": 0.68
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.14,
+   "p95": 6.7,
+   "pior": 7.9,
+   "tri": 110716,
+   "cpu": 0.86
+  },
+  "errors": []
+ },
+ {
+  "aa": "off",
+  "carga": 6,
+  "busy": [
+   0
+  ],
+  "maquete parada": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 6.17,
+   "p95": 7.31,
+   "pior": 7.6,
+   "tri": 359631,
+   "cpu": 1.09
+  },
+  "maquete girando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.31,
+   "p95": 6.3,
+   "pior": 6.8,
+   "tri": 436728,
+   "cpu": 1.1
+  },
+  "rente ao chão": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.71,
+   "p95": 6.46,
+   "pior": 7.1,
+   "tri": 354654,
+   "cpu": 1.05
+  },
+  "correndo, pedaços carregando": {
+   "fps": 60,
+   "worst": 16.7,
+   "over50": 0,
+   "gpu": 5.76,
+   "p95": 7.96,
+   "pior": 8.8,
+   "tri": 155532,
+   "cpu": 1.23
+  },
+  "errors": []
+ }
+]

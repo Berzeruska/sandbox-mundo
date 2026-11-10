@@ -4,6 +4,8 @@
 
 Versão estável (`main`): https://berzeruska.github.io/sandbox-mundo/
 
+**Protótipo do portão do M3 (não é o jogo):** https://berzeruska.github.io/sandbox-mundo/previa/atual/prototipo/ · opções em `docs/M3-portao.md`
+
 Sandbox de deus num planeta redondo: civilizações que evoluem na ordem histórica, economia,
 ideologias, guerra com frentes fluidas, ecologia equilibrada e geologia viva.
 
@@ -14,6 +16,7 @@ Roda no navegador do notebook. Instalável como app (PWA).
 - `docs/01-arquitetura.md` — como é construído
 - `docs/02-marcos.md` — roteiro e progresso
 - `docs/M1-especificacao.md`, `docs/M2-especificacao.md` — especificação dos marcos concluídos
+- `docs/M3-portao.md` — portão do M3 e medições; `docs/M3-decisoes-visuais.md`, `docs/M3-escala.md`, `docs/M3-meteoro.md` — opções para decidir
 - `docs/03` a `07` — sistemas do jogo
 - `docs/decisoes.md` — decisões tomadas e por quê
 - `CLAUDE.md` — regras de trabalho para o Claude Code

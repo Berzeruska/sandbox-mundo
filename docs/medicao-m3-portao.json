@@ -1,0 +1,902 @@
+[
+ {
+  "q": "?motor=webgl2",
+  "info": {
+   "motor": "webgl2",
+   "style": "A — Maquete viva",
+   "load": 1,
+   "aa": true,
+   "worldMs": 1102,
+   "buildMs": 30,
+   "triangles": 102368,
+   "counts": {
+    "trees": 3172,
+    "buildings": 539,
+    "figures": 240
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 8,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.23,
+     "p95": 0.32,
+     "worst": 0.9
+    },
+    "gpu": {
+     "mean": 5.89,
+     "p95": 6.66,
+     "worst": 7.2
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.2,
+     "p95": 0.27,
+     "worst": 0.3
+    },
+    "gpu": {
+     "mean": 5.51,
+     "p95": 6.45,
+     "worst": 6.8
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.19,
+     "p95": 0.26,
+     "worst": 0.3
+    },
+    "gpu": {
+     "mean": 5.78,
+     "p95": 6.57,
+     "worst": 7.2
+    }
+   }
+  ]
+ },
+ {
+  "q": "?motor=three",
+  "info": {
+   "motor": "three",
+   "style": "A — Maquete viva",
+   "load": 1,
+   "aa": true,
+   "worldMs": 1321,
+   "buildMs": 24,
+   "triangles": 102368,
+   "counts": {
+    "trees": 3172,
+    "buildings": 539,
+    "figures": 240
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 8,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.74,
+     "p95": 1,
+     "worst": 1.4
+    },
+    "gpu": {
+     "mean": 5.47,
+     "p95": 6.11,
+     "worst": 6.2
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.64,
+     "p95": 0.84,
+     "worst": 0.9
+    },
+    "gpu": {
+     "mean": 5.33,
+     "p95": 5.84,
+     "worst": 6.5
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.65,
+     "p95": 0.86,
+     "worst": 1
+    },
+    "gpu": {
+     "mean": 5.55,
+     "p95": 6.12,
+     "worst": 6.6
+    }
+   }
+  ]
+ },
+ {
+  "q": "?motor=sprites",
+  "info": {
+   "motor": "sprites",
+   "style": "A — Maquete viva",
+   "load": 1,
+   "aa": true,
+   "worldMs": 1310,
+   "buildMs": 28,
+   "triangles": 102368,
+   "counts": {
+    "trees": 3172,
+    "buildings": 539,
+    "figures": 240
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 6,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.2,
+     "p95": 0.28,
+     "worst": 0.6
+    },
+    "gpu": {
+     "mean": 5.76,
+     "p95": 6.28,
+     "worst": 6.7
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.2,
+     "p95": 0.27,
+     "worst": 0.3
+    },
+    "gpu": {
+     "mean": 5.88,
+     "p95": 6.46,
+     "worst": 7
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.2,
+     "p95": 0.27,
+     "worst": 0.3
+    },
+    "gpu": {
+     "mean": 7.04,
+     "p95": 7.79,
+     "worst": 8.2
+    }
+   }
+  ]
+ },
+ {
+  "q": "?motor=webgl2&aa=0",
+  "info": {
+   "motor": "webgl2",
+   "style": "A — Maquete viva",
+   "load": 1,
+   "aa": false,
+   "worldMs": 1348,
+   "buildMs": 24,
+   "triangles": 102368,
+   "counts": {
+    "trees": 3172,
+    "buildings": 539,
+    "figures": 240
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 8,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.18,
+     "p95": 0.25,
+     "worst": 0.8
+    },
+    "gpu": {
+     "mean": 4.45,
+     "p95": 5.08,
+     "worst": 5.4
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.19,
+     "p95": 0.26,
+     "worst": 0.4
+    },
+    "gpu": {
+     "mean": 4.41,
+     "p95": 5.24,
+     "worst": 5.4
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.21,
+     "p95": 0.3,
+     "worst": 0.9
+    },
+    "gpu": {
+     "mean": 4.43,
+     "p95": 5.29,
+     "worst": 5.7
+    }
+   }
+  ]
+ },
+ {
+  "q": "?motor=webgl2&carga=3",
+  "info": {
+   "motor": "webgl2",
+   "style": "A — Maquete viva",
+   "load": 3,
+   "aa": true,
+   "worldMs": 1348,
+   "buildMs": 37,
+   "triangles": 267124,
+   "counts": {
+    "trees": 9570,
+    "buildings": 539,
+    "figures": 720
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 8,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.17,
+     "p95": 0.24,
+     "worst": 0.7
+    },
+    "gpu": {
+     "mean": 6.79,
+     "p95": 7.55,
+     "worst": 8.5
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.19,
+     "p95": 0.26,
+     "worst": 1.1
+    },
+    "gpu": {
+     "mean": 6.36,
+     "p95": 7.13,
+     "worst": 7.8
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.2,
+     "p95": 0.28,
+     "worst": 1.2
+    },
+    "gpu": {
+     "mean": 6.9,
+     "p95": 7.93,
+     "worst": 8.5
+    }
+   }
+  ]
+ },
+ {
+  "q": "?motor=three&carga=3",
+  "info": {
+   "motor": "three",
+   "style": "A — Maquete viva",
+   "load": 3,
+   "aa": true,
+   "worldMs": 1278,
+   "buildMs": 32,
+   "triangles": 267124,
+   "counts": {
+    "trees": 9570,
+    "buildings": 539,
+    "figures": 720
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 8,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.81,
+     "p95": 1.06,
+     "worst": 1.2
+    },
+    "gpu": {
+     "mean": 6.64,
+     "p95": 7.26,
+     "worst": 7.5
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.81,
+     "p95": 1.08,
+     "worst": 1.2
+    },
+    "gpu": {
+     "mean": 6.65,
+     "p95": 7.32,
+     "worst": 8.9
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.75,
+     "p95": 1,
+     "worst": 2.1
+    },
+    "gpu": {
+     "mean": 7,
+     "p95": 9.25,
+     "worst": 10.5
+    }
+   }
+  ]
+ },
+ {
+  "q": "?motor=sprites&carga=3",
+  "info": {
+   "motor": "sprites",
+   "style": "A — Maquete viva",
+   "load": 3,
+   "aa": true,
+   "worldMs": 1096,
+   "buildMs": 31,
+   "triangles": 267124,
+   "counts": {
+    "trees": 9570,
+    "buildings": 539,
+    "figures": 720
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 6,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.18,
+     "p95": 0.27,
+     "worst": 1.1
+    },
+    "gpu": {
+     "mean": 7.49,
+     "p95": 8.13,
+     "worst": 9
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.18,
+     "p95": 0.25,
+     "worst": 0.4
+    },
+    "gpu": {
+     "mean": 8.95,
+     "p95": 9.62,
+     "worst": 10.5
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.19,
+     "p95": 0.25,
+     "worst": 0.4
+    },
+    "gpu": {
+     "mean": 10.81,
+     "p95": 11.68,
+     "worst": 12.1
+    }
+   }
+  ]
+ },
+ {
+  "q": "?motor=webgl2&carga=6",
+  "info": {
+   "motor": "webgl2",
+   "style": "A — Maquete viva",
+   "load": 6,
+   "aa": true,
+   "worldMs": 1279,
+   "buildMs": 37,
+   "triangles": 513752,
+   "counts": {
+    "trees": 19144,
+    "buildings": 539,
+    "figures": 1440
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 8,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.18,
+     "p95": 0.25,
+     "worst": 0.6
+    },
+    "gpu": {
+     "mean": 9.2,
+     "p95": 10.68,
+     "worst": 11.3
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.17,
+     "p95": 0.24,
+     "worst": 1.4
+    },
+    "gpu": {
+     "mean": 8.73,
+     "p95": 10.22,
+     "worst": 11
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.19,
+     "p95": 0.25,
+     "worst": 0.4
+    },
+    "gpu": {
+     "mean": 8.35,
+     "p95": 9.05,
+     "worst": 10
+    }
+   }
+  ]
+ },
+ {
+  "q": "?motor=sprites&carga=6",
+  "info": {
+   "motor": "sprites",
+   "style": "A — Maquete viva",
+   "load": 6,
+   "aa": true,
+   "worldMs": 1297,
+   "buildMs": 38,
+   "triangles": 513752,
+   "counts": {
+    "trees": 19144,
+    "buildings": 539,
+    "figures": 1440
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 6,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.18,
+     "p95": 0.22,
+     "worst": 0.6
+    },
+    "gpu": {
+     "mean": 10.55,
+     "p95": 11.2,
+     "worst": 11.6
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.2,
+     "p95": 0.25,
+     "worst": 0.3
+    },
+    "gpu": {
+     "mean": 12.36,
+     "p95": 13.17,
+     "worst": 13.6
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 433,
+    "fps": 54.1,
+    "frame": {
+     "mean": 18.48,
+     "p95": 33.33,
+     "worst": 33.3
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.39,
+     "p95": 0.88,
+     "worst": 1.2
+    },
+    "gpu": {
+     "mean": 14.39,
+     "p95": 15.34,
+     "worst": 15.8
+    }
+   }
+  ]
+ },
+ {
+  "q": "?motor=webgl2&carga=6&aa=0",
+  "info": {
+   "motor": "webgl2",
+   "style": "A — Maquete viva",
+   "load": 6,
+   "aa": false,
+   "worldMs": 1332,
+   "buildMs": 37,
+   "triangles": 513752,
+   "counts": {
+    "trees": 19144,
+    "buildings": 539,
+    "figures": 1440
+   },
+   "region": {
+    "face": 4,
+    "x0": 112,
+    "y0": 128,
+    "flip": true
+   },
+   "drawCalls": 8,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)"
+  },
+  "rows": [
+   {
+    "name": "orbita",
+    "frames": 481,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.17,
+     "p95": 0.21,
+     "worst": 1
+    },
+    "gpu": {
+     "mean": 5.29,
+     "p95": 5.86,
+     "worst": 6
+    }
+   },
+   {
+    "name": "perto",
+    "frames": 480,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.18,
+     "p95": 0.22,
+     "worst": 0.3
+    },
+    "gpu": {
+     "mean": 5.37,
+     "p95": 5.91,
+     "worst": 6.1
+    }
+   },
+   {
+    "name": "chao",
+    "frames": 481,
+    "fps": 60,
+    "frame": {
+     "mean": 16.67,
+     "p95": 16.67,
+     "worst": 16.7
+    },
+    "over50": 0,
+    "cpu": {
+     "mean": 0.19,
+     "p95": 0.25,
+     "worst": 0.4
+    },
+    "gpu": {
+     "mean": 5.88,
+     "p95": 6.39,
+     "worst": 7
+    }
+   }
+  ]
+ }
+]

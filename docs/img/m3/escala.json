@@ -1,0 +1,117 @@
+[
+ {
+  "op": 1,
+  "n": 128,
+  "D": 1,
+  "worldMs": 395,
+  "land": 29491,
+  "fine": 29491,
+  "cap": 113,
+  "cities": 113,
+  "countries": 28,
+  "got": {
+   "cities": 113,
+   "capitals": 28,
+   "landCells": 29491,
+   "roads": 199,
+   "sea": 2,
+   "air": 3,
+   "ms": 158
+  },
+  "needCoverage": 533.9,
+  "cellsPerCountry": 117,
+  "errors": []
+ },
+ {
+  "op": 2,
+  "n": 256,
+  "D": 1,
+  "worldMs": 1092,
+  "land": 117964,
+  "fine": 117964,
+  "cap": 453,
+  "cities": 453,
+  "countries": 113,
+  "got": {
+   "cities": 453,
+   "capitals": 113,
+   "landCells": 117964,
+   "roads": 845,
+   "sea": 12,
+   "air": 16,
+   "ms": 336
+  },
+  "needCoverage": 133.5,
+  "cellsPerCountry": 466,
+  "errors": []
+ },
+ {
+  "op": 3,
+  "n": 384,
+  "D": 1,
+  "worldMs": 2251,
+  "land": 265420,
+  "fine": 265420,
+  "cap": 1020,
+  "cities": 1020,
+  "countries": 253,
+  "got": {
+   "cities": 1020,
+   "capitals": 253,
+   "landCells": 265420,
+   "roads": 1934,
+   "sea": 14,
+   "air": 36,
+   "ms": 883
+  },
+  "needCoverage": 59.3,
+  "cellsPerCountry": 1049,
+  "errors": []
+ },
+ {
+  "op": 4,
+  "n": 512,
+  "D": 1,
+  "worldMs": 3714,
+  "land": 471859,
+  "fine": 471859,
+  "cap": 1814,
+  "cities": 1814,
+  "countries": 253,
+  "got": {
+   "cities": 1814,
+   "capitals": 253,
+   "landCells": 471859,
+   "roads": 3496,
+   "sea": 18,
+   "air": 36,
+   "ms": 1659
+  },
+  "needCoverage": 33.4,
+  "cellsPerCountry": 1865,
+  "errors": []
+ },
+ {
+  "op": 5,
+  "n": 256,
+  "D": 4,
+  "worldMs": 1101,
+  "land": 117964,
+  "fine": 1887424,
+  "cap": 7259,
+  "cities": 4037,
+  "countries": 253,
+  "got": {
+   "cities": 4037,
+   "capitals": 253,
+   "landCells": 117964,
+   "roads": 7860,
+   "sea": 26,
+   "air": 36,
+   "ms": 506
+  },
+  "needCoverage": 8.3,
+  "cellsPerCountry": 7460,
+  "errors": []
+ }
+]

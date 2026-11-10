@@ -2,6 +2,18 @@
 
 ## [Não lançado]
 
+## [3.0] — aguardando a aprovação do usuário — Marco 3: ecologia
+- **De perto, a maquete:** ao aproximar, o globo dá lugar a uma maquete em 3D do mesmo lugar, que carrega em pedaços: relevo em terraços limpos, montanhas em degraus com neve, rios em curva, lagos, cachoeiras,
+  pântano, gelo, deserto com dunas e mesetas, vulcões, 19 plantas em 4 estados e as 19 jazidas com a cor de cada minério. Os desastres do M2 acontecem nela em 3D.
+- **Vida em números e em indivíduos:** 26 espécies de terra e de mar com capacidade pelo bioma, crescimento logístico, caça com saturação, refúgio e migração. De longe o mundo guarda números; de perto
+  cada pedaço mostra os bichos do lugar: nascem, pastam, caçam, fogem e morrem (sangue leve, sem pedaços).
+- **Desastres e clima mexem com a vida:** fogo, lava, água e fenda matam e espantam; a seca tira até 30% do que a terra sustenta; no planeta congelado ou em calor extremo quem não cabe some; floresta grande segura a chuva da região.
+- **Cartão "Vida":** todas as espécies com o total do mundo e ícones no globo onde vivem; poderes de deus: pôr, matar, acompanhar com a câmera e mudar tamanho, fome, agressividade, velocidade e fertilidade da espécie.
+- **Classe mítica:** dragão, kraken e baleia branca colossal, só postos por deus.
+- **Avisos:** espécie em risco, último indivíduo (tocar leva até ele), extinção e recuperação.
+- **Ritmo do tempo:** na maquete, em 1×, um mês por segundo, para fogo, bichos e chuva ficarem na mesma escala.
+- Medição no notebook-alvo, no Firefox, e decisões provisórias a revisar: `docs/M3-revisao.md`, `docs/M3-fidelidade.md`, `docs/medicao-m3-final.txt`.
+
 ## [2.0] — 2026-11-05 — Marco 2: geologia viva
 - Placas tectônicas: a Pangeia se parte, os continentes derivam, colidem e se soldam, dorsais abrem oceanos, rupturas e ciclo de Wilson. Controle
   "Placas" de 0 a 100%; em 0 a geologia congela. A recomposição roda num ajudante, sem travar a tela nem o relógio.

@@ -50,6 +50,8 @@ export default defineConfig({
   server: { host: true, headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
   preview: { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
   plugins: [serviceWorker()],
+  // A réplica da folha-mestra: página à parte, prova do visual da maquete.
+  build: { rollupOptions: { input: { main: 'index.html', replica: 'prototipo/replica.html', folhas: 'prototipo/folhas.html' } } },
   // O worker da simulação cria o ajudante da geologia (worker dentro de worker): formato ES.
   worker: { format: 'es' },
   test: {

@@ -292,9 +292,14 @@ Ideia do usuário registrada em 2026-10-15.
   fizer falta).
 - Tamanho: pequena 3–6 células, média 10–20, grande 25–45 (maiores desde 2026-10-17: apareciam pouco);
   1 célula de folga entre jazidas. ~45–55 jazidas por mundo, ~0,7% da terra.
-- De perto: mosaico 3×3 de pixels quadrados na cor do tipo (sem bolinhas).
-- **Petróleo fica escondido** no subsolo até o terreno ser cavado (Rebaixar; os humanos no M4).
-  Na camada "Ver recursos" o jogador vê tudo; "escondido" vale para os humanos.
+- De perto: mosaico 3×3 de pixels quadrados na cor do tipo (sem bolinhas). **Decidido em 2026-11-05 (item f do
+  portão do M3):** no novo desenho do mundo, vira pedrinhas facetadas e angulosas da cor do minério
+  (referência `docs/img/referencias/recursos/jazidas.png`).
+- **Petróleo é misto (decisão do usuário, 2026-11-05; substitui "fica escondido"):** parte no subsolo,
+  escondida até o terreno ser cavado (Rebaixar; os humanos no M4), e parte aflorando na superfície como
+  **poça de água preta**, à vista. O aparente dá origem, mais tarde, a uma "vila gasolina" no deserto
+  extremo (M5/M6). Na camada "Ver recursos" o jogador vê tudo; "escondido" vale para os humanos.
+  (O código do M2 ainda só tem o escondido; a parte aparente entra quando o usuário aprovar.)
 - Cada depósito tem tipo, quantidade e profundidade, e **pertence a uma placa: move-se junto
   com ela** na deriva.
 - Visível como **camada opcional** no menu Geologia ("Ver recursos").

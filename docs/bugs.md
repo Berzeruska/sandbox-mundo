@@ -421,3 +421,6 @@ Formato: data — como reproduzir — causa — correção — commit.
 - **Causa:** o impacto vinha sempre 12 passos depois da entrada: 1 s em 1×, 50 ms em 20×, ~8 ms no Máx. A rocha levava 1 s de tempo real, e o tremor era marcado para 1 s depois da entrada, sem olhar o jogo.
 - **Correção:** ver `docs/decisoes.md`. **Achado na conferência:** no Máx com "Muitos", 6 de 17 meteoros bateram sem rocha na tela (a lista de 24 animações descartava o mais antigo, e os raios a enchiam); o meteoro agora é o último a sair (17 de 17 com rocha).
 - **Teste que mudou:** "'Raro': terremoto grande" passou a medir a soma de 3 sementes. A semente `terra` dá de 1 a 6 grandes só com a ordem dos sorteios mudando; a média de 7 sementes ficou como antes (~9).
+
+## Globo achatado em tela cheia, no protótipo (usuário, 2026-11-06)
+**Como reproduzir:** abrir o protótipo numa janela e pôr em tela cheia. **Causa:** ele media a tela só ao abrir; a imagem interna ficava 1854×961, esticada para 1920×1080. **Correção:** protótipo apagado. O jogo mede a cada quadro; conferido em 4 proporções de janela (`docs/M3-maquete.md`).

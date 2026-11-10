@@ -23,8 +23,8 @@ import {
 } from '../../src/ui/menu-state';
 
 describe('menu de ferramentas: conteúdo', () => {
-  it('tem as 6 categorias combinadas, nessa ordem', () => {
-    expect(CATEGORIES.map((c) => c.label)).toEqual(['Tempo', 'Relevo', 'Desastres', 'Geologia', 'Clima', 'Mundo']);
+  it('tem as 7 categorias combinadas, nessa ordem (a Vida entrou no M3)', () => {
+    expect(CATEGORIES.map((c) => c.label)).toEqual(['Tempo', 'Relevo', 'Desastres', 'Geologia', 'Clima', 'Vida', 'Mundo']);
   });
 
   it('cada categoria tem itens e os ids são únicos', () => {
@@ -200,3 +200,14 @@ describe('escolha do mundo ao abrir (item 3 do teste da `2d9a2156`)', () => {
   });
 });
 
+
+describe('cartão Vida (M3)', () => {
+  it('as ferramentas da Vida são de toque (um dedo continua girando o globo) e ficam na tela', () => {
+    for (const id of ['lifePlace', 'lifeKill', 'lifeFollow', 'lifeTraits']) {
+      const r = selectItem({ ...INITIAL_MENU, open: true, category: 'vida' }, id);
+      expect(r.state.active).toBe(id);
+      expect(inputModeOf(r.state)).toBe('move');
+      expect(categoryOfActive(r.state)).toBe('vida');
+    }
+  });
+});

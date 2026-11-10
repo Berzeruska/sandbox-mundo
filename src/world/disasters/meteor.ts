@@ -185,6 +185,11 @@ export class MeteorProcess {
     private onImpact: (tick: number, out: DisasterOutcome) => void,
   ) {}
 
+  /** Passo do impacto, se a rocha já está caindo à vista; senão -1 (T8: a velocidade espera por ela). */
+  fallingImpact(): number {
+    return this.entered ? this.at : -1;
+  }
+
   /** A rocha entra já, se chegou a hora (o meteoro do jogador entra no passo em que foi pedido). */
   enter(tick: number, out: DisasterOutcome): void {
     if (this.entered || this.at - tick > this.fallTicks()) return;

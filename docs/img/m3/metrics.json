@@ -1,0 +1,50 @@
+[
+ {
+  "id": "p1",
+  "name": "1 — Dourada forte",
+  "minDelta": 11.6,
+  "pair": "deserto/savana",
+  "meanDelta": 33,
+  "saturation": 55.1
+ },
+ {
+  "id": "p2",
+  "name": "2 — Verde-cacto",
+  "minDelta": 8,
+  "pair": "deserto/savana",
+  "meanDelta": 35.9,
+  "saturation": 66.8
+ },
+ {
+  "id": "p3",
+  "name": "3 — Cartaz",
+  "minDelta": 22.1,
+  "pair": "deserto/savana",
+  "meanDelta": 45.2,
+  "saturation": 57.7
+ },
+ {
+  "id": "p4",
+  "name": "4 — Quente e frio",
+  "minDelta": 16.8,
+  "pair": "deserto/savana",
+  "meanDelta": 43.3,
+  "saturation": 51.1
+ },
+ {
+  "id": "p5",
+  "name": "5 — Folha-mestra viva",
+  "minDelta": 19,
+  "pair": "floresta/campo",
+  "meanDelta": 34.9,
+  "saturation": 64.5
+ },
+ {
+  "id": "p6",
+  "name": "6 — Mapa de guerra",
+  "minDelta": 9.4,
+  "pair": "tropical/pântano",
+  "meanDelta": 33.6,
+  "saturation": 51.5
+ }
+]

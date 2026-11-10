@@ -1,0 +1,35 @@
+PROTÓTIPO do portão do M3 (não é o jogo)
+Sandbox Mundo — medição de desempenho
+versão mw4du15v · 05/11/2026, 23:57:38
+GPU: ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon 610M (RADV RAPHAEL_MENDOCINO) (0x00001506)), radv)
+desenho: protótipo: 5 — Folha-mestra viva · longe atlas · relevo terraco · suavização fxaa · detalhe 4× · carga 1× · núcleos: 8 · memória compartilhada: sim · tela 1920×1080 · desenho 1920×1080
+navegador: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36
+energia: na tomada (bateria 100%)
+
+cenário                    fps méd   mín  pior quadro  >50ms  tela ms   desenhados
+globo inteiro, girando          60    60        17 ms      0    0.1/0   479 de 479
+globo de perto, girando         60    60        17 ms      0    0.1/0   479 de 479
+globo perto do corte            60    60        17 ms      0    0.2/1   479 de 479
+ida e volta no corte            60    60        17 ms      0    0.4/1   480 de 480
+maquete parada                  60    60        17 ms      0    0.5/1   479 de 479
+maquete girando                 60    60        17 ms      0    0.4/1   479 de 479
+maquete de perto                60    60        17 ms      0    0.4/1   479 de 479
+rente ao chão                   60    60        17 ms      0    0.4/1   479 de 479
+andando, pedaços carregando      60    60        17 ms      0    0.5/1   479 de 479
+correndo, pedaços carregando      60    60        17 ms      0    0.4/1   479 de 479
+
+("tela ms" = trabalho da thread principal por quadro: média/pior; "desenhados" = quadros em que o globo
+ foi desenhado. Parado, nada é desenhado e o fps é o ritmo que o aparelho dá a uma página parada.
+ A meta de "pausado" vale para "pausado, girando". "De perto" = zoom máximo, células quadradas.)
+
+GPU do quadro (meta ≤ 8 ms por quadro): globo inteiro 4.3 ms (pior 5.2) · globo de perto 5.1 ms (pior 6.4) · globo perto do corte 5.0 ms (pior 5.9) · ida e volta no corte 6.0 ms (pior 10.0) · maquete 6.5 ms (pior 7.8) · maquete girando 6.2 ms (pior 7.3) · maquete de perto 5.9 ms (pior 8.0) · rente ao chão 6.4 ms (pior 7.6) · andando 6.6 ms (pior 8.0) · correndo 7.3 ms (pior 9.9) — consulta de tempo da GPU
+memória (meta ≤ 400 MB): dados do jogo ~26 MB · página inteira 103 MB (só a parte JavaScript da tela, sem os dados da GPU)
+
+mundo: gerado em 1127 ms · n=256 · detalhe 4× · abertura 1290 ms
+pedaços (32×32 células finas): 269 montados no worker, média 8.5 ms, pior 42 ms · subir para a GPU, média 0.23 ms, p95 0.36, pior 0.7 ms
+na tela agora: 40 pedaços · 21 MB na GPU · 111 mil triângulos · 45 desenhos
+corte para a maquete: 4 vezes · espera média 1 ms, pior 1 ms
+recomposição (refazer tudo à vista): 607 ms em segundo plano, 40 pedaços · pior quadro 17 ms · preparar a grade na tela 11 ms
+globo perto do corte: 70 pedaços novos durante o cenário
+andando, pedaços carregando: 60 pedaços novos durante o cenário
+correndo, pedaços carregando: 104 pedaços novos durante o cenário

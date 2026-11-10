@@ -32,6 +32,9 @@ export interface SimEvents {
   onPlatesStopped?(): void;
   /** Furacões andando (R8): STORM_FLOATS números por furacão (ver protocol.ts). */
   onStorms?(storms: Float32Array): void;
+  /** Vida, uma vez por ano de jogo (M3). */
+  onLife?(life: Extract<FromWorker, { type: 'life' }>): void;
+  onLifeMap?(species: number, points: Float32Array): void;
 }
 
 /**
@@ -39,6 +42,8 @@ export interface SimEvents {
  * Pinceladas são agrupadas: enquanto o worker processa uma, as seguintes acumulam o tempo e a
  * posição mais recente, para nunca formar fila (a tela segue fluida com pincel grande).
  */
+export type MaqueteSnapshot = Extract<FromWorker, { type: 'maqueteSnapshot' }>;
+
 export class SimClient {
   private worker: Worker;
   private brushInFlight = false;
@@ -49,6 +54,10 @@ export class SimClient {
   private sharedProbe: boolean | null = null;
   /** Tempo tratando mensagens do worker (ms, acumulado): o "Medir desempenho" desconta por quadro. */
   receiveMs = 0;
+
+  /** Última espera da velocidade pela rocha (ms). */
+  speedWaitMs = 0;
+  private snapshots = new Map<number, (s: MaqueteSnapshot) => void>();
 
   constructor(private events: SimEvents) {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -119,6 +128,11 @@ export class SimClient {
   }
 
   /** Provoca um desastre no ponto (T8–T11). */
+  /** Poder de deus sobre as criaturas, ou pedido do mapa de uma espécie (M3). */
+  life(cmd: Extract<ToWorker, { type: 'life' | 'lifeMap' }>): void {
+    this.send(cmd);
+  }
+
   triggerDisaster(kind: DisasterKind, point: Vec3, strength?: number): void {
     this.send(strength === undefined ? { type: 'disaster', kind, point } : { type: 'disaster', kind, point, strength });
   }
@@ -130,6 +144,10 @@ export class SimClient {
 
   setSpeed(speed: Speed): void {
     this.send({ type: 'speed', speed });
+  }
+
+  setPace(pace: number): void {
+    this.send({ type: 'pace', pace });
   }
 
   brush(tool: Tool, point: Vec3, radius: number, dt: number): void {
@@ -151,8 +169,23 @@ export class SimClient {
     });
   }
 
+  /** O chão de todas as células, para a maquete. */
+  maqueteSnapshot(): Promise<MaqueteSnapshot> {
+    const id = this.nextQuery++;
+    return new Promise((resolve) => {
+      this.snapshots.set(id, resolve);
+      this.send({ type: 'maqueteSnapshot', id });
+    });
+  }
+
   private receive(msg: FromWorker): void {
     switch (msg.type) {
+      case 'maqueteSnapshot': {
+        const done = this.snapshots.get(msg.id);
+        this.snapshots.delete(msg.id);
+        done?.(msg);
+        break;
+      }
       case 'hello':
         if (msg.version !== __BUILD_ID__) {
           this.events.onError(`Versões diferentes: tela ${__BUILD_ID__}, simulador ${msg.version}`, true);
@@ -183,6 +216,7 @@ export class SimClient {
         }
         break;
       case 'clock':
+        this.speedWaitMs = msg.speedWaitMs;
         this.events.onClock(msg.tick, msg.speed, msg.ticksPerSecond, msg.geologyMs, msg.memoryMb, msg.angles, msg.work, msg.climate);
         break;
       case 'query':
@@ -197,6 +231,12 @@ export class SimClient {
         break;
       case 'disasters':
         this.events.onDisasters?.(msg.events, msg.impacts);
+        break;
+      case 'life':
+        this.events.onLife?.(msg);
+        break;
+      case 'lifeMap':
+        this.events.onLifeMap?.(msg.species, msg.points);
         break;
       case 'sharedProbe':
         this.sharedProbe = msg.ok && !!this.sharedBuffer && Atomics.load(new Int32Array(this.sharedBuffer), 0) === SHARED_PROBE_VALUE;

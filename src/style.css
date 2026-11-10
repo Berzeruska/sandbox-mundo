@@ -798,3 +798,15 @@ body {
 .choosing-world > :not(.world-panel) {
   visibility: hidden;
 }
+
+/* Cartão "Vida" (M3): grade das espécies e características. */
+.hud-species { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; max-height: 38vh; overflow-y: auto; padding: 2px; }
+.hud-species-tile { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 2px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.05); color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.hud-species-tile canvas { width: 46px; height: 46px; }
+.hud-species-tile small { opacity: 0.75; font-size: 11px; }
+.hud-species-tile.on { background: #2f6fed; border-color: #8fb4ff; }
+.hud-species-tile.mythic { border-style: dashed; }
+/* As cinco características não cabem na altura do cartão: sobem num quadro logo acima dele. */
+.hud-card { position: relative; }
+.hud-traits { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); display: grid; gap: 6px; padding: 10px 12px; background: var(--hud-bg); border-radius: 14px; cursor: default; }
+.hud-trait { display: grid; grid-template-columns: 96px 1fr 44px; align-items: center; gap: 6px; font-size: 12px; }

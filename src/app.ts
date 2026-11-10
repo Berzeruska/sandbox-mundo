@@ -6,13 +6,16 @@ import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
 import { KeyControls } from './input/keys';
 import { DisasterFx } from './render/disaster-fx';
-import { isToast, toEntry } from './ui/disaster-log';
+import { isToast, lifeEntry, toEntry } from './ui/disaster-log';
 import { DisasterToasts } from './ui/disaster-panel';
 import { CellState, STATE_NAMES } from './world/disasters/ground';
 import { droughtHeat } from './world/disasters/drought';
 import { MAX_DUST, MAX_STORMS } from './render/shaders';
 import { DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './world/disasters/types';
-import { STORM_FLOATS } from './sim/protocol';
+import { LIFE_MAP_FLOATS, LIFE_MYTHIC_FLOATS, STORM_FLOATS, type LifeEvent } from './sim/protocol';
+import type { AnimalHandle, MythicView } from './render/maquete-animals';
+import { speciesIcon } from './ui/species-icon';
+import { SPECIES, type SpeciesInfo } from './world/species';
 import { feltRadius } from './world/disasters/quakes';
 import { SHAKE_MAGNITUDE } from './world/disasters/meteor';
 import type { Vec3 } from './world/cubesphere';
@@ -23,10 +26,11 @@ import { DEFAULT_PLATE_RATE, MAX_PLATE_RATE, RIDGE_DEPTH } from './world/tectoni
 import { advanceDisplayTick, MAX_SHADER_PLATES, rotate } from './render/plate-motion';
 import type { PlateMotionUniforms } from './render/globe-renderer';
 import { BIOME_INFO, Biome } from './world/biomes';
-import { BASE_TICKS_PER_SECOND } from './core/time';
+import { BASE_TICKS_PER_SECOND, MAQUETE_PACE } from './core/time';
 import { CLOCK_POST_MS } from './sim/core';
-import { Camera } from './render/camera';
 import { GlobeRenderer } from './render/globe-renderer';
+import { MaqueteWorld } from './render/maquete-world';
+import { CUT_PIXELS, PRELOAD_PIXELS, ViewCamera } from './render/view-camera';
 import { Overlay } from './render/overlay';
 import { SimClient } from './sim/client';
 import { applyPatch, type Patch, type PlateMotionInfo, type WorldInfo } from './sim/protocol';
@@ -73,7 +77,16 @@ export const BENCHMARK_CONFIRM =
   'O "Medir desempenho" leva cerca de 3 minutos e, no fim, gera o mundo de novo: o jogo volta ao ano 0 e o que você fez neste mundo se perde.\n\nDeixe o jogo na frente, sem trocar de janela. Começar?';
 
 export class App {
-  readonly camera = new Camera();
+  readonly camera = new ViewCamera();
+  /** A maquete: nasce na primeira vez que a câmera chega perto. */
+  private maquete: MaqueteWorld | null = null;
+  private maqueteAskedAt = -Infinity;
+  private maqueteWaiting = false;
+  private maqueteSeed = '';
+  private maqueteDrawn = false;
+  private maqueteFastUntil = 0;
+  private maqueteRgba: Uint8Array | null = null;
+  private slowPace = false;
   readonly overlay: Overlay;
   readonly input: PointerInput;
   readonly hud: Hud;
@@ -162,6 +175,8 @@ export class App {
     onWorld: ((receiveMs: number) => void) | null;
     /** Cenário com o painel Dados aberto (ele se atualiza como no jogo normal). */
     panelOpen: boolean;
+    /** Cenários da maquete: o corte fica liberado. */
+    maquete?: boolean;
   } | null = null;
   /** Primeira abertura: da navegação até o primeiro globo na tela (ms), e a geração dentro disso. */
   private firstLoad: FirstLoad | null = null;
@@ -219,6 +234,7 @@ export class App {
       // Toque curto (modo Mover) seleciona: mostra o que há no ponto (pedido do usuário, 2026-10-17).
       // Com uma ferramenta de desastre (T11), provoca o desastre ali.
       onTap: (sx, sy) => {
+        if (this.lifeTap(sx, sy)) return;
         const p = this.disasterTool !== null ? this.camera.pick(sx, sy) : null;
         if (p && this.disasterTool !== null) this.provoke(this.disasterTool, p);
         else void this.showDepositAt(sx, sy);
@@ -262,6 +278,8 @@ export class App {
           this.climateControl = degrees;
           this.sim.setClimateControl(degrees);
         },
+        onLifeSpecies: (species) => { this.lifeMap = null; if (species >= 0) this.sim.life({ type: 'lifeMap', species }); this.requestDraw(); },
+        onLifeTrait: (species, trait, value) => this.sim.life({ type: 'life', op: 'trait', species, trait, value }),
         onSpeed: (speed) => this.setSpeed(speed),
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
@@ -368,6 +386,12 @@ export class App {
         this.requestDraw();
       },
       onStorms: (storms) => this.onStorms(storms),
+      onLife: (life) => this.onLife(life),
+      onLifeMap: (species, points) => {
+        const waiter = this.lifeMapWaiter;
+        if (waiter) { this.lifeMapWaiter = null; waiter(points); return; }
+        if (species === this.hud.lifeSpecies) { this.lifeMap = points; this.requestDraw(); }
+      },
       onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
         this.climate = climate;
         this.stats.memoryMb = memoryMb;
@@ -499,12 +523,19 @@ export class App {
     this.lastGenerationSignal = performance.now();
     this.info = info;
     this.colors = colors;
+    if (this.camera.inMaquete) this.camera.exit();
     if (!this.renderer) {
       this.renderer = new GlobeRenderer(this.canvas, info.n, colors);
       this.renderer.clouds = this.cloudsOn ? 1 : 0;
     } else this.renderer.setWorld(info.n, colors);
     this.renderer.setPlates(plateCells);
     this.renderer.setDeposits(deposits);
+    // Os programas da maquete compilam aqui, atrás da tela de carregamento: o primeiro corte não engasga.
+    if (!this.maquete) {
+      this.maquete = new MaqueteWorld(this.renderer.context);
+      this.maquete.warm(this.canvas.width, this.canvas.height);
+      this.restoreGlobeState(this.renderer.context);
+    }
     this.renderer.resourcesLayer = this.layers.resources;
     this.renderer.ridgeColor = ridgeColor();
     // Mundo novo: placas nos ângulos 0.
@@ -670,16 +701,105 @@ export class App {
   /** Desastres que aconteceram: animação, aviso (só os grandes naturais) e lista. */
   private onDisasters(events: DisasterEvent[], impacts: number[]): void {
     const now = performance.now();
+    if (events.length || impacts.length) this.maqueteFastUntil = now + 4000;
     for (const e of events) {
       this.fx.add(e, now);
+      this.maquete?.fx.add(e, now);
       if (e.kind === DisasterKind.Quake) this.startShake(e, now);
     }
     // A rocha toca o chão: o clarão vem no próximo desenho e o meteoro grande e o gigante tremem a tela.
     for (const id of impacts) {
+      this.maquete?.fx.land(id, now, this.camera);
+      // A cratera já vai para o ajudante, sem esperar a próxima cópia do mundo.
+      this.maqueteAskedAt = -Infinity;
       const e = this.fx.land(id, now);
       if (e && SHAKE_MAGNITUDE[e.magnitude]) this.startShake({ ...e, magnitude: SHAKE_MAGNITUDE[e.magnitude] as number }, now);
     }
     for (const e of events) if (isToast(e)) this.toasts.show(toEntry(e));
+  }
+
+  /** Blocos onde a espécie escolhida vive (x, y, z, quantos), para os ícones no globo. */
+  private lifeMap: Float32Array | null = null;
+  /** A medição pergunta onde há mais vida, para medir a maquete cheia de bichos. */
+  private lifeMapWaiter: ((points: Float32Array) => void) | null = null;
+  /** Animal que a câmera acompanha na maquete, e quanto o jogador já arrastou desde então. */
+  private followed: { handle: AnimalHandle; drags: number } | null = null;
+
+  /**
+   * Toque com uma ferramenta da Vida (E6): pôr um grupo da espécie escolhida, matar no raio do pincel, ou acompanhar um animal com a câmera.
+   * Acompanhar não trava zoom nem velocidade; arrastar solta a câmera.
+   */
+  private lifeTap(sx: number, sy: number): boolean {
+    const tool = this.hud.state.active, species = this.hud.lifeSpecies;
+    if (!tool.startsWith('life') || !this.info) return false;
+    const p = this.camera.pick(sx, sy);
+    if (!p) return true;
+    if (tool === 'lifePlace' && species >= 0) {
+      const sp = SPECIES[species] as SpeciesInfo;
+      this.sim.life({ type: 'life', op: 'place', species, point: p, count: sp.mythic ? 1 : Math.round((sp.group[0] + sp.group[1]) / 2) });
+      this.maqueteAskedAt = -Infinity;
+    } else if (tool === 'lifeKill') {
+      this.sim.life({ type: 'life', op: 'kill', species, point: p, radius: Math.max(1, this.brushSize) * (Math.PI / 2 / this.info.n) });
+      this.maqueteAskedAt = -Infinity;
+    } else if (tool === 'lifeFollow' && this.camera.inMaquete && this.maquete) {
+      const q = this.camera.planeOf(p), handle = q ? this.maquete.animals.pick(q.x, q.z, 3.5) : null;
+      this.followed = handle ? { handle, drags: this.camera.userDrags } : null;
+      if (handle) { const rect = this.canvas.getBoundingClientRect(), k = rect.width / this.canvas.width; this.tip.show(`Acompanhando: ${(SPECIES[handle.member.species] as SpeciesInfo).name}`, rect.left + sx * k, rect.top + sy * k); }
+    }
+    this.requestDraw();
+    return true;
+  }
+
+  /** A câmera segue o animal escolhido, suave; solta se ele morrer, sair da tela ou o jogador arrastar. */
+  private updateFollow(): void {
+    const f = this.followed;
+    if (!f || !this.maquete) return;
+    const at = this.camera.inMaquete && this.camera.userDrags === f.drags && this.hud.state.active === 'lifeFollow' ? this.maquete.animals.where(f.handle) : null;
+    if (!at) { this.followed = null; return; }
+    const v = this.camera.view;
+    v.x += (at.x - v.x) * 0.12; v.z += (at.z - v.z) * 0.12;
+    this.camera.refresh();
+  }
+
+  /** Ícones da espécie escolhida no globo (onde ela vive) e dos míticos, sempre. Na maquete os próprios bichos estão à vista. */
+  private drawLifeIcons(): void {
+    if (this.camera.inMaquete) return;
+    const g = this.overlay.context, cam = this.camera;
+    const put = (species: number, x: number, y: number, z: number, size: number): void => {
+      const s = cam.worldToScreen([x, y, z]);
+      if (!s.visible) return;
+      g.drawImage(speciesIcon(species), s.x - size / 2, s.y - size / 2, size, size);
+    };
+    const map = this.lifeMap, species = this.hud.lifeSpecies;
+    if (map && species >= 0) {
+      const base = Math.max(18, Math.min(34, cam.cellPixels() * 6));
+      for (let o = 0; o + LIFE_MAP_FLOATS <= map.length; o += LIFE_MAP_FLOATS) put(species, map[o] as number, map[o + 1] as number, map[o + 2] as number, base * (0.8 + 0.4 * Math.min(1, (map[o + 3] as number) / 20)));
+    }
+    const m = this.life?.mythics;
+    if (m) for (let o = 0; o + LIFE_MYTHIC_FLOATS <= m.length; o += LIFE_MYTHIC_FLOATS) put(m[o + 1] as number, m[o + 2] as number, m[o + 3] as number, m[o + 4] as number, 44);
+  }
+
+  /** Os míticos no plano da maquete, a partir do ponto do planeta que a simulação deu. */
+  private placeMythics(): void {
+    const list: MythicView[] = [], data = this.life?.mythics;
+    if (data) for (let o = 0; o + LIFE_MYTHIC_FLOATS <= data.length; o += LIFE_MYTHIC_FLOATS) {
+      const p = this.camera.planeOf([data[o + 2] as number, data[o + 3] as number, data[o + 4] as number]);
+      if (p) list.push({ id: data[o] as number, species: data[o + 1] as number, x: p.x, z: p.z });
+    }
+    this.maquete?.animals.setMythics(list);
+  }
+
+  /** Vida, uma vez por ano de jogo: totais para o cartão "Vida" e avisos no canto. */
+  life: { year: number; totals: Float32Array; traits: Float32Array; mythics: Float32Array } | null = null;
+  private lifeToastId = 1_000_000;
+  private onLife(m: { year: number; totals: Float32Array; events: LifeEvent[]; mythics: Float32Array; traits: Float32Array }): void {
+    this.life = { year: m.year, totals: m.totals, traits: m.traits, mythics: m.mythics };
+    this.maquete?.animals.setTraits(m.traits);
+    this.hud.setLife(m.totals, m.traits);
+    // O mapa da espécie escolhida acompanha o ano.
+    if (this.hud.lifeSpecies >= 0) this.sim.life({ type: 'lifeMap', species: this.hud.lifeSpecies });
+    this.requestDraw();
+    for (const e of m.events) this.toasts.show(lifeEntry(e.kind, (SPECIES[e.species] as SpeciesInfo).name, e.year, e.point, this.lifeToastId++));
   }
 
   /**
@@ -687,6 +807,10 @@ export class App {
    * muda as escolhas do jogador sozinho (decisão do usuário, 2026-10-19, revertendo a volta para 1×).
    */
   private provoke(kind: DisasterKind, point: Vec3): void {
+    // Resposta instantânea (decisão de 2026-11-06): o efeito começa no toque, antes de a simulação responder.
+    this.maquete?.fx.action(kind, point, performance.now());
+    this.maqueteFastUntil = performance.now() + 4000;
+    this.maqueteAskedAt = -Infinity;
     this.sim.triggerDisaster(kind, point, this.hud.strengthOf(kind));
   }
 
@@ -907,6 +1031,75 @@ export class App {
     if (p) this.sim.brush(this.tool, p, this.brushSize, dt);
   }
 
+  /**
+   * Cor que vai para a maquete, um pouco atrás da do globo quando a mudança é lenta (seca, volta da vegetação): sem isso a cor pulava de uma cópia para a outra (B3).
+   * Fogo, lava e outros estados fortes valem na hora.
+   */
+  private smoothColors(state: Uint8Array): Uint8Array {
+    const c = this.colors;
+    let s = this.maqueteRgba;
+    if (!s || s.length !== c.length) { s = this.maqueteRgba = c.slice(); return s.slice(); }
+    const step = 6;
+    for (let k = 0; k < state.length; k++) {
+      const o = k * 4, st = state[k] as number;
+      s[o + 3] = c[o + 3] as number;
+      if (st !== 0 && st !== CellState.Heat) { s[o] = c[o] as number; s[o + 1] = c[o + 1] as number; s[o + 2] = c[o + 2] as number; continue; }
+      for (let i = 0; i < 3; i++) {
+        const d = (c[o + i] as number) - (s[o + i] as number);
+        if (d !== 0) s[o + i] = (s[o + i] as number) + Math.max(-step, Math.min(step, d));
+      }
+    }
+    return s.slice();
+  }
+
+  /** O globo espera o contexto como ele deixou: a maquete devolve o que mudou. */
+  private restoreGlobeState(gl: WebGL2RenderingContext): void {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindVertexArray(null);
+  }
+
+  /**
+   * A passagem entre as vistas (T2): perto do corte os pedaços já carregam; ao cravar, a maquete substitui o globo inteiro de uma vez, sem os dois juntos.
+   * Afastar além do limite, ou o tempo geológico travar o zoom, volta ao globo.
+   */
+  private updateMaquete(now: number): void {
+    const cam = this.camera, renderer = this.renderer, info = this.info;
+    if (!renderer || !info) return;
+    const blocked = cam.zoomLocked || (this.bench !== null && !this.bench.maquete);
+    if (cam.inMaquete && (blocked || cam.wantsExit)) {
+      cam.exit();
+      this.needsDraw = true;
+    }
+    const px = cam.globePixels();
+    if (!cam.inMaquete && (blocked || px < PRELOAD_PIXELS)) return;
+    this.maquete ??= new MaqueteWorld(renderer.context);
+    const m = this.maquete;
+    // Uma cópia do mundo ao chegar perto e, depois, uma por segundo com o relógio andando.
+    // Com desastre acontecendo, a maquete acompanha de perto.
+    const every = now < this.maqueteFastUntil ? 280 : this.clock.speed === 0 ? 4000 : 1000;
+    if (!this.maqueteWaiting && now - this.maqueteAskedAt > every) {
+      this.maqueteWaiting = true;
+      this.maqueteAskedAt = now;
+      void this.sim.maqueteSnapshot().then((s) => {
+        this.maqueteWaiting = false;
+        const fresh = s.seedText !== this.maqueteSeed;
+        this.maqueteSeed = s.seedText;
+        m.setWorld({ n: info.n, height: s.height, rgba: this.smoothColors(s.state), cover: s.cover, state: s.state, deposit: s.deposit, ice: s.ice, temp: s.temp, volcano: s.volcano }, fresh, s.life, s.lifeBlocks);
+      });
+    }
+    if (!cam.inMaquete) cam.aimAtGlobeCenter();
+    else cam.rechart();
+    cam.refresh();
+    // Quantos pedaços sobem por quadro quem decide é o tempo (3 ms), não a contagem: com 2 por quadro, refazer a vista levava dezenas de quadros (P6).
+    m.update(cam, 12);
+    if (!cam.inMaquete && px >= CUT_PIXELS && m.ready && m.missing(cam) === 0) cam.enter();
+  }
+
   /** Um quadro: ajusta tamanho, avança animações e pincel, e desenha se algo mudou. */
   frame(time: number): void {
     const workStart = performance.now();
@@ -961,8 +1154,22 @@ export class App {
       r.stormCount = moving - r.dustCount;
       if (running && r.clouds > 0 && this.camera.cellPixels() < 4) this.needsDraw = true;
     }
-    const drew = this.needsDraw;
-    if (this.needsDraw) {
+    this.updateMaquete(performance.now());
+    // Ritmo do tempo: de perto, em 1×, um mês por segundo (opção 5). Durante a medição vale o ritmo normal.
+    const slow = this.camera.inMaquete && this.bench === null;
+    if (slow !== this.slowPace) { this.slowPace = slow; this.sim.setPace(slow ? MAQUETE_PACE : 1); this.hud.setSlowPace(slow); }
+    const drew = this.needsDraw || this.camera.inMaquete;
+    if (this.camera.inMaquete && this.maquete) {
+      this.camera.refresh();
+      this.placeMythics();
+      this.updateFollow();
+      this.maquete.fx.setStorms([...this.storms.values()].map((q) => ({ p: q.shown.p, radius: q.shown.radius, power: q.shown.power, kind: q.kind })));
+      this.maquete.draw(this.camera, renderer.canvas.width, renderer.canvas.height, performance.now() / 1000, this.clock.speed === 0);
+      this.maqueteDrawn = true;
+      this.drawOverlay();
+      this.needsDraw = false;
+    } else if (this.needsDraw) {
+      if (this.maqueteDrawn) { this.restoreGlobeState(renderer.context); this.maqueteDrawn = false; }
       renderer.draw(this.camera, this.motion.uniforms);
       this.drawOverlay();
       this.needsDraw = false;
@@ -1069,6 +1276,7 @@ export class App {
     const status = (step: number, name: string, panel: PanelMode = 'hidden') =>
       this.debug.setBenchmarkRunning(`Medindo ${step}/${steps}: ${name}… (${Math.round((performance.now() - startedAt) / 1000)} s)`, panel);
     const scenarios: ScenarioResult[] = [];
+    const maqueteLines: string[] = [];
     // Memória da página inteira: o navegador só responde depois de uma limpeza de memória (até ~20 s).
     const pageMemory = measurePageMemory();
     const gpu: GpuSample[] = [];
@@ -1210,6 +1418,95 @@ export class App {
       this.sim.setDisasterFrequency(this.disasterFrequency);
       // Tempo geológico no Máx: o relógio não pode esperar o ajudante nem a data travar (teste da `2d9a2156`).
       await scenario(14, 'tempo Máx, placas 100%', 30_000, () => this.setSpeed('max'), 'hidden', () => () => undefined);
+      // A maquete vem antes dos meteoros: eles arrasam o mundo (inverno de impacto), e a maquete tem de ser medida com as populações cheias.
+      // A maquete: entra de verdade pelo corte e mede parada, girando, de perto, andando e cruzando o corte.
+      bench.maquete = true;
+      this.setPlateRate(0);
+      const cam = this.camera;
+      // Com populações cheias (especificação do M3, item 9): a maquete é medida onde há mais bichos, longe das crateras do cenário dos meteoros.
+      const crowded = await new Promise<Float32Array>((resolve) => {
+        this.lifeMapWaiter = resolve;
+        this.sim.life({ type: 'lifeMap', species: SPECIES.findIndex((q) => q.id === 'antilope') });
+        setTimeout(() => { if (this.lifeMapWaiter === resolve) { this.lifeMapWaiter = null; resolve(new Float32Array(0)); } }, 3000);
+      });
+      const lively: Vec3 = crowded.length >= 3 ? [crowded[0] as number, crowded[1] as number, crowded[2] as number] : (this.info as WorldInfo).landCenter;
+      const enter = async (distance = 1): Promise<void> => {
+        if (!cam.inMaquete) {
+          cam.lookAt(lively);
+          cam.zoom = (CUT_PIXELS + 1) / (cam.baseRadius() * cam.cellAngle);
+          this.requestDraw();
+          for (let k = 0; k < 2000 && !cam.inMaquete; k++) await wait(10);
+        }
+        if (distance !== 1) cam.zoomAt(cam.width / 2, cam.height / 2, 1 / distance);
+        for (let k = 0; k < 2000 && (this.maquete?.pendingCount ?? 0) > 0; k++) await wait(10);
+      };
+      const moving = (f: (dt: number, t: number) => void) => (): (() => void) => {
+        let on = true, last = performance.now();
+        const start = last;
+        const step = (now: number): void => {
+          if (!on) return;
+          f(Math.min(0.05, (now - last) / 1000), now - start);
+          last = now;
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+        return () => { on = false; };
+      };
+      const measureMaquete = async (label: string): Promise<void> => {
+        await wait(300);
+        this.gpuMeasuring = true;
+        const m = await (this.maquete as MaqueteWorld).renderer.measureDraw(cam.view, this.canvas.width, this.canvas.height, performance.now() / 1000, 30);
+        this.gpuMeasuring = false;
+        gpu.push({ label, ms: m.ms, method: m.method });
+        this.stalls.restart();
+      };
+      const walk = (speed: number) => moving((dt, t) => {
+        const a = Math.floor(t / 5000) % 4, d = [[1, 0], [0, 1], [-1, 0], [0, -1]][a] as number[];
+        cam.view.x += (d[0] as number) * speed * dt;
+        cam.view.z += (d[1] as number) * speed * dt;
+      });
+      await scenario(15, 'maquete, parada', 6000, () => { this.setSpeed(0); void enter(); }, 'hidden');
+      const crowd = this.maquete?.animals.count ?? 0;
+      await measureMaquete('maquete, parada');
+      await scenario(16, 'maquete, girando', 6000, () => undefined, 'hidden', moving((dt) => { cam.turnView(dt * 0.5); }));
+      await measureMaquete('maquete, girando');
+      await enter(0.45);
+      await scenario(17, 'maquete de perto, girando', 6000, () => undefined, 'hidden', moving((dt) => { cam.turnView(dt * 0.5); }));
+      await measureMaquete('maquete de perto');
+      await enter(1 / 0.45);
+      await scenario(18, 'maquete, andando', 10_000, () => undefined, 'hidden', walk(26));
+      await measureMaquete('maquete, andando');
+      await scenario(19, 'maquete, correndo', 10_000, () => undefined, 'hidden', walk(70));
+      await measureMaquete('maquete, correndo');
+      await scenario(20, 'cruzando o corte, ida e volta', 8000, () => undefined, 'hidden', moving((_dt, t) => {
+        const phase = Math.floor(t / 2000) % 2;
+        if (phase === 0 && !cam.inMaquete) { cam.zoom = (CUT_PIXELS + 1) / (cam.baseRadius() * cam.cellAngle); this.requestDraw(); }
+        if (phase === 1 && cam.inMaquete) cam.wantsExit = true;
+      }));
+      await enter();
+      await scenario(21, 'maquete, 5×, placas 100%', 15_000, () => { this.setPlateRate(1); this.setSpeed(5); }, 'hidden');
+      this.setPlateRate(0);
+      this.setSpeed(0);
+      // Recomposição: refazer tudo à vista no ajudante, com a maquete na tela.
+      const m = this.maquete as MaqueteWorld;
+      // Parte do repouso: o que as placas do cenário anterior deixaram na fila não entra na conta.
+      for (let k = 0; k < 800 && m.pendingCount > 0; k++) await wait(10);
+      await wait(4500);
+      const t0 = performance.now();
+      m.rebuildAll();
+      const recRecorder = new FrameRecorder();
+      bench.recorder = recRecorder;
+      for (let k = 0; k < 3000 && m.pendingRebuild > 0; k++) await wait(10);
+      maqueteLines.push(`recomposição da maquete (refazer tudo à vista): ${(performance.now() - t0).toFixed(0)} ms em segundo plano, pior quadro ${recRecorder.summary().worstFrameMs.toFixed(0)} ms`);
+      bench.recorder = null;
+      const b = m.buildMs, u = m.uploadMs, mean = (a: readonly number[]) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
+      maqueteLines.push(`pedaços: ${b.length} montados no ajudante, média ${mean(b).toFixed(1)} ms, pior ${Math.max(0, ...b).toFixed(0)} ms · subir para a GPU, média ${mean(u).toFixed(2)} ms, pior ${Math.max(0, ...u).toFixed(1)} ms`);
+      maqueteLines.push(`na tela: ${Math.round(m.renderer.stats.triangles / 1000)} mil triângulos · ${m.renderer.stats.drawCalls} desenhos · ${(m.renderer.stats.gpuBytes / 1048576).toFixed(0)} MB de pedaços na GPU · ${m.animals.count} animais agora, ${crowd} na entrada (onde há mais vida)`);
+      if (cam.inMaquete) cam.exit();
+      bench.maquete = false;
+      // De volta ao planeta inteiro, como os cenários dos meteoros sempre rodaram.
+      cam.zoom = cam.minZoom;
+      this.requestDraw();
       // O que o jogador faz (teste da `9b5ba0d4`): meteoros gigantes seguidos em 1×, placas 25%, no mesmo
       // lugar e em lugares diferentes, com o globo à vista.
       const center = this.info.landCenter;
@@ -1223,12 +1520,12 @@ export class App {
         this.setPlateRate(0.25);
         this.setSpeed(1);
       };
-      await scenario(15, 'meteoros, mesmo lugar', METEOR_BENCH_MS, atOneX, 'hidden', meteors(() => center));
+      await scenario(22, 'meteoros, mesmo lugar', METEOR_BENCH_MS, atOneX, 'hidden', meteors(() => center));
       const spots = meteorSpots(center, METEOR_BENCH_MS / METEOR_BENCH_EVERY_MS, METEOR_BENCH_SPREAD);
-      await scenario(16, 'meteoros, lugares variados', METEOR_BENCH_MS, atOneX, 'hidden', meteors((k) => spots[k % spots.length] as Vec3));
+      await scenario(23, 'meteoros, lugares variados', METEOR_BENCH_MS, atOneX, 'hidden', meteors((k) => spots[k % spots.length] as Vec3));
       bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
-      status(17, 'geração de mundo');
+      status(24, 'geração de mundo');
       this.setSpeed(0);
       this.setPlateRate(before.plateRate);
       await wait(500);
@@ -1268,19 +1565,21 @@ export class App {
       gpu,
       { dataMb: this.stats.memoryMb, ...(await pageMemory) },
     );
-    this.debug.showReport(report);
+    this.debug.showReport(`${report}\n\nMaquete:\n${maqueteLines.join('\n')}`);
     this.updateDebug();
   }
 
   private drawOverlay(): void {
     this.overlay.clear();
+    if (this.camera.inMaquete) this.maquete?.fx.drawOverlay(this.overlay.context, this.camera, performance.now());
+    this.drawLifeIcons();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.fxShown = this.fx.active;
     if (this.fx.active) {
       const now = performance.now();
-      const rate = this.clock.speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * this.clock.speed;
+      const rate = this.clock.speed === 'max' ? this.stats.ticksPerSecond : BASE_TICKS_PER_SECOND * this.clock.speed * (this.slowPace && this.clock.speed === 1 ? MAQUETE_PACE : 1);
       // O passo só chega a cada ~100 ms: entre uma mensagem e outra, estimado pelo ritmo.
-      this.fx.draw(this.overlay.context, this.camera, now, this.clock.tick + (rate * Math.min(now - this.clockAt, 2 * CLOCK_POST_MS)) / 1000, rate, dpr);
+      this.fx.draw(this.overlay.context, this.camera, now, this.clock.tick + (rate * Math.min(now - this.clockAt, 2 * CLOCK_POST_MS)) / 1000, rate, dpr, this.camera.inMaquete);
     }
     if (this.mode !== 'paint' || !this.brushScreen || !this.info) return;
     const p = this.camera.pick(this.brushScreen.x, this.brushScreen.y);

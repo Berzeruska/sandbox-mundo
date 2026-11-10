@@ -21,12 +21,17 @@ export function keyAxes(held: ReadonlySet<string>): { zoom: number; turn: number
   };
 }
 
+function isTextField(t: EventTarget | null): boolean {
+  return t instanceof HTMLTextAreaElement || (t instanceof HTMLInputElement && t.type !== 'range');
+}
+
 export class KeyControls {
   private held = new Set<Key>();
 
-  constructor(target: Window, onPress: () => void) {
+  constructor(target: Window & typeof globalThis, onPress: () => void) {
     target.addEventListener('keydown', (e) => {
-      if (!(KEYS as readonly string[]).includes(e.key) || e.target instanceof HTMLInputElement) return;
+      // Só a caixa de texto fica com as setas: num deslizante (pincel, temperatura) o foco ficava preso e o zoom parava (A2).
+      if (!(KEYS as readonly string[]).includes(e.key) || isTextField(e.target)) return;
       e.preventDefault();
       this.held.add(e.key as Key);
       onPress();
@@ -34,6 +39,9 @@ export class KeyControls {
     target.addEventListener('keyup', (e) => this.held.delete(e.key as Key));
     // Janela perdeu o foco com a tecla apertada: o keyup nunca chega.
     target.addEventListener('blur', () => this.held.clear());
+    // Trocar de tela cheia ou esconder a página também pode engolir o keyup: tecla presa cancelava a outra seta.
+    target.document.addEventListener('visibilitychange', () => this.held.clear());
+    target.document.addEventListener('fullscreenchange', () => this.held.clear());
   }
 
   /** Move a câmera pelo tempo `dt` (s). Retorna true se mexeu. */
@@ -45,7 +53,7 @@ export class KeyControls {
     if (zoom) camera.zoomAt(cx, cy, Math.exp(zoom * KEY_ZOOM_RATE * dt));
     // Como arrastar a tela pelo centro (olhar para a direita = puxar o planeta para a esquerda): a
     // mesma velocidade aparente em qualquer zoom.
-    if (turn) {
+    if (turn && !camera.turnView(turn * dt)) {
       const dx = -turn * KEY_TURN_RATE * camera.radius() * dt;
       camera.drag(cx, cy, cx + dx, cy);
     }

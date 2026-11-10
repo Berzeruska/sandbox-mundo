@@ -57,6 +57,6 @@ export class DisasterToasts {
 function icon(e: LogEntry): HTMLSpanElement {
   const s = document.createElement('span');
   s.className = 'dis-icon';
-  s.textContent = DISASTER_ICONS[e.kind] ?? '⚠️';
+  s.textContent = e.icon ?? DISASTER_ICONS[e.kind] ?? '⚠️';
   return s;
 }

@@ -107,6 +107,8 @@ export interface DisasterOutcome {
  * semente dos desastres. Devolve false quando acabou.
  */
 export interface DisasterProcess {
+  /** Só o meteoro: passo do impacto, se a rocha já está à vista. */
+  fallingImpact?(): number;
   step(tick: number, out: DisasterOutcome): boolean;
   /** As placas andaram: célula antiga → nova (os que duram anos acompanham). */
   remap?(moved: ReadonlyMap<number, number>): void;
@@ -262,6 +264,13 @@ export class Disasters {
   }
 
   /** Começa um desastre que anda passo a passo (roda a partir do próximo passo). */
+  /** Até que passo há rocha caindo à vista (-1: nenhuma). */
+  fallingUntil(): number {
+    let at = -1;
+    for (const p of this.processes) if (p.fallingImpact) at = Math.max(at, p.fallingImpact());
+    return at;
+  }
+
   start(p: DisasterProcess): void {
     this.processes.push(p);
   }

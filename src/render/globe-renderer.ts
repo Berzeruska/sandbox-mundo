@@ -1,3 +1,4 @@
+import { measureFrames } from './gpu-timer';
 import { fragmentShader, MAX_DUST, MAX_STORMS, VERTEX_SHADER } from './shaders';
 import { ClimateFade, type PatchLike } from './climate-fade';
 import type { Camera } from './camera';
@@ -369,10 +370,30 @@ export class GlobeRenderer {
     }
   }
 
+  /** O contexto do canvas: a maquete desenha no mesmo. */
+  get context(): WebGL2RenderingContext {
+    return this.gl;
+  }
+
   /** Ajusta o tamanho interno do canvas ao tamanho na tela. Retorna true se mudou. */
+  /** Tamanho da tela em CSS, avisado pelo navegador quando muda. */
+  private cssSize: { w: number; h: number } | null = null;
+  private sizeWatch: ResizeObserver | null = null;
+
   resize(pixelRatio: number): boolean {
-    const w = Math.max(1, Math.round(this.canvas.clientWidth * pixelRatio));
-    const h = Math.max(1, Math.round(this.canvas.clientHeight * pixelRatio));
+    // Ler `clientWidth` a cada quadro obriga o navegador a refazer o leiaute ali mesmo, dentro do quadro: medido até 65 ms no Firefox quando a página
+    // tinha mudado (aviso, data). O navegador avisa quando o tamanho muda, e o quadro só usa o que foi avisado (P7).
+    if (!this.sizeWatch && typeof ResizeObserver !== 'undefined') {
+      this.sizeWatch = new ResizeObserver((entries) => {
+        const box = entries[entries.length - 1]?.contentRect;
+        if (box) this.cssSize = { w: box.width, h: box.height };
+      });
+      this.sizeWatch.observe(this.canvas);
+    }
+    const css = this.cssSize ?? { w: this.canvas.clientWidth, h: this.canvas.clientHeight };
+    if (!this.cssSize && css.w > 0) this.cssSize = css;
+    const w = Math.max(1, Math.round(css.w * pixelRatio));
+    const h = Math.max(1, Math.round(css.h * pixelRatio));
     if (this.canvas.width === w && this.canvas.height === h) return false;
     this.canvas.width = w;
     this.canvas.height = h;
@@ -386,48 +407,7 @@ export class GlobeRenderer {
    * o envio pela CPU (um pouco acima do real).
    */
   async measureDraw(camera: Camera, motion: PlateMotionUniforms | undefined, frames: number): Promise<{ ms: number[]; method: string }> {
-    const gl = this.gl;
-    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null;
-    const px = new Uint8Array(4);
-    const sync: number[] = [];
-    const queries: WebGLQuery[] = [];
-    for (let k = 0; k < frames; k++) {
-      const q = ext ? gl.createQuery() : null;
-      if (ext && q) gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
-      const t0 = performance.now();
-      this.draw(camera, motion);
-      if (ext && q) {
-        gl.endQuery(ext.TIME_ELAPSED_EXT);
-        queries.push(q);
-      }
-      // Sem a consulta de tempo da GPU, cada desenho espera a GPU (lendo 1 pixel) para ser medido.
-      if (!ext) {
-        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-        sync.push(performance.now() - t0);
-      }
-    }
-    if (ext && queries.length) {
-      // Os resultados das consultas chegam alguns quadros depois.
-      const last = queries[queries.length - 1] as WebGLQuery;
-      for (let tries = 0; tries < 30 && !gl.getQueryParameter(last, gl.QUERY_RESULT_AVAILABLE); tries++) {
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      }
-      const disjoint = !!gl.getParameter(ext.GPU_DISJOINT_EXT);
-      const ms: number[] = [];
-      for (const q of queries) {
-        if (!disjoint && gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) ms.push((gl.getQueryParameter(q, gl.QUERY_RESULT) as number) / 1e6);
-        gl.deleteQuery(q);
-      }
-      if (ms.length >= frames / 2) return { ms, method: 'consulta de tempo da GPU' };
-      // A consulta falhou (GPU trocou de ritmo no meio): mede de novo esperando a GPU.
-      for (let k = 0; k < frames; k++) {
-        const t0 = performance.now();
-        this.draw(camera, motion);
-        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-        sync.push(performance.now() - t0);
-      }
-    }
-    return { ms: sync, method: 'quadro esperando a GPU (inclui o envio pela CPU; o navegador não tem a consulta de tempo da GPU)' };
+    return measureFrames(this.gl, frames, () => this.draw(camera, motion));
   }
 
   /**

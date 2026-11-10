@@ -50,6 +50,8 @@ export type ToWorker =
   | { type: 'newWorld'; seedText: string; n: number; kind?: WorldKind }
   | { type: 'brush'; tool: Tool; point: Vec3; radius: number; dt: number }
   | { type: 'speed'; speed: Speed }
+  /** Ritmo do tempo em 1× (1 fora da maquete; MAQUETE_PACE dentro dela). */
+  | { type: 'pace'; pace: number }
   | { type: 'layers'; layers: Layers }
   | { type: 'plateRate'; rate: number }
   /** Controle de temperatura global (°C, T7). */
@@ -62,6 +64,14 @@ export type ToWorker =
   /** "Medir desempenho": começo de cenário, o "pior" passa a contar daqui. */
   | { type: 'resetWorst' }
   | { type: 'query'; id: number; point: Vec3 }
+  /** A maquete pede a altura e o chão de todas as células (cópia transferida; a simulação não muda). */
+  | { type: 'maqueteSnapshot'; id: number }
+  /** Poderes de deus sobre as criaturas (E6): pôr, matar (num raio, em rad) e mudar uma característica da espécie. `species` < 0 em `kill`: todas. */
+  | { type: 'life'; op: 'place'; species: number; point: Vec3; count: number }
+  | { type: 'life'; op: 'kill'; species: number; point: Vec3; radius: number }
+  | { type: 'life'; op: 'trait'; species: number; trait: number; value: number }
+  /** Onde a espécie vive: os blocos com mais indivíduos, para os ícones no globo (E9b). */
+  | { type: 'lifeMap'; species: number }
   /** Teste de memória compartilhada (correção 2): o worker escreve SHARED_PROBE_VALUE no buffer. */
   | { type: 'sharedProbe'; buffer: SharedArrayBuffer };
 
@@ -103,6 +113,7 @@ export type FromWorker =
   /** As placas andaram: mundo todo repintado, placa de cada célula, ângulos e jazidas desta composição. */
   | { type: 'recomposed'; patches: Patch[]; plateCells: Uint8Array; angles: number[]; plates: PlateMotionInfo[]; deposits: Uint8Array }
   | { type: 'progress'; stage: string; fraction: number }
+  | { type: 'maqueteSnapshot'; id: number; seedText: string; height: Int16Array; cover: Uint8Array; state: Uint8Array; deposit: Uint8Array; ice: Uint8Array; temp: Int8Array; volcano: Uint8Array; life: Uint16Array; lifeBlocks: number }
   /** `deposits`: todas as jazidas, só quando uma pincelada revelou petróleo (T6). */
   /** `fade`: cores mudadas pelo clima, que a tela troca aos poucos (B4). */
   | { type: 'patch'; patches: Patch[]; brushMs: number; deposits?: Uint8Array; fade?: boolean }
@@ -110,6 +121,8 @@ export type FromWorker =
       type: 'clock';
       tick: number;
       speed: Speed;
+      /** Quanto a última redução de velocidade esperou a rocha cair (ms). */
+      speedWaitMs: number;
       ticksPerSecond: number;
       geologyMs: number;
       memoryMb: number;
@@ -128,9 +141,22 @@ export type FromWorker =
   | { type: 'storms'; storms: Float32Array }
   /** O arquipélago ficou pronto: as placas desligaram sozinhas (ligar de novo é com o jogador). */
   | { type: 'platesStopped' }
+  /**
+   * Vida (M3), uma vez por ano de jogo: total do mundo por espécie, avisos (espécie em risco, último indivíduo, extinção, recuperação), a classe mítica
+   * (LIFE_MYTHIC_FLOATS números por indivíduo: id, espécie, x, y, z) e as características mudadas por deus.
+   */
+  | { type: 'life'; year: number; totals: Float32Array; events: LifeEvent[]; mythics: Float32Array; traits: Float32Array }
+  /** LIFE_MAP_FLOATS números por bloco: x, y, z do meio do bloco e quantos indivíduos. */
+  | { type: 'lifeMap'; species: number; points: Float32Array }
   | { type: 'sharedProbe'; ok: boolean };
 
 export const STORM_FLOATS = 7;
+export const LIFE_MYTHIC_FLOATS = 5;
+export const LIFE_MAP_FLOATS = 4;
+/** Quantos blocos, no máximo, viram ícone no globo. */
+export const LIFE_MAP_BLOCKS = 140;
+/** Aviso da ecologia, com o ponto do planeta para a câmera ir até lá. */
+export interface LifeEvent { kind: 'risco' | 'ultimo' | 'extinta' | 'recuperada'; species: number; point: Vec3; year: number }
 
 /** Empacota os retângulos alterados (cada um no seu próprio buffer, para transferir). */
 export function makePatches(colors: Uint8Array, n: number, rects: readonly DirtyRect[]): Patch[] {
@@ -150,6 +176,9 @@ export function applyPatch(colors: Uint8Array, n: number, p: Patch): void {
 
 /** Buffers de uma mensagem que podem ser transferidos em vez de copiados. */
 export function transferables(msg: FromWorker): ArrayBuffer[] {
+  if (msg.type === 'maqueteSnapshot') return [msg.height.buffer as ArrayBuffer, msg.cover.buffer as ArrayBuffer, msg.state.buffer as ArrayBuffer, msg.deposit.buffer as ArrayBuffer, msg.ice.buffer as ArrayBuffer, msg.temp.buffer as ArrayBuffer, msg.volcano.buffer as ArrayBuffer, msg.life.buffer as ArrayBuffer];
+  if (msg.type === 'lifeMap') return [msg.points.buffer as ArrayBuffer];
+  if (msg.type === 'life') return [msg.totals.buffer as ArrayBuffer, msg.mythics.buffer as ArrayBuffer, msg.traits.buffer as ArrayBuffer];
   if (msg.type === 'world') return [msg.colors.buffer as ArrayBuffer, msg.plateCells.buffer as ArrayBuffer, msg.deposits.buffer as ArrayBuffer];
   if (msg.type === 'patch') {
     const out = msg.patches.map((p) => p.data.buffer as ArrayBuffer);
