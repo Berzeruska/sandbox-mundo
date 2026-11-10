@@ -1,6 +1,6 @@
 # M3 — Especificação da ecologia
 
-**Estado:** modelo aprovado pelo usuário em 2026-11-06 (de longe números, de perto indivíduos); o código começa no bloco seguinte, a partir da E1. Nada desta simulação tem código. Hoje as plantas e os animais são desenho (`docs/M3-maquete.md`). Base: `docs/04-ecologia.md`. As perguntas em aberto estão marcadas com **[decidir]**; decisões visuais vêm com 4 a 6 opções e imagem antes do código (regra 14).
+**Estado:** tarefas E1 a E10 feitas no `marco-3` (2026-11-09 e 10). Os pontos **[decidir]** foram decididos pelo Claude Code como provisórios, a pedido do usuário, e estão em `docs/M3-revisao.md` para revisão. Onde este texto e o código diferem (população por bloco de 8×8 células, e não por célula; a vez de cada bloco de 4 em 4 anos), vale `docs/M3-revisao.md`.
 
 ## 1. Objetivo
 Equilíbrio dinâmico: populações sobem e descem em ciclos e raramente zeram. O jogador vê a vida reagir a clima, desastres e aos poderes dele. Critério de aceite no item 8.

@@ -1,36 +1,68 @@
 # Estado atual do projeto
 
-Atualizado em: **2026-11-09**, branch `marco-3`. **M2 no `main` com a tag `v2.0`. Bloco "fechar o M3" em andamento (mensagem do usuário de 2026-11-09): o Claude Code segue sozinho até o relatório final.**
+Atualizado em: **2026-11-10**, branch `marco-3`. **M2 no `main` com a tag `v2.0`. M3 terminado no `marco-3`, com o PR aberto e sem merge, esperando a revisão e os 6 testes do usuário.**
 Jogo: **https://berzeruska.github.io/sandbox-mundo/** · Prévia: **https://berzeruska.github.io/sandbox-mundo/previa/atual/**
 O Claude Code reescreve este arquivo ao fim de cada tarefa. Se outro documento disser outra coisa sobre "onde
 estamos", vale este.
 
-## Bloco "fechar o M3" (2026-11-09)
-Regras deste bloco em `docs/decisoes.md` ("Fechar o M3 com o máximo de autonomia"): o Claude Code decide design e mecânica como **provisório**, testa tudo no Firefox a 1920×1080 e só para no relatório final. Decisões provisórias: `docs/decisoes.md` e, no fim, `docs/M3-revisao.md`.
+## Bloco "fechar o M3" (2026-11-09 e 10): **terminado, esperando a revisão do usuário**
+O Claude Code seguiu sozinho até o fim (regras em `docs/decisoes.md`, "Fechar o M3 com o máximo de autonomia"). **O `main` não recebeu nada:** o PR do `marco-3` está aberto, sem merge.
 
-**Para continuar do zero:** ler esta seção, depois `docs/M3-especificacao.md` e a entrada de 2026-11-09 em `docs/decisoes.md`. A próxima tarefa é a primeira caixa vazia abaixo.
+**Para o usuário revisar:**
+- `docs/M3-revisao.md`: as 26 decisões provisórias, cada uma com o que ficou, a alternativa e o motivo, com imagens.
+- `docs/M3-fidelidade.md`: P1 a P7, com a captura do Firefox ao lado de cada referência.
+- `docs/medicao-m3-final.txt`: o "Medir desempenho" completo no Firefox (tabela abaixo).
 
-### Parte 1: fidelidade às referências (página `docs/M3-fidelidade.md`)
-- [x] P1 terraços limpos · [x] P2 montanhas · [x] P3 jazidas com a cor do minério · [x] P4 animais iguais às folhas, com mar e míticos · [x] P5 plantas, água, gelo, deserto e vulcão · [x] P6 recomposição da maquete ≤ 1 s (865 ms) · [x] P7 intervalos de 130 a 380 ms
+### Parte 1: fidelidade às referências
+- [x] P1 terraços limpos · [x] P2 montanhas · [x] P3 jazidas com a cor do minério · [x] P4 animais iguais às folhas, com mar e míticos · [x] P5 plantas, água, gelo, deserto e vulcão · [x] P6 recomposição da maquete ≤ 1 s · [x] P7 intervalos de 130 a 380 ms
 
 ### Parte 2: ecologia (`docs/M3-especificacao.md`)
-- [x] E1 · [x] E2 · [x] E3 (números no relógio; falta a maquete ler) · [x] E4 · [x] E5 · [x] E6 · [x] E7 · [x] E8 · [x] E9 · [x] E9b
+- [x] E1 · [x] E2 · [x] E3 · [x] E4 · [x] E5 · [x] E6 · [x] E7 · [x] E8 · [x] E9 · [x] E9b
 
 ### Parte 3: fechamento (E10)
-- [ ] "Medir desempenho" no Firefox contra a linha de base · [ ] CHANGELOG e `docs/M3-revisao.md` · [ ] PR do `marco-3` para o `main`, **sem merge** · [ ] prévia final em `/previa/atual/`
+- [x] "Medir desempenho" no Firefox contra a linha de base · [x] CHANGELOG e `docs/M3-revisao.md` · [x] PR do `marco-3` para o `main`, **sem merge** · [x] prévia em `/previa/atual/` (publicada a cada push)
 
-### Onde a sessão parou (2026-11-09, limite de uso) e como continuar
-- **Feito e no git:** Parte 1 inteira (P1 a P7, `docs/M3-fidelidade.md`) e os números da ecologia (E1 a E3).
-- **E1 a E3, o que existe:** `src/world/species.ts` (tabela das espécies) e `src/world/ecology.ts` (classe `Ecology`): biomassa de planta e população de cada espécie por **bloco de 8×8 células** (um pedaço da maquete), capacidade pelo bioma e pela vegetação, crescimento logístico, caça com saturação, refúgio, migração, anos bons e ruins de chuva. Anda no relógio (`SimulationCore.stepTick`), um doze avos dos blocos por passo. O teste de aceite de 1.000 anos passa nas 5 sementes (`tests/world/ecology.test.ts`), sem falha conhecida. Já estão escritos e testados, mas **ainda sem uso na tela:** `hit` (desastres, E4), `place`, `kill`, `setTrait` (poderes, E6), míticos (E7), `moisture` (floresta e chuva, E9), a mensagem `life` e o campo `life` na cópia para a maquete.
-- **Custo medido (N = 256, Node):** 0,75 ms por passo (pior 3,4 ms no passo que fecha o ano), 1,5 MB. Está abaixo do 1 ms da especificação, mas **pesa no Máx** (cerca de 1.400 passos/s hoje): falta medir no jogo e, se preciso, baixar o custo (ideias: lista de espécies presentes por bloco; atualizar mar e terra em anos alternados).
-- **E4 feita:** cada estado que chega a uma célula (fogo, lava, água, fenda, cratera) mata e espanta ali (`Ground.onState` → `Ecology.hit`); a seca baixa a capacidade em 30%; a recomposição das placas manda refazer as capacidades; os avisos de espécie em risco, último indivíduo, extinção e recuperação aparecem no canto, e tocar leva a câmera até lá.
-- **E5 e E8 feitas:** cada pedaço da maquete mostra a população do bloco dele (`src/render/maquete-animals.ts`): nasce filhote pequeno quando o número sobe, morre um quando desce; com caçador da espécie no pedaço, a morte é uma caçada (corre, a presa foge, cai, ele come ao lado). Corpo fica 26 s e some encolhendo; mancha de sangue baixa e escura só em quem foi caçado, sem pedaços. Conferido no Firefox (savana, ~1.000 indivíduos à vista; matar com o poder de deus derruba os bichos na tela).
-- **E6, E7 e E9b feitas:** categoria **Vida** no menu: grade das 29 espécies (o ícone é o próprio modelo, com o total do mundo); tocar numa espécie mostra ícones no globo onde ela vive. Ferramentas de toque: **Pôr** (um grupo da espécie; mítico, um indivíduo), **Matar** (no raio do pincel; a espécie escolhida ou todas), **Acompanhar** (na maquete, tocar num animal: a câmera segue; arrastar solta) e **Mudar** (tamanho, fome, agressividade, velocidade e fertilidade da espécie inteira, de 50% a 200%). Míticos: só postos por deus, andam atrás de caça, comem, o dragão põe fogo; aparecem na maquete (rondando) e no globo (ícone). Conferido no Firefox.
-- **E9 feita:** a vida reage aos extremos pelo bioma e pelo gelo (planeta congelado e calor extremo testados: quem não cabe some; o camelo fica no deserto); floresta grande em volta dá até 30% a mais de crescimento às plantas do bloco, e onde ela some tudo em volta cresce mais devagar. **Ritmo do tempo (opção 5) feito:** na maquete, em 1×, um mês por segundo; o selo mostra "1× · 1 mês/s"; 2×, 5×, 20× e Máx não mudam.
-- **Próximos passos:** (5) Parte 3: medição final no Firefox, CHANGELOG, `docs/M3-revisao.md`, PR sem merge, prévia.
-- **Pendências anotadas:** travada de 213 ms ao gerar o mundo de novo no fim do "Medir desempenho"; sucessão das plantas na maquete (capim antes das árvores) ainda não ligada à biomassa.
+### Medição final (2026-11-10, `9f238b35`, Firefox 158 real, janela de 1920×1080, relógio da GPU, build de produção, na tomada)
+| Medida | M2 (T14, Chromium) | M3 | Meta | Fechou? |
+|---|---:|---:|---:|---|
+| GPU do globo, pior média | 6,2 ms | 6,5 ms (pior quadro 8,0) | ≤ 8 ms | Sim |
+| GPU da maquete, com 2.200 a 3.200 animais | — | 5,3 ms (pior 6,1) | ≤ 8 ms | Sim |
+| Trabalho da tela por quadro | — | 0,2 ms no globo; 1,8 ms na maquete (pior 30) | sem quadro > 50 ms | Sim |
+| Geração / primeira abertura | 0,95 s / 1,46 s | 1,14 s / 1,73 s | ≤ 1,5 s / ≤ 2,5 s | Sim |
+| Pior recomposição das placas | 743 ms | 738 ms, relógio esperou 0 | ≤ 1 s | Sim |
+| Recomposição da maquete | — | 918 ms (605 e 575 ms em outras rodadas) | ≤ 1 s | Sim, **no limite** |
+| Dados do jogo | ~90 MB | ~114 MB (a ecologia soma 1,5 MB; o resto é a maquete) | ≤ 400 MB da página | Sim (o Firefox não informa a página inteira) |
+| Travadas | 0 | 1 da tela (233 ms, tela livre esperando o quadro) · 0 da data | 0 | Quase |
+| Tempo Máx com placas 100% | ~1.400 a 1.560 passos/s | **~600 passos/s** | — | **Não: ficou mais lento** |
+| fps e pior quadro | 60 fps, 17 ms | **não valem nesta tela virtual** (ela não limita a 60 Hz; piores quadros de 40 a 56 ms com a tela livre) | 60 fps, ≤ 50 ms | **Só o Firefox do usuário decide** |
 
-### Feito neste bloco
+**O que não fechou ou ficou no limite:**
+1. **Tempo Máx ~2,5 vezes mais lento que no M2.** A ecologia custa ~0,3 a 0,5 ms por passo. Já foi barateada (era 1,1 ms: Máx a 275 passos/s). Para voltar ao ritmo do M2 só sobram escolhas que mudam o jogo (blocos maiores, ou a vida parada no tempo geológico): decisão do usuário.
+2. **Recomposição da maquete no limite** (575 a 918 ms conforme a rodada). Dois ajudantes baixam para 469 ms, mas travam a data na maquete com placas a 100%.
+3. **1,8 milhão de triângulos na tela** com a maquete cheia de bichos. A GPU fica em 5,3 ms, dentro da meta, mas a folga caiu. Técnica guardada (regra 16): modelo simplificado para os animais de longe.
+4. **Uma travada de tela de ~230 ms** aparece em quase toda rodada, sempre "tela livre esperando o quadro" (ver P7 em `docs/M3-fidelidade.md`).
+
+### O que ficou de fora por depender de outros marcos
+Humanos e domesticação em uso (M4): só os campos na tabela de espécies. Barcos para o kraken e a baleia branca atacarem (M5 a M7). Montes de pedra e pedras soltas nas jazidas (M4, ao minerar). Guerra, armamento e bombas: nada foi criado.
+
+### Testes para o usuário (os únicos que só ele pode fazer)
+Prévia: https://berzeruska.github.io/sandbox-mundo/previa/atual/ (a linha "versão" do painel Dados tem de mostrar o último commit do `marco-3`).
+1. **Medir desempenho:** Firefox em tela cheia, na tomada, com `webgl.enable-privileged-extensions` ligado em `about:config`. Menu → Mundo → Dados → "Medir desempenho" (~6 min) e colar o relatório. ✅ 60 fps de média, mínimo ≥ 50, nenhum quadro > 50 ms, GPU ≤ 8 ms, 0 travadas. ❌ qualquer cenário fora disso.
+2. **Corte e comandos:** aproximar até a maquete e afastar de volta, 5 vezes, com roda, pinça e setas ↑/↓. ✅ entra e sai sem tranco e as setas continuam funcionando. ❌ engasgo no corte, ou a seta para de responder.
+3. **Relevo:** de perto, passear por savana, montanha e uma jazida (Geologia → Ver recursos ajuda a achar). ✅ patamares limpos com a parede de terra, montanhas em degraus com neve, a cor do minério lida de longe. ❌ lascas ou riscos marrons soltos, buraco cinza, montanha em bolota.
+4. **Vida de perto:** na savana, em 1× (o selo mostra "1× · 1 mês/s"), olhar 2 minutos. ✅ grupos por espécie, pastam, nascem filhotes pequenos, um leão caça e come, o corpo some depois. ❌ bicho sem cabeça, enterrado, flutuando, ou todos parados.
+5. **Cartão Vida:** Menu → Vida → tocar em Zebra (ícones no globo); Pôr → tocar na savana; Matar → tocar; Mudar → mexer na fertilidade; escolher Dragão e Pôr. ✅ cada um faz o que diz, e o total da espécie muda no cartão no ano seguinte. ❌ nada acontece, ou o jogo trava.
+6. **Desastre e vida:** de perto, numa floresta com bichos, provocar um incêndio e depois um meteoro grande. ✅ os bichos do lugar morrem ou fogem, e mais tarde aparece aviso de espécie em risco se sobrar pouco. ❌ os bichos continuam como se nada fosse.
+
+### Como continuar do zero
+Ler esta seção, `docs/M3-revisao.md` e a entrada de 2026-11-09 e 10 em `docs/decisoes.md`. Depois da revisão do usuário: aplicar o que ele mudar, medir de novo e, com o ok dele, fazer o merge do PR e a tag `v3.0`.
+
+### O que foi feito, tarefa por tarefa
+- [x] **E1 a E3, ecologia em números:** `src/world/species.ts` (tabela) e `src/world/ecology.ts`: biomassa de planta e população de 26 espécies por bloco de 8×8 células, capacidade pelo bioma e pela vegetação, crescimento logístico, caça com saturação, refúgio, migração, anos bons e ruins. Aceite de 1.000 anos: 5 sementes passam, sem falha conhecida (`tests/world/ecology.test.ts`).
+- [x] **E4:** fogo, lava, água, fenda e cratera matam e espantam na célula; a seca tira 30% da capacidade; avisos de espécie em risco, último indivíduo, extinção e recuperação, com a câmera indo até lá.
+- [x] **E5 e E8:** cada pedaço da maquete mostra a população do bloco dele: nascem filhotes, pastam, o caçador persegue e come, o corpo fica 26 s; sangue leve só em quem foi caçado.
+- [x] **E6, E7 e E9b:** categoria "Vida" no menu, com a grade das espécies (ícone do próprio modelo e total), ícones no globo, Pôr, Matar, Acompanhar e Mudar; dragão, kraken e baleia branca só postos por deus.
+- [x] **E9:** a vida reage ao planeta congelado e ao calor extremo; floresta em volta dá até 30% a mais de crescimento; na maquete, em 1×, um mês por segundo.
 - [x] **P1 e P2, terraços e montanhas (2026-11-09):** reproduzido no Firefox (lascas e riscos em zigue-zague; montanhas em bolotas com grama em espiral). A malha do chão agora corta cada triângulo pelas curvas de nível: patamar plano, parede de terra limpa entre dois patamares, e nada de lasca (crista ou vala com menos de 3 vértices de largura fica no patamar vizinho). As montanhas viraram o próprio chão em degraus altos: parede de rocha, patamar de grama com pinheiros e pedras, neve a partir de um patamar inteiro e cume em ponta. Cada pico pertence à célula do mundo: sai igual em pedaços vizinhos e dos dois lados da aresta do cubo. Código: `src/maquete/chunk-build.ts` (`steppedTriangle`, `prepareSteps`, `surfaceY`) e `src/maquete/world-fields.ts` (`Peaks`, `fill`). Testes: `tests/maquete/terraces.test.ts`.
 - [x] **P3, jazidas (2026-11-09):** reproduzido (lajes cinza-escuras, mancha fraca). Cores tiradas de `recursos/jazidas.png` (cobre laranja com verde-azulado e azul, ferro com ferrugem, urânio com cristais verdes, enxofre amarelo, sal e lítio com cubos brancos); lajes maiores, duas por célula, e mancha forte no chão. Continua afloramento (decisão de 2026-11-06), sem montes. A cava de petróleo é única e grande (opção 2), com o chão aplainado em volta.
 - [x] **P4, animais (2026-11-09):** os modelos foram refeitos como cascos facetados (um tubo de seção em polígono que segue dorso, pescoço, crânio e focinho), com medidas e cores de cada folha: rena de peito creme e galhada alta, lobo de dorso escuro, alce com pá, javali com crina, bisão de corcova e frente escura, zebra com listras de verdade (fatias do corpo), leão de juba, onça com pintas e cauda de anéis, elefante com orelhas, tromba e presas, camelo de uma corcova, cabra-montesa com chifres em arco, águia de cabeça branca. Mar: baleia, cachalote, tubarão, lula e lula-gigante aparecem inteiros, azulados onde estão dentro da água. Classe mítica só no desenho (dragão, kraken, baleia branca colossal): modelos prontos, sem nascer sozinhos. Código: `src/maquete/animals.ts`; conferência em `prototipo/folhas.html?folha=animais1` a `4`; teste `tests/maquete/animals.test.ts`.
