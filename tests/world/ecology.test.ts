@@ -47,7 +47,8 @@ describe('ecologia: plantas e capacidade (E1)', () => {
     const seen: number[] = [];
     run(e, 30, 0, () => seen.push(e.plant[b] as number));
     for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeLessThanOrEqual(cap + 1e-6);
-    expect(seen[2]).toBeGreaterThan(cap * 0.05);
+    // A vez do bloco chega de 4 em 4 anos: em 6 anos ele já cresceu pelo menos uma vez.
+    expect(seen[6]).toBeGreaterThan(cap * 0.05);
     expect(seen[seen.length - 1]).toBeGreaterThan(cap * 0.9);
   });
   it('custo de memória dentro do teto de 60 MB da especificação', () => {

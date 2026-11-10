@@ -14,12 +14,19 @@ interface Wanted { chunk: ChartChunk; pcx: number; pcz: number; order: number }
 /** Plantas de perto: pedem a esta distância da câmera, soltam a esta. */
 const NEAR_ASK = 185, NEAR_DROP = 240;
 
+/**
+ * Quantos ajudantes montam os pedaços. Com 2, refazer a vista caiu de ~800 para 469 ms, mas na maquete com placas a 100% em 5× a data travou 6 vezes em 15 s
+ * (os dois refazendo rios e pedaços disputam núcleo com o relógio). Fica 1: a meta de 1 s fecha e a data não trava.
+ */
+const MAQUETE_WORKERS = 1;
+
 /** Lados na ordem da malha (+x, -x, +z, -z), vistos no plano depois de girar. */
 const SIDE_DIRS: readonly (readonly [number, number])[] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
 export class MaqueteWorld {
   readonly renderer: MaqueteRenderer;
-  private worker: Worker;
+  /** Ajudantes que montam os pedaços; cada um tem a sua cópia do mundo. */
+  private workers: Worker[] = [];
   private hasWorld = false;
   private worldId = 0;
   private gen = 1;
@@ -47,8 +54,7 @@ export class MaqueteWorld {
     this.renderer = new MaqueteRenderer(gl, 'fxaa');
     this.animals = new AnimalHerds(this.renderer);
     this.fx = new MaqueteFx(this.renderer);
-    this.worker = new Worker(new URL('../maquete/worker.ts', import.meta.url), { type: 'module' });
-    this.worker.onmessage = (e: MessageEvent<FromMaqueteWorker>) => {
+    const onMessage = (e: MessageEvent<FromMaqueteWorker>) => {
       const m = e.data;
       if (m.type === 'changed') {
         // Só os que estão na tela: continuam desenhados até o novo chegar.
@@ -61,7 +67,12 @@ export class MaqueteWorld {
       this.arrived.push(m);
       this.buildMs.push(m.ms);
     };
-    this.worker.onerror = (e) => { console.error('Ajudante da maquete:', e.message); };
+    for (let i = 0; i < MAQUETE_WORKERS; i++) {
+      const w = new Worker(new URL('../maquete/worker.ts', import.meta.url), { type: 'module' });
+      w.onmessage = onMessage;
+      w.onerror = (e) => { console.error('Ajudante da maquete:', e.message); };
+      this.workers.push(w);
+    }
   }
 
   /** Cópia nova do mundo. `fresh`: outro planeta, tudo sai. */
@@ -80,7 +91,9 @@ export class MaqueteWorld {
     this.hasWorld = true;
     this.worldId++;
     const msg: ToMaqueteWorker = { type: 'world', world, id: this.worldId };
-    this.worker.postMessage(msg, [world.height.buffer, world.rgba.buffer, world.cover.buffer, world.state.buffer, world.deposit.buffer, world.ice.buffer, world.temp.buffer, world.volcano.buffer] as ArrayBuffer[]);
+    // O segundo recebe uma cópia; o primeiro fica com os buffers (sem copiar).
+    for (let i = 1; i < this.workers.length; i++) (this.workers[i] as Worker).postMessage(msg);
+    (this.workers[0] as Worker).postMessage(msg, [world.height.buffer, world.rgba.buffer, world.cover.buffer, world.state.buffer, world.deposit.buffer, world.ice.buffer, world.temp.buffer, world.volcano.buffer] as ArrayBuffer[]);
   }
 
   /** Um desenho escondido para o navegador terminar de preparar os programas. */
@@ -167,7 +180,7 @@ export class MaqueteWorld {
       this.nearAsked.add(key);
       this.inFlight++;
       const msg: ToMaqueteWorker = { type: 'build', key, face: w.chunk.face, cx: w.chunk.cx, cz: w.chunk.cz, gen: this.gen, near: true };
-      this.worker.postMessage(msg);
+      (this.workers[Math.abs(key) % this.workers.length] as Worker).postMessage(msg);
     }
   }
 
@@ -235,7 +248,7 @@ export class MaqueteWorld {
       this.stale.delete(c.key);
       this.inFlight++;
       const msg: ToMaqueteWorker = { type: 'build', key: c.key, face: c.face, cx: c.cx, cz: c.cz, gen: this.gen };
-      this.worker.postMessage(msg);
+      (this.workers[Math.abs(c.key) % this.workers.length] as Worker).postMessage(msg);
     }
     for (const k of [...this.stale]) if (!this.wanted.has(k)) this.stale.delete(k);
   }

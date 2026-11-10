@@ -387,7 +387,11 @@ export class App {
       },
       onStorms: (storms) => this.onStorms(storms),
       onLife: (life) => this.onLife(life),
-      onLifeMap: (species, points) => { if (species === this.hud.lifeSpecies) { this.lifeMap = points; this.requestDraw(); } },
+      onLifeMap: (species, points) => {
+        const waiter = this.lifeMapWaiter;
+        if (waiter) { this.lifeMapWaiter = null; waiter(points); return; }
+        if (species === this.hud.lifeSpecies) { this.lifeMap = points; this.requestDraw(); }
+      },
       onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
         this.climate = climate;
         this.stats.memoryMb = memoryMb;
@@ -716,6 +720,8 @@ export class App {
 
   /** Blocos onde a espécie escolhida vive (x, y, z, quantos), para os ícones no globo. */
   private lifeMap: Float32Array | null = null;
+  /** A medição pergunta onde há mais vida, para medir a maquete cheia de bichos. */
+  private lifeMapWaiter: ((points: Float32Array) => void) | null = null;
   /** Animal que a câmera acompanha na maquete, e quanto o jogador já arrastou desde então. */
   private followed: { handle: AnimalHandle; drags: number } | null = null;
 
@@ -1433,9 +1439,16 @@ export class App {
       bench.maquete = true;
       this.setPlateRate(0);
       const cam = this.camera;
+      // Com populações cheias (especificação do M3, item 9): a maquete é medida onde há mais bichos, longe das crateras do cenário dos meteoros.
+      const crowded = await new Promise<Float32Array>((resolve) => {
+        this.lifeMapWaiter = resolve;
+        this.sim.life({ type: 'lifeMap', species: SPECIES.findIndex((q) => q.id === 'antilope') });
+        setTimeout(() => { if (this.lifeMapWaiter === resolve) { this.lifeMapWaiter = null; resolve(new Float32Array(0)); } }, 3000);
+      });
+      const lively: Vec3 = crowded.length >= 3 ? [crowded[0] as number, crowded[1] as number, crowded[2] as number] : (this.info as WorldInfo).landCenter;
       const enter = async (distance = 1): Promise<void> => {
         if (!cam.inMaquete) {
-          cam.lookAt((this.info as WorldInfo).landCenter);
+          cam.lookAt(lively);
           cam.zoom = (CUT_PIXELS + 1) / (cam.baseRadius() * cam.cellAngle);
           this.requestDraw();
           for (let k = 0; k < 2000 && !cam.inMaquete; k++) await wait(10);
@@ -1469,6 +1482,7 @@ export class App {
         cam.view.z += (d[1] as number) * speed * dt;
       });
       await scenario(17, 'maquete, parada', 6000, () => { this.setSpeed(0); void enter(); }, 'hidden');
+      const crowd = this.maquete?.animals.count ?? 0;
       await measureMaquete('maquete, parada');
       await scenario(18, 'maquete, girando', 6000, () => undefined, 'hidden', moving((dt) => { cam.turnView(dt * 0.5); }));
       await measureMaquete('maquete, girando');
@@ -1491,6 +1505,9 @@ export class App {
       this.setSpeed(0);
       // Recomposição: refazer tudo à vista no ajudante, com a maquete na tela.
       const m = this.maquete as MaqueteWorld;
+      // Parte do repouso: o que as placas do cenário anterior deixaram na fila não entra na conta.
+      for (let k = 0; k < 800 && m.pendingCount > 0; k++) await wait(10);
+      await wait(4500);
       const t0 = performance.now();
       m.rebuildAll();
       const recRecorder = new FrameRecorder();
@@ -1500,7 +1517,7 @@ export class App {
       bench.recorder = null;
       const b = m.buildMs, u = m.uploadMs, mean = (a: readonly number[]) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
       maqueteLines.push(`pedaços: ${b.length} montados no ajudante, média ${mean(b).toFixed(1)} ms, pior ${Math.max(0, ...b).toFixed(0)} ms · subir para a GPU, média ${mean(u).toFixed(2)} ms, pior ${Math.max(0, ...u).toFixed(1)} ms`);
-      maqueteLines.push(`na tela: ${Math.round(m.renderer.stats.triangles / 1000)} mil triângulos · ${m.renderer.stats.drawCalls} desenhos · ${(m.renderer.stats.gpuBytes / 1048576).toFixed(0)} MB de pedaços na GPU · ${m.animals.count} animais`);
+      maqueteLines.push(`na tela: ${Math.round(m.renderer.stats.triangles / 1000)} mil triângulos · ${m.renderer.stats.drawCalls} desenhos · ${(m.renderer.stats.gpuBytes / 1048576).toFixed(0)} MB de pedaços na GPU · ${m.animals.count} animais agora, ${crowd} na entrada (onde há mais vida)`);
       if (cam.inMaquete) cam.exit();
       bench.maquete = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).

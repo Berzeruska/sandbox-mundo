@@ -238,7 +238,8 @@ export class AnimalHerds {
     for (const [key, h] of this.herds) {
       const place = this.renderer.placeOf(key);
       if (!place) continue;
-      if (!paused && clock >= h.nextSync) { this.sync(h); h.nextSync = clock + SYNC_SECONDS * (0.8 + hash3(key, 3, 5) * 0.4); }
+      // Pausado, o pedaço que acabou de chegar ainda mostra quem vive ali; só nascer e morrer esperam o tempo andar.
+      if ((!paused || !h.filled) && clock >= h.nextSync) { this.sync(h); h.nextSync = clock + SYNC_SECONDS * (0.8 + hash3(key, 3, 5) * 0.4); }
       const size = GRID - 1, origin = chunkOrigin(key), turn = Math.atan2(place[3], place[2]);
       let removed = false;
       for (const a of h.members) {

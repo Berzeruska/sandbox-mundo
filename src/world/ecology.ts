@@ -10,15 +10,20 @@ import type { WorldState } from './state';
  *
  * Mecanismos de `docs/04-ecologia.md`: capacidade de suporte pelo bioma e pela vegetação, crescimento logístico, predador e presa com saturação (o predador não come sem limite),
  * refúgio (uma parte da presa fica fora de alcance), nichos por bioma e migração para o bloco vizinho quando falta comida ou espaço.
- * Tudo anda no relógio, em turnos (um doze avos dos blocos por passo, cada bloco uma vez por ano), com sorteio pela semente: mesma semente e mesmos comandos, mesmas populações.
+ * Tudo anda no relógio, em turnos (cada bloco tem a vez dele de 4 em 4 anos de jogo, e nela anda os 4 anos), com sorteio pela semente: mesma semente e mesmos comandos, mesmas populações.
  */
 export const BLOCK = 8;
 /** A densidade da tabela de espécies vale para 16 células; o bloco tem 64, e nem tudo é pasto. */
 const AREA = 3;
 /** Abaixo disto a espécie some do bloco. */
 const VANISH = 0.02;
-const SUBSTEPS = 2;
-const TURNS = 12;
+/**
+ * Turnos: cada bloco tem a sua vez de 4 em 4 anos (48 passos), e na vez dele anda os 4 anos em 4 fatias de um ano.
+ * Medido no Firefox: com a vez de ano em ano a ecologia custava 1,1 ms por passo e o tempo Máx caía de ~1.080 para 275 passos por segundo.
+ */
+const SUBSTEPS = 4;
+const TURNS = 48;
+const YEAR_TICKS = 12;
 /** As espécies que entram nos números vêm primeiro na lista; as míticas, depois. */
 const NUMBERED = SPECIES.findIndex((q) => q.mythic === true);
 /** Na lista, os bichos de terra vêm antes dos do mar. */
@@ -91,6 +96,7 @@ export class Ecology {
   private readonly meat = new Float32Array(SPECIES_COUNT);
   /** 0 plantas, 1 onívoro, 2 carne, 3 plâncton. */
   private readonly diet = new Uint8Array(SPECIES_COUNT);
+  /** Bloco em que algo mudou (desastre, placas, poder de deus): refaz a capacidade na próxima vez dele. */
   private readonly stale: Uint8Array;
   /** O que o bloco tem: 1 terra, 2 mar, 3 os dois. Bloco só de mar não gasta tempo com bicho de terra, e vice-versa. */
   private readonly kind: Uint8Array;
@@ -113,8 +119,8 @@ export class Ecology {
     this.cap = new Float32Array(SPECIES_COUNT * this.blocks);
     this.plant = new Float32Array(this.blocks);
     this.plantCap = new Float32Array(this.blocks);
-    this.stale = new Uint8Array(this.blocks).fill(1);
     this.kind = new Uint8Array(this.blocks).fill(3);
+    this.stale = new Uint8Array(this.blocks);
     this.seed = world.params.seed;
     this.rng = createRng((world.params.seed ^ 0x51ec0109) >>> 0);
     SPECIES.forEach((sp, i) => {
@@ -162,7 +168,7 @@ export class Ecology {
     if (ground) ground.onState = (cell, state) => this.hit(cell, state);
   }
 
-  /** As placas andaram e o chão mudou de lugar: todo bloco refaz a capacidade na vez dele. */
+  /** As placas andaram e o chão mudou de lugar: todo bloco refaz a capacidade na vez dele (não há nada a fazer antes disso). */
   worldMoved(): void { this.stale.fill(1); }
 
   get bytes(): number { return this.pop.byteLength + this.cap.byteLength + this.plant.byteLength * 2 + this.neighbors.byteLength; }
@@ -226,25 +232,26 @@ export class Ecology {
 
   /** Um passo do relógio: a vez de um doze avos dos blocos. No passo que fecha o ano, devolve avisos e pedidos dos míticos. */
   step(tick: number): EcologyYear | null {
-    const turn = ((tick % TURNS) + TURNS) % TURNS, year = Math.floor(tick / TURNS);
+    const turn = ((tick % TURNS) + TURNS) % TURNS, year = Math.floor(tick / YEAR_TICKS);
     for (let b = turn; b < this.blocks; b += TURNS) this.updateBlock(b, year);
-    if (turn !== TURNS - 1) return null;
+    if (tick % YEAR_TICKS !== YEAR_TICKS - 1) return null;
     this.year = year;
     return this.closeYear(year);
   }
 
   private updateBlock(b: number, year: number): void {
-    // A capacidade só é refeita quando algo mudou no bloco (desastre) ou de 4 em 4 anos (clima e vegetação mudam devagar).
-    if (this.stale[b] || ((year + b) & 3) === 0) { this.refreshCaps(b); this.stale[b] = 0; }
+    // Refazer a capacidade é a parte cara (64 células): só quando algo mudou no bloco, ou a cada 3 vezes dele (12 anos), que é o ritmo da vegetação e do clima.
+    if (this.stale[b] || (Math.floor(year / 4) + b) % 3 === 0) { this.refreshCaps(b); this.stale[b] = 0; }
     const B = this.blocks, pop = this.pop, cap = this.cap, wet = this.weather(b, year);
     // Plantas: crescimento logístico até a capacidade, com um resto de sementes para voltar do zero.
     const kv = this.plantCap[b] as number;
     let p = this.plant[b] as number;
     if (kv <= 0) p = 0;
-    else { p = Math.max(kv * 0.03, p); p += 0.9 * wet * this.moisture(b) * p * (1 - p / kv); p = Math.min(kv, Math.max(kv * 0.03, p)); }
+    else { const grow = 0.9 * wet * this.moisture(b); for (let q = 0; q < SUBSTEPS; q++) { p = Math.max(kv * 0.03, p); p += grow * p * (1 - p / kv); p = Math.min(kv, Math.max(kv * 0.03, p)); } }
     this.plant[b] = p;
     const food = kv > 0 ? p / kv : 0;
-    const dt = 1 / SUBSTEPS;
+    // Cada fatia é um ano. As contas são multiplicativas (crescer ou encolher por um fator): não passam de zero nem explodem com a fatia longa.
+    const dt = TURNS / YEAR_TICKS / SUBSTEPS;
     const T = TRAITS.length, tr = this.traits, growth = this.growth, meat = this.meat, diet = this.diet;
     // Só as espécies que o bloco pode ter (terra, mar ou os dois); quem ficou onde não cabe (o mar subiu) ainda é tratado até sumir.
     const kind = this.kind[b] as number, lingering = this.lingers(b, kind);
@@ -255,13 +262,13 @@ export class Ecology {
         let N = pop[i] as number;
         if (N <= 0) continue;
         const room = cap[i] as number;
-        if (room <= 0) { pop[i] = N * (1 - 0.5 * dt); continue; }
+        if (room <= 0) { pop[i] = N * Math.exp(-0.7 * dt); continue; }
         const d = diet[s] as number, g = growth[s] as number;
         if (d !== 2) {
           // Presa: logística até o que o bloco sustenta. Planta em falta e ano seco baixam o teto.
           const k = d === 3 ? room * (0.3 + 0.7 * wet) : room * (0.35 + 0.65 * food) * wet / (tr[s * T + 1] as number);
-          N += dt * g * (tr[s * T + 4] as number) * N * (1 - N / Math.max(1e-6, k));
-          pop[i] = N > 0 ? N : 0;
+          N *= Math.exp(dt * g * (tr[s * T + 4] as number) * (1 - N / Math.max(1e-6, k)));
+          pop[i] = N;
           continue;
         }
         // Caçador: come o que alcança (a presa acima do refúgio), com saturação.
@@ -289,8 +296,8 @@ export class Ecology {
         }
         // Bem alimentado, cresce até encher o território; com fome, encolhe na medida do que faltou.
         const fed = eaten < need ? eaten / need : 1;
-        N += dt * N * g * (fed * (tr[s * T + 4] as number) - TUNE.crowd * (N / room) - (1 - fed) * TUNE.starve);
-        pop[i] = N > 0 ? N : 0;
+        N *= Math.exp(dt * g * (fed * (tr[s * T + 4] as number) - TUNE.crowd * (N / room) - (1 - fed) * TUNE.starve));
+        pop[i] = N;
       }
     }
     // Migração: um pouco sempre; mais quando o bloco está cheio ou não sustenta mais a espécie.
@@ -300,7 +307,7 @@ export class Ecology {
       if (N < VANISH) { pop[i] = 0; continue; }
       const room = cap[i] as number;
       const press = room > 0 ? Math.max(0, N / room - 0.8) : 2;
-      const leave = N * Math.min(0.5, (0.03 + 0.25 * press) * (tr[s * T + 3] as number));
+      const leave = N * Math.min(0.5, (0.03 + 0.25 * press) * (tr[s * T + 3] as number) * (TURNS / YEAR_TICKS));
       let open = 0;
       for (let d = 0; d < 4; d++) if ((cap[s * B + (this.neighbors[b * 4 + d] as number)] as number) > 0) open++;
       if (!open) continue;
