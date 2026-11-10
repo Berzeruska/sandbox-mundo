@@ -68,6 +68,8 @@ export type ToWorker =
   | { type: 'life'; op: 'place'; species: number; point: Vec3; count: number }
   | { type: 'life'; op: 'kill'; species: number; point: Vec3; radius: number }
   | { type: 'life'; op: 'trait'; species: number; trait: number; value: number }
+  /** Onde a espécie vive: os blocos com mais indivíduos, para os ícones no globo (E9b). */
+  | { type: 'lifeMap'; species: number }
   /** Teste de memória compartilhada (correção 2): o worker escreve SHARED_PROBE_VALUE no buffer. */
   | { type: 'sharedProbe'; buffer: SharedArrayBuffer };
 
@@ -142,10 +144,15 @@ export type FromWorker =
    * (LIFE_MYTHIC_FLOATS números por indivíduo: id, espécie, x, y, z) e as características mudadas por deus.
    */
   | { type: 'life'; year: number; totals: Float32Array; events: LifeEvent[]; mythics: Float32Array; traits: Float32Array }
+  /** LIFE_MAP_FLOATS números por bloco: x, y, z do meio do bloco e quantos indivíduos. */
+  | { type: 'lifeMap'; species: number; points: Float32Array }
   | { type: 'sharedProbe'; ok: boolean };
 
 export const STORM_FLOATS = 7;
 export const LIFE_MYTHIC_FLOATS = 5;
+export const LIFE_MAP_FLOATS = 4;
+/** Quantos blocos, no máximo, viram ícone no globo. */
+export const LIFE_MAP_BLOCKS = 140;
 /** Aviso da ecologia, com o ponto do planeta para a câmera ir até lá. */
 export interface LifeEvent { kind: 'risco' | 'ultimo' | 'extinta' | 'recuperada'; species: number; point: Vec3; year: number }
 
@@ -168,6 +175,7 @@ export function applyPatch(colors: Uint8Array, n: number, p: Patch): void {
 /** Buffers de uma mensagem que podem ser transferidos em vez de copiados. */
 export function transferables(msg: FromWorker): ArrayBuffer[] {
   if (msg.type === 'maqueteSnapshot') return [msg.height.buffer as ArrayBuffer, msg.cover.buffer as ArrayBuffer, msg.state.buffer as ArrayBuffer, msg.deposit.buffer as ArrayBuffer, msg.ice.buffer as ArrayBuffer, msg.temp.buffer as ArrayBuffer, msg.volcano.buffer as ArrayBuffer, msg.life.buffer as ArrayBuffer];
+  if (msg.type === 'lifeMap') return [msg.points.buffer as ArrayBuffer];
   if (msg.type === 'life') return [msg.totals.buffer as ArrayBuffer, msg.mythics.buffer as ArrayBuffer, msg.traits.buffer as ArrayBuffer];
   if (msg.type === 'world') return [msg.colors.buffer as ArrayBuffer, msg.plateCells.buffer as ArrayBuffer, msg.deposits.buffer as ArrayBuffer];
   if (msg.type === 'patch') {

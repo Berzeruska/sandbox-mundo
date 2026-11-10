@@ -19,6 +19,18 @@ import {
   type MenuState,
 } from './menu-state';
 
+import { SPECIES, type SpeciesInfo } from '../world/species';
+import { TRAIT_RANGE, TRAITS } from '../world/ecology';
+import { speciesIcon } from './species-icon';
+
+/** Quantos há no mundo, em poucas letras: 950, 12 mil, 1,2 mi. */
+export function countLabel(n: number): string {
+  if (n < 0.5) return '—';
+  if (n < 1000) return String(Math.round(n));
+  if (n < 1e6) return `${(n / 1000).toFixed(n < 1e4 ? 1 : 0).replace('.', ',')} mil`;
+  return `${(n / 1e6).toFixed(1).replace('.', ',')} mi`;
+}
+
 export interface HudCallbacks {
   onSpeed(speed: Speed): void;
   onTogglePause(): void;
@@ -38,6 +50,10 @@ export interface HudCallbacks {
   onView(id: string | null): void;
   /** A ferramenta ativa (ou o menu) mudou. */
   onMenuChange(state: MenuState): void;
+  /** Espécie escolhida no cartão "Vida" (-1: nenhuma). */
+  onLifeSpecies?(species: number): void;
+  /** Característica da espécie mudada por deus (1 = normal). */
+  onLifeTrait?(species: number, trait: number, value: number): void;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
@@ -73,6 +89,10 @@ export class Hud {
   /** Força escolhida por desastre (o último escolhido fica). */
   private strengths = new Map<number, number>(Object.entries(DEFAULT_STRENGTH).map(([k, v]) => [Number(k), v as number]));
   private lastDate = '';
+  /** Vida (M3): espécie escolhida, totais do mundo e características. */
+  lifeSpecies = -1;
+  private lifeTotals: Float32Array | null = null;
+  private lifeTraits: Float32Array | null = null;
 
   private dateText: HTMLSpanElement;
   private speedBadge: HTMLSpanElement;
@@ -272,6 +292,54 @@ export class Hud {
     return wrap;
   }
 
+  /** Totais do ano (a grade do cartão "Vida" mostra quantos há de cada espécie). */
+  setLife(totals: Float32Array, traits: Float32Array): void {
+    this.lifeTotals = totals;
+    this.lifeTraits = traits;
+    for (const e of this.root.querySelectorAll<HTMLElement>('.hud-species-count')) e.textContent = countLabel(totals[Number(e.dataset.species)] ?? 0);
+  }
+
+  private speciesName(): string { return this.lifeSpecies >= 0 ? (SPECIES[this.lifeSpecies] as SpeciesInfo).name : ''; }
+
+  /** Grade das espécies: o ícone é o próprio modelo; tocar escolhe (e mostra no globo onde ela vive). */
+  private speciesGrid(): HTMLElement {
+    const wrap = el('div', 'hud-species');
+    SPECIES.forEach((sp, i) => {
+      const b = btn('hud-species-tile', sp.name, () => {
+        this.lifeSpecies = this.lifeSpecies === i ? -1 : i;
+        this.cb.onLifeSpecies?.(this.lifeSpecies);
+        this.render();
+      });
+      b.classList.toggle('on', i === this.lifeSpecies);
+      b.classList.toggle('mythic', sp.mythic === true);
+      const count = el('small', 'hud-species-count', countLabel(this.lifeTotals?.[i] ?? 0));
+      count.dataset.species = String(i);
+      b.append(speciesIcon(i), el('span', '', sp.name), count);
+      wrap.append(b);
+    });
+    return wrap;
+  }
+
+  /** As cinco características da espécie escolhida, de 50% a 200%. */
+  private traitSliders(): HTMLElement {
+    const wrap = el('span', 'hud-traits'), s = this.lifeSpecies;
+    TRAITS.forEach((name, t) => {
+      const row = el('label', 'hud-trait'), range = el('input', 'hud-brush-range');
+      const now = Math.round((this.lifeTraits?.[s * TRAITS.length + t] ?? 1) * 100);
+      range.type = 'range'; range.min = String(TRAIT_RANGE[0] * 100); range.max = String(TRAIT_RANGE[1] * 100); range.step = '10'; range.value = String(now);
+      range.setAttribute('aria-label', name);
+      const value = el('span', 'hud-brush-value', `${now}%`);
+      range.addEventListener('input', () => {
+        value.textContent = `${range.value}%`;
+        if (this.lifeTraits) this.lifeTraits[s * TRAITS.length + t] = Number(range.value) / 100;
+        this.cb.onLifeTrait?.(s, t, Number(range.value) / 100);
+      });
+      row.append(el('span', '', name), range, value);
+      wrap.append(row);
+    });
+    return wrap;
+  }
+
   private render(): void {
     const paused = this.speed === 0;
     this.speedBadge.textContent = paused ? 'pausado' : speedLabel(this.speed);
@@ -321,6 +389,20 @@ export class Hud {
       card.append(name);
       const row = this.strengthChoices(item.disaster);
       if (row) card.append(row);
+    } else if (item.id === 'lifePlace') {
+      name.append(el('small', '', this.lifeSpecies >= 0 ? `toque para pôr: ${this.speciesName()}` : 'escolha a espécie no menu Vida'));
+      card.append(name);
+    } else if (item.id === 'lifeKill') {
+      name.append(el('small', '', `toque para matar: ${this.lifeSpecies >= 0 ? this.speciesName() : 'todas as espécies'}`));
+      card.append(name, this.brushSlider());
+    } else if (item.id === 'lifeFollow') {
+      name.append(el('small', '', 'aproxime e toque num animal'));
+      card.append(name);
+    } else if (item.id === 'lifeTraits') {
+      name.textContent = this.lifeSpecies >= 0 ? this.speciesName() : 'Mudar';
+      name.append(el('small', '', this.lifeSpecies >= 0 ? 'vale para a espécie inteira' : 'escolha a espécie no menu Vida'));
+      card.append(name);
+      if (this.lifeSpecies >= 0) card.append(this.traitSliders());
     } else if (item.id === 'disasterFreq') {
       name.textContent = 'Desastres';
       name.append(el('small', '', 'frequência'));
@@ -370,6 +452,7 @@ export class Hud {
       row.append(el('span', '', 'Placas'), this.plateSlider());
       this.grid.append(row);
     }
+    if (this.state.category === 'vida') this.grid.append(this.speciesGrid());
     if (this.state.category === 'desastres') {
       const row = el('div', 'hud-row');
       row.append(el('span', '', 'Frequência'), this.frequencyChoices());

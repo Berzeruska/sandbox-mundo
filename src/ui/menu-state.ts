@@ -9,7 +9,7 @@ import { DisasterKind } from '../world/disasters/types';
  * Na tela fica só a ferramenta ativa; o menu abre por categoria para escolher outra.
  */
 
-export type CategoryId = 'tempo' | 'relevo' | 'desastres' | 'geologia' | 'clima' | 'mundo';
+export type CategoryId = 'tempo' | 'relevo' | 'desastres' | 'geologia' | 'clima' | 'vida' | 'mundo';
 
 export const CATEGORIES: readonly { id: CategoryId; label: string; icon: string }[] = [
   { id: 'tempo', label: 'Tempo', icon: '⏱️' },
@@ -17,6 +17,7 @@ export const CATEGORIES: readonly { id: CategoryId; label: string; icon: string 
   { id: 'desastres', label: 'Desastres', icon: '🌋' },
   { id: 'geologia', label: 'Geologia', icon: '🌍' },
   { id: 'clima', label: 'Clima', icon: '🌡️' },
+  { id: 'vida', label: 'Vida', icon: '🐾' },
   { id: 'mundo', label: 'Mundo', icon: '🪐' },
 ];
 
@@ -81,6 +82,12 @@ export const ITEMS: readonly MenuItem[] = [
   { id: 'temperature', category: 'clima', label: 'Temperatura', icon: '🌡️', kind: 'tool', available: true },
   { id: 'biomesLayer', category: 'clima', label: 'Ver biomas', icon: '🗺️', kind: 'toggle', available: true },
   { id: 'cloudsLayer', category: 'clima', label: 'Nuvens', icon: '☁️', kind: 'toggle', available: true },
+
+  // Poderes de deus sobre as criaturas (M3, E6): valem para a espécie escolhida na grade do cartão "Vida".
+  { id: 'lifePlace', category: 'vida', label: 'Pôr', icon: '🐣', kind: 'tool', available: true },
+  { id: 'lifeKill', category: 'vida', label: 'Matar', icon: '💀', kind: 'tool', available: true },
+  { id: 'lifeFollow', category: 'vida', label: 'Acompanhar', icon: '🎥', kind: 'tool', available: true },
+  { id: 'lifeTraits', category: 'vida', label: 'Mudar', icon: '🧬', kind: 'tool', available: true },
 
   { id: 'newWorld', category: 'mundo', label: 'Novo mundo', icon: '🌍', kind: 'action', available: true },
   { id: 'debug', category: 'mundo', label: 'Dados', icon: '🐞', kind: 'action', available: true },

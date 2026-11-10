@@ -12,8 +12,9 @@ import { CellState, STATE_NAMES } from './world/disasters/ground';
 import { droughtHeat } from './world/disasters/drought';
 import { MAX_DUST, MAX_STORMS } from './render/shaders';
 import { DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './world/disasters/types';
-import { LIFE_MYTHIC_FLOATS, STORM_FLOATS, type LifeEvent } from './sim/protocol';
-import type { MythicView } from './render/maquete-animals';
+import { LIFE_MAP_FLOATS, LIFE_MYTHIC_FLOATS, STORM_FLOATS, type LifeEvent } from './sim/protocol';
+import type { AnimalHandle, MythicView } from './render/maquete-animals';
+import { speciesIcon } from './ui/species-icon';
 import { SPECIES, type SpeciesInfo } from './world/species';
 import { feltRadius } from './world/disasters/quakes';
 import { SHAKE_MAGNITUDE } from './world/disasters/meteor';
@@ -232,6 +233,7 @@ export class App {
       // Toque curto (modo Mover) seleciona: mostra o que há no ponto (pedido do usuário, 2026-10-17).
       // Com uma ferramenta de desastre (T11), provoca o desastre ali.
       onTap: (sx, sy) => {
+        if (this.lifeTap(sx, sy)) return;
         const p = this.disasterTool !== null ? this.camera.pick(sx, sy) : null;
         if (p && this.disasterTool !== null) this.provoke(this.disasterTool, p);
         else void this.showDepositAt(sx, sy);
@@ -275,6 +277,8 @@ export class App {
           this.climateControl = degrees;
           this.sim.setClimateControl(degrees);
         },
+        onLifeSpecies: (species) => { this.lifeMap = null; if (species >= 0) this.sim.life({ type: 'lifeMap', species }); this.requestDraw(); },
+        onLifeTrait: (species, trait, value) => this.sim.life({ type: 'life', op: 'trait', species, trait, value }),
         onSpeed: (speed) => this.setSpeed(speed),
         onTogglePause: () => this.togglePause(),
         onAction: (action) => {
@@ -382,6 +386,7 @@ export class App {
       },
       onStorms: (storms) => this.onStorms(storms),
       onLife: (life) => this.onLife(life),
+      onLifeMap: (species, points) => { if (species === this.hud.lifeSpecies) { this.lifeMap = points; this.requestDraw(); } },
       onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
         this.climate = climate;
         this.stats.memoryMb = memoryMb;
@@ -708,6 +713,65 @@ export class App {
     for (const e of events) if (isToast(e)) this.toasts.show(toEntry(e));
   }
 
+  /** Blocos onde a espécie escolhida vive (x, y, z, quantos), para os ícones no globo. */
+  private lifeMap: Float32Array | null = null;
+  /** Animal que a câmera acompanha na maquete, e quanto o jogador já arrastou desde então. */
+  private followed: { handle: AnimalHandle; drags: number } | null = null;
+
+  /**
+   * Toque com uma ferramenta da Vida (E6): pôr um grupo da espécie escolhida, matar no raio do pincel, ou acompanhar um animal com a câmera.
+   * Acompanhar não trava zoom nem velocidade; arrastar solta a câmera.
+   */
+  private lifeTap(sx: number, sy: number): boolean {
+    const tool = this.hud.state.active, species = this.hud.lifeSpecies;
+    if (!tool.startsWith('life') || !this.info) return false;
+    const p = this.camera.pick(sx, sy);
+    if (!p) return true;
+    if (tool === 'lifePlace' && species >= 0) {
+      const sp = SPECIES[species] as SpeciesInfo;
+      this.sim.life({ type: 'life', op: 'place', species, point: p, count: sp.mythic ? 1 : Math.round((sp.group[0] + sp.group[1]) / 2) });
+      this.maqueteAskedAt = -Infinity;
+    } else if (tool === 'lifeKill') {
+      this.sim.life({ type: 'life', op: 'kill', species, point: p, radius: Math.max(1, this.brushSize) * (Math.PI / 2 / this.info.n) });
+      this.maqueteAskedAt = -Infinity;
+    } else if (tool === 'lifeFollow' && this.camera.inMaquete && this.maquete) {
+      const q = this.camera.planeOf(p), handle = q ? this.maquete.animals.pick(q.x, q.z, 3.5) : null;
+      this.followed = handle ? { handle, drags: this.camera.userDrags } : null;
+      if (handle) { const rect = this.canvas.getBoundingClientRect(), k = rect.width / this.canvas.width; this.tip.show(`Acompanhando: ${(SPECIES[handle.member.species] as SpeciesInfo).name}`, rect.left + sx * k, rect.top + sy * k); }
+    }
+    this.requestDraw();
+    return true;
+  }
+
+  /** A câmera segue o animal escolhido, suave; solta se ele morrer, sair da tela ou o jogador arrastar. */
+  private updateFollow(): void {
+    const f = this.followed;
+    if (!f || !this.maquete) return;
+    const at = this.camera.inMaquete && this.camera.userDrags === f.drags && this.hud.state.active === 'lifeFollow' ? this.maquete.animals.where(f.handle) : null;
+    if (!at) { this.followed = null; return; }
+    const v = this.camera.view;
+    v.x += (at.x - v.x) * 0.12; v.z += (at.z - v.z) * 0.12;
+    this.camera.refresh();
+  }
+
+  /** Ícones da espécie escolhida no globo (onde ela vive) e dos míticos, sempre. Na maquete os próprios bichos estão à vista. */
+  private drawLifeIcons(): void {
+    if (this.camera.inMaquete) return;
+    const g = this.overlay.context, cam = this.camera;
+    const put = (species: number, x: number, y: number, z: number, size: number): void => {
+      const s = cam.worldToScreen([x, y, z]);
+      if (!s.visible) return;
+      g.drawImage(speciesIcon(species), s.x - size / 2, s.y - size / 2, size, size);
+    };
+    const map = this.lifeMap, species = this.hud.lifeSpecies;
+    if (map && species >= 0) {
+      const base = Math.max(18, Math.min(34, cam.cellPixels() * 6));
+      for (let o = 0; o + LIFE_MAP_FLOATS <= map.length; o += LIFE_MAP_FLOATS) put(species, map[o] as number, map[o + 1] as number, map[o + 2] as number, base * (0.8 + 0.4 * Math.min(1, (map[o + 3] as number) / 20)));
+    }
+    const m = this.life?.mythics;
+    if (m) for (let o = 0; o + LIFE_MYTHIC_FLOATS <= m.length; o += LIFE_MYTHIC_FLOATS) put(m[o + 1] as number, m[o + 2] as number, m[o + 3] as number, m[o + 4] as number, 44);
+  }
+
   /** Os míticos no plano da maquete, a partir do ponto do planeta que a simulação deu. */
   private placeMythics(): void {
     const list: MythicView[] = [], data = this.life?.mythics;
@@ -724,6 +788,10 @@ export class App {
   private onLife(m: { year: number; totals: Float32Array; events: LifeEvent[]; mythics: Float32Array; traits: Float32Array }): void {
     this.life = { year: m.year, totals: m.totals, traits: m.traits, mythics: m.mythics };
     this.maquete?.animals.setTraits(m.traits);
+    this.hud.setLife(m.totals, m.traits);
+    // O mapa da espécie escolhida acompanha o ano.
+    if (this.hud.lifeSpecies >= 0) this.sim.life({ type: 'lifeMap', species: this.hud.lifeSpecies });
+    this.requestDraw();
     for (const e of m.events) this.toasts.show(lifeEntry(e.kind, (SPECIES[e.species] as SpeciesInfo).name, e.year, e.point, this.lifeToastId++));
   }
 
@@ -1084,6 +1152,7 @@ export class App {
     if (this.camera.inMaquete && this.maquete) {
       this.camera.refresh();
       this.placeMythics();
+      this.updateFollow();
       this.maquete.fx.setStorms([...this.storms.values()].map((q) => ({ p: q.shown.p, radius: q.shown.radius, power: q.shown.power, kind: q.kind })));
       this.maquete.draw(this.camera, renderer.canvas.width, renderer.canvas.height, performance.now() / 1000, this.clock.speed === 0);
       this.maqueteDrawn = true;
@@ -1478,6 +1547,7 @@ export class App {
   private drawOverlay(): void {
     this.overlay.clear();
     if (this.camera.inMaquete) this.maquete?.fx.drawOverlay(this.overlay.context, this.camera, performance.now());
+    this.drawLifeIcons();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.fxShown = this.fx.active;
     if (this.fx.active) {

@@ -9,7 +9,7 @@ import { dirtyRects } from '../render/dirty';
 import { applyClimateOffset, climateCacheBytes, type ImpactWinter, climateOffsetAt, CONTROL_APPLY_STEP, impactCooling, CONTROL_MAX, CONTROL_MIN, glideToward, updateClimate, updateWaterDistance } from '../world/climate';
 import type { CellPool } from '../world/cell-pool';
 import { createWorld, WORLD_STAGES } from '../world/create';
-import { DEFAULT_FREQUENCY, Disasters, FREQUENCIES, type DisasterOutcome } from '../world/disasters';
+import { DEFAULT_FREQUENCY, DisasterKind, Disasters, FREQUENCIES, type DisasterOutcome } from '../world/disasters';
 import { meteorFallTicks } from '../world/disasters/meteor';
 import { Tool } from '../input/tools';
 import { DEFAULT_PLATE_RATE, type Tectonics } from '../world/tectonics';
@@ -19,7 +19,7 @@ import { CubeSphere, type Vec3 } from '../world/cubesphere';
 import { archipelagoReached } from '../world/generation';
 import type { WorldKind, WorldState } from '../world/state';
 import { emptyWork, type WorkCounters } from '../ui/benchmark';
-import { LIFE_MYTHIC_FLOATS, makePatches, STORM_FLOATS, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
+import { LIFE_MAP_BLOCKS, LIFE_MAP_FLOATS, LIFE_MYTHIC_FLOATS, makePatches, STORM_FLOATS, transferables, type FromWorker, type Patch, type ToWorker } from './protocol';
 
 /** De quantos em quantos anos a camada "Ver tensão" é repintada (a tensão sobe devagar). */
 const STRESS_REFRESH_YEARS = 2;
@@ -260,6 +260,9 @@ export class SimulationCore {
         break;
       case 'life':
         this.lifeCommand(msg);
+        break;
+      case 'lifeMap':
+        this.lifeMap(msg.species);
         break;
       case 'disasterFrequency':
         this.disasterFrequency = Math.max(0, Math.min(FREQUENCIES.length - 1, Math.round(msg.level)));
@@ -904,7 +907,14 @@ export class SimulationCore {
     }
     if (this.ecology) {
       const year = this.ecology.step(tick);
-      if (year) this.postLife(year);
+      if (year) {
+        // O dragão põe fogo onde caça (E7): entra como um incêndio comum, no passo em que o ano fecha.
+        if (this.disasters && this.world) {
+          const pos = this.world.grid.positions;
+          for (const c of year.fires) this.applyDisasters(this.disasters.trigger(DisasterKind.Fire, [pos[c * 3] as number, pos[c * 3 + 1] as number, pos[c * 3 + 2] as number], tick, 1));
+        }
+        this.postLife(year);
+      }
     }
   }
 
@@ -916,6 +926,18 @@ export class SimulationCore {
     else if (msg.op === 'place') eco.place(msg.species, world.grid.pointToCellOf(msg.point), msg.count);
     else eco.kill(world.grid.cellsInCap(msg.point[0], msg.point[1], msg.point[2], msg.radius), msg.species);
     this.postLife({ events: [], fires: [] });
+  }
+
+  /** Onde a espécie vive: os blocos com mais indivíduos (só leitura). */
+  private lifeMap(species: number): void {
+    const eco = this.ecology, world = this.world;
+    if (!eco || !world || species < 0 || species >= eco.totals.length) return;
+    const list: [number, number][] = [];
+    for (let b = 0; b < eco.blocks; b++) { const n = eco.blockPopulation(species, b); if (n >= 0.5) list.push([n, b]); }
+    list.sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+    const top = list.slice(0, LIFE_MAP_BLOCKS), points = new Float32Array(top.length * LIFE_MAP_FLOATS), pos = world.grid.positions;
+    top.forEach(([n, b], i) => { const c = eco.centerCell(b); points.set([pos[c * 3] as number, pos[c * 3 + 1] as number, pos[c * 3 + 2] as number, n], i * LIFE_MAP_FLOATS); });
+    this.send({ type: 'lifeMap', species, points });
   }
 
   /** Fim do ano da ecologia: totais, avisos e míticos para a tela. */

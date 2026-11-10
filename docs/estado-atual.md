@@ -14,7 +14,7 @@ Regras deste bloco em `docs/decisoes.md` ("Fechar o M3 com o máximo de autonomi
 - [x] P1 terraços limpos · [x] P2 montanhas · [x] P3 jazidas com a cor do minério · [x] P4 animais iguais às folhas, com mar e míticos · [x] P5 plantas, água, gelo, deserto e vulcão · [x] P6 recomposição da maquete ≤ 1 s (865 ms) · [x] P7 intervalos de 130 a 380 ms
 
 ### Parte 2: ecologia (`docs/M3-especificacao.md`)
-- [x] E1 · [x] E2 · [x] E3 (números no relógio; falta a maquete ler) · [x] E4 · [x] E5 · [ ] E6 · [ ] E7 · [x] E8 · [ ] E9 · [ ] E9b
+- [x] E1 · [x] E2 · [x] E3 (números no relógio; falta a maquete ler) · [x] E4 · [x] E5 · [x] E6 · [x] E7 · [x] E8 · [ ] E9 · [x] E9b
 
 ### Parte 3: fechamento (E10)
 - [ ] "Medir desempenho" no Firefox contra a linha de base · [ ] CHANGELOG e `docs/M3-revisao.md` · [ ] PR do `marco-3` para o `main`, **sem merge** · [ ] prévia final em `/previa/atual/`
@@ -25,7 +25,8 @@ Regras deste bloco em `docs/decisoes.md` ("Fechar o M3 com o máximo de autonomi
 - **Custo medido (N = 256, Node):** 0,75 ms por passo (pior 3,4 ms no passo que fecha o ano), 1,5 MB. Está abaixo do 1 ms da especificação, mas **pesa no Máx** (cerca de 1.400 passos/s hoje): falta medir no jogo e, se preciso, baixar o custo (ideias: lista de espécies presentes por bloco; atualizar mar e terra em anos alternados).
 - **E4 feita:** cada estado que chega a uma célula (fogo, lava, água, fenda, cratera) mata e espanta ali (`Ground.onState` → `Ecology.hit`); a seca baixa a capacidade em 30%; a recomposição das placas manda refazer as capacidades; os avisos de espécie em risco, último indivíduo, extinção e recuperação aparecem no canto, e tocar leva a câmera até lá.
 - **E5 e E8 feitas:** cada pedaço da maquete mostra a população do bloco dele (`src/render/maquete-animals.ts`): nasce filhote pequeno quando o número sobe, morre um quando desce; com caçador da espécie no pedaço, a morte é uma caçada (corre, a presa foge, cai, ele come ao lado). Corpo fica 26 s e some encolhendo; mancha de sangue baixa e escura só em quem foi caçado, sem pedaços. Conferido no Firefox (savana, ~1.000 indivíduos à vista; matar com o poder de deus derruba os bichos na tela).
-- **Próximos passos, na ordem:** (3) E6, E7 e E9b: cartão "Vida" no menu (grade de espécies com ícones no globo, pôr, matar, características, acompanhar com a câmera) e míticos no desenho; (4) E9: extremos de temperatura (a vida já reage pelo bioma; conferir) ; (5) Parte 3: medição final no Firefox, CHANGELOG, `docs/M3-revisao.md`, PR sem merge, prévia.
+- **E6, E7 e E9b feitas:** categoria **Vida** no menu: grade das 29 espécies (o ícone é o próprio modelo, com o total do mundo); tocar numa espécie mostra ícones no globo onde ela vive. Ferramentas de toque: **Pôr** (um grupo da espécie; mítico, um indivíduo), **Matar** (no raio do pincel; a espécie escolhida ou todas), **Acompanhar** (na maquete, tocar num animal: a câmera segue; arrastar solta) e **Mudar** (tamanho, fome, agressividade, velocidade e fertilidade da espécie inteira, de 50% a 200%). Míticos: só postos por deus, andam atrás de caça, comem, o dragão põe fogo; aparecem na maquete (rondando) e no globo (ícone). Conferido no Firefox.
+- **Próximos passos, na ordem:** (4) E9: extremos de temperatura (a vida já reage pelo bioma; conferir) ; (5) Parte 3: medição final no Firefox, CHANGELOG, `docs/M3-revisao.md`, PR sem merge, prévia.
 - **Pendências anotadas:** travada de 213 ms ao gerar o mundo de novo no fim do "Medir desempenho"; sucessão das plantas na maquete (capim antes das árvores) ainda não ligada à biomassa; ritmo do tempo opção 5 (1/12 na maquete) ainda sem código.
 
 ### Feito neste bloco

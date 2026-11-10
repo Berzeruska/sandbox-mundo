@@ -34,6 +34,7 @@ export interface SimEvents {
   onStorms?(storms: Float32Array): void;
   /** Vida, uma vez por ano de jogo (M3). */
   onLife?(life: Extract<FromWorker, { type: 'life' }>): void;
+  onLifeMap?(species: number, points: Float32Array): void;
 }
 
 /**
@@ -127,6 +128,11 @@ export class SimClient {
   }
 
   /** Provoca um desastre no ponto (T8–T11). */
+  /** Poder de deus sobre as criaturas, ou pedido do mapa de uma espécie (M3). */
+  life(cmd: Extract<ToWorker, { type: 'life' | 'lifeMap' }>): void {
+    this.send(cmd);
+  }
+
   triggerDisaster(kind: DisasterKind, point: Vec3, strength?: number): void {
     this.send(strength === undefined ? { type: 'disaster', kind, point } : { type: 'disaster', kind, point, strength });
   }
@@ -224,6 +230,9 @@ export class SimClient {
         break;
       case 'life':
         this.events.onLife?.(msg);
+        break;
+      case 'lifeMap':
+        this.events.onLifeMap?.(msg.species, msg.points);
         break;
       case 'sharedProbe':
         this.sharedProbe = msg.ok && !!this.sharedBuffer && Atomics.load(new Int32Array(this.sharedBuffer), 0) === SHARED_PROBE_VALUE;

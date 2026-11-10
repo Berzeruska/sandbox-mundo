@@ -275,3 +275,30 @@ describe('ecologia no relógio (E4)', () => {
     expect(lives[0]!.length).toBe(SPECIES_COUNT);
   }, 60000);
 });
+
+describe('poderes de deus pelo relógio (E6, E7, E9b)', () => {
+  it('pôr, matar, mudar e o mapa da espécie chegam à simulação e voltam para a tela', async () => {
+    const { SimulationCore } = await import('../../src/sim/core');
+    const { LIFE_MAP_FLOATS } = await import('../../src/sim/protocol');
+    let life: { totals: Float32Array; mythics: Float32Array; traits: Float32Array } | null = null, map: Float32Array | null = null;
+    const core = new SimulationCore((m) => { if (m.type === 'life') life = m; if (m.type === 'lifeMap') map = m.points; }, () => 0);
+    core.handle({ type: 'newWorld', seedText: 'terra', n: 64 });
+    const eco = core.ecology!, w = core.world!, s = ix('zebra'), b = eco.densest(s), c = eco.centerCell(b), p = w.grid.positions;
+    const point: [number, number, number] = [p[c * 3]!, p[c * 3 + 1]!, p[c * 3 + 2]!];
+    const before = eco.blockPopulation(s, b);
+    core.handle({ type: 'life', op: 'place', species: s, point, count: 7 });
+    expect(eco.blockPopulation(s, b)).toBeCloseTo(before + 7, 3);
+    core.handle({ type: 'life', op: 'kill', species: s, point, radius: 0.2 });
+    expect(eco.blockPopulation(s, b)).toBeLessThan(before + 7);
+    core.handle({ type: 'life', op: 'trait', species: s, trait: TRAITS.indexOf('fertilidade'), value: 9 });
+    expect(life!.traits[s * TRAITS.length + TRAITS.indexOf('fertilidade')]).toBe(2);
+    core.handle({ type: 'life', op: 'place', species: ix('dragao'), point, count: 1 });
+    expect(life!.mythics.length).toBe(5);
+    expect(life!.totals[ix('dragao')]).toBe(1);
+    core.handle({ type: 'lifeMap', species: s });
+    expect(map!.length).toBeGreaterThan(0);
+    expect(map!.length % LIFE_MAP_FLOATS).toBe(0);
+    // Do bloco mais cheio para o menos cheio.
+    for (let o = LIFE_MAP_FLOATS; o < map!.length; o += LIFE_MAP_FLOATS) expect(map![o + 3]).toBeLessThanOrEqual(map![o - 1]!);
+  }, 60000);
+});

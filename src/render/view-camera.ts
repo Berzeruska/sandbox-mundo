@@ -28,6 +28,8 @@ export class ViewCamera extends Camera {
   chartTurn = 0;
   /** Afastou além do limite: a tela volta ao globo. */
   wantsExit = false;
+  /** Quantas vezes o jogador arrastou a maquete (quem acompanha um animal solta a câmera quando muda). */
+  userDrags = 0;
   private vp: Float32Array = new Float32Array(16);
 
   private fineSize(): number { return Math.round((Math.PI / 2 / this.cellAngle)) * DETAIL; }
@@ -172,6 +174,7 @@ export class ViewCamera extends Camera {
     if (!this.inMaquete) return super.drag(fromX, fromY, toX, toY);
     const a = this.rayToGround(fromX, fromY), b = this.rayToGround(toX, toY);
     if (a && b) {
+      this.userDrags++;
       this.view.x += a.x - b.x;
       this.view.z += a.z - b.z;
       this.refresh();
