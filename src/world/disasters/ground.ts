@@ -150,6 +150,8 @@ export class Ground {
    * lista, em vez de varrer todas as células ativas (milhares numa seca grande ou num solo fértil).
    */
   private due = new Map<number, number[]>();
+  /** Quem quer saber quando um estado chega a uma célula (a ecologia do M3: o que morre e o que foge). */
+  onState: ((cell: number, state: number) => void) | null = null;
   private expiredUpTo = -1;
 
   constructor(cellCount: number) {
@@ -181,6 +183,7 @@ export class Ground {
     if (list) list.push(c);
     else this.due.set(until, [c]);
     this.touch(c);
+    this.onState?.(c, s);
   }
 
   /** A vegetação perde a fração `f` do que tem (0–1). */

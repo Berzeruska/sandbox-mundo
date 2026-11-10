@@ -158,7 +158,12 @@ export class Ecology {
     }
     this.sumTotals();
     this.peak.set(this.totals);
+    // Desastres (E4): cada estado que chega a uma célula mata e espanta ali.
+    if (ground) ground.onState = (cell, state) => this.hit(cell, state);
   }
+
+  /** As placas andaram e o chão mudou de lugar: todo bloco refaz a capacidade na vez dele. */
+  worldMoved(): void { this.stale.fill(1); }
 
   get bytes(): number { return this.pop.byteLength + this.cap.byteLength + this.plant.byteLength * 2 + this.neighbors.byteLength; }
 

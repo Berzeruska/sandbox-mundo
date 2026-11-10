@@ -251,3 +251,27 @@ describe('ecologia: desastres, poderes e míticos', () => {
     expect(e.kill(e.mythics.map((m) => m.cell), ix('dragao'))).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('ecologia no relógio (E4)', () => {
+  it('um incêndio provocado mata e espanta os bichos do lugar, e a tela recebe os totais do ano', async () => {
+    const { SimulationCore } = await import('../../src/sim/core');
+    const { DisasterKind } = await import('../../src/world/disasters');
+    const lives: number[][] = [];
+    let now = 0;
+    const core = new SimulationCore((m) => { if (m.type === 'life') lives.push(Array.from(m.totals)); }, () => now);
+    core.handle({ type: 'newWorld', seedText: 'terra', n: 64 });
+    core.handle({ type: 'plateRate', rate: 0 });
+    core.handle({ type: 'disasterFrequency', level: 0 });
+    const eco = core.ecology!, w = core.world!;
+    const s = ix('cervo'), b = eco.densest(s), cell = eco.centerCell(b);
+    const before = eco.blockPopulation(s, b);
+    expect(before).toBeGreaterThan(1);
+    const p = w.grid.positions;
+    core.handle({ type: 'disaster', kind: DisasterKind.Fire, point: [p[cell * 3]!, p[cell * 3 + 1]!, p[cell * 3 + 2]!], strength: 3 });
+    core.handle({ type: 'speed', speed: 20 });
+    for (let i = 0; i < 40; i++) { now += 100; core.advance(0.1); }
+    expect(eco.blockPopulation(s, b)).toBeLessThan(before);
+    expect(lives.length).toBeGreaterThan(0);
+    expect(lives[0]!.length).toBe(SPECIES_COUNT);
+  }, 60000);
+});

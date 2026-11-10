@@ -6,13 +6,14 @@ import { STALL_KEEP, StallLog } from './ui/stalls';
 import { PaintGate, TAP_HOLD_MS } from './input/paint-gate';
 import { KeyControls } from './input/keys';
 import { DisasterFx } from './render/disaster-fx';
-import { isToast, toEntry } from './ui/disaster-log';
+import { isToast, lifeEntry, toEntry } from './ui/disaster-log';
 import { DisasterToasts } from './ui/disaster-panel';
 import { CellState, STATE_NAMES } from './world/disasters/ground';
 import { droughtHeat } from './world/disasters/drought';
 import { MAX_DUST, MAX_STORMS } from './render/shaders';
 import { DEFAULT_FREQUENCY, DisasterKind, FREQUENCIES, type DisasterEvent } from './world/disasters/types';
-import { STORM_FLOATS } from './sim/protocol';
+import { STORM_FLOATS, type LifeEvent } from './sim/protocol';
+import { SPECIES, type SpeciesInfo } from './world/species';
 import { feltRadius } from './world/disasters/quakes';
 import { SHAKE_MAGNITUDE } from './world/disasters/meteor';
 import type { Vec3 } from './world/cubesphere';
@@ -379,6 +380,7 @@ export class App {
         this.requestDraw();
       },
       onStorms: (storms) => this.onStorms(storms),
+      onLife: (life) => this.onLife(life),
       onClock: (tick, speed, ticksPerSecond, geologyMs, memoryMb, angles, work, climate) => {
         this.climate = climate;
         this.stats.memoryMb = memoryMb;
@@ -703,6 +705,14 @@ export class App {
       if (e && SHAKE_MAGNITUDE[e.magnitude]) this.startShake({ ...e, magnitude: SHAKE_MAGNITUDE[e.magnitude] as number }, now);
     }
     for (const e of events) if (isToast(e)) this.toasts.show(toEntry(e));
+  }
+
+  /** Vida, uma vez por ano de jogo: totais para o cartão "Vida" e avisos no canto. */
+  life: { year: number; totals: Float32Array; traits: Float32Array; mythics: Float32Array } | null = null;
+  private lifeToastId = 1_000_000;
+  private onLife(m: { year: number; totals: Float32Array; events: LifeEvent[]; mythics: Float32Array; traits: Float32Array }): void {
+    this.life = { year: m.year, totals: m.totals, traits: m.traits, mythics: m.mythics };
+    for (const e of m.events) this.toasts.show(lifeEntry(e.kind, (SPECIES[e.species] as SpeciesInfo).name, e.year, e.point, this.lifeToastId++));
   }
 
   /**

@@ -654,6 +654,7 @@ export class SimulationCore {
         (c) => (world.plate[c] as number) * n + (cellRef[c] as number),
       );
     }
+    this.ecology?.worldMoved();
     this.shown = { angles: r.angles, speeds: r.motion.map((m) => m.speed), drift: r.drift };
     this.platesMoving = true;
     // Os buffers do motor estão livres para a próxima recomposição.
