@@ -806,5 +806,7 @@ body {
 .hud-species-tile small { opacity: 0.75; font-size: 11px; }
 .hud-species-tile.on { background: #2f6fed; border-color: #8fb4ff; }
 .hud-species-tile.mythic { border-style: dashed; }
-.hud-traits { display: grid; gap: 2px; min-width: 250px; }
+/* As cinco características não cabem na altura do cartão: sobem num quadro logo acima dele. */
+.hud-card { position: relative; }
+.hud-traits { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); display: grid; gap: 6px; padding: 10px 12px; background: var(--hud-bg); border-radius: 14px; cursor: default; }
 .hud-trait { display: grid; grid-template-columns: 96px 1fr 44px; align-items: center; gap: 6px; font-size: 12px; }
