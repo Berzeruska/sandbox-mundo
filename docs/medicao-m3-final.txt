@@ -1,0 +1,107 @@
+Sandbox Mundo — medição de desempenho
+versão 58b7451d · 10/11/2026, 03:36:26
+GPU: Radeon R9 200 Series, or similar (AMD)
+desenho: completo · núcleos: 8 · memória compartilhada: sim (recargas p/ isolar 0) · tela 1920×1080 @1.00 · desenho 1854×963 · ~250 Hz
+navegador: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0
+energia: não informado pelo navegador
+
+cenário                    fps méd   mín  pior quadro  >50ms  tela ms   desenhados
+pausado, parado                 60    60        26 ms      0    0.1/1     0 de 299
+pausado, girando               182   168        41 ms      0    0.2/1 1090 de 1090
+de perto, girando              147   141        39 ms      0    0.2/1   881 de 881
+tempo 20×, placas paradas      143   118        97 ms      1    0.2/1 1143 de 1143
+    quadro de 97 ms aos 2.1 s · tela 0 ms · recebendo 0 ms · fora do código da tela
+  idem, painel c/ desfoque     164   127        41 ms      0    0.2/0 1308 de 1308
+tempo 20×, placas 100%         168   156        42 ms      0    0.2/2 2018 de 2018
+  idem, painel c/ desfoque     169   154        43 ms      0    0.2/1 1689 de 1689
+  idem, painel s/ desfoque     168   144        42 ms      0    0.2/4 1683 de 1683
+tempo 5×, placas 100%, de perto     141   123        40 ms      0    0.2/1 2820 de 2820
+deriva longa c/ colisões       169   139        45 ms      0    0.2/410145 de 10145
+ruptura forçada                170   143        44 ms      0    0.2/1 1698 de 1698
+desastres "Muitos", 20×        155   138        45 ms      0    0.5/3 3105 de 3105
+tempo Máx, placas 100%         161   138        41 ms      0    0.2/2 4827 de 4827
+    travadas da data no cenário: 0
+meteoros, mesmo lugar          138   103        53 ms      1    1.1/5 2759 de 2759
+    travadas da data no cenário: 0
+    quadro de 53 ms aos 0.1 s · tela 0 ms · recebendo 0 ms · fora do código da tela
+meteoros, lugares variados     152   131        42 ms      0    1.0/2 3043 de 3043
+    travadas da data no cenário: 0
+maquete, parada                139   131        52 ms      1    0.7/2   830 de 830
+    quadro de 52 ms aos 3.2 s · tela 1 ms · recebendo 0 ms · fora do código da tela
+maquete, girando               144   134        43 ms      0    0.7/1   864 de 864
+    travadas da data no cenário: 0
+maquete de perto, girando      137   132        42 ms      0    0.5/1   825 de 825
+    travadas da data no cenário: 0
+maquete, andando               143   137        49 ms      0    0.6/2 1433 de 1433
+    travadas da data no cenário: 0
+maquete, correndo              140   133        48 ms      0    0.7/5 1398 de 1398
+    travadas da data no cenário: 0
+cruzando o corte, ida e volta     228   139        40 ms      0    0.6/6  576 de 1816
+    travadas da data no cenário: 0
+maquete, 5×, placas 100%       135   117        51 ms      1    0.9/5 2025 de 2025
+    quadro de 51 ms aos 8.1 s · tela 1 ms · recebendo 4 ms · fora do código da tela
+
+("tela ms" = trabalho da thread principal por quadro: média/pior; "desenhados" = quadros em que o globo
+ foi desenhado. Parado, nada é desenhado e o fps é o ritmo que o aparelho dá a uma página parada.
+ A meta de "pausado" vale para "pausado, girando". "De perto" = zoom máximo, células quadradas.)
+
+GPU do globo (meta ≤ 8 ms por quadro): longe 3.0 ms (pior 3.7) · de perto 4.2 ms (pior 6.7) · de perto com placas andando 3.4 ms (pior 3.8) · de perto na transição 4.8 ms (pior 6.2) · meio com placas andando 5.2 ms (pior 5.5) · meio na transição 6.7 ms (pior 7.5) · longe com desastres "Muitos" 2.5 ms (pior 3.2) · maquete, parada 3.4 ms (pior 4.3) · maquete, girando 3.2 ms (pior 3.4) · maquete de perto 3.1 ms (pior 4.5) · maquete, andando 3.1 ms (pior 3.5) · maquete, correndo 3.2 ms (pior 4.0) — relógio da GPU: preciso
+memória (meta ≤ 400 MB): dados do jogo ~114 MB · página inteira: este navegador não informa
+
+pausado, parado: worker parado
+pausado, girando: worker parado
+de perto, girando: worker parado
+tempo 20×, placas paradas: worker 239 passos/s · 0.568 ms/passo · ocupado 14% · 9 msg/s
+  idem, painel c/ desfoque: worker 238 passos/s · 0.545 ms/passo · ocupado 13% · 9 msg/s
+tempo 20×, placas 100%: worker 240 passos/s · 0.752 ms/passo · ocupado 18% · 9 msg/s
+    3 recomposições (0 soldas · 0 rupturas · 6 pedaços absorvidos): média 471 ms (placas 273 · clima 75 · cores 77 · aplicar 47) · pior 496 ms · relógio esperou 0 ms
+    tela ao receber: média 7.3 · pior 9.7 ms
+  idem, painel c/ desfoque: worker 239 passos/s · 0.703 ms/passo · ocupado 17% · 9 msg/s
+    3 recomposições (0 soldas · 0 rupturas · 7 pedaços absorvidos): média 472 ms (placas 280 · clima 76 · cores 80 · aplicar 37) · pior 494 ms · relógio esperou 0 ms
+    tela ao receber: média 6.5 · pior 6.8 ms
+  idem, painel s/ desfoque: worker 240 passos/s · 0.763 ms/passo · ocupado 18% · 9 msg/s · clima 1× (média 103 ms no ajudante)
+    3 recomposições (1 soldas · 0 rupturas · 1 pedaços absorvidos): média 496 ms (placas 293 · clima 79 · cores 80 · aplicar 44) · pior 505 ms · relógio esperou 0 ms
+    tela ao receber: média 6.8 · pior 7.4 ms
+tempo 5×, placas 100%, de perto: worker 60 passos/s · 1.192 ms/passo · ocupado 7% · 10 msg/s
+    2 recomposições (0 soldas · 0 rupturas · 4 pedaços absorvidos): média 504 ms (placas 309 · clima 75 · cores 80 · aplicar 40) · pior 537 ms · relógio esperou 0 ms
+    tela ao receber: média 6.3 · pior 6.6 ms
+deriva longa c/ colisões: worker 240 passos/s · 0.737 ms/passo · ocupado 18% · 9 msg/s · clima 2× (média 106 ms no ajudante)
+    17 recomposições (0 soldas · 0 rupturas · 48 pedaços absorvidos): média 554 ms (placas 355 · clima 76 · cores 79 · aplicar 44) · pior 650 ms · relógio esperou 0 ms
+    tela ao receber: média 6.2 · pior 7.8 ms
+ruptura forçada: worker 239 passos/s · 0.717 ms/passo · ocupado 17% · 9 msg/s
+    3 recomposições (0 soldas · 1 rupturas · 9 pedaços absorvidos): média 639 ms (placas 442 · clima 76 · cores 78 · aplicar 44) · pior 648 ms · relógio esperou 0 ms
+    tela ao receber: média 6.6 · pior 6.9 ms
+desastres "Muitos", 20×: worker 240 passos/s · 1.323 ms/passo · ocupado 32% · 9 msg/s · clima 1× (média 109 ms no ajudante)
+    4 recomposições (0 soldas · 0 rupturas · 54 pedaços absorvidos): média 718 ms (placas 456 · clima 78 · cores 86 · aplicar 98) · pior 769 ms · relógio esperou 0 ms
+    tela ao receber: média 6.7 · pior 7.1 ms
+tempo Máx, placas 100%: worker 597 passos/s · 0.621 ms/passo · ocupado 37% · 9 msg/s · clima 3× (média 111 ms no ajudante)
+    17 recomposições (2 soldas · 0 rupturas · 93 pedaços absorvidos): média 630 ms (placas 431 · clima 76 · cores 79 · aplicar 44) · pior 692 ms · relógio esperou 0 ms
+    tela ao receber: média 6.8 · pior 8.7 ms
+meteoros, mesmo lugar: worker 12 passos/s · 27.186 ms/passo · ocupado 32% · 9 msg/s
+meteoros, lugares variados: worker 12 passos/s · 14.967 ms/passo · ocupado 18% · 9 msg/s
+maquete, parada: worker parado
+maquete, girando: worker parado
+maquete de perto, girando: worker parado
+maquete, andando: worker parado
+maquete, correndo: worker parado
+cruzando o corte, ida e volta: worker parado
+maquete, 5×, placas 100%: worker 57 passos/s · 8.605 ms/passo · ocupado 49% · 7 msg/s
+    1 recomposições (0 soldas · 0 rupturas · 6 pedaços absorvidos): média 1298 ms (placas 487 · clima 81 · cores 85 · aplicar 644) · pior 1298 ms · relógio esperou 0 ms
+    tela ao receber: média 6.8 · pior 6.8 ms
+
+geração: 1082 ms do pedido ao globo (worker 1044 · tela ao receber 11)
+  etapas: grade 1 · terreno 339 · placas 399 · água 8 · clima 122 · recursos 31 · cores 143 · ajudante fez 52% do terreno
+primeira abertura: 1537 ms da página ao globo (pedido ao globo 1397 · worker 1232)
+  etapas: grade 74 · terreno 348 · placas 420 · água 9 · clima 215 · recursos 25 · cores 142
+
+desde que a página abriu (inclui a medição):
+travadas 1 da tela · 3 da data
+  03:36:25 tela 229 ms · desenho do quadro (236 ms) · pausado · placas 25% · recomposição há 18,9 s
+  03:36:10 data 377 ms · relógio atrasou (núcleo ocupado) · 5× · placas 100% · recomposição há 4,2 s
+  03:36:06 data 839 ms · relógio aplicando recomposição · 5× · placas 100% · recomposição há 0,0 s
+  03:35:09 data 520 ms · relógio atrasou (núcleo ocupado) · 1× · placas 0% · recomposição há 42,8 s
+
+Maquete:
+recomposição da maquete (refazer tudo à vista): 605 ms em segundo plano, pior quadro 24 ms
+pedaços: 2264 montados no ajudante, média 8.4 ms, pior 49 ms · subir para a GPU, média 0.41 ms, pior 4.8 ms
+na tela: 110 mil triângulos · 104 desenhos · 12 MB de pedaços na GPU · 0 animais agora, 0 na entrada (onde há mais vida)

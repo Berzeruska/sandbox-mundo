@@ -1418,23 +1418,7 @@ export class App {
       this.sim.setDisasterFrequency(this.disasterFrequency);
       // Tempo geológico no Máx: o relógio não pode esperar o ajudante nem a data travar (teste da `2d9a2156`).
       await scenario(14, 'tempo Máx, placas 100%', 30_000, () => this.setSpeed('max'), 'hidden', () => () => undefined);
-      // O que o jogador faz (teste da `9b5ba0d4`): meteoros gigantes seguidos em 1×, placas 25%, no mesmo
-      // lugar e em lugares diferentes, com o globo à vista.
-      const center = this.info.landCenter;
-      const meteors = (point: (k: number) => Vec3) => () => {
-        let k = 0;
-        const timer = setInterval(() => this.sim.triggerDisaster(DisasterKind.Meteor, point(k++), 4), METEOR_BENCH_EVERY_MS);
-        return () => clearInterval(timer);
-      };
-      const atOneX = () => {
-        this.camera.lookAt(center);
-        this.setPlateRate(0.25);
-        this.setSpeed(1);
-      };
-      await scenario(15, 'meteoros, mesmo lugar', METEOR_BENCH_MS, atOneX, 'hidden', meteors(() => center));
-      const spots = meteorSpots(center, METEOR_BENCH_MS / METEOR_BENCH_EVERY_MS, METEOR_BENCH_SPREAD);
-      await scenario(16, 'meteoros, lugares variados', METEOR_BENCH_MS, atOneX, 'hidden', meteors((k) => spots[k % spots.length] as Vec3));
-      bench.panelOpen = false;
+      // A maquete vem antes dos meteoros: eles arrasam o mundo (inverno de impacto), e a maquete tem de ser medida com as populações cheias.
       // A maquete: entra de verdade pelo corte e mede parada, girando, de perto, andando e cruzando o corte.
       bench.maquete = true;
       this.setPlateRate(0);
@@ -1481,26 +1465,26 @@ export class App {
         cam.view.x += (d[0] as number) * speed * dt;
         cam.view.z += (d[1] as number) * speed * dt;
       });
-      await scenario(17, 'maquete, parada', 6000, () => { this.setSpeed(0); void enter(); }, 'hidden');
+      await scenario(15, 'maquete, parada', 6000, () => { this.setSpeed(0); void enter(); }, 'hidden');
       const crowd = this.maquete?.animals.count ?? 0;
       await measureMaquete('maquete, parada');
-      await scenario(18, 'maquete, girando', 6000, () => undefined, 'hidden', moving((dt) => { cam.turnView(dt * 0.5); }));
+      await scenario(16, 'maquete, girando', 6000, () => undefined, 'hidden', moving((dt) => { cam.turnView(dt * 0.5); }));
       await measureMaquete('maquete, girando');
       await enter(0.45);
-      await scenario(19, 'maquete de perto, girando', 6000, () => undefined, 'hidden', moving((dt) => { cam.turnView(dt * 0.5); }));
+      await scenario(17, 'maquete de perto, girando', 6000, () => undefined, 'hidden', moving((dt) => { cam.turnView(dt * 0.5); }));
       await measureMaquete('maquete de perto');
       await enter(1 / 0.45);
-      await scenario(20, 'maquete, andando', 10_000, () => undefined, 'hidden', walk(26));
+      await scenario(18, 'maquete, andando', 10_000, () => undefined, 'hidden', walk(26));
       await measureMaquete('maquete, andando');
-      await scenario(21, 'maquete, correndo', 10_000, () => undefined, 'hidden', walk(70));
+      await scenario(19, 'maquete, correndo', 10_000, () => undefined, 'hidden', walk(70));
       await measureMaquete('maquete, correndo');
-      await scenario(22, 'cruzando o corte, ida e volta', 8000, () => undefined, 'hidden', moving((_dt, t) => {
+      await scenario(20, 'cruzando o corte, ida e volta', 8000, () => undefined, 'hidden', moving((_dt, t) => {
         const phase = Math.floor(t / 2000) % 2;
         if (phase === 0 && !cam.inMaquete) { cam.zoom = (CUT_PIXELS + 1) / (cam.baseRadius() * cam.cellAngle); this.requestDraw(); }
         if (phase === 1 && cam.inMaquete) cam.wantsExit = true;
       }));
       await enter();
-      await scenario(23, 'maquete, 5×, placas 100%', 15_000, () => { this.setPlateRate(1); this.setSpeed(5); }, 'hidden');
+      await scenario(21, 'maquete, 5×, placas 100%', 15_000, () => { this.setPlateRate(1); this.setSpeed(5); }, 'hidden');
       this.setPlateRate(0);
       this.setSpeed(0);
       // Recomposição: refazer tudo à vista no ajudante, com a maquete na tela.
@@ -1520,6 +1504,26 @@ export class App {
       maqueteLines.push(`na tela: ${Math.round(m.renderer.stats.triangles / 1000)} mil triângulos · ${m.renderer.stats.drawCalls} desenhos · ${(m.renderer.stats.gpuBytes / 1048576).toFixed(0)} MB de pedaços na GPU · ${m.animals.count} animais agora, ${crowd} na entrada (onde há mais vida)`);
       if (cam.inMaquete) cam.exit();
       bench.maquete = false;
+      // De volta ao planeta inteiro, como os cenários dos meteoros sempre rodaram.
+      cam.zoom = cam.minZoom;
+      this.requestDraw();
+      // O que o jogador faz (teste da `9b5ba0d4`): meteoros gigantes seguidos em 1×, placas 25%, no mesmo
+      // lugar e em lugares diferentes, com o globo à vista.
+      const center = this.info.landCenter;
+      const meteors = (point: (k: number) => Vec3) => () => {
+        let k = 0;
+        const timer = setInterval(() => this.sim.triggerDisaster(DisasterKind.Meteor, point(k++), 4), METEOR_BENCH_EVERY_MS);
+        return () => clearInterval(timer);
+      };
+      const atOneX = () => {
+        this.camera.lookAt(center);
+        this.setPlateRate(0.25);
+        this.setSpeed(1);
+      };
+      await scenario(22, 'meteoros, mesmo lugar', METEOR_BENCH_MS, atOneX, 'hidden', meteors(() => center));
+      const spots = meteorSpots(center, METEOR_BENCH_MS / METEOR_BENCH_EVERY_MS, METEOR_BENCH_SPREAD);
+      await scenario(23, 'meteoros, lugares variados', METEOR_BENCH_MS, atOneX, 'hidden', meteors((k) => spots[k % spots.length] as Vec3));
+      bench.panelOpen = false;
       // Geração: o mesmo mundo de novo (também desfaz a deriva da medição).
       status(24, 'geração de mundo');
       this.setSpeed(0);
